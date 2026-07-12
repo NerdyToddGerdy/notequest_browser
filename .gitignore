@@ -1,0 +1,18 @@
+# Dependencies (once the Vite/React app is scaffolded)
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Env
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+*.local
+
+# Purchased rulebook PDF — copyrighted source material, don't redistribute
+# in what will become a public GitHub Pages repo. Keep it local only.
+/NOTEQUEST_EW_eng_12.pdf
