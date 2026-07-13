@@ -1,0 +1,33 @@
+:root {
+  --bg-0: #0a0807;
+  --bg-1: #17110d;
+  --torch-core: #ffc06a;
+  --torch-mid: #d9791f;
+  --ember: #b8481f;
+  --gold: #b8862f;
+  --gold-bright: #e0ac48;
+  --parchment: #e9ddc2;
+  --parchment-2: #ddcca2;
+  --parchment-3: #cbb686;
+  --ink: #2a2016;
+  --ink-soft: #5a4b38;
+  --danger: #a63c1d;
+  --focus: #f2c265;
+
+  --font-display: "Metamorphous", "Iowan Old Style", Georgia, serif;
+  --font-body: "Spectral", Georgia, "Iowan Old Style", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  --die-size: 52px;
+  color-scheme: dark;
+}
+
+/*
+ * This is a single committed visual world -- a character sheet lit by
+ * torchlight in a dark stone dungeon -- rather than a document that should
+ * invert for light-mode reading, so both theme signals resolve here.
+ */
+:root[data-theme="light"] {
+  --bg-0: #0a0807;
+  --bg-1: #17110d;
+}
