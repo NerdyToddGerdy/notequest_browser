@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { dungeonReducer } from "../dungeonReducer.ts";
 import { DUNGEON_TABLES } from "../../data/dungeonTables.ts";
-import { createInitialDungeonState, makeLevel, type DungeonState, type SegmentState } from "../dungeonState.ts";
-import { mulberry32, sequenceDie } from "../../test/mulberry32.ts";
+import {
+  createInitialDungeonState,
+  isDungeonBeaten,
+  makeLevel,
+  type CombatState,
+  type DungeonState,
+  type SegmentState,
+} from "../dungeonState.ts";
+import { fixedDie, mulberry32, sequenceDie } from "../../test/mulberry32.ts";
 
 function makeSegment(overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">): SegmentState {
   return { x: 0, y: 0, w: 80, h: 80, cx: 0, cy: 0, cameFromDir: null, flavor: null, isEntrance: false, ...overrides };
@@ -316,13 +323,53 @@ describe("ROLL_SECRET_PASSAGE", () => {
   it("the Darkness kills the character if there's no torch left to search with, and the search never happens", () => {
     const room = makeSegment({ id: 1, type: "room-small", doors: [] });
     const level = { ...makeLevel(1), segments: [room] };
-    const state = { ...stateWithLevel(level), torches: 0 };
+    const state = {
+      ...stateWithLevel(level),
+      torches: 0,
+      coins: 5,
+      treasures: 2,
+      keys: 1,
+      characterName: "Doomed Dara",
+    };
 
     const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 4, trapRoll: null });
     expect(next.alive).toBe(false);
     expect(next.torches).toBe(0);
     expect(next.levels[0]!.segments[0]!.secretPassageSearched).toBeUndefined();
     expect(next.log[0]!.message).toContain("darkness");
+    // "he will find his backpack and clothes on the floor" -- left in the room she died in
+    expect(next.levels[0]!.segments[0]!.remains).toEqual({
+      names: ["Doomed Dara"],
+      coins: 5,
+      treasures: 2,
+      keys: 1,
+    });
+  });
+
+  it("a second death in the same room adds to the existing remains instead of overwriting them", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 2, keys: 1 },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = {
+      ...stateWithLevel(level),
+      torches: 0,
+      coins: 3,
+      treasures: 0,
+      keys: 1,
+      characterName: "Ill-Fated Finn",
+    };
+
+    const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 4, trapRoll: null });
+    expect(next.levels[0]!.segments[0]!.remains).toEqual({
+      names: ["Doomed Dara", "Ill-Fated Finn"],
+      coins: 8,
+      treasures: 2,
+      keys: 2,
+    });
   });
 
   it("a torch-costing trap found via secret passage can also trigger the Darkness", () => {
@@ -338,6 +385,139 @@ describe("ROLL_SECRET_PASSAGE", () => {
     expect(seg.trapResult).toContain("ditch");
     expect(next.alive).toBe(false); // but the ditch trap's torch cost couldn't be paid
     expect(next.torches).toBe(0);
+  });
+});
+
+describe("ROLL_CHEST", () => {
+  it("awards coins (the higher die) and Treasures (the lower die), for free -- no torch spent", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      roomContent: { text: "Desk with a Chest.", secretPassage: false, hasChest: true },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), torches: 5 };
+
+    const next = dungeonReducer(state, { type: "ROLL_CHEST", segId: 1, dice: [5, 2], trapRoll: null });
+
+    const seg = next.levels[0]!.segments[0]!;
+    expect(seg.chestOpened).toBe(true);
+    expect(seg.chestResult).toBe("Found 5 coins and 2 Treasures.");
+    expect(next.coins).toBe(5);
+    expect(next.treasures).toBe(2);
+    expect(next.torches).toBe(5); // opening a chest doesn't cost a torch
+  });
+
+  it("double 1s means the chest was empty and triggers a trap instead", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      roomContent: { text: "Desk with a Chest.", secretPassage: false, hasChest: true },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    // palace trap roll 3 is the ditch trap (torchCost: 1)
+    const next = dungeonReducer(state, { type: "ROLL_CHEST", segId: 1, dice: [1, 1], trapRoll: 3 });
+
+    const seg = next.levels[0]!.segments[0]!;
+    expect(seg.chestOpened).toBe(true);
+    expect(seg.trapResult).toContain("ditch");
+    expect(next.coins).toBe(0);
+    expect(next.treasures).toBe(0);
+    expect(next.torches).toBe(9); // the ditch trap's own cost, not a chest-opening cost
+  });
+
+  it("a hidden Chest found via a secret passage is openable the same way", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      roomContent: { text: "Dust-filled library.", secretPassage: true },
+      secretPassageSearched: true,
+      secretPassageResult: "You have found a hidden Chest!",
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_CHEST", segId: 1, dice: [4, 3], trapRoll: null });
+    expect(next.coins).toBe(4);
+    expect(next.treasures).toBe(3);
+  });
+
+  it("is a no-op when the room has no chest to open", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      roomContent: { text: "Dirt everywhere.", secretPassage: true },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_CHEST", segId: 1, dice: [5, 2], trapRoll: null });
+    expect(next).toBe(state);
+  });
+
+  it("is a no-op if the chest was already opened", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      roomContent: { text: "Desk with a Chest.", secretPassage: false, hasChest: true },
+      chestOpened: true,
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_CHEST", segId: 1, dice: [5, 2], trapRoll: null });
+    expect(next).toBe(state);
+  });
+});
+
+describe("COLLECT_REMAINS", () => {
+  it("adds the remains' coins/Treasures/Keys to the current character and clears them", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 2, keys: 1 },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), coins: 1, treasures: 0, keys: 0 };
+
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+
+    expect(next.coins).toBe(6);
+    expect(next.treasures).toBe(2);
+    expect(next.keys).toBe(1);
+    expect(next.levels[0]!.segments[0]!.remains).toBeNull();
+    expect(next.log[0]!.message).toContain("Doomed Dara");
+  });
+
+  it("is a no-op when there are no remains in the segment", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(next).toBe(state);
+  });
+
+  it("is a no-op once the character is dead", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0 },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), alive: false };
+
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(next).toBe(state);
   });
 });
 
@@ -560,6 +740,238 @@ describe("CAST_SPELL guards", () => {
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 4, targetId: 1 })).toBe(state);
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: 1 })).toBe(state);
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 6 })).toBe(state);
+  });
+});
+
+describe("OPEN_TREASURE", () => {
+  it("a flat-coins outcome (Palace roll 1: Ornament) credits coins and consumes the treasure", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 2 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+    expect(next.treasures).toBe(1);
+    expect(next.coins).toBe(5);
+    expect(next.log[0]!.message).toContain("Ornament");
+  });
+
+  it("Health Potion (Palace roll 2) heals to full but never past it", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1, hp: 12, maxHp: 20 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 2, maxSpellUses: {} });
+    expect(next.hp).toBe(20);
+  });
+
+  it("Magic Scroll (Palace roll 3) grants one use of a randomly rolled Basic Spell", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1, spellUses: {} };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 3, maxSpellUses: {} }, fixedDie(5));
+    expect(next.spellUses).toEqual({ 5: 1 });
+    expect(next.log[0]!.message).toContain("Lightning");
+  });
+
+  it("Valuable jewel (Palace roll 4) credits 2d6 x 10 coins", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 4, maxSpellUses: {} }, sequenceDie([4, 3]));
+    expect(next.coins).toBe(70); // (4 + 3) * 10
+  });
+
+  it("an unmodeled Wonder/Magic Item (Palace rolls 5-6) still consumes the treasure and logs flavor", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} });
+    expect(next.treasures).toBe(0);
+    expect(next.coins).toBe(0);
+    expect(next.log[0]!.message).toContain("not modeled");
+  });
+
+  it("Mana Potion (Tomb roll 1) restores every spell to its max uses", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "tomb",
+      treasures: 1,
+      spellUses: { 1: 0, 6: 1 },
+    };
+    const next = dungeonReducer(state, {
+      type: "OPEN_TREASURE",
+      roll: 1,
+      maxSpellUses: { 1: 3, 6: 3 },
+    });
+    expect(next.spellUses).toEqual({ 1: 3, 6: 3 });
+  });
+});
+
+describe("OPEN_TREASURE guards", () => {
+  it("is a no-op with no treasures to open", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 0 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+    expect(next).toBe(state);
+  });
+
+  it("is a no-op once the character is dead", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1, alive: false };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+    expect(next).toBe(state);
+  });
+});
+
+describe("RESUME_DUNGEON", () => {
+  it("carries over the map/exploration state but resets the new character's own resources", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 },
+      remains: { names: ["An Even Earlier Hero"], coins: 3, treasures: 0, keys: 0 },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(3, 5, "1d6-2"), // the fallen character's near-death leftovers
+      dungeonTypeKey: "palace",
+      dungeonName: "The Palace of the Secret Horrors",
+      levels: [level],
+      stats: { segments: 1, corridors: 0, rooms: 1, staircases: 0, doorsRemaining: 0, finalRooms: 0 },
+      log: [{ id: 1, message: "Some prior history", variant: "normal" }],
+      alive: false,
+      deathCause: "darkness",
+      hp: 0,
+      torches: 0,
+    };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RESUME_DUNGEON",
+      dungeon: persisted,
+      torches: 10,
+      hp: 24,
+      weaponFormula: "1d6+1",
+      spellUses: { 1: 2 },
+      characterName: "New Hero",
+    });
+
+    expect(next.dungeonName).toBe("The Palace of the Secret Horrors");
+    expect(next.levels).toHaveLength(1);
+    expect(next.levels[0]!.segments).toHaveLength(1);
+    expect(next.stats.rooms).toBe(1);
+    expect(next.log.some((entry) => entry.message === "Some prior history")).toBe(true);
+    // the new character's own stats, not the fallen one's leftovers
+    expect(next.torches).toBe(10);
+    expect(next.hp).toBe(24);
+    expect(next.maxHp).toBe(24);
+    expect(next.weaponFormula).toBe("1d6+1");
+    expect(next.spellUses).toEqual({ 1: 2 });
+    expect(next.alive).toBe(true);
+    expect(next.deathCause).toBeNull();
+    expect(next.characterName).toBe("New Hero");
+    // an even earlier fallen adventurer's remains are still there to recover
+    expect(next.levels[0]!.segments[0]!.remains).toEqual({
+      names: ["An Even Earlier Hero"],
+      coins: 3,
+      treasures: 0,
+      keys: 0,
+    });
+  });
+
+  it("does not restart combat when the room's monsters were already defeated", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+      monstersDefeated: true,
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+      combat: null,
+    };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RESUME_DUNGEON",
+      dungeon: persisted,
+      torches: 10,
+      hp: 20,
+      weaponFormula: "1d6",
+      spellUses: {},
+      characterName: "New Hero",
+    });
+
+    expect(next.combat).toBeNull();
+  });
+
+  it("respawns the interrupted fight at full HP for the new character, preserving isBoss", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "final",
+      doors: [],
+      monsters: { name: "Orc King", hp: 24, damage: 5, abilities: ["horde"], count: 1 },
+    });
+    const level = { ...makeLevel(3), isFinalRoomLevel: true, segments: [room] };
+    const combat: CombatState = {
+      segId: 1,
+      monsters: [
+        {
+          id: 1,
+          name: "Orc King",
+          hp: 6,
+          maxHp: 24,
+          damage: 5,
+          abilities: ["horde"],
+          bonusDamage: 0,
+          deathtouchPending: false,
+          paralyzePending: 0,
+          skipNextAttack: false,
+        },
+      ],
+      paralyzedTurns: 0,
+      pendingLootRolls: 0,
+      isBoss: true,
+      outcome: "ongoing",
+    };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+      combat,
+      alive: false,
+      deathCause: "combat",
+    };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RESUME_DUNGEON",
+      dungeon: persisted,
+      torches: 10,
+      hp: 30,
+      weaponFormula: "1d6",
+      spellUses: {},
+      characterName: "New Hero",
+    });
+
+    expect(next.combat).not.toBeNull();
+    expect(next.combat!.isBoss).toBe(true);
+    expect(next.combat!.monsters[0]!.hp).toBe(24); // full HP again, not the 6 it was left at
+    expect(next.selectedSegId).toBe(1);
+  });
+});
+
+describe("isDungeonBeaten", () => {
+  it("is false with no levels at all", () => {
+    expect(isDungeonBeaten(createInitialDungeonState())).toBe(false);
+  });
+
+  it("is false when the Final Room's boss hasn't been defeated yet", () => {
+    const finalSeg = makeSegment({ id: 1, type: "final", doors: [], monsters: { name: "Boss", hp: 10, damage: 1, abilities: [], count: 1 } });
+    const level = { ...makeLevel(3), isFinalRoomLevel: true, segments: [finalSeg] };
+    const state: DungeonState = { ...createInitialDungeonState(), levels: [level] };
+    expect(isDungeonBeaten(state)).toBe(false);
+  });
+
+  it("is true once the Final Room's boss is marked defeated", () => {
+    const finalSeg = makeSegment({
+      id: 1,
+      type: "final",
+      doors: [],
+      monsters: { name: "Boss", hp: 10, damage: 1, abilities: [], count: 1 },
+      monstersDefeated: true,
+    });
+    const level = { ...makeLevel(3), isFinalRoomLevel: true, segments: [finalSeg] };
+    const state: DungeonState = { ...createInitialDungeonState(), levels: [level] };
+    expect(isDungeonBeaten(state)).toBe(true);
   });
 });
 

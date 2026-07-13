@@ -54,6 +54,15 @@ describe("table completeness", () => {
       }
     }
   });
+
+  it("every dungeon type has a full Treasure (1-6) table", () => {
+    for (const key of ["palace", "crypt", "tomb", "sanctuary", "temple", "prison"] as const) {
+      const tables = DUNGEON_TABLES[key];
+      for (let roll = 1; roll <= 6; roll++) {
+        expect(tables.treasure[roll], `${key} treasure ${roll}`).toBeDefined();
+      }
+    }
+  });
 });
 
 describe("assignDirections", () => {
@@ -184,7 +193,10 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     hp: 20,
     maxHp: 20,
     coins: 0,
+    treasures: 0,
+    keys: 0,
     combat: null,
+    characterName: "Test Adventurer",
     weaponFormula: "1d6",
     spellUses: {},
     nextMonsterId: 1,

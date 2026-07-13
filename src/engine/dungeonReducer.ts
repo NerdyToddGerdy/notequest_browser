@@ -60,11 +60,38 @@ function pushLog(draft: Draft<DungeonState>, message: string, variant: "normal" 
 
 const DARKNESS_MESSAGE = "The darkness devours you. Without a torch, there is no way forward.";
 
+/**
+ * "If you lose all HP, your character is dead and all your equipment will be on the floor of
+ * that room to be recovered by your next character" -- and per the Darkness section, the same
+ * applies there too. Drops the dying character's coins/Treasures/Keys into `segId` (falling
+ * back to the entrance if that segment can't be found), merging with any remains already there.
+ */
+function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
+  if (draft.coins === 0 && draft.treasures === 0 && draft.keys === 0) return;
+  const level = draft.levels[draft.activeLevel];
+  const seg = level?.segments.find((s) => s.id === segId) ?? level?.segments.find((s) => s.isEntrance);
+  if (!seg) return;
+  if (seg.remains) {
+    seg.remains.names.push(draft.characterName);
+    seg.remains.coins += draft.coins;
+    seg.remains.treasures += draft.treasures;
+    seg.remains.keys += draft.keys;
+  } else {
+    seg.remains = {
+      names: [draft.characterName],
+      coins: draft.coins,
+      treasures: draft.treasures,
+      keys: draft.keys,
+    };
+  }
+}
+
 /** Spends `cost` torches, logging `message`; if there aren't enough, the Darkness kills the character instead. */
-function spendTorches(draft: Draft<DungeonState>, cost: number, message: string): boolean {
+function spendTorches(draft: Draft<DungeonState>, cost: number, message: string, segId: number | null = null): boolean {
   if (draft.torches < cost) {
     draft.alive = false;
     pushLog(draft, DARKNESS_MESSAGE, "descend");
+    leaveRemains(draft, segId);
     return false;
   }
   draft.torches -= cost;
@@ -107,6 +134,8 @@ function buildSegment(
           secretPassageSearched: false,
           secretPassageResult: null,
           trapResult: null,
+          chestOpened: false,
+          chestResult: null,
         }
       : {}),
   };
@@ -180,6 +209,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     draft.alive = false;
     draft.deathCause = "combat";
     pushLog(draft, "A deathly touch stops your heart instantly.", "descend");
+    leaveRemains(draft, combat.segId);
     return;
   }
 
@@ -195,6 +225,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     draft.alive = false;
     draft.deathCause = "combat";
     pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
+    leaveRemains(draft, combat.segId);
   }
 }
 
@@ -226,6 +257,7 @@ function finishIfVictorious(draft: Draft<DungeonState>, combat: Draft<CombatStat
 
   if (combat.isBoss) {
     const treasures = rollDie(rng) + rollDie(rng);
+    draft.treasures += treasures;
     pushLog(draft, `The Boss falls! You find ${treasures} Treasures among the remains.`);
     pushLog(draft, "You have conquered the dungeon!", "descend");
     draft.combat = null;
@@ -238,8 +270,12 @@ function finishIfVictorious(draft: Draft<DungeonState>, combat: Draft<CombatStat
       draft.coins += loot.coins;
       pushLog(draft, `Loot: found ${loot.coins} coin${loot.coins > 1 ? "s" : ""}.`);
     }
-    if (loot.keys > 0) pushLog(draft, `Loot: found ${loot.keys} Key${loot.keys > 1 ? "s" : ""}.`);
+    if (loot.keys > 0) {
+      draft.keys += loot.keys;
+      pushLog(draft, `Loot: found ${loot.keys} Key${loot.keys > 1 ? "s" : ""}.`);
+    }
     if (loot.treasures > 0) {
+      draft.treasures += loot.treasures;
       pushLog(draft, `Loot: found ${loot.treasures} Treasure${loot.treasures > 1 ? "s" : ""}.`);
     }
   }
@@ -302,7 +338,9 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (!seg || seg.secretPassageSearched) return;
 
-        if (!spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch searching for a secret passage.`)) {
+        if (
+          !spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch searching for a secret passage.`, seg.id)
+        ) {
           return;
         }
 
@@ -317,10 +355,75 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
                 draft,
                 trap.torchCost,
                 `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
+                seg.id,
               );
             }
           }
         }
+      });
+    }
+
+    case "ROLL_CHEST": {
+      if (!state.alive || state.combat) return state;
+      return produce(state, (draft) => {
+        const level = draft.levels[draft.activeLevel];
+        const seg = level?.segments.find((s) => s.id === action.segId);
+        if (!seg || seg.chestOpened) return;
+        const chestAvailable =
+          !!seg.roomContent?.hasChest || seg.secretPassageResult === "You have found a hidden Chest!";
+        if (!chestAvailable) return;
+
+        seg.chestOpened = true;
+        const [a, b] = action.dice;
+
+        if (a === 1 && b === 1) {
+          seg.chestResult = "The chest was empty — it was a trap!";
+          pushLog(draft, `Segment ${seg.id}: the chest was empty and triggered a trap!`);
+          if (action.trapRoll != null && draft.dungeonTypeKey) {
+            const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
+            if (trap) {
+              seg.trapResult = trap.text;
+              pushLog(draft, trap.text);
+              if (trap.torchCost) {
+                spendTorches(
+                  draft,
+                  trap.torchCost,
+                  `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
+                  seg.id,
+                );
+              }
+            }
+          }
+          return;
+        }
+
+        const coins = Math.max(a, b);
+        const treasures = Math.min(a, b);
+        draft.coins += coins;
+        draft.treasures += treasures;
+        seg.chestResult = `Found ${coins} coin${coins === 1 ? "" : "s"} and ${treasures} Treasure${treasures === 1 ? "" : "s"}.`;
+        pushLog(
+          draft,
+          `Segment ${seg.id}: opened the chest — ${coins} coin${coins === 1 ? "" : "s"}, ${treasures} Treasure${treasures === 1 ? "" : "s"}.`,
+        );
+      });
+    }
+
+    case "COLLECT_REMAINS": {
+      if (!state.alive || state.combat) return state;
+      return produce(state, (draft) => {
+        const level = draft.levels[draft.activeLevel];
+        const seg = level?.segments.find((s) => s.id === action.segId);
+        if (!seg?.remains) return;
+        const { names, coins, treasures, keys } = seg.remains;
+        draft.coins += coins;
+        draft.treasures += treasures;
+        draft.keys += keys;
+        pushLog(
+          draft,
+          `Segment ${seg.id}: recovered ${coins} coin${coins === 1 ? "" : "s"}, ${treasures} Treasure${treasures === 1 ? "" : "s"}, and ${keys} Key${keys === 1 ? "" : "s"} from the remains of ${names.join(", ")}.`,
+        );
+        seg.remains = null;
       });
     }
 
@@ -343,11 +446,12 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               draft,
               trap.torchCost,
               `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
+              seg.id,
             );
           }
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
-            spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`);
+            spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id);
           } else if (action.lockChoice === "breakDoor") {
             pushLog(
               draft,
@@ -595,6 +699,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           draft.alive = false;
           draft.deathCause = "combat";
           pushLog(draft, "The explosion kills you instantly.", "descend");
+          leaveRemains(draft, combat.segId);
           return;
         }
 
@@ -736,6 +841,112 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           }
         }
       });
+    }
+
+    case "OPEN_TREASURE": {
+      if (!state.alive || state.treasures <= 0 || !state.dungeonTypeKey) return state;
+      const outcome = DUNGEON_TABLES[state.dungeonTypeKey].treasure[action.roll];
+      if (!outcome) return state;
+
+      return produce(state, (draft) => {
+        const combat = draft.combat;
+
+        if (combat && combat.paralyzedTurns > 0) {
+          combat.paralyzedTurns -= 1;
+          pushLog(draft, "You are paralyzed and cannot examine the treasure this turn.");
+          applyMonsterTurn(draft, combat);
+          return;
+        }
+
+        draft.treasures -= 1;
+
+        switch (outcome.effect.kind) {
+          case "coins": {
+            draft.coins += outcome.effect.amount;
+            pushLog(draft, `Treasure: ${outcome.text}`);
+            break;
+          }
+          case "coinsRoll": {
+            let sum = 0;
+            for (let i = 0; i < outcome.effect.dice; i++) sum += rollDie(rng);
+            const amount = sum * outcome.effect.multiplier;
+            draft.coins += amount;
+            pushLog(draft, `Treasure: ${outcome.text} (+${amount} coins)`);
+            break;
+          }
+          case "healAll": {
+            const healed = draft.maxHp - draft.hp;
+            draft.hp = draft.maxHp;
+            pushLog(draft, `Treasure: ${outcome.text}${healed > 0 ? ` (+${healed} HP)` : ""}`);
+            break;
+          }
+          case "restoreAllSpells": {
+            draft.spellUses = { ...action.maxSpellUses };
+            pushLog(draft, `Treasure: ${outcome.text}`);
+            break;
+          }
+          case "randomSpell": {
+            const spellRoll = rollDie(rng);
+            draft.spellUses[spellRoll] = (draft.spellUses[spellRoll] ?? 0) + 1;
+            const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
+            pushLog(draft, `Treasure: ${outcome.text} — learned ${spellName}!`);
+            break;
+          }
+          case "flavor": {
+            pushLog(draft, `Treasure: ${outcome.text}`);
+            break;
+          }
+        }
+
+        if (draft.combat) {
+          applyMonsterTurn(draft, draft.combat);
+        }
+      });
+    }
+
+    case "RESUME_DUNGEON": {
+      // Immer deep-freezes everything it produces; action.dungeon is the frozen output of
+      // some earlier produce() call (possibly still sitting in a caller's pendingDungeons
+      // list). Deep-cloning it before handing pieces to a *new* draft avoids both mutating
+      // frozen data (which throws) and aliasing that old snapshot's objects going forward.
+      const persisted = structuredClone(action.dungeon);
+      return produce(
+        createInitialDungeonState(
+          action.torches,
+          action.hp,
+          action.weaponFormula,
+          action.spellUses,
+          action.characterName,
+        ),
+        (draft) => {
+          draft.dungeonTypeKey = persisted.dungeonTypeKey;
+          draft.dungeonName = persisted.dungeonName;
+          draft.entranceFlavor = persisted.entranceFlavor;
+          draft.levels = persisted.levels;
+          draft.activeLevel = persisted.activeLevel;
+          draft.nextSegmentId = persisted.nextSegmentId;
+          draft.nextLogId = persisted.nextLogId;
+          draft.nextMonsterId = persisted.nextMonsterId;
+          draft.selectedSegId = persisted.selectedSegId;
+          draft.stats = persisted.stats;
+          draft.log = persisted.log;
+          pushLog(draft, "A new adventurer takes up the fallen's path.", "descend");
+
+          // Per the rulebook: returning to a dungeon means any room still holding monsters
+          // has them recover to full health. There's at most one such room -- wherever the
+          // previous character's fight was interrupted, since every other room's combat had
+          // already resolved (won) before its doors could be opened further.
+          const oldCombat = persisted.combat;
+          if (oldCombat) {
+            const level = draft.levels[draft.activeLevel];
+            const seg = level?.segments.find((s) => s.id === oldCombat.segId);
+            if (seg?.monsters) {
+              draft.selectedSegId = seg.id;
+              startCombat(draft, seg.id, seg.monsters, false, rng, oldCombat.isBoss);
+            }
+          }
+        },
+      );
     }
 
     case "RESET":

@@ -137,9 +137,21 @@ describe("PLAYER_ATTACK", () => {
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: boss.id, roll: 6 }, rng);
 
     expect(next.combat).toBeNull();
-    expect(next.coins).toBe(0); // Boss reward isn't coins -- it's flavor-only Treasures
+    expect(next.coins).toBe(0); // Boss reward isn't coins
+    expect(next.treasures).toBe(9);
     expect(next.log.some((entry) => entry.message.includes("9 Treasures"))).toBe(true);
     expect(next.log.some((entry) => entry.message.includes("conquered the dungeon"))).toBe(true);
+  });
+
+  it("Loot's Treasures and Keys are credited to state, not just logged", () => {
+    const monster = makeMonster({ hp: 3, abilities: ["loot"] });
+    const state = stateWithCombat({}, [monster]);
+    const rng = sequenceDie([6]); // Loot roll of 6 -> a Treasure
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, rng);
+
+    expect(next.treasures).toBe(1);
+    expect(next.keys).toBe(0);
+    expect(next.coins).toBe(0);
   });
 
   it("lets monsters counter-attack in the same round when the fight continues", () => {
@@ -161,6 +173,23 @@ describe("PLAYER_ATTACK", () => {
 
     expect(next.alive).toBe(false);
     expect(next.deathCause).toBe("combat");
+  });
+
+  it("leaves the dying character's coins/Treasures/Keys behind in the fight's segment", () => {
+    const monster = makeMonster({ hp: 10, damage: 4 });
+    const state = stateWithCombat(
+      { hp: 3, coins: 7, treasures: 1, keys: 2, characterName: "Doomed Dara" },
+      [monster],
+    );
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+
+    expect(next.alive).toBe(false);
+    expect(next.levels[0]!.segments[0]!.remains).toEqual({
+      names: ["Doomed Dara"],
+      coins: 7,
+      treasures: 1,
+      keys: 2,
+    });
   });
 
   it("Explosive kills its owner instantly and damages the player, bypassing normal damage math", () => {
@@ -336,6 +365,30 @@ describe("CAST_SPELL guards in combat", () => {
     const state = stateWithCombat({ spellUses: { 4: 1, 5: 1 } });
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 4 })).toBe(state);
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: 999 })).not.toBe(state); // consumes a use, but hits nothing
+  });
+});
+
+describe("OPEN_TREASURE in combat", () => {
+  it("resolving it mid-fight consumes the round, letting the monster counter-attack", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ treasures: 1 }, [monster]);
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+
+    expect(next.treasures).toBe(0);
+    expect(next.coins).toBe(5); // Palace roll 1: Ornament
+    expect(next.hp).toBe(next.maxHp - 5); // the monster's counter-attack landed
+  });
+
+  it("while paralyzed, consumes the paralyzed turn instead of resolving the treasure", () => {
+    const monster = makeMonster({ hp: 20, damage: 2 });
+    const state = stateWithCombat({ treasures: 1 }, [monster]);
+    state.combat!.paralyzedTurns = 1;
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+
+    expect(next.combat!.paralyzedTurns).toBe(0);
+    expect(next.treasures).toBe(1); // never opened
+    expect(next.coins).toBe(0);
+    expect(next.hp).toBe(next.maxHp - 2); // but the monster still attacked
   });
 });
 

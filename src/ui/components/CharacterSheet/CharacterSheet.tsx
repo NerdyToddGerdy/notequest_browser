@@ -11,6 +11,10 @@ export interface CharacterSheetProps {
   hp?: number;
   /** Live coin count in the current run; falls back to the character's starting amount outside a dungeon. */
   coins?: number;
+  /** Live Treasure count in the current run; 0 outside a dungeon (Treasures are only ever found there). */
+  treasures?: number;
+  /** Live Key count in the current run; 0 outside a dungeon (Keys are only ever found there). */
+  keys?: number;
   /** Remaining uses per spell in the current run; falls back to the character's starting uses outside a dungeon. */
   spellUses?: Record<number, number>;
   /** Whether Heal/Light can be cast right now (in a dungeon, alive, not mid-fight). */
@@ -26,6 +30,8 @@ export function CharacterSheet({
   torches,
   hp,
   coins,
+  treasures,
+  keys,
   spellUses,
   canCastOutOfCombat,
   onCastSpell,
@@ -39,6 +45,8 @@ export function CharacterSheet({
   const torchCount = torches ?? character.torches;
   const hpValue = hp ?? character.totalHp;
   const coinCount = coins ?? character.coins;
+  const treasureCount = treasures ?? 0;
+  const keyCount = keys ?? 0;
 
   return (
     <div className={styles.card}>
@@ -68,6 +76,14 @@ export function CharacterSheet({
         <div className={styles.stat}>
           <span className={styles.statLabel}>Coins</span>
           <span className={styles.statValue}>{coinCount}</span>
+        </div>
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>Treasures</span>
+          <span className={styles.statValue}>{treasureCount}</span>
+        </div>
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>Keys</span>
+          <span className={styles.statValue}>{keyCount}</span>
         </div>
       </div>
 

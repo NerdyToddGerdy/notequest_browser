@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { DicePool } from "../../components/DicePool/DicePool.tsx";
+import { Graveyard } from "../../components/Graveyard/Graveyard.tsx";
 import {
   computeSpellRequirements,
   computeTotalHp,
@@ -7,6 +8,8 @@ import {
   rollRace,
   rollSpell,
 } from "../../../engine/character.ts";
+import { loadGraveyard } from "../../../engine/graveyard.ts";
+import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import { SPELL_TABLE } from "../../../data/spells.ts";
 import type { ClassDef, CreatedCharacter, RaceDef, SpellDef } from "../../../data/types.ts";
 import { revealDelay } from "../../rollTiming.ts";
@@ -37,16 +40,18 @@ interface SpellRollState {
 const initialSpellRoll: SpellRollState = { values: [], rollToken: 0, entries: null, revealing: false };
 
 export interface CharacterCreationScreenProps {
-  onDescend: (character: CreatedCharacter) => void;
+  pendingDungeons: PendingDungeon[];
+  onDescend: (character: CreatedCharacter, resumeDungeon: PendingDungeon | null) => void;
 }
 
-export function CharacterCreationScreen({ onDescend }: CharacterCreationScreenProps) {
+export function CharacterCreationScreen({ pendingDungeons, onDescend }: CharacterCreationScreenProps) {
   const [name, setName] = useState("");
   const [race, setRace] = useState<RollState<RaceDef>>(() => initialRoll(2));
   const [cls, setCls] = useState<RollState<ClassDef>>(() => initialRoll(2));
   const [spells, setSpells] = useState<SpellRollState>(initialSpellRoll);
   const [sealed, setSealed] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const [graveyard] = useState(() => loadGraveyard());
 
   const spellRequirements = useMemo(
     () => computeSpellRequirements(race.entry, cls.entry),
@@ -101,13 +106,14 @@ export function CharacterCreationScreen({ onDescend }: CharacterCreationScreenPr
   const totalHp = race.entry && cls.entry ? computeTotalHp(race.entry, cls.entry) : null;
   const weaponText = cls.entry ? `${cls.entry.weapon} (${cls.entry.weaponDamage})` : null;
   const spellsSatisfied = spellRequirements.randomSlots === 0 || spells.entries !== null;
-  const canBegin = race.entry !== null && cls.entry !== null && spellsSatisfied && !sealed;
+  const hasName = name.trim().length > 0;
+  const canBegin = hasName && race.entry !== null && cls.entry !== null && spellsSatisfied && !sealed;
 
-  function handleBegin() {
+  function handleBegin(resumeDungeon: PendingDungeon | null = null) {
     if (!canBegin || !race.entry || !cls.entry) return;
     setSealed(true);
     const character: CreatedCharacter = {
-      name: name.trim() || "the unnamed",
+      name: name.trim(),
       race: race.entry,
       cls: cls.entry,
       totalHp: computeTotalHp(race.entry, cls.entry),
@@ -116,7 +122,7 @@ export function CharacterCreationScreen({ onDescend }: CharacterCreationScreenPr
       torches: STARTING_TORCHES,
       coins: STARTING_COINS,
     };
-    window.setTimeout(() => onDescend(character), SEAL_TO_DESCEND_MS);
+    window.setTimeout(() => onDescend(character, resumeDungeon), SEAL_TO_DESCEND_MS);
   }
 
   const spellsNoteText = useMemo(() => {
@@ -135,8 +141,10 @@ export function CharacterCreationScreen({ onDescend }: CharacterCreationScreenPr
 
   const beginStatusText =
     sealed && race.entry && cls.entry
-      ? `${name.trim() || "the unnamed"}, the ${race.entry.name} ${cls.entry.name} — ${computeTotalHp(race.entry, cls.entry)} HP, ${STARTING_TORCHES} torches, ${STARTING_COINS} coins. The dungeon awaits.`
-      : "";
+      ? `${name.trim()}, the ${race.entry.name} ${cls.entry.name} — ${computeTotalHp(race.entry, cls.entry)} HP, ${STARTING_TORCHES} torches, ${STARTING_COINS} coins. The dungeon awaits.`
+      : !sealed && !hasName && (race.entry || cls.entry)
+        ? "Name your adventurer before descending."
+        : "";
 
   return (
     <div className={styles.page}>
@@ -152,13 +160,16 @@ export function CharacterCreationScreen({ onDescend }: CharacterCreationScreenPr
           <div className={styles.sheetHead}>
             <span className={styles.sheetLabel}>Adventurer&apos;s Ledger</span>
             <span className={styles.nameLine}>
-              <label htmlFor="adv-name">Name</label>
+              <label htmlFor="adv-name">
+                Name<span className={styles.required}>*</span>
+              </label>
               <input
                 id="adv-name"
                 type="text"
-                placeholder="unwritten"
+                placeholder="required"
                 maxLength={24}
                 autoComplete="off"
+                required
                 data-testid="name-input"
                 value={name}
                 disabled={sealed}
@@ -313,18 +324,58 @@ export function CharacterCreationScreen({ onDescend }: CharacterCreationScreenPr
               type="button"
               data-testid="begin-btn"
               disabled={!canBegin}
-              onClick={handleBegin}
+              onClick={() => handleBegin(null)}
             >
               {sealed ? "Character Sealed" : "Descend Into the Dungeon"}
             </button>
             <p className={styles.beginStatus} data-testid="begin-status" aria-live="polite">
               {beginStatusText}
             </p>
+
+            {pendingDungeons.length > 0 && (
+              <div className={styles.resumeSection}>
+                <p className={styles.resumeLabel}>Or take up an unfinished dungeon:</p>
+                <ul className={styles.resumeList}>
+                  {pendingDungeons.map((pd) => (
+                    <li key={pd.id}>
+                      <button
+                        className={styles.resumeBtn}
+                        type="button"
+                        disabled={!canBegin}
+                        onClick={() => handleBegin(pd)}
+                      >
+                        <span className={styles.resumeName}>
+                          {pd.dungeon.dungeonName ?? "An unnamed dungeon"} — Level {pd.dungeon.activeLevel + 1}
+                        </span>
+                        <span className={styles.resumeMeta}>last explored by {pd.lastCharacterName}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </footer>
         </div>
       </main>
 
-      <footer className={styles.credit}>NOTEQUEST · CHARACTER CREATION</footer>
+      <Graveyard entries={graveyard} />
+
+      <footer className={styles.credit}>
+        <p>NOTEQUEST · CHARACTER CREATION</p>
+        <p className={styles.creditSub}>
+          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support the
+          original on{" "}
+          <a
+            className={styles.creditLink}
+            href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            DriveThruRPG
+          </a>
+          .
+        </p>
+      </footer>
 
       <div className="visually-hidden" aria-live="polite">
         {announcement}

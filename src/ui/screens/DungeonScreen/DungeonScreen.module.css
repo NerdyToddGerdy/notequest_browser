@@ -137,6 +137,18 @@
   margin-bottom: 16px;
 }
 
+.treasureBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 16px;
+  background: var(--parchment-2);
+  border-radius: 4px;
+  border: 1px solid var(--gold);
+  box-shadow: 0 0 0 3px rgba(184, 134, 47, 0.12);
+}
+
 .rollBtn,
 .ghostBtn {
   font-family: var(--font-display);
@@ -191,6 +203,67 @@
   outline-offset: 2px;
 }
 
+.resumeSection {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--ink-soft);
+}
+.resumeLabel {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+}
+.resumeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.resumeBtn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  background: rgba(42, 32, 22, 0.05);
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    transform 0.08s ease;
+}
+.resumeBtn:hover:not(:disabled) {
+  background: rgba(184, 134, 47, 0.12);
+}
+.resumeBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.resumeBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.resumeBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.resumeName {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.resumeMeta {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
 .dungeonHeader {
   animation: inkIn 0.5s ease both;
 }
@@ -229,6 +302,11 @@
   margin: 0 0 14px;
   max-width: 62ch;
 }
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 
 .deathPanel {
   margin-top: 20px;
@@ -250,6 +328,38 @@
   font-size: 0.88rem;
   color: #d9b89e;
   margin: 0;
+}
+.deathPanel .deathNote {
+  margin-top: 10px;
+  font-size: 0.76rem;
+  color: #b89478;
+}
+.deathBtn {
+  margin-top: 14px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: #f2e0c8;
+  background: transparent;
+  border: 1px solid var(--ember);
+  border-radius: 3px;
+  padding: 9px 16px;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    transform 0.08s ease;
+}
+.deathBtn:hover {
+  background: rgba(184, 72, 31, 0.18);
+}
+.deathBtn:active {
+  transform: translateY(1px);
+}
+.deathBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .victoryPanel {
@@ -341,6 +451,25 @@
   letter-spacing: 0.04em;
   color: #6b5c46;
   text-align: center;
+}
+.credit p {
+  margin: 0;
+}
+.credit .creditSub {
+  margin-top: 6px;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.72rem;
+  letter-spacing: normal;
+  color: #52483a;
+}
+.creditLink {
+  color: var(--gold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.creditLink:hover {
+  color: var(--gold-bright);
 }
 
 @media (prefers-reduced-motion: reduce) {

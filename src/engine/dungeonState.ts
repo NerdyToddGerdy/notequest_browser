@@ -33,6 +33,17 @@ export interface SegmentState extends Box {
   secretPassageSearched?: boolean;
   secretPassageResult?: string | null;
   trapResult?: string | null;
+  chestOpened?: boolean;
+  chestResult?: string | null;
+  /** "His backpack and clothes on the floor" -- coins/Treasures/Keys left by a character who died here. */
+  remains?: FallenAdventurer | null;
+}
+
+export interface FallenAdventurer {
+  names: string[];
+  coins: number;
+  treasures: number;
+  keys: number;
 }
 
 export interface ConnectorState {
@@ -114,7 +125,13 @@ export interface DungeonState {
   hp: number;
   maxHp: number;
   coins: number;
+  /** From Loot rolls and Chests -- currently just a counter, no economy or town to spend them in yet. */
+  treasures: number;
+  /** From Loot rolls -- currently just a counter; doesn't yet let you skip a door's lock roll. */
+  keys: number;
   combat: CombatState | null;
+  /** The active character's name -- used only to label remains left behind if they die. */
+  characterName: string;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by its 1d6 Basic Spells table roll. Depleted uses are gone until Rest (not yet built). */
@@ -122,6 +139,21 @@ export interface DungeonState {
   /** false once the character has died; deathCause distinguishes the Darkness from a lost fight. */
   alive: boolean;
   deathCause: "darkness" | "combat" | null;
+}
+
+/** A dungeon left unbeaten (by death or by voluntarily leaving) -- resumable by a later character. */
+export interface PendingDungeon {
+  id: string;
+  dungeon: DungeonState;
+  /** The most recent character to explore it, for display flavor only. */
+  lastCharacterName: string;
+}
+
+/** True once the Final Room's Boss has been defeated -- the dungeon is complete, nothing left to resume. */
+export function isDungeonBeaten(state: DungeonState): boolean {
+  return state.levels.some(
+    (lvl) => lvl.isFinalRoomLevel && lvl.segments[0]?.type === "final" && lvl.segments[0]?.monstersDefeated === true,
+  );
 }
 
 export function makeLevel(depth: number): LevelState {
@@ -142,6 +174,7 @@ export function createInitialDungeonState(
   startingHp = 20,
   weaponFormula = "1d6",
   spellUses: Record<number, number> = {},
+  characterName = "",
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -159,7 +192,10 @@ export function createInitialDungeonState(
     hp: startingHp,
     maxHp: startingHp,
     coins: 0,
+    treasures: 0,
+    keys: 0,
     combat: null,
+    characterName,
     weaponFormula,
     spellUses,
     alive: true,
@@ -183,6 +219,18 @@ export type DungeonAction =
   | { type: "SWITCH_LEVEL"; levelIndex: number }
   | { type: "SELECT_SEGMENT"; segId: number | null }
   | { type: "ROLL_SECRET_PASSAGE"; segId: number; roll: number; trapRoll: number | null }
+  | { type: "ROLL_CHEST"; segId: number; dice: [number, number]; trapRoll: number | null }
+  | { type: "COLLECT_REMAINS"; segId: number }
+  | { type: "OPEN_TREASURE"; roll: number; maxSpellUses: Record<number, number> }
   | { type: "PLAYER_ATTACK"; targetId: number; roll: number }
   | { type: "CAST_SPELL"; spellRoll: number; targetId?: number }
+  | {
+      type: "RESUME_DUNGEON";
+      dungeon: DungeonState;
+      torches: number;
+      hp: number;
+      weaponFormula: string;
+      spellUses: Record<number, number>;
+      characterName: string;
+    }
   | { type: "RESET" };

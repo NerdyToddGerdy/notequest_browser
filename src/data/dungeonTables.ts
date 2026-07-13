@@ -3,6 +3,8 @@ import type { DungeonTypeKey } from "./dungeonTypes.ts";
 export interface RoomContentEntry {
   text: string;
   secretPassage: boolean;
+  /** True for rows describing an actual Chest to open (see the "Open a Chest" dungeon action). */
+  hasChest?: boolean;
 }
 
 export interface TrapEntry {
@@ -38,6 +40,26 @@ export interface MonsterTemplate {
   count: MonsterCount;
 }
 
+/**
+ * What opening a Treasure actually does. Only the outcomes this app can mechanically apply are
+ * modeled here (coins, healing, spells); the "[Roll in the Wonders/Magic Item column]" redirects
+ * and the Prison table's "[Roll in the Weapon table]" aren't -- those columns are unmodeled
+ * (armor/weapon items, town economy), so they resolve as flavor text only, same as this
+ * codebase's other "not modeled" outcomes.
+ */
+export type RewardEffect =
+  | { kind: "coins"; amount: number }
+  | { kind: "coinsRoll"; dice: number; sides: number; multiplier: number }
+  | { kind: "healAll" }
+  | { kind: "restoreAllSpells" }
+  | { kind: "randomSpell" }
+  | { kind: "flavor" };
+
+export interface RewardOutcome {
+  text: string;
+  effect: RewardEffect;
+}
+
 export interface DungeonTypeTables {
   /** Table: Trap (1d6). Row 1 is identical across all types. */
   trap: Record<number, TrapEntry>;
@@ -47,6 +69,8 @@ export interface DungeonTypeTables {
   monsters: Record<number, MonsterTemplate | null>;
   /** Table: Boss (1d6). Rolled once when the Final Room is placed; no Content/Monsters roll alongside it. */
   boss: Record<number, MonsterTemplate>;
+  /** Table: Reward (1d6), "Treasure" column only -- see RewardEffect for why. */
+  treasure: Record<number, RewardOutcome>;
 }
 
 const ABILITY_LABELS: Record<MonsterAbility, string> = {
@@ -83,6 +107,27 @@ const BLADE_TRAP: TrapEntry = {
 const CLICK_NOTHING: TrapEntry = { text: "You hear a click, but nothing happens." };
 const DITCH_TRAP: TrapEntry = { text: "You fall into a ditch (spend 1 torch to go out).", torchCost: 1 };
 
+// Table: Reward, "Treasure" column -- these five rows repeat, word-for-word or in spirit,
+// across every Core Book dungeon type; only the "worth N Coins" row (and Tomb's Mana Potion
+// row 1) actually varies per type.
+const HEALTH_POTION: RewardOutcome = { text: "Health Potion (Recovers all HP).", effect: { kind: "healAll" } };
+const MAGIC_SCROLL: RewardOutcome = {
+  text: "Magic Scroll (a random Basic Spell, 1 use).",
+  effect: { kind: "randomSpell" },
+};
+const VALUABLE_JEWEL: RewardOutcome = {
+  text: "Valuable jewel (worth 2d6 x 10 Coins in the town).",
+  effect: { kind: "coinsRoll", dice: 2, sides: 6, multiplier: 10 },
+};
+const WONDER_UNMODELED: RewardOutcome = {
+  text: "You find a Wonder -- not modeled, no mechanical effect.",
+  effect: { kind: "flavor" },
+};
+const MAGIC_ITEM_UNMODELED: RewardOutcome = {
+  text: "You find a Magic Item -- not modeled, no mechanical effect.",
+  effect: { kind: "flavor" },
+};
+
 export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   palace: {
     trap: {
@@ -98,9 +143,9 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { text: "Destroyed kitchen with 1d6 coins on the floor.", secretPassage: false },
       4: { text: "Large table with a few chairs.", secretPassage: true },
       5: { text: "Bookshelf with 1d6 Magic Scrolls.", secretPassage: false },
-      6: { text: "Desk with a Chest.", secretPassage: false },
+      6: { text: "Desk with a Chest.", secretPassage: false, hasChest: true },
       7: { text: "Dirt everywhere.", secretPassage: true },
-      8: { text: "Bed with a Chest on the side.", secretPassage: false },
+      8: { text: "Bed with a Chest on the side.", secretPassage: false, hasChest: true },
       9: { text: "Garden covered by plants.", secretPassage: true },
       10: { text: "Trash deposit.", secretPassage: true },
       11: { text: "Large table with papers and maps.", secretPassage: true },
@@ -127,6 +172,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: { name: "Necromancer", hp: 16, damage: 7, abilities: ["necromancy"], count: 1 },
       6: { name: "Orc King", hp: 24, damage: 5, abilities: ["horde"], count: 1 },
     },
+    treasure: {
+      1: { text: "Ornament (worth 5 Coins in the town).", effect: { kind: "coins", amount: 5 } },
+      2: HEALTH_POTION,
+      3: MAGIC_SCROLL,
+      4: VALUABLE_JEWEL,
+      5: WONDER_UNMODELED,
+      6: MAGIC_ITEM_UNMODELED,
+    },
   },
   crypt: {
     trap: {
@@ -143,7 +196,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       4: { text: "Texts sculpted on the floor.", secretPassage: true },
       5: { text: "Human bones everywhere.", secretPassage: true },
       6: { text: "A pile of bones and 1d6 coins.", secretPassage: false },
-      7: { text: "Casket with Chest inside.", secretPassage: false },
+      7: { text: "Casket with Chest inside.", secretPassage: false, hasChest: true },
       8: { text: "Various wooden coffins.", secretPassage: true },
       9: { text: "Walls made of skulls.", secretPassage: true },
       10: { text: "Dozens of burned candles everywhere.", secretPassage: true },
@@ -171,6 +224,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: { name: "Eternal Warrior", hp: 10, damage: 5, abilities: ["intangible"], count: 1 },
       6: { name: "Vampiric Beast", hp: 19, damage: 7, abilities: [], count: 1 },
     },
+    treasure: {
+      1: { text: "Religious Object (worth 3 Coins in the town).", effect: { kind: "coins", amount: 3 } },
+      2: HEALTH_POTION,
+      3: MAGIC_SCROLL,
+      4: VALUABLE_JEWEL,
+      5: WONDER_UNMODELED,
+      6: MAGIC_ITEM_UNMODELED,
+    },
   },
   tomb: {
     trap: {
@@ -187,7 +248,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       4: { text: "Texts sculpted on the floor.", secretPassage: true },
       5: { text: "Human bones everywhere.", secretPassage: true },
       6: { text: "Pile of bones and 1d6 coins.", secretPassage: false },
-      7: { text: "Sarcophagus with Chest inside.", secretPassage: false },
+      7: { text: "Sarcophagus with Chest inside.", secretPassage: false, hasChest: true },
       8: { text: "Several wooden coffins.", secretPassage: true },
       9: { text: "Walls made of skulls.", secretPassage: true },
       10: { text: "A destroyed sarcophagus.", secretPassage: true },
@@ -215,6 +276,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: { name: "Necrotic Kings", hp: 4, damage: 1, abilities: ["undead"], count: 7 },
       6: { name: "Lich King of the Ethernal Wars", hp: 22, damage: 6, abilities: ["necromancy", "undead"], count: 1 },
     },
+    treasure: {
+      1: { text: "Mana Potion (Recovers all Spells).", effect: { kind: "restoreAllSpells" } },
+      2: HEALTH_POTION,
+      3: MAGIC_SCROLL,
+      4: VALUABLE_JEWEL,
+      5: WONDER_UNMODELED,
+      6: MAGIC_ITEM_UNMODELED,
+    },
   },
   sanctuary: {
     trap: {
@@ -231,7 +300,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       4: { text: "Torture Room with 1d6 Treasures.", secretPassage: false },
       5: { text: "Creature or deity statues.", secretPassage: true },
       6: { text: "Corpse with 1 Treasure.", secretPassage: false },
-      7: { text: "Large Chest on an altar.", secretPassage: false },
+      7: { text: "Large Chest on an altar.", secretPassage: false, hasChest: true },
       8: { text: "Small altar with 1d6 coins.", secretPassage: true },
       9: { text: "2d6 paintings of gods (2 coins each).", secretPassage: true },
       10: { text: "Melted candles everywhere.", secretPassage: true },
@@ -259,6 +328,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: { name: "God of Destruction", hp: 40, damage: 8, abilities: [], count: 1 },
       6: { name: "Fallen Angel of Vengeance", hp: 25, damage: 8, abilities: ["sorcery"], count: 1 },
     },
+    treasure: {
+      1: { text: "Religious Object (worth 3 Coins in the town).", effect: { kind: "coins", amount: 3 } },
+      2: HEALTH_POTION,
+      3: MAGIC_SCROLL,
+      4: VALUABLE_JEWEL,
+      5: WONDER_UNMODELED,
+      6: MAGIC_ITEM_UNMODELED,
+    },
   },
   temple: {
     trap: {
@@ -275,7 +352,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       4: { text: "Torture Room with 1d6 Treasures.", secretPassage: false },
       5: { text: "Unknown creature statues.", secretPassage: true },
       6: { text: "Corpse with 1 Treasure.", secretPassage: false },
-      7: { text: "Chest surrounded by melted candles.", secretPassage: false },
+      7: { text: "Chest surrounded by melted candles.", secretPassage: false, hasChest: true },
       8: { text: "Small altar with 1d6 coins.", secretPassage: true },
       9: { text: "2d6 paintings of demons (1 coin each).", secretPassage: true },
       10: { text: "Carcasses of giant snakes.", secretPassage: true },
@@ -302,6 +379,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       4: { name: "Watchers", hp: 10, damage: 3, abilities: [], count: 3 },
       5: { name: "Demon Lord", hp: 30, damage: 6, abilities: ["firebreath"], count: 1 },
       6: { name: "Serpent God", hp: 30, damage: 3, abilities: ["poison"], count: 1 },
+    },
+    treasure: {
+      1: { text: "Sinister Idol (worth 3 Coins in the town).", effect: { kind: "coins", amount: 3 } },
+      2: HEALTH_POTION,
+      3: MAGIC_SCROLL,
+      4: VALUABLE_JEWEL,
+      5: WONDER_UNMODELED,
+      6: MAGIC_ITEM_UNMODELED,
     },
   },
   prison: {
@@ -346,6 +431,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       4: { name: "Medusa", hp: 20, damage: 4, abilities: ["paralyze"], count: 1 },
       5: { name: "Cursed Ogre", hp: 20, damage: 7, abilities: ["weakness"], count: 1 },
       6: { name: "Dragon", hp: 28, damage: 7, abilities: ["firebreath"], count: 1 },
+    },
+    treasure: {
+      1: HEALTH_POTION,
+      2: MAGIC_SCROLL,
+      3: VALUABLE_JEWEL,
+      4: { text: "You find a Weapon -- not modeled, no mechanical effect.", effect: { kind: "flavor" } },
+      5: WONDER_UNMODELED,
+      6: MAGIC_ITEM_UNMODELED,
     },
   },
 };

@@ -1,6 +1,13 @@
-import { useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { dungeonReducer } from "../../../engine/dungeonReducer.ts";
-import { createInitialDungeonState, type DungeonAction, type DungeonState } from "../../../engine/dungeonState.ts";
+import {
+  createInitialDungeonState,
+  isDungeonBeaten,
+  type DungeonAction,
+  type DungeonState,
+  type PendingDungeon,
+} from "../../../engine/dungeonState.ts";
+import { addGraveyardEntry } from "../../../engine/graveyard.ts";
 
 // useReducer expects a strict (state, action) => state shape; dungeonReducer's
 // extra (test-only) `rng` parameter is optional and defaults to Math.random,
@@ -11,6 +18,7 @@ function reduceDungeon(state: DungeonState, action: DungeonAction): DungeonState
 import { rollDie } from "../../../engine/dice.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
 import type { CreatedCharacter } from "../../../data/types.ts";
+import { Die } from "../../components/Die/Die.tsx";
 import { DicePool } from "../../components/DicePool/DicePool.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { CombatPanel } from "../../components/CombatPanel/CombatPanel.tsx";
@@ -23,20 +31,104 @@ import styles from "./DungeonScreen.module.css";
 
 export interface DungeonScreenProps {
   character: CreatedCharacter;
+  /** If set, this run resumes a previously-left-unbeaten dungeon instead of starting empty. */
+  resumeDungeon: PendingDungeon | null;
+  /** Every other unbeaten dungeon, offered as an alternative at the "Roll for Dungeon" gate. */
+  pendingDungeons: PendingDungeon[];
+  /** Sends the player back to Character Creation to roll a new adventurer -- this one is permadead. */
+  onNewAdventurer: () => void;
+  /** Fires whenever this run ends (death, retreat, or "Start a New Dungeon") so it can be resumed later if unbeaten. */
+  onLeaveDungeon: (runId: string, dungeon: DungeonState, characterName: string) => void;
 }
 
-export function DungeonScreen({ character }: DungeonScreenProps) {
-  const [state, dispatch] = useReducer(reduceDungeon, character, (c) =>
-    createInitialDungeonState(c.torches, c.totalHp, c.cls.weaponDamage, computeSpellUses(c.spells, c.fixedGrants)),
-  );
+export function DungeonScreen({
+  character,
+  resumeDungeon,
+  pendingDungeons,
+  onNewAdventurer,
+  onLeaveDungeon,
+}: DungeonScreenProps) {
+  const [runId, setRunId] = useState(() => resumeDungeon?.id ?? crypto.randomUUID());
+  const [state, dispatch] = useReducer(reduceDungeon, character, (c) => {
+    const spellUses = computeSpellUses(c.spells, c.fixedGrants);
+    if (resumeDungeon) {
+      return dungeonReducer(createInitialDungeonState(), {
+        type: "RESUME_DUNGEON",
+        dungeon: resumeDungeon.dungeon,
+        torches: c.torches,
+        hp: c.totalHp,
+        weaponFormula: c.cls.weaponDamage,
+        spellUses,
+        characterName: c.name,
+      });
+    }
+    return createInitialDungeonState(c.torches, c.totalHp, c.cls.weaponDamage, spellUses, c.name);
+  });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
   const [diceRollToken, setDiceRollToken] = useState(0);
   const [rollingDungeon, setRollingDungeon] = useState(false);
+  const [treasureDie, setTreasureDie] = useState(1);
+  const [treasureRollToken, setTreasureRollToken] = useState(0);
+  const [openingTreasure, setOpeningTreasure] = useState(false);
 
   const hasDungeon = state.levels.length > 0;
-  const bossDefeated = state.levels.some(
-    (lvl) => lvl.isFinalRoomLevel && lvl.segments[0]?.type === "final" && lvl.segments[0]?.monstersDefeated,
-  );
+  const bossDefeated = isDungeonBeaten(state);
+
+  // Records the character in the Graveyard exactly once per death (the effect only re-runs
+  // when `alive` actually flips, not on every render while the death panel stays up).
+  useEffect(() => {
+    if (state.alive) return;
+    addGraveyardEntry({
+      name: character.name,
+      dungeon: state.dungeonName ?? "an unknown dungeon",
+      causeOfDeath: state.deathCause ?? "darkness",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.alive]);
+
+  // Saves this run's current progress (if it's gone anywhere and isn't beaten) the moment this
+  // screen unmounts, whatever the reason -- death, a voluntary retreat, or a brand new character
+  // navigating away. Refs (kept fresh via their own effects, since writing to a ref during
+  // render itself isn't allowed) let the unmount cleanup below read the *latest* state without
+  // re-subscribing on every dispatch.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+  const runIdRef = useRef(runId);
+  useEffect(() => {
+    runIdRef.current = runId;
+  });
+  useEffect(() => {
+    return () => {
+      if (stateRef.current.levels.length > 0) {
+        onLeaveDungeon(runIdRef.current, stateRef.current, character.name);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleStartNewDungeon() {
+    if (hasDungeon) {
+      onLeaveDungeon(runId, state, character.name);
+    }
+    setRunId(crypto.randomUUID());
+    dispatch({ type: "RESET" });
+  }
+
+  /** Picking a previous dungeon from the "Roll for Dungeon" gate, instead of rolling fresh. */
+  function handleResumeFromGate(pending: PendingDungeon) {
+    setRunId(pending.id);
+    dispatch({
+      type: "RESUME_DUNGEON",
+      dungeon: pending.dungeon,
+      torches: character.torches,
+      hp: character.totalHp,
+      weaponFormula: character.cls.weaponDamage,
+      spellUses: computeSpellUses(character.spells, character.fixedGrants),
+      characterName: character.name,
+    });
+  }
 
   function handleRollDungeon() {
     if (rollingDungeon) return;
@@ -48,6 +140,18 @@ export function DungeonScreen({ character }: DungeonScreenProps) {
       setRollingDungeon(false);
       dispatch({ type: "ROLL_DUNGEON", typeRoll: rolls[0]!, secondRoll: rolls[1]!, thirdRoll: rolls[2]! });
     }, revealDelay(3));
+  }
+
+  function handleOpenTreasure() {
+    if (openingTreasure || state.treasures <= 0) return;
+    const roll = rollDie();
+    setTreasureDie(roll);
+    setTreasureRollToken((t) => t + 1);
+    setOpeningTreasure(true);
+    window.setTimeout(() => {
+      setOpeningTreasure(false);
+      dispatch({ type: "OPEN_TREASURE", roll, maxSpellUses: computeSpellUses(character.spells, character.fixedGrants) });
+    }, revealDelay(1));
   }
 
   return (
@@ -78,15 +182,47 @@ export function DungeonScreen({ character }: DungeonScreenProps) {
                   <button className={styles.rollBtn} type="button" disabled={rollingDungeon} onClick={handleRollDungeon}>
                     Roll for Dungeon
                   </button>
+
+                  {pendingDungeons.length > 0 && (
+                    <div className={styles.resumeSection}>
+                      <p className={styles.resumeLabel}>Or take up an unfinished dungeon:</p>
+                      <ul className={styles.resumeList}>
+                        {pendingDungeons.map((pd) => (
+                          <li key={pd.id}>
+                            <button
+                              className={styles.resumeBtn}
+                              type="button"
+                              disabled={rollingDungeon}
+                              onClick={() => handleResumeFromGate(pd)}
+                            >
+                              <span className={styles.resumeName}>
+                                {pd.dungeon.dungeonName ?? "An unnamed dungeon"} — Level {pd.dungeon.activeLevel + 1}
+                              </span>
+                              <span className={styles.resumeMeta}>last explored by {pd.lastCharacterName}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </section>
               ) : (
                 <section className={styles.dungeonHeader}>
                   <p className={styles.dungeonEyebrow}>Level {state.activeLevel + 1}</p>
                   <h2 className={styles.dungeonName}>{state.dungeonName}</h2>
                   <p className={styles.dungeonEntrance}>{state.entranceFlavor}</p>
-                  <button className={styles.ghostBtn} type="button" onClick={() => dispatch({ type: "RESET" })}>
-                    Start a New Dungeon
-                  </button>
+                  {state.alive && (
+                    <div className={styles.headerActions}>
+                      {!state.combat && (
+                        <button className={styles.ghostBtn} type="button" onClick={onNewAdventurer}>
+                          Retreat to Town
+                        </button>
+                      )}
+                      <button className={styles.ghostBtn} type="button" onClick={handleStartNewDungeon}>
+                        Start a New Dungeon
+                      </button>
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -94,6 +230,10 @@ export function DungeonScreen({ character }: DungeonScreenProps) {
                 <div className={styles.deathPanel}>
                   <p className={styles.deathTitle}>{character.name} Has Fallen</p>
                   <p>Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.</p>
+                  <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+                  <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+                    Roll a New Adventurer
+                  </button>
                 </div>
               )}
               {!state.alive && state.deathCause !== "combat" && (
@@ -103,6 +243,10 @@ export function DungeonScreen({ character }: DungeonScreenProps) {
                     {character.name}&apos;s torch has burned out with no way to relight it. The dungeon keeps
                     what it took.
                   </p>
+                  <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+                  <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+                    Roll a New Adventurer
+                  </button>
                 </div>
               )}
               {state.alive && bossDefeated && (
@@ -121,6 +265,19 @@ export function DungeonScreen({ character }: DungeonScreenProps) {
                 activeLevel={state.activeLevel}
                 onSwitchLevel={(levelIndex) => dispatch({ type: "SWITCH_LEVEL", levelIndex })}
               />
+              {state.treasures > 0 && state.alive && (
+                <div className={styles.treasureBar}>
+                  <Die value={treasureDie} rollToken={treasureRollToken} size={36} />
+                  <button
+                    className={styles.rollBtn}
+                    type="button"
+                    disabled={openingTreasure}
+                    onClick={handleOpenTreasure}
+                  >
+                    Open a Treasure ({state.treasures})
+                  </button>
+                </div>
+              )}
               {state.combat && (
                 <CombatPanel
                   combat={state.combat}
@@ -150,6 +307,8 @@ export function DungeonScreen({ character }: DungeonScreenProps) {
                 onRollSecretPassage={(segId, roll, trapRoll) =>
                   dispatch({ type: "ROLL_SECRET_PASSAGE", segId, roll, trapRoll })
                 }
+                onRollChest={(segId, dice, trapRoll) => dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })}
+                onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
               />
               <RollLog entries={state.log} />
             </>
@@ -167,6 +326,8 @@ export function DungeonScreen({ character }: DungeonScreenProps) {
             torches={state.torches}
             hp={state.hp}
             coins={state.coins}
+            treasures={state.treasures}
+            keys={state.keys}
             spellUses={state.spellUses}
             canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
             onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}
@@ -196,7 +357,22 @@ export function DungeonScreen({ character }: DungeonScreenProps) {
         </aside>
       </div>
 
-      <footer className={styles.credit}>NOTEQUEST · THE DUNGEON</footer>
+      <footer className={styles.credit}>
+        <p>NOTEQUEST · THE DUNGEON</p>
+        <p className={styles.creditSub}>
+          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support the
+          original on{" "}
+          <a
+            className={styles.creditLink}
+            href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            DriveThruRPG
+          </a>
+          .
+        </p>
+      </footer>
     </div>
   );
 }

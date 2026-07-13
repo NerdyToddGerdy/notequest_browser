@@ -1,25 +1,46 @@
 import { useState } from "react";
-import type { DungeonState } from "../../../engine/dungeonState.ts";
+import type { DungeonState, SegmentState } from "../../../engine/dungeonState.ts";
 import { rollDie } from "../../../engine/dice.ts";
 import { TYPE_LABELS } from "../../../data/dungeonTypes.ts";
 import { formatMonsterTemplate } from "../../../data/dungeonTables.ts";
 import { Die } from "../Die/Die.tsx";
+import { DicePool } from "../DicePool/DicePool.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import styles from "./RoomInspector.module.css";
 
 export interface RoomInspectorProps {
   state: DungeonState;
   onRollSecretPassage: (segId: number, roll: number, trapRoll: number | null) => void;
+  onRollChest: (segId: number, dice: [number, number], trapRoll: number | null) => void;
+  onCollectRemains: (segId: number) => void;
+}
+
+function hasChest(seg: SegmentState): boolean {
+  return !!seg.roomContent?.hasChest || seg.secretPassageResult === "You have found a hidden Chest!";
+}
+
+/** "The remains of Bram lie here — 5 coins, 2 Treasures, 1 Key." */
+function describeRemains(remains: NonNullable<SegmentState["remains"]>): string {
+  const parts: string[] = [];
+  if (remains.coins > 0) parts.push(`${remains.coins} coin${remains.coins === 1 ? "" : "s"}`);
+  if (remains.treasures > 0) parts.push(`${remains.treasures} Treasure${remains.treasures === 1 ? "" : "s"}`);
+  if (remains.keys > 0) parts.push(`${remains.keys} Key${remains.keys === 1 ? "" : "s"}`);
+  const who = remains.names.join(", ");
+  return parts.length > 0 ? `The remains of ${who} lie here — ${parts.join(", ")}.` : `The remains of ${who} lie here.`;
 }
 
 /**
  * Rendered with `key={selectedSegId}` by the caller so its local die-roll
  * state resets cleanly whenever a different segment is selected.
  */
-export function RoomInspector({ state, onRollSecretPassage }: RoomInspectorProps) {
+export function RoomInspector({ state, onRollSecretPassage, onRollChest, onCollectRemains }: RoomInspectorProps) {
   const [dieValue, setDieValue] = useState(1);
   const [rollToken, setRollToken] = useState(0);
   const [revealing, setRevealing] = useState(false);
+
+  const [chestDice, setChestDice] = useState<number[]>([1, 1]);
+  const [chestRollToken, setChestRollToken] = useState(0);
+  const [chestRevealing, setChestRevealing] = useState(false);
 
   const level = state.levels[state.activeLevel];
   const seg = level?.segments.find((s) => s.id === state.selectedSegId) ?? null;
@@ -43,6 +64,19 @@ export function RoomInspector({ state, onRollSecretPassage }: RoomInspectorProps
       const trapRoll = roll === 1 ? rollDie() : null;
       onRollSecretPassage(seg.id, roll, trapRoll);
     }, revealDelay(1));
+  }
+
+  function handleOpenChest() {
+    if (chestRevealing || !seg || seg.chestOpened || !hasChest(seg)) return;
+    const dice: [number, number] = [rollDie(), rollDie()];
+    setChestDice(dice);
+    setChestRollToken((t) => t + 1);
+    setChestRevealing(true);
+    window.setTimeout(() => {
+      setChestRevealing(false);
+      const trapRoll = dice[0] === 1 && dice[1] === 1 ? rollDie() : null;
+      onRollChest(seg.id, dice, trapRoll);
+    }, revealDelay(2));
   }
 
   return (
@@ -79,6 +113,24 @@ export function RoomInspector({ state, onRollSecretPassage }: RoomInspectorProps
         </div>
       )}
 
+      {hasChest(seg) && (
+        <div className={styles.row}>
+          <span className={styles.label}>Chest</span>
+          {seg.chestOpened ? (
+            <p>{seg.chestResult}</p>
+          ) : (
+            <p className={styles.hint}>There&apos;s a chest here, waiting to be opened.</p>
+          )}
+        </div>
+      )}
+
+      {seg.remains && (
+        <div className={styles.row}>
+          <span className={styles.label}>Remains</span>
+          <p>{describeRemains(seg.remains)}</p>
+        </div>
+      )}
+
       {seg.trapResult && (
         <div className={`${styles.row} ${styles.trap}`}>
           <span className={styles.label}>Trap</span>
@@ -96,6 +148,33 @@ export function RoomInspector({ state, onRollSecretPassage }: RoomInspectorProps
             onClick={handleSearch}
           >
             Find Secret Passage (1 torch)
+          </button>
+        </div>
+      )}
+
+      {hasChest(seg) && !seg.chestOpened && (
+        <div className={styles.dieRow}>
+          <DicePool values={chestDice} rollToken={chestRollToken} size={40} />
+          <button
+            className={styles.rollBtn}
+            type="button"
+            disabled={chestRevealing || !state.alive || !!state.combat}
+            onClick={handleOpenChest}
+          >
+            Open Chest
+          </button>
+        </div>
+      )}
+
+      {seg.remains && (
+        <div className={styles.dieRow}>
+          <button
+            className={styles.rollBtn}
+            type="button"
+            disabled={!state.alive || !!state.combat}
+            onClick={() => onCollectRemains(seg.id)}
+          >
+            Recover Remains
           </button>
         </div>
       )}
