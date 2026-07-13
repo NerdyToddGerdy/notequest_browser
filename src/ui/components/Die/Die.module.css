@@ -1,0 +1,110 @@
+.die {
+  width: var(--die-size);
+  height: var(--die-size);
+  perspective: 320px;
+  flex: 0 0 auto;
+}
+
+.dieCube {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dieFace {
+  position: absolute;
+  inset: 0;
+  background: var(--parchment);
+  border: 2px solid var(--ink);
+  border-radius: 7px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: 16%;
+  box-shadow: inset 0 0 0 1px rgba(42, 32, 22, 0.18);
+  backface-visibility: hidden;
+}
+
+.face1 {
+  transform: translateZ(calc(var(--die-size) / 2));
+}
+.face2 {
+  transform: rotateX(90deg) translateZ(calc(var(--die-size) / 2));
+}
+.face3 {
+  transform: rotateY(90deg) translateZ(calc(var(--die-size) / 2));
+}
+.face4 {
+  transform: rotateY(-90deg) translateZ(calc(var(--die-size) / 2));
+}
+.face5 {
+  transform: rotateX(-90deg) translateZ(calc(var(--die-size) / 2));
+}
+.face6 {
+  transform: rotateY(180deg) translateZ(calc(var(--die-size) / 2));
+}
+
+.pip {
+  width: 62%;
+  height: 62%;
+  border-radius: 50%;
+  background: var(--ink);
+  place-self: center;
+}
+.pTl {
+  grid-column: 1;
+  grid-row: 1;
+}
+.pTr {
+  grid-column: 3;
+  grid-row: 1;
+}
+.pMl {
+  grid-column: 1;
+  grid-row: 2;
+}
+.pC {
+  grid-column: 2;
+  grid-row: 2;
+}
+.pMr {
+  grid-column: 3;
+  grid-row: 2;
+}
+.pBl {
+  grid-column: 1;
+  grid-row: 3;
+}
+.pBr {
+  grid-column: 3;
+  grid-row: 3;
+}
+
+@keyframes dieToss {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  28% {
+    transform: translateY(-14px) rotate(-7deg);
+  }
+  58% {
+    transform: translateY(-3px) rotate(5deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+.rolling {
+  animation: dieToss 0.85s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rolling {
+    animation: none;
+  }
+  .dieCube {
+    transition-duration: 0.01s;
+  }
+}
