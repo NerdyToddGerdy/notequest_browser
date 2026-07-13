@@ -260,7 +260,11 @@
     box-shadow: inset 0 0 0 2px rgba(255,255,255,.25), 0 3px 10px rgba(0,0,0,.3);
     display: flex; align-items: center; justify-content: center;
     animation: room-in .4s ease both;
+    cursor: pointer;
+    transition: filter .15s ease;
   }
+  .map-room:hover { filter: brightness(1.08); }
+  .map-room.selected { outline: 2px solid var(--focus); outline-offset: 2px; }
   @keyframes room-in {
     from { opacity: 0; transform: scale(.82); }
     to { opacity: 1; transform: scale(1); }
@@ -366,19 +370,47 @@
     border-radius: 3px; padding: 1px 5px; background: rgba(184,134,47,.08); text-transform: none;
   }
 
-  #segments-table { width: 100%; border-collapse: collapse; font-family: var(--font-body); font-size: .74rem; }
-  #segments-table th {
+  .ref-table { width: 100%; border-collapse: collapse; font-family: var(--font-body); font-size: .74rem; }
+  .ref-table th {
     font-family: var(--font-mono); font-size: .62rem; text-transform: uppercase; letter-spacing: .03em;
     color: var(--ink-soft); text-align: left; padding: 4px 5px; border-bottom: 1px solid var(--ink-soft);
   }
-  #segments-table td {
+  .ref-table td {
     padding: 5px; border-bottom: 1px solid rgba(42,32,22,.12); vertical-align: top; color: var(--ink);
     transition: background .3s ease;
   }
-  #segments-table td.roll-col {
+  .ref-table td.roll-col {
     font-family: var(--font-mono); font-weight: 700; color: var(--gold); text-align: center; width: 1.4em;
   }
-  #segments-table td.flash { background: rgba(184,134,47,.35); }
+  .ref-table td.flash { background: rgba(184,134,47,.35); }
+
+  .room-inspector {
+    margin-top: 12px; padding: 14px 16px; background: var(--parchment-2);
+    border-radius: 4px; border: 1px solid rgba(0,0,0,.3); min-height: 60px;
+  }
+  .inspector-empty { font-family: var(--font-body); font-style: italic; font-size: .85rem; color: var(--ink-soft); margin: 0; }
+  .inspector-title { font-family: var(--font-display); font-size: 1rem; color: var(--ink); margin: 0 0 8px; animation: ink-in .4s ease both; }
+  .inspector-flavor { font-family: var(--font-body); font-style: italic; font-size: .84rem; color: var(--ink-soft); margin: 0 0 10px; }
+  .inspector-row { margin: 0 0 10px; animation: ink-in .4s ease both; }
+  .inspector-row:last-child { margin-bottom: 0; }
+  .inspector-label {
+    font-family: var(--font-mono); font-size: .64rem; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--gold); display: block; margin-bottom: 2px;
+  }
+  .inspector-row p { margin: 0; font-family: var(--font-body); font-size: .88rem; color: var(--ink); line-height: 1.4; }
+  .inspector-hint { font-style: italic; color: var(--ink-soft) !important; }
+  .inspector-trap p { color: var(--danger); }
+  .inspector-die-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .inspector-die-row .die { --die-size: 40px; }
+
+  .room-badge {
+    position: absolute; width: 16px; height: 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; pointer-events: none;
+  }
+  .room-badge svg { width: 9px; height: 9px; }
+  .room-badge.monster { top: -7px; right: -7px; background: var(--ember); color: var(--parchment); border: 1px solid #7a2e14; }
+  .room-badge.secret { bottom: -7px; right: -7px; background: var(--gold); color: #2a1c08; border: 1px solid #7a5c1f; }
+  .room-badge.secret.searched { opacity: .35; }
 
   .stats-card dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; }
   .stats-card dt { font-family: var(--font-body); font-style: italic; font-size: .78rem; color: var(--ink-soft); }
@@ -435,22 +467,31 @@
         <div class="map-scroll">
           <div class="map-canvas" id="map-canvas"></div>
         </div>
+        <div class="room-inspector" id="room-inspector">
+          <p class="inspector-empty">Click a room, corridor, or staircase to inspect it.</p>
+        </div>
         <div class="map-log">
           <h3>Recent Rolls</h3>
           <ul id="log-list"></ul>
         </div>
       </div>
 
-      <p class="scope-note">This study covers segments only — doors always open cleanly here. A staircase's door takes you down to a new level, opened as its own tab; the third level is always the Final Room, where the Boss is stubbed in (no fight yet). Locks, traps, room contents and monsters are next.</p>
+      <p class="scope-note">Rooms now roll their Content and Monsters, and any room that may hide a Secret Passage can be searched from its inspector — search up a 1 and it triggers this dungeon's Trap table. Doors themselves still always open cleanly (locks and door-traps aren't wired up), and there's no combat, chests, or reward resolution yet.</p>
     </div>
 
     <aside class="side">
       <div class="table-card">
         <h3>Table: Segments <span class="track-index">1d6</span></h3>
-        <table id="segments-table">
+        <table id="segments-table" class="ref-table">
           <thead>
             <tr><th></th><th>From a Staircase</th><th>From a Corridor</th><th>From a Room</th></tr>
           </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="table-card">
+        <h3>Table: Secret Passage <span class="track-index">1d6</span></h3>
+        <table id="secret-passage-ref" class="ref-table">
           <tbody></tbody>
         </table>
       </div>
@@ -487,7 +528,9 @@
     "room-large": '<svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="4" width="22" height="18"/></svg>',
     door: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="2" width="10" height="16" rx="1"/><circle cx="12" cy="10" r="1" fill="currentColor" stroke="none"/></svg>',
     descent: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v11M5 10l5 5 5-5"/></svg>',
-    final: '<svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="13" cy="11" r="7"/><circle cx="10" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.1" fill="currentColor" stroke="none"/><path d="M9 15l1.5 3M17 15l-1.5 3M13 15v3"/></svg>'
+    final: '<svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="13" cy="11" r="7"/><circle cx="10" cy="10" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.1" fill="currentColor" stroke="none"/><path d="M9 15l1.5 3M17 15l-1.5 3M13 15v3"/></svg>',
+    monster: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg>',
+    secret: '<svg viewBox="0 0 16 16" fill="currentColor" stroke="none"><circle cx="8" cy="6" r="2.4"/><path d="M6.3 7.5h3.4l1 5.5h-5.4z"/></svg>'
   };
 
   var TYPE_LABELS = {
@@ -530,19 +573,129 @@
 
   var DUNGEON_TYPES = [
     null,
-    { name: "The Palace", entranceType: "room-large", doors: 4,
+    { key: "palace", name: "The Palace", entranceType: "room-large", doors: 4,
       entrance: "You open the beautiful entrance door and find a giant hall — two doors on each side, and a staircase at its center." },
-    { name: "The Crypt", entranceType: "staircase", doors: 1,
+    { key: "crypt", name: "The Crypt", entranceType: "staircase", doors: 1,
       entrance: "Hidden inside a small, isolated mausoleum, a staircase leads down into the dark. At the end of it, a door." },
-    { name: "The Tomb", entranceType: "corridor", doors: 3,
+    { key: "tomb", name: "The Tomb", entranceType: "corridor", doors: 3,
       entrance: "Behind the great stone door, a long corridor runs on: a door at the end, two more on the sides." },
-    { name: "The Sanctuary", entranceType: "staircase", doors: 1,
+    { key: "sanctuary", name: "The Sanctuary", entranceType: "staircase", doors: 1,
       entrance: "Through the ruined trapdoor beneath the altar, a dark staircase descends. At the end of it, a door." },
-    { name: "The Temple", entranceType: "corridor", doors: 4,
+    { key: "temple", name: "The Temple", entranceType: "corridor", doors: 4,
       entrance: "Behind the incredible stone entrance, an empty corridor holds four more doors, two on each side." },
-    { name: "The Prison", entranceType: "staircase", doors: 1,
+    { key: "prison", name: "The Prison", entranceType: "staircase", doors: 1,
       entrance: "Beneath a pile of rubble, a reinforced trapdoor opens onto a staircase down. At the end of it, a door." }
   ];
+
+  // Room Content / Monsters index by 2d6 sum (2-12); Trap indexes by 1d6 (1-6);
+  // secretFlags[N] is true where Room Content says "It may have Secret Passage."
+  var DUNGEON_TABLES = {
+    palace: {
+      trap: [null,
+        "A blade falls from the ceiling. Roll the dice. On a 2 you lose one of your arms and on a 1 you die.",
+        "Acid Spout (5 Damage).", "You fall into a ditch (spend 1 torch to go out).", "A dart hits you (1 Damage).",
+        "You hear a click, but nothing happens.", "You hear a click, but nothing happens."],
+      roomContent: [null, null,
+        "Dust-filled library.", "Destroyed kitchen with 1d6 coins on the floor.", "Large table with a few chairs.",
+        "Bookshelf with 1d6 Magic Scrolls.", "Desk with a Chest.", "Dirt everywhere.", "Bed with a Chest on the side.",
+        "Garden covered by plants.", "Trash deposit.", "Large table with papers and maps.", "Armory. 2d6 Magic Items."],
+      secretFlags: [null, null, true, false, true, false, false, true, false, true, true, true, false],
+      monsters: [null, null,
+        "Minotaur (14 HP; 7 Damage)", "2 Orcs (6 HP; 3 Damage; Loot)", "1 Orc (6 HP; 3 Damage; Loot)",
+        "1d6 Giant Rats (2 HP; 1 Damage)", "1d6 Goblins (3 HP; 1 Damage; Explosive)", "There are no monsters in this room.",
+        "There are no monsters in this room.", "2 Living Armor (8 HP; 3 Damage)", "3 Fungoid (4 HP; 2 Damage; Loot; Regeneration)",
+        "Bone Golem (12 HP; 5 Damage; Undead)", "Walking Slime (10 HP; 1 Damage; Loot; Regeneration)"]
+    },
+    crypt: {
+      trap: [null,
+        "A blade falls from the ceiling. Roll the dice. On a 2 you lose one of your arms and on a 1 you die.",
+        "Acid Spout (5 Damage).", "Appears 1d6 Bats (1 HP; 1 Damage; Poison).", "You hear a click, but nothing happens.",
+        "You hear a click, but nothing happens.", "You hear a click, but nothing happens."],
+      roomContent: [null, null,
+        "Tombstone carved with your name.", "Several pots with dead plants.", "Texts sculpted on the floor.",
+        "Human bones everywhere.", "A pile of bones and 1d6 coins.", "Casket with Chest inside.",
+        "Various wooden coffins.", "Walls made of skulls.", "Dozens of burned candles everywhere.",
+        "Broken statue of a forgotten person.", "Treasure room with 2d6 Treasures."],
+      secretFlags: [null, null, false, false, true, true, false, false, true, true, true, true, false],
+      monsters: [null, null,
+        "Vampire Servant (9 HP; 4 Damage; Regeneration)", "Giant Leech (12 HP; 5 Damage)", "3 Skeletons (4 HP; 1 Damage; Undead)",
+        "Ghoul (6 HP; 3 Damage; Regeneration)", "1d6 Goblins (3 HP; 1 Damage; Explosive)", "There are no monsters in this room.",
+        "There are no monsters in this room.", "1d6 Bats (1 HP; 1 Damage; Poison)", "Giant Spider (10 HP; 4 Damage; Paralyze)",
+        "3 Fungoid (4 HP; 2 Damage; Loot; Regeneration)", "2 Giant Spiders (10 HP; 4 Damage; Paralyze)"]
+    },
+    tomb: {
+      trap: [null,
+        "A blade falls from the ceiling. Roll the dice. On a 2 you lose one of your arms and on a 1 you die.",
+        "Raise 1d6 Skeleton Soldiers (4 HP; 2 Damage; Undead).", "Raise 1d6 Skeleton Soldiers (4 HP; 2 Damage; Undead).",
+        "Raise 1 Skeleton (3 HP; 1 Damage; Undead).", "You hear a click, but nothing happens.", "You hear a click, but nothing happens."],
+      roomContent: [null, null,
+        "Empty sarcophagus with your name.", "Several pots with dead plants.", "Texts sculpted on the floor.",
+        "Human bones everywhere.", "Pile of bones and 1d6 coins.", "Sarcophagus with Chest inside.",
+        "Several wooden coffins.", "Walls made of skulls.", "A destroyed sarcophagus.",
+        "Broken statue of a hero.", "Treasure Room with 2d6 Treasures."],
+      secretFlags: [null, null, false, false, true, true, false, false, true, true, true, true, false],
+      monsters: [null, null,
+        "Ghost of the Prince (6 HP; 4 Damage; Intangible)", "Bone Golem (12 HP; 5 Damage; Undead)", "2 Skeleton Soldiers (4 HP; 2 Damage; Undead)",
+        "1 Living Armor (8 HP; 3 Damage)", "1d6 Goblins (3 HP; 1 Damage; Explosive)", "There are no monsters in this room.",
+        "There are no monsters in this room.", "1d6 Scorpions (2 HP; 1 Damage; Poison)", "2 Living Armor (8 HP; 3 Damage)",
+        "3 Fungoid (4 HP; 2 Damage; Loot; Regeneration)", "Giant Spider (10 HP; 4 Damage; Paralyze)"]
+    },
+    sanctuary: {
+      trap: [null,
+        "A blade falls from the ceiling. Roll the dice. On a 2 you lose one of your arms and on a 1 you die.",
+        "Spears come out of the ground (5 Damage).", "You fall into a ditch (spend 1 torch to go out).",
+        "You hear a click, but nothing happens.", "You hear a click, but nothing happens.", "You hear a click, but nothing happens."],
+      roomContent: [null, null,
+        "A magic circle on the floor.", "10 chairs lined up.", "Torture Room with 1d6 Treasures.",
+        "Creature or deity statues.", "Corpse with 1 Treasure.", "Large Chest on an altar.",
+        "Small altar with 1d6 coins.", "2d6 paintings of gods (2 coins each).", "Melted candles everywhere.",
+        "Fountain with running water.", "Shelves with 1d6 Treasures."],
+      secretFlags: [null, null, false, false, false, true, false, false, true, true, true, true, false],
+      monsters: [null, null,
+        "8 Wisp (2 HP; 1 Damage)", "3 Fungoid (4 HP; 2 Damage; Loot; Regeneration)", "3 Warrior Angels (4 HP; 2 Damage)",
+        "Sentinel Angel (5 HP; 3 Damage; Sorcery)", "1d6 Goblins (3 HP; 1 Damage; Explosive)", "There are no monsters in this room.",
+        "There are no monsters in this room.", "2 Orcs (6 HP; 3 Damage; Loot)", "Giant Angel Statue (10 HP; 5 Damage; Stoneskin)",
+        "Giant Spider (10 HP; 4 Damage; Paralyze)", "Fallen Angel of Putrification (21 HP; 4 Damage; Poison)"]
+    },
+    temple: {
+      trap: [null,
+        "A blade falls from the ceiling. Roll the dice. On a 2 you lose one of your arms and on a 1 you die.",
+        "A giant hammer comes out of the ceiling (5 Damage).", "You fall into a ditch (spend 1 torch to go out).",
+        "A dart hits you (1 Damage).", "You hear a click, but nothing happens.", "You hear a click, but nothing happens."],
+      roomContent: [null, null,
+        "A magic circle on the floor.", "Bottomless pit.", "Torture Room with 1d6 Treasures.",
+        "Unknown creature statues.", "Corpse with 1 Treasure.", "Chest surrounded by melted candles.",
+        "Small altar with 1d6 coins.", "2d6 paintings of demons (1 coin each).", "Carcasses of giant snakes.",
+        "Dry fountain.", "Desk with 1d6 Treasures in the drawers."],
+      secretFlags: [null, null, false, false, false, true, false, false, true, true, true, true, false],
+      monsters: [null, null,
+        "2d6 Imps (2 HP; 1 Damage)", "3 Fungoid (4 HP; 2 Damage; Loot; Regeneration)", "1d6 Cultists (4 HP; 1 Damage)",
+        "1d6 Serpents (2 HP; 1 Damage; Poison)", "1d6 Goblins (3 HP; 1 Damage; Explosive)", "There are no monsters in this room.",
+        "There are no monsters in this room.", "2 Orcs (6 HP; 3 Damage; Loot)", "Serpent Golem (10 HP; 5 Damage; Poison)",
+        "Giant Serpent (17 HP; 3 Damage; Paralyze)", "Gargoyle (12 HP; 3 Damage; Stoneskin)"]
+    },
+    prison: {
+      trap: [null,
+        "A blade falls from the ceiling. Roll the dice. On a 2 you lose one of your arms and on a 1 you die.",
+        "Stones collapse from the ceiling (5 Damage).", "You fall into a ditch (spend 1 torch to go out).",
+        "A dart hits you (1 Damage).", "You hear a click, but nothing happens.", "You hear a click, but nothing happens."],
+      roomContent: [null, null,
+        "A cell with the skeleton of a childhood friend.", "Large table with papers and confessions signed in blood.",
+        "Six cages hanging on the ceiling.", "Shelf of belongings with 1d6 Treasures.", "Shackles on the walls and hanging bones.",
+        "Four empty cells.", "Large cell with bones on all sides.", "Torture bed.", "Stack of coffins.",
+        "Slime covered wall.", "Arsenal. 2d6 Magic Items."],
+      secretFlags: [null, null, true, false, true, false, false, true, false, true, false, true, false],
+      monsters: [null, null,
+        "Cave Troll (26 HP; 6 Damage; Regeneration)", "Orc Leader (10 HP; 3 Damage; Loot; Horde)", "2 Orcs (6 HP; 3 Damage; Loot)",
+        "1 Orc (6 HP; 3 Damage; Loot)", "1d6 Goblins (3 HP; 1 Damage; Explosive)", "There are no monsters in this room.",
+        "There are no monsters in this room.", "2 Living Armor (8 HP; 3 Damage)", "3 Fungoid (4 HP; 2 Damage; Loot; Regeneration)",
+        "Golem Ossos (12 HP; 5 Damage; Undead)", "Giant Magic Turtle (30 HP; 2 Damage; Sorcery)"]
+    }
+  };
+
+  var SECRET_PASSAGE_TABLE = [null,
+    "You have activated a Trap!", "There's nothing here.", "There's nothing here.",
+    "You have found a hidden Chest!", "You have found a hidden Chest!", "A secret door to a Staircase."];
 
   var NAME_SECOND = [null, "of the Secret", "of the Broken", "of the Eternal", "of the Cold", "of the Flaming", "of the Dying"];
   var NAME_THIRD = [null, "Horrors", "Curse", "Rest", "Hero", "Vow", "Darkness"];
@@ -600,7 +753,23 @@
   }
 
   function d6() { return 1 + Math.floor(Math.random() * 6); }
+  function twoD6() { return d6() + d6(); }
   function announce(msg) { document.getElementById("live-region").textContent = msg; }
+
+  var currentDungeonKey = null;
+
+  function rollRoomExtras(seg) {
+    if (seg.type.indexOf("room-") !== 0) return;
+    var table = DUNGEON_TABLES[currentDungeonKey];
+    var cSum = twoD6();
+    var mSum = twoD6();
+    seg.roomContent = { text: table.roomContent[cSum], secretPassage: !!table.secretFlags[cSum] };
+    seg.monsters = table.monsters[mSum];
+    seg.hasMonsters = (mSum !== 7 && mSum !== 8);
+    seg.secretPassageSearched = false;
+    seg.secretPassageResult = null;
+    seg.trapResult = null;
+  }
 
   // ---- Segments table reference ----
   var tableBody = document.querySelector("#segments-table tbody");
@@ -615,6 +784,23 @@
     });
     tableBody.appendChild(tr);
   });
+
+  // ---- Secret Passage table reference (shared across all dungeon types) ----
+  var secretRefBody = document.querySelector("#secret-passage-ref tbody");
+  for (var spRow = 1; spRow <= 6; spRow++) {
+    var spTr = el("tr");
+    spTr.appendChild(el("td", "roll-col", String(spRow)));
+    var spTd = el("td", null, SECRET_PASSAGE_TABLE[spRow]);
+    spTd.id = "secret-cell-" + spRow;
+    spTr.appendChild(spTd);
+    secretRefBody.appendChild(spTr);
+  }
+  function flashSecretCell(value) {
+    var td = document.getElementById("secret-cell-" + value);
+    if (!td) return;
+    td.classList.add("flash");
+    setTimeout(function () { td.classList.remove("flash"); }, 1400);
+  }
 
   function flashCell(rollValue, column) {
     var td = document.getElementById("seg-cell-" + rollValue + "-" + column);
@@ -760,6 +946,8 @@
   var mapCanvas = document.getElementById("map-canvas");
   var logList = document.getElementById("log-list");
   var levelTabsEl = document.getElementById("level-tabs");
+  var inspectorEl = document.getElementById("room-inspector");
+  var selectedSegId = null;
 
   function logEvent(value, column, row, parentId, childId, levelNum) {
     if (logList.querySelector(".map-log-empty")) logList.innerHTML = "";
@@ -815,8 +1003,93 @@
     activeLevel = i;
     mapSegments = levels[i].segments;
     mapConnectors = levels[i].connectors;
+    selectedSegId = null;
+    renderInspector();
     renderLevelTabs();
     lastOrigin = renderMap();
+  }
+
+  function findSegment(id) {
+    for (var i = 0; i < mapSegments.length; i++) if (mapSegments[i].id === id) return mapSegments[i];
+    return null;
+  }
+
+  function inspectSegment(segId) {
+    if (!findSegment(segId)) return;
+    selectedSegId = segId;
+    renderInspector();
+    lastOrigin = renderMap();
+  }
+
+  function renderInspector() {
+    inspectorEl.innerHTML = "";
+    var seg = selectedSegId == null ? null : findSegment(selectedSegId);
+    if (!seg) {
+      inspectorEl.appendChild(el("p", "inspector-empty", "Click a room, corridor, or staircase to inspect it."));
+      return;
+    }
+
+    inspectorEl.appendChild(el("p", "inspector-title", "Segment " + seg.id + " · " + TYPE_LABELS[seg.type]));
+    if (seg.flavor) inspectorEl.appendChild(el("p", "inspector-flavor", seg.flavor));
+
+    if (!seg.roomContent) return;
+
+    var contentRow = el("div", "inspector-row");
+    contentRow.appendChild(el("span", "inspector-label", "Room Content"));
+    contentRow.appendChild(el("p", null, seg.roomContent.text));
+    inspectorEl.appendChild(contentRow);
+
+    var monsterRow = el("div", "inspector-row");
+    monsterRow.appendChild(el("span", "inspector-label", "Monsters"));
+    monsterRow.appendChild(el("p", null, seg.monsters));
+    inspectorEl.appendChild(monsterRow);
+
+    if (!seg.roomContent.secretPassage) return;
+
+    var secretRow = el("div", "inspector-row");
+    secretRow.appendChild(el("span", "inspector-label", "Secret Passage"));
+    if (seg.secretPassageSearched) {
+      secretRow.appendChild(el("p", null, seg.secretPassageResult));
+      inspectorEl.appendChild(secretRow);
+      if (seg.trapResult) {
+        var trapRow = el("div", "inspector-row inspector-trap");
+        trapRow.appendChild(el("span", "inspector-label", "Trap"));
+        trapRow.appendChild(el("p", null, seg.trapResult));
+        inspectorEl.appendChild(trapRow);
+      }
+      return;
+    }
+    secretRow.appendChild(el("p", "inspector-hint", "This room may hide a secret passage."));
+    inspectorEl.appendChild(secretRow);
+
+    var dieRow = el("div", "inspector-die-row");
+    var spDie = buildDie();
+    var spBtn = el("button", "roll-btn", "Find Secret Passage");
+    spBtn.type = "button";
+    dieRow.appendChild(spDie);
+    dieRow.appendChild(spBtn);
+    inspectorEl.appendChild(dieRow);
+
+    spBtn.addEventListener("click", function () {
+      spBtn.disabled = true;
+      var v = d6();
+      rollDie(spDie, v, 0).then(function () {
+        setTimeout(function () {
+          seg.secretPassageSearched = true;
+          seg.secretPassageResult = SECRET_PASSAGE_TABLE[v];
+          flashSecretCell(v);
+          var msg = "Secret Passage search in Segment " + seg.id + ": " + seg.secretPassageResult;
+          if (v === 1) {
+            var tv = d6();
+            seg.trapResult = DUNGEON_TABLES[currentDungeonKey].trap[tv];
+            msg += " Trap: " + seg.trapResult;
+          }
+          announce(msg);
+          renderInspector();
+          lastOrigin = renderMap();
+        }, 200);
+      });
+    });
   }
 
   function renderMap() {
@@ -853,11 +1126,12 @@
     });
 
     mapSegments.forEach(function (s) {
-      var div = el("div", "map-room type-" + s.type);
+      var div = el("div", "map-room type-" + s.type + (s.id === selectedSegId ? " selected" : ""));
       div.style.left = (s.x - originX) + "px";
       div.style.top = (s.y - originY) + "px";
       div.style.width = s.w + "px";
       div.style.height = s.h + "px";
+      div.dataset.segId = s.id;
       div.title = TYPE_LABELS[s.type] + (s.flavor ? " — " + s.flavor : "");
       div.appendChild(el("span", "room-id", "S" + s.id));
       div.appendChild(el("div", "room-icon", ICONS[s.type]));
@@ -868,6 +1142,14 @@
           dot.style.top = p[1] + "px";
           div.appendChild(dot);
         });
+      }
+      if (s.hasMonsters) {
+        var mBadge = el("span", "room-badge monster", ICONS.monster);
+        div.appendChild(mBadge);
+      }
+      if (s.roomContent && s.roomContent.secretPassage) {
+        var sBadge = el("span", "room-badge secret" + (s.secretPassageSearched ? " searched" : ""), ICONS.secret);
+        div.appendChild(sBadge);
       }
       mapCanvas.appendChild(div);
     });
@@ -913,6 +1195,7 @@
     var box = boxFromCenter(0, 0, size);
     var seg = { id: nextId++, type: type, x: box.x, y: box.y, w: box.w, h: box.h, cx: box.cx, cy: box.cy, cameFromDir: null, flavor: null, doors: [] };
     assignDirections(null, doorCount).forEach(function (d) { seg.doors.push({ dir: d, opened: false, childId: null, leadsToLevel: null }); });
+    rollRoomExtras(seg);
     mapSegments.push(seg);
     updateStatsAdd(type, doorCount);
     var lvl = levels[activeLevel];
@@ -922,9 +1205,15 @@
   }
 
   mapCanvas.addEventListener("click", function (e) {
-    var btn = e.target.closest(".map-door");
-    if (!btn || btn.disabled || rollInFlight) return;
-    openDoor(parseInt(btn.dataset.segId, 10), parseInt(btn.dataset.doorIdx, 10), btn);
+    var doorBtn = e.target.closest(".map-door");
+    if (doorBtn) {
+      if (doorBtn.disabled || rollInFlight) return;
+      openDoor(parseInt(doorBtn.dataset.segId, 10), parseInt(doorBtn.dataset.doorIdx, 10), doorBtn);
+      return;
+    }
+    if (e.target.closest(".map-descent")) return;
+    var roomEl = e.target.closest(".map-room");
+    if (roomEl) inspectSegment(parseInt(roomEl.dataset.segId, 10));
   });
 
   function openDoor(segId, doorIdx, btnEl) {
@@ -978,10 +1267,12 @@
           var islandBox = placeIslandRoot(targetLevel.segments, row0.type);
           var islandId = nextId++;
           var islandDoors = assignDirections(null, row0.doors).map(function (d) { return { dir: d, opened: false, childId: null, leadsToLevel: null }; });
-          targetLevel.segments.push({
+          var islandSeg = {
             id: islandId, type: row0.type, x: islandBox.x, y: islandBox.y, w: islandBox.w, h: islandBox.h,
             cx: islandBox.cx, cy: islandBox.cy, cameFromDir: null, flavor: row0.flavor || null, doors: islandDoors
-          });
+          };
+          rollRoomExtras(islandSeg);
+          targetLevel.segments.push(islandSeg);
           targetLevel.doorsRemaining += row0.doors;
           if (row0.type === "staircase") targetLevel.hasStaircase = true;
 
@@ -1097,6 +1388,7 @@
             id: rootId, type: row.type, x: rootBox.x, y: rootBox.y, w: rootBox.w, h: rootBox.h,
             cx: rootBox.cx, cy: rootBox.cy, cameFromDir: null, flavor: row.flavor || null, doors: rootDoors
           };
+          rollRoomExtras(rootSeg);
           mapSegments.push(rootSeg);
           door.childId = rootId;
           door.leadsToLevel = newLevelIndex;
@@ -1121,6 +1413,7 @@
             id: childId, type: row.type, x: childBox.x, y: childBox.y, w: childBox.w, h: childBox.h,
             cx: childBox.cx, cy: childBox.cy, cameFromDir: door.dir, flavor: row.flavor || null, doors: childDoors
           };
+          rollRoomExtras(childSeg);
           mapSegments.push(childSeg);
           door.childId = childId;
           mapConnectors.push(buildConnector(seg, door.dir, childBox));
@@ -1163,10 +1456,13 @@
       document.getElementById("dungeon-header").hidden = false;
       document.getElementById("map-wrap").hidden = false;
 
+      currentDungeonKey = dtype.key;
       levels = [makeLevel(1)];
       activeLevel = 0;
       mapSegments = levels[0].segments;
       mapConnectors = levels[0].connectors;
+      selectedSegId = null;
+      renderInspector();
       renderLevelTabs();
       createRoot(dtype.entranceType, dtype.doors);
       announce("Dungeon rolled: " + dtype.name + ". " + dtype.entrance);
@@ -1180,10 +1476,13 @@
     mapSegments = [];
     mapConnectors = [];
     rollInFlight = false;
+    currentDungeonKey = null;
+    selectedSegId = null;
     stats = { segments: 0, corridors: 0, rooms: 0, staircases: 0, doorsRemaining: 0, finalRooms: 0 };
     renderStats();
     mapCanvas.innerHTML = "";
     levelTabsEl.innerHTML = "";
+    renderInspector();
     logList.innerHTML = '<li class="map-log-empty">Nothing rolled yet.</li>';
     document.getElementById("map-wrap").hidden = true;
     document.getElementById("dungeon-header").hidden = true;
@@ -1193,6 +1492,7 @@
   });
 
   logList.innerHTML = '<li class="map-log-empty">Nothing rolled yet.</li>';
+  renderInspector();
   renderStats();
 })();
 </script>
