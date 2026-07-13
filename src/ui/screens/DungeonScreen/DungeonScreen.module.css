@@ -1,0 +1,350 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(28px, 6vw, 64px) 20px 64px;
+}
+
+.wordmark {
+  position: relative;
+  text-align: center;
+  margin-bottom: clamp(20px, 4vw, 34px);
+  color: var(--parchment);
+}
+.wordmark h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2.1rem, 6vw, 3.2rem);
+  letter-spacing: 0.04em;
+  margin: 0;
+  color: var(--gold-bright);
+  text-shadow:
+    0 0 28px rgba(217, 121, 31, 0.55),
+    0 2px 0 rgba(0, 0, 0, 0.4);
+  text-wrap: balance;
+}
+.tagline {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.92rem;
+  color: #cabb9c;
+  margin: 8px 0 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 26px;
+  width: min(1180px, 100%);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mainCol {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.sheet {
+  position: relative;
+  min-width: 0;
+}
+.sheet::before,
+.sheet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  z-index: -1;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+.sheet::before {
+  background: var(--parchment-2);
+  transform: rotate(-1.1deg) translate(-7px, 5px);
+}
+.sheet::after {
+  background: var(--parchment-3);
+  transform: rotate(0.9deg) translate(7px, -4px);
+}
+
+.sheetInner {
+  position: relative;
+  background: var(--parchment);
+  border-radius: 3px;
+  border: 1px solid rgba(42, 32, 22, 0.35);
+  box-shadow:
+    inset 0 0 0 6px rgba(233, 221, 194, 1),
+    inset 0 0 0 7px rgba(42, 32, 22, 0.55),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+  padding: clamp(20px, 4vw, 36px) clamp(18px, 4vw, 38px) clamp(26px, 4vw, 36px);
+  background-image: repeating-linear-gradient(to bottom, transparent, transparent 27px, rgba(42, 32, 22, 0.06) 28px);
+}
+
+.sheetLabel {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  display: block;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+
+.gateCopy {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+  margin: 0 0 16px;
+  max-width: 60ch;
+}
+
+.trackTitle {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+.dieBadge {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  padding: 2px 6px;
+  margin-right: 8px;
+  background: rgba(184, 134, 47, 0.08);
+}
+
+.diceRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: var(--die-size);
+  margin-bottom: 16px;
+}
+
+.rollBtn,
+.ghostBtn {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  color: var(--parchment);
+  background: linear-gradient(180deg, #3a2c1c, #241a10);
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  padding: 9px 16px;
+  cursor: pointer;
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background 0.18s ease,
+    transform 0.08s ease,
+    box-shadow 0.18s ease;
+}
+.ghostBtn {
+  background: transparent;
+  color: var(--ink-soft);
+  border-color: var(--parchment-3);
+  box-shadow: none;
+  font-size: 0.72rem;
+}
+.rollBtn:hover:not(:disabled),
+.ghostBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #4a3822, #2c2013);
+  box-shadow:
+    0 3px 10px rgba(184, 134, 47, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.ghostBtn:hover:not(:disabled) {
+  background: rgba(42, 32, 22, 0.06);
+  box-shadow: none;
+  color: var(--ink);
+}
+.rollBtn:active:not(:disabled),
+.ghostBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.rollBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.rollBtn:focus-visible,
+.ghostBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.dungeonHeader {
+  animation: inkIn 0.5s ease both;
+}
+@keyframes inkIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    filter: blur(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.dungeonEyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 6px;
+}
+.dungeonName {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  margin: 0 0 10px;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.dungeonEntrance {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  margin: 0 0 14px;
+  max-width: 62ch;
+}
+
+.deathPanel {
+  margin-top: 20px;
+  padding: 16px 18px;
+  background: #3a2018;
+  border: 1px solid var(--ember);
+  border-radius: 4px;
+  box-shadow: 0 0 24px rgba(184, 72, 31, 0.35);
+}
+.deathTitle {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: #e8b088;
+  margin: 0 0 6px;
+}
+.deathPanel p {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.88rem;
+  color: #d9b89e;
+  margin: 0;
+}
+
+.victoryPanel {
+  margin-top: 20px;
+  padding: 16px 18px;
+  background: #2e2410;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  box-shadow: 0 0 24px rgba(184, 134, 47, 0.35);
+}
+.victoryTitle {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--gold-bright);
+  margin: 0 0 6px;
+}
+.victoryPanel p {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.88rem;
+  color: #e6d3a3;
+  margin: 0;
+}
+
+.scopeNote {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin: 0;
+  padding: 0 4px;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: sticky;
+  top: 20px;
+}
+.statsCard {
+  position: relative;
+  background: var(--parchment);
+  border-radius: 3px;
+  border: 1px solid rgba(42, 32, 22, 0.35);
+  box-shadow:
+    inset 0 0 0 5px rgba(233, 221, 194, 1),
+    inset 0 0 0 6px rgba(42, 32, 22, 0.5),
+    0 14px 34px rgba(0, 0, 0, 0.5);
+  padding: 16px 16px 18px;
+}
+.statsCard h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 0.92rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin: 0 0 12px;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 8px;
+}
+.statsCard dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+}
+.statsCard dt {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+.statsCard dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.credit {
+  margin-top: 30px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: #6b5c46;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dungeonHeader {
+    animation: none;
+  }
+}

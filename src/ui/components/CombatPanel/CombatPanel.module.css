@@ -1,0 +1,222 @@
+.panel {
+  margin-top: 12px;
+  padding: 16px 18px;
+  background: var(--parchment-2);
+  border-radius: 4px;
+  border: 1px solid var(--danger);
+  box-shadow: 0 0 0 3px rgba(139, 30, 30, 0.12);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--danger);
+  margin: 0 0 12px;
+}
+
+.playerRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+}
+.playerLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--ink);
+  min-width: 80px;
+}
+.weapon {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
+
+.hpBar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+.hpFillPlayer {
+  height: 100%;
+  background: linear-gradient(90deg, #6a8f3f, #8fb85a);
+  transition: width 0.25s ease;
+}
+.hpFillMonster {
+  height: 100%;
+  background: linear-gradient(90deg, #8b1e1e, #b8452f);
+  transition: width 0.25s ease;
+}
+.hpText {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.monsterList {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.monster {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  padding: 8px 10px;
+}
+.monsterHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+.monsterName {
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 8px;
+}
+.tag {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  border-radius: 2px;
+  padding: 1px 5px;
+}
+
+.monsterActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.spellRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.attackBtn {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  color: var(--parchment);
+  background: linear-gradient(180deg, #6e2320, #470f0f);
+  border: 1px solid var(--danger);
+  border-radius: 3px;
+  padding: 6px 14px;
+  cursor: pointer;
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    background 0.18s ease,
+    transform 0.08s ease;
+}
+.attackBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #832b27, #571414);
+}
+.attackBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.attackBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.attackBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.spellBtn {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  padding: 6px 14px;
+  cursor: pointer;
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition:
+    background 0.18s ease,
+    transform 0.08s ease;
+}
+.spellBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #eabb5e, #c69537);
+}
+.spellBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.spellBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.spellBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.fleeBtn {
+  composes: spellBtn;
+  background: linear-gradient(180deg, var(--parchment-2), var(--parchment-3));
+  border: 1px dashed var(--ink-soft);
+  color: var(--ink-soft);
+}
+.fleeBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, var(--parchment), var(--parchment-2));
+}
+
+.paralyzed {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(139, 30, 30, 0.08);
+  border: 1px dashed var(--danger);
+  border-radius: 3px;
+}
+.paralyzed p {
+  margin: 0 0 8px;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+.dieRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
