@@ -1,0 +1,747 @@
+import { produce, type Draft } from "immer";
+import {
+  DUNGEON_NAME_SECOND,
+  DUNGEON_NAME_THIRD,
+  DUNGEON_TYPES,
+  OPEN_DOOR_TABLE,
+  SECRET_PASSAGE_TABLE,
+  TYPE_LABELS,
+  type SegmentType,
+} from "../data/dungeonTypes.ts";
+import { DUNGEON_TABLES, type MonsterTemplate } from "../data/dungeonTables.ts";
+import { SPELL_TABLE } from "../data/spells.ts";
+import {
+  boxFromCenter,
+  buildConnector,
+  classifyDoorOpen,
+  assignDirections,
+  placeChild,
+  placeIslandRoot,
+  resolveBoss,
+  resolveRoomExtras,
+  rollSegment,
+  sizeFor,
+} from "./dungeon.ts";
+import { rollDie } from "./dice.ts";
+import {
+  checkUndeadRevival,
+  HORDE_ORC,
+  NECROMANCY_SKELETON,
+  parseWeaponFormula,
+  resolvePlayerAttack,
+  resolveSpellDamage,
+  rollLoot,
+  spawnMonsters,
+} from "./combat.ts";
+import {
+  createInitialDungeonState,
+  makeLevel,
+  type CombatMonsterState,
+  type CombatState,
+  type DungeonAction,
+  type DungeonState,
+  type DungeonStats,
+  type SegmentState,
+} from "./dungeonState.ts";
+import type { RNG } from "./rng.ts";
+
+function bumpStatsForNewSegment(stats: Draft<DungeonStats>, type: SegmentType, doors: number): void {
+  stats.segments += 1;
+  if (type === "corridor") stats.corridors += 1;
+  else if (type === "staircase") stats.staircases += 1;
+  else if (type !== "final") stats.rooms += 1;
+  stats.doorsRemaining += doors;
+}
+
+function pushLog(draft: Draft<DungeonState>, message: string, variant: "normal" | "descend" = "normal"): void {
+  draft.log.unshift({ id: draft.nextLogId, message, variant });
+  draft.nextLogId += 1;
+}
+
+const DARKNESS_MESSAGE = "The darkness devours you. Without a torch, there is no way forward.";
+
+/** Spends `cost` torches, logging `message`; if there aren't enough, the Darkness kills the character instead. */
+function spendTorches(draft: Draft<DungeonState>, cost: number, message: string): boolean {
+  if (draft.torches < cost) {
+    draft.alive = false;
+    pushLog(draft, DARKNESS_MESSAGE, "descend");
+    return false;
+  }
+  draft.torches -= cost;
+  pushLog(draft, message);
+  return true;
+}
+
+/** Builds a new segment (with Room Content/Monsters resolved if it's a room type) and reserves its id. */
+function buildSegment(
+  draft: Draft<DungeonState>,
+  type: SegmentType,
+  box: { x: number; y: number; w: number; h: number; cx: number; cy: number },
+  cameFromDir: SegmentState["cameFromDir"],
+  doorCount: number,
+  flavor: string | null,
+  rng: RNG,
+  isEntrance = false,
+): Draft<SegmentState> {
+  const id = draft.nextSegmentId;
+  draft.nextSegmentId += 1;
+  const doors = assignDirections(cameFromDir, doorCount).map((dir) => ({
+    dir,
+    opened: false,
+    childId: null,
+    leadsToLevel: null,
+  }));
+  const extras = draft.dungeonTypeKey ? resolveRoomExtras(type, draft.dungeonTypeKey, rng) : undefined;
+  return {
+    id,
+    type,
+    ...box,
+    cameFromDir,
+    flavor,
+    doors,
+    isEntrance,
+    ...(extras
+      ? {
+          roomContent: extras.roomContent,
+          monsters: extras.monsters ?? undefined,
+          secretPassageSearched: false,
+          secretPassageResult: null,
+          trapResult: null,
+        }
+      : {}),
+  };
+}
+
+/** Spawns a CombatState for `template` in `segId`; if `wasNoisy`, the monsters get a free first attack. */
+function startCombat(
+  draft: Draft<DungeonState>,
+  segId: number,
+  template: MonsterTemplate,
+  wasNoisy: boolean,
+  rng: RNG,
+  isBoss = false,
+): void {
+  const monsters: CombatMonsterState[] = spawnMonsters(
+    template,
+    () => {
+      const id = draft.nextMonsterId;
+      draft.nextMonsterId += 1;
+      return id;
+    },
+    rng,
+  );
+  draft.combat = { segId, monsters, paralyzedTurns: 0, pendingLootRolls: 0, isBoss, outcome: "ongoing" };
+  pushLog(
+    draft,
+    isBoss
+      ? `Segment ${segId}: the Dungeon Boss reveals itself!`
+      : `Segment ${segId}: ${monsters.length} monster${monsters.length === 1 ? "" : "s"} attack!`,
+  );
+  if (wasNoisy && draft.combat) {
+    pushLog(draft, "The noise gave you away — the monsters strike first!");
+    applyMonsterTurn(draft, draft.combat);
+  }
+}
+
+/** Starts combat only if this newly-created segment rolled monsters. */
+function startCombatIfMonsters(
+  draft: Draft<DungeonState>,
+  seg: { id: number; monsters?: MonsterTemplate },
+  wasNoisy: boolean,
+  rng: RNG,
+  isBoss = false,
+): void {
+  if (!seg.monsters) return;
+  startCombat(draft, seg.id, seg.monsters, wasNoisy, rng, isBoss);
+}
+
+/**
+ * One full monster counter-attack: sums damage (including any queued Firebreath/Sorcery
+ * bonuses), applies a queued Deathtouch or Paralyze, then clears those queued effects.
+ */
+function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>): void {
+  let totalDamage = 0;
+  let deathtouchKill = false;
+  let paralyzeTurns = 0;
+  for (const monster of combat.monsters) {
+    if (!monster.skipNextAttack) {
+      totalDamage += monster.damage + monster.bonusDamage;
+      if (monster.deathtouchPending) deathtouchKill = true;
+      if (monster.paralyzePending > paralyzeTurns) paralyzeTurns = monster.paralyzePending;
+    }
+    monster.bonusDamage = 0;
+    monster.deathtouchPending = false;
+    monster.paralyzePending = 0;
+    monster.skipNextAttack = false;
+  }
+
+  if (deathtouchKill) {
+    draft.hp = 0;
+    draft.alive = false;
+    draft.deathCause = "combat";
+    pushLog(draft, "A deathly touch stops your heart instantly.", "descend");
+    return;
+  }
+
+  if (totalDamage > 0) {
+    draft.hp = Math.max(0, draft.hp - totalDamage);
+    pushLog(draft, `The monsters strike back for ${totalDamage} damage.`);
+  }
+  if (paralyzeTurns > 0) {
+    combat.paralyzedTurns += paralyzeTurns;
+    pushLog(draft, `You are paralyzed for ${paralyzeTurns} turn${paralyzeTurns > 1 ? "s" : ""}!`);
+  }
+  if (draft.hp <= 0) {
+    draft.alive = false;
+    draft.deathCause = "combat";
+    pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
+  }
+}
+
+/** Removes a monster reduced to 0 HP, resolving Undead revival and queuing a Loot roll first. */
+function handleMonsterDefeat(
+  draft: Draft<DungeonState>,
+  combat: Draft<CombatState>,
+  monster: Draft<CombatMonsterState>,
+  rng: RNG,
+): void {
+  if (monster.hp > 0) return;
+  const revived = checkUndeadRevival(monster, rng);
+  if (revived) {
+    monster.hp = 1;
+    pushLog(draft, `${monster.name} rises again with 1 HP!`);
+  } else {
+    if (monster.abilities.includes("loot")) combat.pendingLootRolls += 1;
+    combat.monsters = combat.monsters.filter((m) => m.id !== monster.id);
+    pushLog(draft, `${monster.name} is defeated!`);
+  }
+}
+
+/** If every monster is gone, resolves Loot (or the Boss's flat 2d6 Treasures), marks the room cleared, and closes out combat. */
+function finishIfVictorious(draft: Draft<DungeonState>, combat: Draft<CombatState>, rng: RNG): void {
+  if (combat.monsters.length > 0) return;
+  const level = draft.levels[draft.activeLevel];
+  const seg = level?.segments.find((s) => s.id === combat.segId);
+  if (seg) seg.monstersDefeated = true;
+
+  if (combat.isBoss) {
+    const treasures = rollDie(rng) + rollDie(rng);
+    pushLog(draft, `The Boss falls! You find ${treasures} Treasures among the remains.`);
+    pushLog(draft, "You have conquered the dungeon!", "descend");
+    draft.combat = null;
+    return;
+  }
+
+  if (combat.pendingLootRolls > 0) {
+    const loot = rollLoot(combat.pendingLootRolls, rng);
+    if (loot.coins > 0) {
+      draft.coins += loot.coins;
+      pushLog(draft, `Loot: found ${loot.coins} coin${loot.coins > 1 ? "s" : ""}.`);
+    }
+    if (loot.keys > 0) pushLog(draft, `Loot: found ${loot.keys} Key${loot.keys > 1 ? "s" : ""}.`);
+    if (loot.treasures > 0) {
+      pushLog(draft, `Loot: found ${loot.treasures} Treasure${loot.treasures > 1 ? "s" : ""}.`);
+    }
+  }
+  pushLog(draft, "The room falls silent. You are victorious!", "descend");
+  draft.combat = null;
+}
+
+export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: RNG = Math.random): DungeonState {
+  switch (action.type) {
+    case "ROLL_DUNGEON": {
+      const dtype = DUNGEON_TYPES[action.typeRoll];
+      if (!dtype) throw new Error(`No dungeon type for roll ${action.typeRoll}`);
+      const second = DUNGEON_NAME_SECOND[action.secondRoll];
+      const third = DUNGEON_NAME_THIRD[action.thirdRoll];
+
+      return produce(state, (draft) => {
+        draft.dungeonTypeKey = dtype.key;
+        draft.dungeonName = `${dtype.name} ${second ?? ""} ${third ?? ""}`.trim();
+        draft.entranceFlavor = dtype.entrance;
+        draft.levels = [makeLevel(1)];
+        draft.activeLevel = 0;
+        draft.nextSegmentId = 1;
+        draft.nextLogId = 1;
+        draft.selectedSegId = null;
+        draft.log = [];
+        draft.stats = { segments: 0, corridors: 0, rooms: 0, staircases: 0, doorsRemaining: 0, finalRooms: 0 };
+        draft.torches -= 1;
+        pushLog(draft, "Entering the dungeon costs 1 torch to light the way.");
+
+        const level = draft.levels[0]!;
+        const box = boxFromCenter(0, 0, sizeFor(dtype.entranceType, null));
+        const entrance = buildSegment(draft, dtype.entranceType, box, null, dtype.doors, null, rng, true);
+        level.segments.push(entrance);
+        level.doorsRemaining += dtype.doors;
+        bumpStatsForNewSegment(draft.stats, dtype.entranceType, dtype.doors);
+        startCombatIfMonsters(draft, entrance, false, rng);
+      });
+    }
+
+    case "SELECT_SEGMENT": {
+      if (state.selectedSegId === action.segId) return state;
+      return produce(state, (draft) => {
+        draft.selectedSegId = action.segId;
+      });
+    }
+
+    case "SWITCH_LEVEL": {
+      if (state.combat) return state;
+      if (state.activeLevel === action.levelIndex) return state;
+      return produce(state, (draft) => {
+        draft.activeLevel = action.levelIndex;
+        draft.selectedSegId = null;
+      });
+    }
+
+    case "ROLL_SECRET_PASSAGE": {
+      if (!state.alive || state.combat) return state;
+      return produce(state, (draft) => {
+        const level = draft.levels[draft.activeLevel];
+        const seg = level?.segments.find((s) => s.id === action.segId);
+        if (!seg || seg.secretPassageSearched) return;
+
+        if (!spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch searching for a secret passage.`)) {
+          return;
+        }
+
+        seg.secretPassageSearched = true;
+        seg.secretPassageResult = SECRET_PASSAGE_TABLE[action.roll] ?? null;
+        if (action.roll === 1 && action.trapRoll != null && draft.dungeonTypeKey) {
+          const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
+          if (trap) {
+            seg.trapResult = trap.text;
+            if (trap.torchCost) {
+              spendTorches(
+                draft,
+                trap.torchCost,
+                `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
+              );
+            }
+          }
+        }
+      });
+    }
+
+    case "RESOLVE_DOOR_LOCK": {
+      if (!state.alive || state.combat) return state;
+      return produce(state, (draft) => {
+        const level = draft.levels[draft.activeLevel];
+        const seg = level?.segments.find((s) => s.id === action.segId);
+        const door = seg?.doors[action.doorIdx];
+        if (!seg || !door || door.opened) return;
+
+        const outcome = OPEN_DOOR_TABLE[action.doorRoll];
+        if (outcome === "trap") {
+          if (!draft.dungeonTypeKey || action.trapRoll == null) return;
+          const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
+          if (!trap) return;
+          pushLog(draft, `Segment ${seg.id}: ${trap.text}`);
+          if (trap.torchCost) {
+            spendTorches(
+              draft,
+              trap.torchCost,
+              `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
+            );
+          }
+        } else if (outcome === "locked") {
+          if (action.lockChoice === "pickLock") {
+            spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`);
+          } else if (action.lockChoice === "breakDoor") {
+            pushLog(
+              draft,
+              `Segment ${seg.id}: broke the door open — no torch spent, but it alerts nearby monsters (not modeled yet).`,
+            );
+          }
+        }
+      });
+    }
+
+    case "OPEN_DOOR": {
+      if (!state.alive || state.combat) return state;
+      const classification = classifyDoorOpen(state, action.segId, action.doorIdx);
+
+      return produce(state, (draft) => {
+        const level = draft.levels[draft.activeLevel]!;
+        const seg = level.segments.find((s) => s.id === action.segId)!;
+        const door = seg.doors[action.doorIdx]!;
+
+        switch (classification.kind) {
+          case "reuse-final": {
+            const targetLevel = draft.levels[classification.targetLevel]!;
+            const finalSeg = targetLevel.segments[0]!;
+            door.opened = true;
+            door.childId = finalSeg.id;
+            door.leadsToLevel = classification.targetLevel;
+            level.doorsRemaining -= 1;
+            draft.stats.doorsRemaining -= 1;
+            pushLog(
+              draft,
+              `Segment ${seg.id} (staircase) → the same Final Room already found on Level ${classification.targetLevel + 1}`,
+              "descend",
+            );
+            draft.activeLevel = classification.targetLevel;
+            draft.selectedSegId = null;
+            break;
+          }
+
+          case "reuse-normal": {
+            if (action.roll == null) throw new Error("reuse-normal requires a roll");
+            const row = rollSegment(seg.type, action.roll);
+            const targetLevel = draft.levels[classification.targetLevel]!;
+            const box = placeIslandRoot(targetLevel.segments, row.type);
+            const island = buildSegment(draft, row.type, box, null, row.doors, row.flavor ?? null, rng);
+            targetLevel.segments.push(island);
+            targetLevel.doorsRemaining += row.doors;
+            if (row.type === "staircase") targetLevel.hasStaircase = true;
+            bumpStatsForNewSegment(draft.stats, row.type, row.doors);
+
+            door.opened = true;
+            door.childId = island.id;
+            door.leadsToLevel = classification.targetLevel;
+            level.doorsRemaining -= 1;
+            draft.stats.doorsRemaining -= 1;
+
+            pushLog(
+              draft,
+              `Segment ${seg.id} (staircase) → joins the existing Level ${classification.targetLevel + 1} as a new entry point — Segment ${island.id} (${TYPE_LABELS[row.type]})`,
+              "descend",
+            );
+            draft.activeLevel = classification.targetLevel;
+            draft.selectedSegId = null;
+            startCombatIfMonsters(draft, island, false, rng);
+            break;
+          }
+
+          case "descend-final": {
+            const finalLevel = makeLevel(level.depth + 1);
+            finalLevel.isFinalRoomLevel = true;
+            finalLevel.finalRoomPlaced = true;
+            const box = boxFromCenter(0, 0, sizeFor("final", null));
+            const finalId = draft.nextSegmentId;
+            draft.nextSegmentId += 1;
+            const finalSeg: Draft<SegmentState> = {
+              id: finalId,
+              type: "final",
+              ...box,
+              cameFromDir: null,
+              flavor: "A large room with no doors. The Boss waits at its center.",
+              doors: [],
+              isEntrance: false,
+              monsters: resolveBoss(draft.dungeonTypeKey!, rng),
+            };
+            finalLevel.segments.push(finalSeg);
+            draft.levels.push(finalLevel);
+            const targetIndex = draft.levels.length - 1;
+
+            door.opened = true;
+            door.childId = finalId;
+            door.leadsToLevel = targetIndex;
+            level.stairwayTarget = targetIndex;
+            level.doorsRemaining -= 1;
+
+            draft.stats.segments += 1;
+            draft.stats.finalRooms += 1;
+            draft.stats.doorsRemaining -= 1;
+
+            pushLog(
+              draft,
+              `Segment ${seg.id} (staircase) → the Final Room — Level ${targetIndex + 1}, Segment ${finalId}`,
+              "descend",
+            );
+            draft.activeLevel = targetIndex;
+            draft.selectedSegId = null;
+            startCombatIfMonsters(draft, finalSeg, false, rng, true);
+            break;
+          }
+
+          case "dead-end-final": {
+            const box = placeChild(seg, door.dir, "final", level.segments);
+            const finalId = draft.nextSegmentId;
+            draft.nextSegmentId += 1;
+            const finalSeg: Draft<SegmentState> = {
+              id: finalId,
+              type: "final",
+              ...box,
+              cameFromDir: door.dir,
+              flavor: "No stairs were ever found on this level. The Boss waits at its center.",
+              doors: [],
+              isEntrance: false,
+              monsters: resolveBoss(draft.dungeonTypeKey!, rng),
+            };
+            level.segments.push(finalSeg);
+            level.connectors.push(buildConnector(seg, door.dir, box));
+
+            door.opened = true;
+            door.childId = finalId;
+            level.doorsRemaining -= 1;
+            level.finalRoomPlaced = true;
+
+            draft.stats.segments += 1;
+            draft.stats.finalRooms += 1;
+            draft.stats.doorsRemaining -= 1;
+
+            pushLog(
+              draft,
+              `Segment ${seg.id} was the last door on Level ${draft.activeLevel + 1} — the Final Room (Segment ${finalId}), no stairs ever found`,
+              "descend",
+            );
+            startCombatIfMonsters(draft, finalSeg, false, rng, true);
+            break;
+          }
+
+          case "descend-normal": {
+            if (action.roll == null) throw new Error("descend-normal requires a roll");
+            const row = rollSegment(seg.type, action.roll);
+            const newLevel = makeLevel(level.depth + 1);
+            const box = boxFromCenter(0, 0, sizeFor(row.type, null));
+            const rootSeg = buildSegment(draft, row.type, box, null, row.doors, row.flavor ?? null, rng);
+            newLevel.segments.push(rootSeg);
+            newLevel.doorsRemaining += row.doors;
+            if (row.type === "staircase") newLevel.hasStaircase = true;
+            draft.levels.push(newLevel);
+            const targetIndex = draft.levels.length - 1;
+
+            door.opened = true;
+            door.childId = rootSeg.id;
+            door.leadsToLevel = targetIndex;
+            level.stairwayTarget = targetIndex;
+            level.doorsRemaining -= 1;
+
+            bumpStatsForNewSegment(draft.stats, row.type, row.doors);
+            draft.stats.doorsRemaining -= 1;
+
+            pushLog(
+              draft,
+              `Segment ${seg.id} (staircase) → descends to Level ${targetIndex + 1} — Segment ${rootSeg.id} (${TYPE_LABELS[row.type]})`,
+              "descend",
+            );
+            draft.activeLevel = targetIndex;
+            draft.selectedSegId = null;
+            startCombatIfMonsters(draft, rootSeg, false, rng);
+            break;
+          }
+
+          case "normal": {
+            if (action.roll == null) throw new Error("normal requires a roll");
+            const row = rollSegment(seg.type, action.roll);
+            const box = placeChild(seg, door.dir, row.type, level.segments);
+            const childSeg = buildSegment(draft, row.type, box, door.dir, row.doors, row.flavor ?? null, rng);
+            level.segments.push(childSeg);
+            level.connectors.push(buildConnector(seg, door.dir, box));
+
+            door.opened = true;
+            door.childId = childSeg.id;
+            level.doorsRemaining += row.doors - 1;
+            if (row.type === "staircase") level.hasStaircase = true;
+
+            bumpStatsForNewSegment(draft.stats, row.type, row.doors);
+            draft.stats.doorsRemaining -= 1;
+
+            pushLog(draft, `Segment ${seg.id} → ${TYPE_LABELS[row.type]} (Segment ${childSeg.id})`);
+            startCombatIfMonsters(draft, childSeg, action.wasNoisy, rng);
+            break;
+          }
+        }
+      });
+    }
+
+    case "PLAYER_ATTACK": {
+      if (!state.alive || !state.combat || state.combat.outcome !== "ongoing") return state;
+      return produce(state, (draft) => {
+        const combat = draft.combat;
+        if (!combat) return;
+
+        if (combat.paralyzedTurns > 0) {
+          combat.paralyzedTurns -= 1;
+          pushLog(draft, "You are paralyzed and cannot act this turn.");
+          applyMonsterTurn(draft, combat);
+          return;
+        }
+
+        const monster = combat.monsters.find((m) => m.id === action.targetId);
+        if (!monster) return;
+
+        const { modifier } = parseWeaponFormula(draft.weaponFormula);
+        const weaponTotal = Math.max(0, action.roll + modifier);
+        const result = resolvePlayerAttack(monster, action.roll, weaponTotal, rng);
+
+        if (result.selfDestructDamageToPlayer > 0) {
+          pushLog(draft, `${monster.name} explodes, dealing ${result.selfDestructDamageToPlayer} damage to you!`);
+          draft.hp = Math.max(0, draft.hp - result.selfDestructDamageToPlayer);
+        } else if (result.damageDealt > 0) {
+          pushLog(draft, `You hit ${monster.name} for ${result.damageDealt} damage.`);
+        } else {
+          pushLog(draft, `Your attack fails to harm ${monster.name}.`);
+        }
+        monster.hp = Math.max(0, monster.hp - result.damageDealt);
+
+        for (const event of result.events) {
+          if (event.kind === "horde") {
+            const id = draft.nextMonsterId;
+            draft.nextMonsterId += 1;
+            combat.monsters.push({ ...HORDE_ORC, id });
+            pushLog(draft, "An Orc joins the fight!");
+          } else if (event.kind === "necromancy") {
+            const id = draft.nextMonsterId;
+            draft.nextMonsterId += 1;
+            combat.monsters.push({ ...NECROMANCY_SKELETON, id });
+            pushLog(draft, "A Skeleton rises to join the fight!");
+          }
+        }
+
+        if (draft.hp <= 0) {
+          draft.alive = false;
+          draft.deathCause = "combat";
+          pushLog(draft, "The explosion kills you instantly.", "descend");
+          return;
+        }
+
+        if (result.monsterDefeated) {
+          handleMonsterDefeat(draft, combat, monster, rng);
+        } else {
+          for (const event of result.events) {
+            if (event.kind === "firebreath") {
+              monster.bonusDamage += 10;
+              pushLog(draft, `${monster.name} breathes fire, readying a scorching counterattack!`);
+            } else if (event.kind === "sorcery") {
+              monster.bonusDamage += event.bonus;
+              pushLog(draft, `${monster.name} casts a spell, empowering its next attack by ${event.bonus}!`);
+            } else if (event.kind === "deathtouch") {
+              monster.deathtouchPending = true;
+              pushLog(draft, `${monster.name}'s touch turns deathly cold...`);
+            } else if (event.kind === "regeneration") {
+              monster.hp = Math.min(monster.maxHp, monster.hp + event.amount);
+              pushLog(draft, `${monster.name} regenerates ${event.amount} HP.`);
+            } else if (event.kind === "paralyze") {
+              monster.paralyzePending = event.turns;
+              pushLog(draft, `${monster.name} prepares a paralyzing strike!`);
+            }
+          }
+        }
+
+        finishIfVictorious(draft, combat, rng);
+        if (draft.combat && draft.combat.outcome === "ongoing") {
+          applyMonsterTurn(draft, draft.combat);
+        }
+      });
+    }
+
+    case "CAST_SPELL": {
+      if (!state.alive) return state;
+      const spell = SPELL_TABLE[action.spellRoll];
+      const remaining = state.spellUses[action.spellRoll] ?? 0;
+      if (!spell || remaining <= 0) return state;
+      // Cold Ray (4) and Lightning (5) need a target monster; all three combat-damage
+      // spells, plus Teleport's flee effect, only mean anything mid-fight.
+      const combatOnly = action.spellRoll === 4 || action.spellRoll === 5 || action.spellRoll === 6;
+      if ((combatOnly || action.spellRoll === 3) && !state.combat) return state;
+      if ((action.spellRoll === 4 || action.spellRoll === 5) && action.targetId == null) return state;
+
+      return produce(state, (draft) => {
+        draft.spellUses[action.spellRoll] = remaining - 1;
+        const combat = draft.combat;
+
+        if (combat && combat.paralyzedTurns > 0) {
+          combat.paralyzedTurns -= 1;
+          pushLog(draft, "You are paralyzed and cannot cast a spell this turn.");
+          applyMonsterTurn(draft, combat);
+          return;
+        }
+
+        switch (action.spellRoll) {
+          case 1: {
+            const healed = Math.min(5, draft.maxHp - draft.hp);
+            draft.hp += healed;
+            pushLog(draft, `You cast Heal, recovering ${healed} HP.`);
+            break;
+          }
+
+          case 2: {
+            // "Worth a torch (does not use a hand)" -- modeled as a free torch, since this
+            // codebase collapses light-source and hand-economy into the single torches count.
+            const gained = Math.min(1, 10 - draft.torches);
+            draft.torches += gained;
+            pushLog(
+              draft,
+              gained > 0
+                ? "You cast Light, conjuring a globe worth a torch."
+                : "You cast Light, but you're already carrying the maximum 10 torches.",
+            );
+            break;
+          }
+
+          case 3: {
+            if (!combat) break;
+            pushLog(draft, "You cast Teleport and vanish from the fight, reappearing in an empty room.", "descend");
+            draft.combat = null;
+            return; // fled -- no monster counter-turn
+          }
+
+          case 4: {
+            if (!combat) break;
+            const monster = combat.monsters.find((m) => m.id === action.targetId);
+            if (!monster) break;
+            const result = resolveSpellDamage(monster, 4);
+            monster.hp = Math.max(0, monster.hp - result.damageDealt);
+            monster.skipNextAttack = true;
+            pushLog(
+              draft,
+              result.blocked
+                ? `Cold Ray fails to harm ${monster.name} (${result.blocked}), but it freezes in place.`
+                : `Cold Ray strikes ${monster.name} for ${result.damageDealt} damage, freezing it in place.`,
+            );
+            handleMonsterDefeat(draft, combat, monster, rng);
+            break;
+          }
+
+          case 5: {
+            if (!combat) break;
+            const monster = combat.monsters.find((m) => m.id === action.targetId);
+            if (!monster) break;
+            const result = resolveSpellDamage(monster, 6);
+            monster.hp = Math.max(0, monster.hp - result.damageDealt);
+            pushLog(
+              draft,
+              result.blocked
+                ? `Lightning fails to harm ${monster.name} (${result.blocked}).`
+                : `Lightning strikes ${monster.name} for ${result.damageDealt} damage.`,
+            );
+            handleMonsterDefeat(draft, combat, monster, rng);
+            break;
+          }
+
+          case 6: {
+            if (!combat) break;
+            pushLog(draft, "You cast Fireball, engulfing the room in flame.");
+            for (const monster of [...combat.monsters]) {
+              const result = resolveSpellDamage(monster, 5);
+              monster.hp = Math.max(0, monster.hp - result.damageDealt);
+              if (result.blocked) {
+                pushLog(draft, `${monster.name} is unharmed (${result.blocked}).`);
+              } else if (result.damageDealt > 0) {
+                pushLog(draft, `${monster.name} takes ${result.damageDealt} fire damage.`);
+              }
+              handleMonsterDefeat(draft, combat, monster, rng);
+            }
+            break;
+          }
+        }
+
+        if (draft.combat) {
+          finishIfVictorious(draft, draft.combat, rng);
+          if (draft.combat && draft.combat.outcome === "ongoing") {
+            applyMonsterTurn(draft, draft.combat);
+          }
+        }
+      });
+    }
+
+    case "RESET":
+      return createInitialDungeonState();
+
+    default:
+      return state;
+  }
+}
