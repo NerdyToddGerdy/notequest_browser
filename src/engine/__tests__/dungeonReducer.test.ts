@@ -343,6 +343,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
       coins: 5,
       treasures: 2,
       keys: 1,
+      heldItems: [],
     });
   });
 
@@ -351,7 +352,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
       id: 1,
       type: "room-small",
       doors: [],
-      remains: { names: ["Doomed Dara"], coins: 5, treasures: 2, keys: 1 },
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 2, keys: 1, heldItems: [] },
     });
     const level = { ...makeLevel(1), segments: [room] };
     const state = {
@@ -369,6 +370,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
       coins: 8,
       treasures: 2,
       keys: 2,
+      heldItems: [],
     });
   });
 
@@ -478,21 +480,28 @@ describe("ROLL_CHEST", () => {
 });
 
 describe("COLLECT_REMAINS", () => {
-  it("adds the remains' coins/Treasures/Keys to the current character and clears them", () => {
+  it("adds the remains' coins/Treasures/Keys/held items to the current character and clears them", () => {
     const room = makeSegment({
       id: 1,
       type: "room-small",
       doors: [],
-      remains: { names: ["Doomed Dara"], coins: 5, treasures: 2, keys: 1 },
+      remains: {
+        names: ["Doomed Dara"],
+        coins: 5,
+        treasures: 2,
+        keys: 1,
+        heldItems: [{ name: "Ornament", worth: 5 }],
+      },
     });
     const level = { ...makeLevel(1), segments: [room] };
-    const state = { ...stateWithLevel(level), coins: 1, treasures: 0, keys: 0 };
+    const state = { ...stateWithLevel(level), coins: 1, treasures: 0, keys: 0, heldItems: [] };
 
     const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
 
     expect(next.coins).toBe(6);
     expect(next.treasures).toBe(2);
     expect(next.keys).toBe(1);
+    expect(next.heldItems).toEqual([{ name: "Ornament", worth: 5 }]);
     expect(next.levels[0]!.segments[0]!.remains).toBeNull();
     expect(next.log[0]!.message).toContain("Doomed Dara");
   });
@@ -511,7 +520,7 @@ describe("COLLECT_REMAINS", () => {
       id: 1,
       type: "room-small",
       doors: [],
-      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0 },
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0, heldItems: [] },
     });
     const level = { ...makeLevel(1), segments: [room] };
     const state = { ...stateWithLevel(level), alive: false };
@@ -744,11 +753,12 @@ describe("CAST_SPELL guards", () => {
 });
 
 describe("OPEN_TREASURE", () => {
-  it("a flat-coins outcome (Palace roll 1: Ornament) credits coins and consumes the treasure", () => {
+  it("a flat-value outcome (Palace roll 1: Ornament) adds a held item and consumes the treasure", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 2 };
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
     expect(next.treasures).toBe(1);
-    expect(next.coins).toBe(5);
+    expect(next.coins).toBe(0);
+    expect(next.heldItems).toEqual([{ name: "Ornament", worth: 5 }]);
     expect(next.log[0]!.message).toContain("Ornament");
   });
 
@@ -765,10 +775,11 @@ describe("OPEN_TREASURE", () => {
     expect(next.log[0]!.message).toContain("Lightning");
   });
 
-  it("Valuable jewel (Palace roll 4) credits 2d6 x 10 coins", () => {
+  it("Valuable jewel (Palace roll 4) adds a held item worth 2d6 x 10 coins", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 4, maxSpellUses: {} }, sequenceDie([4, 3]));
-    expect(next.coins).toBe(70); // (4 + 3) * 10
+    expect(next.coins).toBe(0);
+    expect(next.heldItems).toEqual([{ name: "Valuable jewel", worth: 70 }]); // (4 + 3) * 10
   });
 
   it("an unmodeled Wonder/Magic Item (Palace rolls 5-6) still consumes the treasure and logs flavor", () => {
@@ -816,7 +827,7 @@ describe("RESUME_DUNGEON", () => {
       type: "room-small",
       doors: [],
       monsters: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 },
-      remains: { names: ["An Even Earlier Hero"], coins: 3, treasures: 0, keys: 0 },
+      remains: { names: ["An Even Earlier Hero"], coins: 3, treasures: 0, keys: 0, heldItems: [] },
     });
     const level = { ...makeLevel(1), segments: [room] };
     const persisted: DungeonState = {
@@ -862,6 +873,7 @@ describe("RESUME_DUNGEON", () => {
       coins: 3,
       treasures: 0,
       keys: 0,
+      heldItems: [],
     });
   });
 

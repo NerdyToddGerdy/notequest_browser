@@ -44,6 +44,7 @@ export interface FallenAdventurer {
   coins: number;
   treasures: number;
   keys: number;
+  heldItems: HeldItem[];
 }
 
 export interface ConnectorState {
@@ -109,6 +110,12 @@ export interface CombatState {
   outcome: "ongoing" | "victory" | "defeat";
 }
 
+/** A "worth N Coins in the town" item found by opening a Treasure -- held until there's a town to sell it in. */
+export interface HeldItem {
+  name: string;
+  worth: number;
+}
+
 export interface DungeonState {
   dungeonTypeKey: DungeonTypeKey | null;
   dungeonName: string | null;
@@ -129,6 +136,8 @@ export interface DungeonState {
   treasures: number;
   /** From Loot rolls -- currently just a counter; doesn't yet let you skip a door's lock roll. */
   keys: number;
+  /** Coin-valued items found by opening Treasures, held until there's a town to sell them in. */
+  heldItems: HeldItem[];
   combat: CombatState | null;
   /** The active character's name -- used only to label remains left behind if they die. */
   characterName: string;
@@ -194,6 +203,7 @@ export function createInitialDungeonState(
     coins: 0,
     treasures: 0,
     keys: 0,
+    heldItems: [],
     combat: null,
     characterName,
     weaponFormula,

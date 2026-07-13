@@ -63,11 +63,12 @@ const DARKNESS_MESSAGE = "The darkness devours you. Without a torch, there is no
 /**
  * "If you lose all HP, your character is dead and all your equipment will be on the floor of
  * that room to be recovered by your next character" -- and per the Darkness section, the same
- * applies there too. Drops the dying character's coins/Treasures/Keys into `segId` (falling
- * back to the entrance if that segment can't be found), merging with any remains already there.
+ * applies there too. Drops the dying character's coins/Treasures/Keys/held items into `segId`
+ * (falling back to the entrance if that segment can't be found), merging with any remains
+ * already there.
  */
 function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
-  if (draft.coins === 0 && draft.treasures === 0 && draft.keys === 0) return;
+  if (draft.coins === 0 && draft.treasures === 0 && draft.keys === 0 && draft.heldItems.length === 0) return;
   const level = draft.levels[draft.activeLevel];
   const seg = level?.segments.find((s) => s.id === segId) ?? level?.segments.find((s) => s.isEntrance);
   if (!seg) return;
@@ -76,12 +77,14 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
     seg.remains.coins += draft.coins;
     seg.remains.treasures += draft.treasures;
     seg.remains.keys += draft.keys;
+    seg.remains.heldItems.push(...draft.heldItems);
   } else {
     seg.remains = {
       names: [draft.characterName],
       coins: draft.coins,
       treasures: draft.treasures,
       keys: draft.keys,
+      heldItems: [...draft.heldItems],
     };
   }
 }
@@ -415,13 +418,15 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (!seg?.remains) return;
-        const { names, coins, treasures, keys } = seg.remains;
+        const { names, coins, treasures, keys, heldItems } = seg.remains;
         draft.coins += coins;
         draft.treasures += treasures;
         draft.keys += keys;
+        draft.heldItems.push(...heldItems);
+        const itemsPart = heldItems.length > 0 ? `, and ${heldItems.map((item) => item.name).join(", ")}` : "";
         pushLog(
           draft,
-          `Segment ${seg.id}: recovered ${coins} coin${coins === 1 ? "" : "s"}, ${treasures} Treasure${treasures === 1 ? "" : "s"}, and ${keys} Key${keys === 1 ? "" : "s"} from the remains of ${names.join(", ")}.`,
+          `Segment ${seg.id}: recovered ${coins} coin${coins === 1 ? "" : "s"}, ${treasures} Treasure${treasures === 1 ? "" : "s"}, and ${keys} Key${keys === 1 ? "" : "s"}${itemsPart} from the remains of ${names.join(", ")}.`,
         );
         seg.remains = null;
       });
@@ -861,17 +866,17 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         draft.treasures -= 1;
 
         switch (outcome.effect.kind) {
-          case "coins": {
-            draft.coins += outcome.effect.amount;
+          case "heldValue": {
+            draft.heldItems.push({ name: outcome.effect.name, worth: outcome.effect.amount });
             pushLog(draft, `Treasure: ${outcome.text}`);
             break;
           }
-          case "coinsRoll": {
+          case "heldValueRoll": {
             let sum = 0;
             for (let i = 0; i < outcome.effect.dice; i++) sum += rollDie(rng);
-            const amount = sum * outcome.effect.multiplier;
-            draft.coins += amount;
-            pushLog(draft, `Treasure: ${outcome.text} (+${amount} coins)`);
+            const worth = sum * outcome.effect.multiplier;
+            draft.heldItems.push({ name: outcome.effect.name, worth });
+            pushLog(draft, `Treasure: ${outcome.text} (worth ${worth} coins)`);
             break;
           }
           case "healAll": {

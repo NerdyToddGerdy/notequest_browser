@@ -189,6 +189,7 @@ describe("PLAYER_ATTACK", () => {
       coins: 7,
       treasures: 1,
       keys: 2,
+      heldItems: [],
     });
   });
 
@@ -375,7 +376,8 @@ describe("OPEN_TREASURE in combat", () => {
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
 
     expect(next.treasures).toBe(0);
-    expect(next.coins).toBe(5); // Palace roll 1: Ornament
+    expect(next.coins).toBe(0);
+    expect(next.heldItems).toEqual([{ name: "Ornament", worth: 5 }]); // Palace roll 1
     expect(next.hp).toBe(next.maxHp - 5); // the monster's counter-attack landed
   });
 

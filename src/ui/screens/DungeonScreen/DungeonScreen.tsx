@@ -21,6 +21,7 @@ import type { CreatedCharacter } from "../../../data/types.ts";
 import { Die } from "../../components/Die/Die.tsx";
 import { DicePool } from "../../components/DicePool/DicePool.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
+import { Pack } from "../../components/Pack/Pack.tsx";
 import { CombatPanel } from "../../components/CombatPanel/CombatPanel.tsx";
 import { DungeonMap } from "../../components/DungeonMap/DungeonMap.tsx";
 import { LevelTabs } from "../../components/LevelTabs/LevelTabs.tsx";
@@ -332,6 +333,8 @@ export function DungeonScreen({
             canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
             onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}
           />
+
+          <Pack items={state.heldItems} />
 
           {hasDungeon && (
             <div className={styles.statsCard}>

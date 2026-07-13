@@ -42,14 +42,15 @@ export interface MonsterTemplate {
 
 /**
  * What opening a Treasure actually does. Only the outcomes this app can mechanically apply are
- * modeled here (coins, healing, spells); the "[Roll in the Wonders/Magic Item column]" redirects
- * and the Prison table's "[Roll in the Weapon table]" aren't -- those columns are unmodeled
- * (armor/weapon items, town economy), so they resolve as flavor text only, same as this
- * codebase's other "not modeled" outcomes.
+ * modeled here (held valuables, healing, spells); the "[Roll in the Wonders/Magic Item column]"
+ * redirects and the Prison table's "[Roll in the Weapon table]" aren't -- those columns are
+ * unmodeled (armor/weapon items), so they resolve as flavor text only, same as this codebase's
+ * other "not modeled" outcomes. "worth N Coins in the town" isn't paid out as coins on the spot
+ * either -- there's no town to sell it in yet, so it becomes a held item instead (see HeldItem).
  */
 export type RewardEffect =
-  | { kind: "coins"; amount: number }
-  | { kind: "coinsRoll"; dice: number; sides: number; multiplier: number }
+  | { kind: "heldValue"; name: string; amount: number }
+  | { kind: "heldValueRoll"; name: string; dice: number; sides: number; multiplier: number }
   | { kind: "healAll" }
   | { kind: "restoreAllSpells" }
   | { kind: "randomSpell" }
@@ -117,7 +118,7 @@ const MAGIC_SCROLL: RewardOutcome = {
 };
 const VALUABLE_JEWEL: RewardOutcome = {
   text: "Valuable jewel (worth 2d6 x 10 Coins in the town).",
-  effect: { kind: "coinsRoll", dice: 2, sides: 6, multiplier: 10 },
+  effect: { kind: "heldValueRoll", name: "Valuable jewel", dice: 2, sides: 6, multiplier: 10 },
 };
 const WONDER_UNMODELED: RewardOutcome = {
   text: "You find a Wonder -- not modeled, no mechanical effect.",
@@ -173,7 +174,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       6: { name: "Orc King", hp: 24, damage: 5, abilities: ["horde"], count: 1 },
     },
     treasure: {
-      1: { text: "Ornament (worth 5 Coins in the town).", effect: { kind: "coins", amount: 5 } },
+      1: { text: "Ornament (worth 5 Coins in the town).", effect: { kind: "heldValue", name: "Ornament", amount: 5 } },
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
@@ -225,7 +226,10 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       6: { name: "Vampiric Beast", hp: 19, damage: 7, abilities: [], count: 1 },
     },
     treasure: {
-      1: { text: "Religious Object (worth 3 Coins in the town).", effect: { kind: "coins", amount: 3 } },
+      1: {
+        text: "Religious Object (worth 3 Coins in the town).",
+        effect: { kind: "heldValue", name: "Religious Object", amount: 3 },
+      },
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
@@ -329,7 +333,10 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       6: { name: "Fallen Angel of Vengeance", hp: 25, damage: 8, abilities: ["sorcery"], count: 1 },
     },
     treasure: {
-      1: { text: "Religious Object (worth 3 Coins in the town).", effect: { kind: "coins", amount: 3 } },
+      1: {
+        text: "Religious Object (worth 3 Coins in the town).",
+        effect: { kind: "heldValue", name: "Religious Object", amount: 3 },
+      },
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
@@ -381,7 +388,10 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       6: { name: "Serpent God", hp: 30, damage: 3, abilities: ["poison"], count: 1 },
     },
     treasure: {
-      1: { text: "Sinister Idol (worth 3 Coins in the town).", effect: { kind: "coins", amount: 3 } },
+      1: {
+        text: "Sinister Idol (worth 3 Coins in the town).",
+        effect: { kind: "heldValue", name: "Sinister Idol", amount: 3 },
+      },
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,

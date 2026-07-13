@@ -25,6 +25,7 @@ function describeRemains(remains: NonNullable<SegmentState["remains"]>): string 
   if (remains.coins > 0) parts.push(`${remains.coins} coin${remains.coins === 1 ? "" : "s"}`);
   if (remains.treasures > 0) parts.push(`${remains.treasures} Treasure${remains.treasures === 1 ? "" : "s"}`);
   if (remains.keys > 0) parts.push(`${remains.keys} Key${remains.keys === 1 ? "" : "s"}`);
+  for (const item of remains.heldItems) parts.push(item.name);
   const who = remains.names.join(", ");
   return parts.length > 0 ? `The remains of ${who} lie here — ${parts.join(", ")}.` : `The remains of ${who} lie here.`;
 }
