@@ -16,6 +16,7 @@ import {
   type MagicItemEntry,
   type MonsterAbility,
   type MonsterTemplate,
+  type RoomContentReward,
   type TrapEntry,
   type WonderEntry,
 } from "../data/dungeonTables.ts";
@@ -39,6 +40,7 @@ import {
   HORDE_ORC,
   NECROMANCY_SKELETON,
   parseWeaponFormula,
+  resolveMonsterCount,
   resolvePlayerAttack,
   resolveSpellDamage,
   rollLoot,
@@ -590,6 +592,69 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
   }
 }
 
+/**
+ * Applies a Room Content row's automatic reward -- unlike Chests/Treasures (an explicit player
+ * action), these are just there the moment the room is built, same as its flavor text. `coins`/
+ * `treasures` credit the rolled count directly (`multiplier` for rows like "2d6 paintings, 2
+ * coins each"); `magicScrolls` grants that many random Basic Spell uses; `magicItems` rolls that
+ * many Magic Items off the dungeon's own table, reusing `resolveMagicItem()` (its "Treasure:" log
+ * prefix is a little off for an Armory's own contents, but the base-table-roll/bonus-layering
+ * logic it reuses is exactly right, so that's an acceptable trade).
+ */
+function applyRoomContentReward(draft: Draft<DungeonState>, reward: RoomContentReward, rng: RNG): void {
+  const count = resolveMonsterCount(reward.count, rng);
+  if (count <= 0) return;
+
+  switch (reward.kind) {
+    case "coins": {
+      const coins = count * (reward.multiplier ?? 1);
+      draft.coins += coins;
+      pushLog(draft, `You find ${coins} coin${coins === 1 ? "" : "s"}.`);
+      break;
+    }
+    case "treasures": {
+      draft.treasures += count;
+      pushLog(draft, `You find ${count} Treasure${count === 1 ? "" : "s"}.`);
+      break;
+    }
+    case "magicScrolls": {
+      const spellNames: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const spellRoll = rollDie(rng);
+        draft.spellUses[spellRoll] = (draft.spellUses[spellRoll] ?? 0) + 1;
+        spellNames.push(SPELL_TABLE[spellRoll]?.name ?? "a spell");
+      }
+      pushLog(draft, `You find ${count} Magic Scroll${count === 1 ? "" : "s"}, learning ${spellNames.join(", ")}.`);
+      break;
+    }
+    case "magicItems": {
+      if (!draft.dungeonTypeKey) break;
+      for (let i = 0; i < count; i++) {
+        const roll = rollDie(rng);
+        const entry = DUNGEON_TABLES[draft.dungeonTypeKey].magicItem[roll]!;
+        resolveMagicItem(draft, entry, rng);
+      }
+      break;
+    }
+  }
+}
+
+/** Everything that happens once a new *room* segment (not a Final Room, which has no Content roll
+ * and so never has `roomContent`) is built and pushed onto the level: its Room Content reward (if
+ * any) applies first, then combat starts if it rolled monsters -- matching the natural order of
+ * noticing what's in the room before whatever's in it notices you back. */
+function finishRoomSegment(
+  draft: Draft<DungeonState>,
+  seg: { id: number; monsters?: MonsterTemplate; roomContent?: { reward?: RoomContentReward } },
+  wasNoisy: boolean,
+  rng: RNG,
+): void {
+  if (seg.roomContent?.reward) {
+    applyRoomContentReward(draft, seg.roomContent.reward, rng);
+  }
+  startCombatIfMonsters(draft, seg, wasNoisy, rng);
+}
+
 export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: RNG = Math.random): DungeonState {
   switch (action.type) {
     case "ROLL_DUNGEON": {
@@ -618,7 +683,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         level.segments.push(entrance);
         level.doorsRemaining += dtype.doors;
         bumpStatsForNewSegment(draft.stats, dtype.entranceType, dtype.doors);
-        startCombatIfMonsters(draft, entrance, false, rng);
+        finishRoomSegment(draft, entrance, false, rng);
       });
     }
 
@@ -805,7 +870,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             );
             draft.activeLevel = classification.targetLevel;
             draft.selectedSegId = null;
-            startCombatIfMonsters(draft, island, false, rng);
+            finishRoomSegment(draft, island, false, rng);
             break;
           }
 
@@ -914,7 +979,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             );
             draft.activeLevel = targetIndex;
             draft.selectedSegId = null;
-            startCombatIfMonsters(draft, rootSeg, false, rng);
+            finishRoomSegment(draft, rootSeg, false, rng);
             break;
           }
 
@@ -935,7 +1000,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             draft.stats.doorsRemaining -= 1;
 
             pushLog(draft, `Segment ${seg.id} → ${TYPE_LABELS[row.type]} (Segment ${childSeg.id})`);
-            startCombatIfMonsters(draft, childSeg, action.wasNoisy, rng);
+            finishRoomSegment(draft, childSeg, action.wasNoisy, rng);
             break;
           }
         }

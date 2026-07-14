@@ -113,6 +113,104 @@ describe("OPEN_DOOR: normal room resolution", () => {
   });
 });
 
+describe("Room Content rewards", () => {
+  it("credits coins the moment a room with a coins reward is built (Palace entrance, roll 3)", () => {
+    // content sum 3 (Palace row 3: "1d6 coins on the floor"), monster sum 7 (null), reward roll 5
+    const rng = sequenceDie([1, 2, 3, 4, 5]);
+    const state = dungeonReducer(
+      createInitialDungeonState(),
+      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      rng,
+    );
+    expect(state.dungeonTypeKey).toBe("palace");
+    expect(state.coins).toBe(5);
+    expect(state.log.some((entry) => entry.message === "You find 5 coins.")).toBe(true);
+  });
+
+  it("grants random Basic Spell uses for a magicScrolls reward (Palace entrance, roll 5)", () => {
+    // content sum 5 (Palace row 5: "1d6 Magic Scrolls"), monster sum 9, reward roll count 3 -> 3 scrolls
+    const rng = sequenceDie([2, 3, 4, 5, 3, 3, 3, 3]);
+    const state = dungeonReducer(
+      createInitialDungeonState(),
+      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      rng,
+    );
+    expect(state.spellUses).toEqual({ 3: 3 }); // three scrolls, all rolling spell 3 (Teleport)
+    expect(state.log.some((entry) => entry.message.includes("3 Magic Scrolls"))).toBe(true);
+  });
+
+  it("rolls Magic Items for a magicItems reward (Palace entrance, roll 12)", () => {
+    // content sum 12 (Palace row 12: "2d6 Magic Items"), monster sum 12 (padded identically),
+    // reward count roll 1+1=2 -> 2 items, each needing an item-table roll + a base-armor-table roll
+    const rng = sequenceDie([6, 6, 6, 6, 1, 1, 1, 1, 1, 1]);
+    const state = dungeonReducer(
+      createInitialDungeonState(),
+      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      rng,
+    );
+    // Magic Item roll 1 -> [Armor] of Royalty (grants: armor); roll 1 again for the base Armor
+    // table -> Ring (0 HP). Two magic items rolled (2d6 count 1+1=2), both identical here.
+    expect(state.armor).toHaveLength(2);
+    expect(state.armor[0]!.itemName).toBe("[Armor] of Royalty");
+  });
+
+  it("does nothing extra for a row with no reward field", () => {
+    // content sum 2 (Palace row 2: "Dust-filled library", no reward), monster sum 7 (null)
+    const rng = sequenceDie([1, 1, 3, 4]);
+    const state = dungeonReducer(
+      createInitialDungeonState(),
+      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      rng,
+    );
+    expect(state.coins).toBe(0);
+    expect(state.treasures).toBe(0);
+  });
+
+  it("credits treasures for a treasures reward found behind a door", () => {
+    const entrance = makeSegment({
+      id: 1,
+      type: "corridor",
+      w: 60,
+      h: 140,
+      doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
+    });
+    const level = { ...makeLevel(1), segments: [entrance], doorsRemaining: 1, hasStaircase: true };
+    const state = {
+      ...stateWithLevel(level),
+      dungeonTypeKey: "sanctuary" as const,
+      stats: { ...createInitialDungeonState().stats, doorsRemaining: 1 },
+    };
+    // content sum 4 (Sanctuary row 4: "1d6 Treasures"), monster sum 2, reward roll 4
+    const rng = sequenceDie([1, 3, 1, 1, 4]);
+    const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 1, wasNoisy: false }, rng);
+
+    expect(next.treasures).toBe(4);
+    expect(next.log.some((entry) => entry.message === "You find 4 Treasures.")).toBe(true);
+  });
+
+  it("applies a coins reward's multiplier (2d6 paintings, 2 coins each)", () => {
+    const entrance = makeSegment({
+      id: 1,
+      type: "corridor",
+      w: 60,
+      h: 140,
+      doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
+    });
+    const level = { ...makeLevel(1), segments: [entrance], doorsRemaining: 1, hasStaircase: true };
+    const state = {
+      ...stateWithLevel(level),
+      dungeonTypeKey: "sanctuary" as const,
+      stats: { ...createInitialDungeonState().stats, doorsRemaining: 1 },
+    };
+    // content sum 9 (Sanctuary row 9: "2d6 paintings of gods, 2 coins each"), monster sum 2,
+    // reward count roll 3+4=7 paintings -> 14 coins
+    const rng = sequenceDie([4, 5, 1, 1, 3, 4]);
+    const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 1, wasNoisy: false }, rng);
+
+    expect(next.coins).toBe(14);
+  });
+});
+
 describe("OPEN_DOOR: staircases", () => {
   it("descend-normal creates a fresh level and switches to it", () => {
     const stair = makeSegment({

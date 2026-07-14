@@ -5,7 +5,18 @@ export interface RoomContentEntry {
   secretPassage: boolean;
   /** True for rows describing an actual Chest to open (see the "Open a Chest" dungeon action). */
   hasChest?: boolean;
+  /** A reward implied by this row's own flavor text (e.g. "1d6 coins on the floor") that used to
+   * be purely cosmetic. Unlike Chests (an explicit "Open Chest" action) or Treasures (spent on
+   * demand via "Open a Treasure"), these are just there -- rolled and credited automatically the
+   * moment the room is built, same as the room's flavor text itself needing no interaction. */
+  reward?: RoomContentReward;
 }
+
+export type RoomContentReward =
+  | { kind: "coins"; count: MonsterCount; multiplier?: number }
+  | { kind: "treasures"; count: MonsterCount }
+  | { kind: "magicScrolls"; count: MonsterCount }
+  | { kind: "magicItems"; count: MonsterCount };
 
 export interface TrapEntry {
   text: string;
@@ -276,16 +287,28 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
     },
     roomContent: {
       2: { text: "Dust-filled library.", secretPassage: true },
-      3: { text: "Destroyed kitchen with 1d6 coins on the floor.", secretPassage: false },
+      3: {
+        text: "Destroyed kitchen with 1d6 coins on the floor.",
+        secretPassage: false,
+        reward: { kind: "coins", count: { dice: 1, sides: 6 } },
+      },
       4: { text: "Large table with a few chairs.", secretPassage: true },
-      5: { text: "Bookshelf with 1d6 Magic Scrolls.", secretPassage: false },
+      5: {
+        text: "Bookshelf with 1d6 Magic Scrolls.",
+        secretPassage: false,
+        reward: { kind: "magicScrolls", count: { dice: 1, sides: 6 } },
+      },
       6: { text: "Desk with a Chest.", secretPassage: false, hasChest: true },
       7: { text: "Dirt everywhere.", secretPassage: true },
       8: { text: "Bed with a Chest on the side.", secretPassage: false, hasChest: true },
       9: { text: "Garden covered by plants.", secretPassage: true },
       10: { text: "Trash deposit.", secretPassage: true },
       11: { text: "Large table with papers and maps.", secretPassage: true },
-      12: { text: "Armory. 2d6 Magic Items.", secretPassage: false },
+      12: {
+        text: "Armory. 2d6 Magic Items.",
+        secretPassage: false,
+        reward: { kind: "magicItems", count: { dice: 2, sides: 6 } },
+      },
     },
     monsters: {
       2: { name: "Minotaur", hp: 14, damage: 7, abilities: [], count: 1 },
@@ -414,13 +437,21 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { text: "Several pots with dead plants.", secretPassage: false },
       4: { text: "Texts sculpted on the floor.", secretPassage: true },
       5: { text: "Human bones everywhere.", secretPassage: true },
-      6: { text: "A pile of bones and 1d6 coins.", secretPassage: false },
+      6: {
+        text: "A pile of bones and 1d6 coins.",
+        secretPassage: false,
+        reward: { kind: "coins", count: { dice: 1, sides: 6 } },
+      },
       7: { text: "Casket with Chest inside.", secretPassage: false, hasChest: true },
       8: { text: "Various wooden coffins.", secretPassage: true },
       9: { text: "Walls made of skulls.", secretPassage: true },
       10: { text: "Dozens of burned candles everywhere.", secretPassage: true },
       11: { text: "Broken statue of a forgotten person.", secretPassage: true },
-      12: { text: "Treasure room with 2d6 Treasures.", secretPassage: false },
+      12: {
+        text: "Treasure room with 2d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 2, sides: 6 } },
+      },
     },
     monsters: {
       2: { name: "Vampire Servant", hp: 9, damage: 4, abilities: ["regeneration"], count: 1 },
@@ -557,13 +588,21 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { text: "Several pots with dead plants.", secretPassage: false },
       4: { text: "Texts sculpted on the floor.", secretPassage: true },
       5: { text: "Human bones everywhere.", secretPassage: true },
-      6: { text: "Pile of bones and 1d6 coins.", secretPassage: false },
+      6: {
+        text: "Pile of bones and 1d6 coins.",
+        secretPassage: false,
+        reward: { kind: "coins", count: { dice: 1, sides: 6 } },
+      },
       7: { text: "Sarcophagus with Chest inside.", secretPassage: false, hasChest: true },
       8: { text: "Several wooden coffins.", secretPassage: true },
       9: { text: "Walls made of skulls.", secretPassage: true },
       10: { text: "A destroyed sarcophagus.", secretPassage: true },
       11: { text: "Broken statue of a hero.", secretPassage: true },
-      12: { text: "Treasure Room with 2d6 Treasures.", secretPassage: false },
+      12: {
+        text: "Treasure Room with 2d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 2, sides: 6 } },
+      },
     },
     monsters: {
       2: { name: "Ghost of the Prince", hp: 6, damage: 4, abilities: ["intangible"], count: 1 },
@@ -685,15 +724,31 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
     roomContent: {
       2: { text: "A magic circle on the floor.", secretPassage: false },
       3: { text: "10 chairs lined up.", secretPassage: false },
-      4: { text: "Torture Room with 1d6 Treasures.", secretPassage: false },
+      4: {
+        text: "Torture Room with 1d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
+      },
       5: { text: "Creature or deity statues.", secretPassage: true },
-      6: { text: "Corpse with 1 Treasure.", secretPassage: false },
+      6: { text: "Corpse with 1 Treasure.", secretPassage: false, reward: { kind: "treasures", count: 1 } },
       7: { text: "Large Chest on an altar.", secretPassage: false, hasChest: true },
-      8: { text: "Small altar with 1d6 coins.", secretPassage: true },
-      9: { text: "2d6 paintings of gods (2 coins each).", secretPassage: true },
+      8: {
+        text: "Small altar with 1d6 coins.",
+        secretPassage: true,
+        reward: { kind: "coins", count: { dice: 1, sides: 6 } },
+      },
+      9: {
+        text: "2d6 paintings of gods (2 coins each).",
+        secretPassage: true,
+        reward: { kind: "coins", count: { dice: 2, sides: 6 }, multiplier: 2 },
+      },
       10: { text: "Melted candles everywhere.", secretPassage: true },
       11: { text: "Fountain with running water.", secretPassage: true },
-      12: { text: "Shelves with 1d6 Treasures.", secretPassage: false },
+      12: {
+        text: "Shelves with 1d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
+      },
     },
     monsters: {
       2: { name: "Wisp", hp: 2, damage: 1, abilities: [], count: 8 },
@@ -821,15 +876,31 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
     roomContent: {
       2: { text: "A magic circle on the floor.", secretPassage: false },
       3: { text: "Bottomless pit.", secretPassage: false },
-      4: { text: "Torture Room with 1d6 Treasures.", secretPassage: false },
+      4: {
+        text: "Torture Room with 1d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
+      },
       5: { text: "Unknown creature statues.", secretPassage: true },
-      6: { text: "Corpse with 1 Treasure.", secretPassage: false },
+      6: { text: "Corpse with 1 Treasure.", secretPassage: false, reward: { kind: "treasures", count: 1 } },
       7: { text: "Chest surrounded by melted candles.", secretPassage: false, hasChest: true },
-      8: { text: "Small altar with 1d6 coins.", secretPassage: true },
-      9: { text: "2d6 paintings of demons (1 coin each).", secretPassage: true },
+      8: {
+        text: "Small altar with 1d6 coins.",
+        secretPassage: true,
+        reward: { kind: "coins", count: { dice: 1, sides: 6 } },
+      },
+      9: {
+        text: "2d6 paintings of demons (1 coin each).",
+        secretPassage: true,
+        reward: { kind: "coins", count: { dice: 2, sides: 6 } },
+      },
       10: { text: "Carcasses of giant snakes.", secretPassage: true },
       11: { text: "Dry fountain.", secretPassage: true },
-      12: { text: "Desk with 1d6 Treasures in the drawers.", secretPassage: false },
+      12: {
+        text: "Desk with 1d6 Treasures in the drawers.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
+      },
     },
     monsters: {
       2: { name: "Imps", hp: 2, damage: 1, abilities: [], count: { dice: 2, sides: 6 } },
@@ -955,14 +1026,22 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: { text: "A cell with the skeleton of a childhood friend.", secretPassage: true },
       3: { text: "Large table with papers and confessions signed in blood.", secretPassage: false },
       4: { text: "Six cages hanging on the ceiling.", secretPassage: true },
-      5: { text: "Shelf of belongings with 1d6 Treasures.", secretPassage: false },
+      5: {
+        text: "Shelf of belongings with 1d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
+      },
       6: { text: "Shackles on the walls and hanging bones.", secretPassage: false },
       7: { text: "Four empty cells.", secretPassage: true },
       8: { text: "Large cell with bones on all sides.", secretPassage: false },
       9: { text: "Torture bed.", secretPassage: true },
       10: { text: "Stack of coffins.", secretPassage: false },
       11: { text: "Slime covered wall.", secretPassage: true },
-      12: { text: "Arsenal. 2d6 Magic Items.", secretPassage: false },
+      12: {
+        text: "Arsenal. 2d6 Magic Items.",
+        secretPassage: false,
+        reward: { kind: "magicItems", count: { dice: 2, sides: 6 } },
+      },
     },
     monsters: {
       2: { name: "Cave Troll", hp: 26, damage: 6, abilities: ["regeneration"], count: 1 },
