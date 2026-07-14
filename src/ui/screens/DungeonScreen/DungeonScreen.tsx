@@ -277,19 +277,6 @@ export function DungeonScreen({
                 activeLevel={state.activeLevel}
                 onSwitchLevel={(levelIndex) => dispatch({ type: "SWITCH_LEVEL", levelIndex })}
               />
-              {state.treasures > 0 && state.alive && (
-                <div className={styles.treasureBar}>
-                  <Die value={treasureDie} rollToken={treasureRollToken} size={36} />
-                  <button
-                    className={styles.rollBtn}
-                    type="button"
-                    disabled={openingTreasure}
-                    onClick={handleOpenTreasure}
-                  >
-                    Open a Treasure ({state.treasures})
-                  </button>
-                </div>
-              )}
               <div className={styles.mapArea}>
                 <DungeonMap
                   state={state}
@@ -371,6 +358,23 @@ export function DungeonScreen({
             canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
             onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}
           />
+
+          {state.treasures > 0 && state.alive && (
+            <div className={styles.statsCard}>
+              <h3>Treasure</h3>
+              <div className={styles.treasureRow}>
+                <Die value={treasureDie} rollToken={treasureRollToken} size={36} />
+                <button
+                  className={styles.rollBtn}
+                  type="button"
+                  disabled={openingTreasure}
+                  onClick={handleOpenTreasure}
+                >
+                  Open a Treasure ({state.treasures})
+                </button>
+              </div>
+            </div>
+          )}
 
           <Equipment armor={state.armor} weapon={state.weapon} />
 

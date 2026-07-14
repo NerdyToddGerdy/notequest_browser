@@ -152,16 +152,10 @@
   margin-bottom: 16px;
 }
 
-.treasureBar {
+.treasureRow {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 12px;
-  padding: 10px 16px;
-  background: var(--parchment-2);
-  border-radius: 4px;
-  border: 1px solid var(--gold);
-  box-shadow: 0 0 0 3px rgba(184, 134, 47, 0.12);
 }
 
 .rollBtn,
