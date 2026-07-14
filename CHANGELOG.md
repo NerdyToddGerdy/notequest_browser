@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-14
+
+The full Core Book rule set is now implemented end to end -- this is the first
+release with nothing from the Core Book still stubbed out.
+
+### Added
+
+- Move Silently: opening a door quietly no longer forces an immediate fight.
+  Choose to Attack First (free, as before) or spend 1 torch to try slipping
+  past the room's monsters entirely, with a per-monster detection roll and
+  Halfling's "roll two, discard the lowest" advantage. A room you've sneaked
+  past wakes up if you make noise there afterward.
+
 ## [0.1.0] - 2026-07-14
 
 Initial playable release: the full Core Book solo dungeon-crawl loop, from
@@ -40,5 +53,6 @@ character creation through death (or victory).
 - Weapon attacks blocked by Stoneskin or Intangible now say why, instead of a
   generic "fails to harm" message.
 
-[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/NerdyToddGerdy/notequest_browser/releases/tag/v0.1.0
