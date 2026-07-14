@@ -107,6 +107,7 @@
   border: 1px solid var(--gold);
   border-radius: 2px;
   padding: 1px 5px;
+  cursor: help;
 }
 
 .monsterActions {
