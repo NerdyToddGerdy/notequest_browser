@@ -422,6 +422,7 @@ export function DungeonScreen({
           </a>
           .
         </p>
+        <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
       </footer>
     </div>
   );

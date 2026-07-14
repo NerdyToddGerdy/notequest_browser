@@ -385,6 +385,11 @@
   letter-spacing: normal;
   color: #52483a;
 }
+.credit .creditVersion {
+  margin-top: 6px;
+  font-size: 0.6rem;
+  color: #4a4030;
+}
 .creditLink {
   color: var(--gold);
   text-decoration: underline;

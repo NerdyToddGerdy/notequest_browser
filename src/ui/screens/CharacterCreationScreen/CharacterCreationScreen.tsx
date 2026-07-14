@@ -351,6 +351,7 @@ export function CharacterCreationScreen({ onCharacterCreated }: CharacterCreatio
           </a>
           .
         </p>
+        <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
       </footer>
 
       <div className="visually-hidden" aria-live="polite">
