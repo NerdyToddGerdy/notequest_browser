@@ -279,6 +279,35 @@ describe("PLAYER_ATTACK", () => {
   });
 });
 
+describe("PLAYER_ATTACK: blocked-attack messages", () => {
+  it("names Stoneskin when a low-damage hit is blocked", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: ["stoneskin"] });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+
+    expect(next.combat!.monsters[0]!.hp).toBe(20); // 3 damage <= 3 -- blocked
+    expect(next.log[0]!.message).toBe("Your attack fails to harm Orc (stoneskin).");
+  });
+
+  it("names Intangible when an even-damage hit is blocked", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: ["intangible"] });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 4 });
+
+    expect(next.combat!.monsters[0]!.hp).toBe(20); // 4 is even -- blocked
+    expect(next.log[0]!.message).toBe("Your attack fails to harm Orc (intangible).");
+  });
+
+  it("still lets odd damage through against an Intangible monster, undamped", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: ["intangible"] });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+
+    expect(next.combat!.monsters[0]!.hp).toBe(17); // 3 is odd -- goes through untouched
+    expect(next.log[0]!.message).toBe("You hit Orc for 3 damage.");
+  });
+});
+
 describe("PLAYER_ATTACK guards", () => {
   it("is a no-op when there is no active combat", () => {
     const state = createInitialDungeonState();

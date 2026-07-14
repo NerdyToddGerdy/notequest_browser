@@ -928,7 +928,13 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           } else if (result.damageDealt > 0) {
             pushLog(draft, `You hit ${monster.name} for ${result.damageDealt} damage.`);
           } else {
-            pushLog(draft, `Your attack fails to harm ${monster.name}.`);
+            const blockedBy = result.events.find((e) => e.kind === "stoneskin" || e.kind === "intangible");
+            pushLog(
+              draft,
+              blockedBy
+                ? `Your attack fails to harm ${monster.name} (${blockedBy.kind}).`
+                : `Your attack fails to harm ${monster.name}.`,
+            );
           }
           monster.hp = Math.max(0, monster.hp - result.damageDealt);
 
