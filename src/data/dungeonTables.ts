@@ -11,6 +11,15 @@ export interface TrapEntry {
   text: string;
   /** Set for traps that mechanically cost torches (e.g. the ditch trap) rather than being flavor-only. */
   torchCost?: number;
+  /** Flat HP damage this trap deals when it fires (e.g. "Acid Spout (5 Damage)"). */
+  damage?: number;
+  /** The Blade Trap (identical row 1 across every dungeon type): rolls a die when it fires --
+   * a 1 kills outright, a 2 "loses an arm" (flavor only; this codebase has no hand-economy
+   * system to enforce against, same simplification tier as `WeaponEntry.twoHanded`). */
+  bladeTrap?: boolean;
+  /** Monsters that ambush the player when this trap fires (Crypt's Bats, Tomb's Skeletons) --
+   * ordinary combat, spawned exactly like a room's own Monster-table roll. */
+  monsters?: MonsterTemplate;
 }
 
 export type MonsterAbility =
@@ -232,9 +241,12 @@ export function describeItemEffect(effect: ItemEffect): string | null {
 
 const BLADE_TRAP: TrapEntry = {
   text: "A blade falls from the ceiling. Roll the dice. On a 2 you lose one of your arms and on a 1 you die.",
+  bladeTrap: true,
 };
 const CLICK_NOTHING: TrapEntry = { text: "You hear a click, but nothing happens." };
 const DITCH_TRAP: TrapEntry = { text: "You fall into a ditch (spend 1 torch to go out).", torchCost: 1 };
+const ACID_SPOUT_TRAP: TrapEntry = { text: "Acid Spout (5 Damage).", damage: 5 };
+const DART_TRAP: TrapEntry = { text: "A dart hits you (1 Damage).", damage: 1 };
 
 // Table: Reward, "Treasure" column -- these five rows repeat, word-for-word or in spirit,
 // across every Core Book dungeon type; only the "worth N Coins" row (and Tomb's Mana Potion
@@ -252,9 +264,9 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   palace: {
     trap: {
       1: BLADE_TRAP,
-      2: { text: "Acid Spout (5 Damage)." },
+      2: ACID_SPOUT_TRAP,
       3: DITCH_TRAP,
-      4: { text: "A dart hits you (1 Damage)." },
+      4: DART_TRAP,
       5: CLICK_NOTHING,
       6: CLICK_NOTHING,
     },
@@ -384,8 +396,11 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   crypt: {
     trap: {
       1: BLADE_TRAP,
-      2: { text: "Acid Spout (5 Damage)." },
-      3: { text: "Appears 1d6 Bats (1 HP; 1 Damage; Poison)." },
+      2: ACID_SPOUT_TRAP,
+      3: {
+        text: "Appears 1d6 Bats (1 HP; 1 Damage; Poison).",
+        monsters: { name: "Bats", hp: 1, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
+      },
       4: CLICK_NOTHING,
       5: CLICK_NOTHING,
       6: CLICK_NOTHING,
@@ -518,9 +533,18 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   tomb: {
     trap: {
       1: BLADE_TRAP,
-      2: { text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 Damage; Undead)." },
-      3: { text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 Damage; Undead)." },
-      4: { text: "Raise 1 Skeleton (3 HP; 1 Damage; Undead)." },
+      2: {
+        text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 Damage; Undead).",
+        monsters: { name: "Skeleton Soldiers", hp: 4, damage: 2, abilities: ["undead"], count: { dice: 1, sides: 6 } },
+      },
+      3: {
+        text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 Damage; Undead).",
+        monsters: { name: "Skeleton Soldiers", hp: 4, damage: 2, abilities: ["undead"], count: { dice: 1, sides: 6 } },
+      },
+      4: {
+        text: "Raise 1 Skeleton (3 HP; 1 Damage; Undead).",
+        monsters: { name: "Skeleton", hp: 3, damage: 1, abilities: ["undead"], count: 1 },
+      },
       5: CLICK_NOTHING,
       6: CLICK_NOTHING,
     },
@@ -648,7 +672,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   sanctuary: {
     trap: {
       1: BLADE_TRAP,
-      2: { text: "Spears come out of the ground (5 Damage)." },
+      2: { text: "Spears come out of the ground (5 Damage).", damage: 5 },
       3: DITCH_TRAP,
       4: CLICK_NOTHING,
       5: CLICK_NOTHING,
@@ -784,9 +808,9 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   temple: {
     trap: {
       1: BLADE_TRAP,
-      2: { text: "A giant hammer comes out of the ceiling (5 Damage)." },
+      2: { text: "A giant hammer comes out of the ceiling (5 Damage).", damage: 5 },
       3: DITCH_TRAP,
-      4: { text: "A dart hits you (1 Damage)." },
+      4: DART_TRAP,
       5: CLICK_NOTHING,
       6: CLICK_NOTHING,
     },
@@ -917,9 +941,9 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   prison: {
     trap: {
       1: BLADE_TRAP,
-      2: { text: "Stones collapse from the ceiling (5 Damage)." },
+      2: { text: "Stones collapse from the ceiling (5 Damage).", damage: 5 },
       3: DITCH_TRAP,
-      4: { text: "A dart hits you (1 Damage)." },
+      4: DART_TRAP,
       5: CLICK_NOTHING,
       6: CLICK_NOTHING,
     },

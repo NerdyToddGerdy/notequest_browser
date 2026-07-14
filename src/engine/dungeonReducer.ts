@@ -16,6 +16,7 @@ import {
   type MagicItemEntry,
   type MonsterAbility,
   type MonsterTemplate,
+  type TrapEntry,
   type WonderEntry,
 } from "../data/dungeonTables.ts";
 import { SPELL_TABLE } from "../data/spells.ts";
@@ -217,6 +218,53 @@ function startCombatIfMonsters(
 ): void {
   if (!seg.monsters) return;
   startCombat(draft, seg.id, seg.monsters, wasNoisy, rng, isBoss);
+}
+
+/**
+ * Applies a trap's mechanical effect beyond its already-handled `torchCost` (each of this
+ * function's three call sites -- RESOLVE_DOOR_LOCK, ROLL_SECRET_PASSAGE, ROLL_CHEST -- spends
+ * that separately, since it existed before this and its message/segId plumbing already differs
+ * slightly per site). Handles the three remaining shapes a trap can take: flat `damage`, the
+ * Blade Trap's roll-based instant death, or an ambush of `monsters` spawned into combat exactly
+ * like an ordinary room encounter (always `wasNoisy: true` -- the player was just caught by a
+ * surprise trap, same "the noise gave you away" framing `startCombat` already logs). A no-op for
+ * CLICK_NOTHING/DITCH_TRAP, which have none of these fields.
+ *
+ * Trap deaths reuse `deathCause: "combat"` rather than a distinct third cause -- both Graveyard
+ * and DungeonScreen's death messaging only ever branch on "darkness" vs. everything else, and
+ * "not the Darkness" is the only distinction that actually matters there today.
+ */
+function applyTrapEffect(draft: Draft<DungeonState>, trap: TrapEntry, segId: number, rng: RNG): void {
+  if (!draft.alive) return; // a torchCost Darkness death already ended the run this same dispatch
+
+  if (trap.bladeTrap) {
+    if (rollDie(rng) === 1) {
+      draft.hp = 0;
+      draft.alive = false;
+      draft.deathCause = "combat";
+      pushLog(draft, "The blade finds its mark. The dungeon keeps what it took.", "descend");
+      leaveRemains(draft, segId);
+    }
+    // A roll of 2 ("lose an arm") is flavor only -- no hand-economy system exists to enforce
+    // against, same simplification tier as WeaponEntry.twoHanded.
+    return;
+  }
+
+  if (trap.damage) {
+    draft.hp = Math.max(0, draft.hp - trap.damage);
+    pushLog(draft, `The trap deals ${trap.damage} damage.`);
+    if (draft.hp <= 0) {
+      draft.alive = false;
+      draft.deathCause = "combat";
+      pushLog(draft, "The trap finishes you. The dungeon keeps what it took.", "descend");
+      leaveRemains(draft, segId);
+    }
+    return;
+  }
+
+  if (trap.monsters) {
+    startCombat(draft, segId, trap.monsters, true, rng);
+  }
 }
 
 /**
@@ -595,6 +643,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
                 seg.id,
               );
             }
+            applyTrapEffect(draft, trap, seg.id, rng);
           }
         }
       });
@@ -629,6 +678,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
                   seg.id,
                 );
               }
+              applyTrapEffect(draft, trap, seg.id, rng);
             }
           }
           return;
@@ -691,6 +741,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               seg.id,
             );
           }
+          applyTrapEffect(draft, trap, seg.id, rng);
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
             spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id);

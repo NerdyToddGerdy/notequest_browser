@@ -392,6 +392,16 @@ describe("ROLL_SECRET_PASSAGE", () => {
     expect(next.alive).toBe(false); // but the ditch trap's torch cost couldn't be paid
     expect(next.torches).toBe(0);
   });
+
+  it("a damage trap found via secret passage deals its damage", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 1, trapRoll: 4 }); // dart, 1 dmg
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(next.maxHp - 1);
+  });
 });
 
 describe("ROLL_CHEST", () => {
@@ -453,6 +463,21 @@ describe("ROLL_CHEST", () => {
     expect(next.coins).toBe(0);
     expect(next.treasures).toBe(0);
     expect(next.torches).toBe(9); // the ditch trap's own cost, not a chest-opening cost
+  });
+
+  it("an empty chest's trap deals damage when it's a damage-dealing trap", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      roomContent: { text: "Desk with a Chest.", secretPassage: false, hasChest: true },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_CHEST", segId: 1, dice: [1, 1], trapRoll: 4 }); // dart, 1 dmg
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(next.maxHp - 1);
   });
 
   it("a hidden Chest found via a secret passage is openable the same way", () => {
@@ -624,19 +649,21 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.log[0]!.message).toContain("broke the door open");
   });
 
-  it("trap (roll 1) without a torch cost just logs the flavor text", () => {
+  it("trap (roll 1) with no torch cost deals its flat damage instead", () => {
     const state = doorState(5);
     const next = dungeonReducer(state, {
       type: "RESOLVE_DOOR_LOCK",
       segId: 1,
       doorIdx: 0,
       doorRoll: 1,
-      trapRoll: 4, // palace trap 4: dart hits you, no torch cost
+      trapRoll: 4, // palace trap 4: dart hits you (1 damage), no torch cost
       lockChoice: null,
     });
     expect(next.torches).toBe(5);
     expect(next.alive).toBe(true);
-    expect(next.log[0]!.message).toContain("dart");
+    expect(next.hp).toBe(next.maxHp - 1);
+    expect(next.log[0]!.message).toBe("The trap deals 1 damage.");
+    expect(next.log[1]!.message).toContain("dart");
   });
 
   it("trap (roll 1) with a torch cost (the ditch trap) spends a torch", () => {
@@ -665,6 +692,61 @@ describe("RESOLVE_DOOR_LOCK", () => {
     });
     expect(next.alive).toBe(false);
     expect(next.log.some((entry) => entry.message.includes("darkness"))).toBe(true);
+  });
+
+  it("the Blade Trap kills outright on the silent roll-of-1, deathCause combat", () => {
+    const state = doorState(5);
+    const next = dungeonReducer(
+      state,
+      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 1, trapRoll: 1, lockChoice: null },
+      fixedDie(1), // the trap's own silent death roll
+    );
+    expect(next.alive).toBe(false);
+    expect(next.hp).toBe(0);
+    expect(next.deathCause).toBe("combat");
+    expect(next.log.some((entry) => entry.message.includes("blade"))).toBe(true);
+  });
+
+  it("the Blade Trap does nothing mechanical on any other roll (losing an arm is flavor only)", () => {
+    const state = doorState(5);
+    const next = dungeonReducer(
+      state,
+      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 1, trapRoll: 1, lockChoice: null },
+      fixedDie(2),
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(next.maxHp);
+  });
+
+  it("a fatal flat-damage trap kills the character and leaves remains", () => {
+    const state = { ...doorState(5), hp: 3, coins: 4, characterName: "Doomed" };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 1,
+      trapRoll: 2, // palace trap 2: Acid Spout, 5 damage -- lethal against 3 hp
+      lockChoice: null,
+    });
+    expect(next.alive).toBe(false);
+    expect(next.hp).toBe(0);
+    expect(next.deathCause).toBe("combat");
+    expect(next.levels[0]!.segments[0]!.remains?.coins).toBe(4);
+  });
+
+  it("a monster-ambush trap (e.g. Crypt's Bats) spawns combat, noisy", () => {
+    const state = { ...doorState(5), dungeonTypeKey: "crypt" as const };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 1,
+      trapRoll: 3, // crypt trap 3: Appears 1d6 Bats
+      lockChoice: null,
+    });
+    expect(next.combat).not.toBeNull();
+    expect(next.combat!.monsters[0]!.name).toBe("Bats");
+    expect(next.log.some((entry) => entry.message.includes("noise gave you away"))).toBe(true);
   });
 
   it("is a no-op once the character is already dead", () => {
