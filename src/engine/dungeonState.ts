@@ -30,6 +30,10 @@ export interface SegmentState extends Box {
   roomContent?: RoomContentEntry;
   monsters?: MonsterTemplate;
   monstersDefeated?: boolean;
+  /** Move Silently succeeded: the monsters here are undefeated but never noticed the character, so
+   * this segment no longer blocks further actions -- until a noisy action (breaking a door, a fired
+   * trap) inside it wakes them, which clears this flag and starts combat with them attacking first. */
+  sneakedPast?: boolean;
   /** Set on empty rooms when RETURN_TO_DUNGEON/RESUME_DUNGEON restores a persisted map -- per the
    * rulebook, resting in town (or a new character taking over) means fresh monsters may have moved
    * into any room that's currently empty, re-rolled the next time the player actually looks at it
@@ -317,6 +321,14 @@ export type DungeonAction =
       lockChoice: LockChoice | null;
     }
   | { type: "OPEN_DOOR"; segId: number; doorIdx: number; roll: number | null; wasNoisy: boolean }
+  /** A quiet arrival (OPEN_DOOR/staircase descent with `wasNoisy: false`) into a room with
+   * monsters waits here instead of starting combat immediately -- "Attack First" is the free
+   * default (the player still gets the first attack, exactly like before this action existed).
+   * "moveSilently" spends 1 torch; the per-monster detection rolls (and how many monsters that
+   * even is, since a room's count can itself be a dice roll like "1d6 Goblins") are resolved
+   * inside the reducer via its `rng` param, same as every other hidden roll in this engine (e.g.
+   * a fresh room's monster count) -- there's nothing for the client to pre-roll or animate. */
+  | { type: "RESOLVE_ROOM_ENTRY"; segId: number; choice: "attack" | "moveSilently" }
   /** `segId`: only set when triggered by physically stepping through an already-opened staircase
    * (DungeonMap's descend button) -- moves the player there too. Omitted for a plain LevelTabs
    * click, which only changes which level's map is *displayed*, not where the player stands. */

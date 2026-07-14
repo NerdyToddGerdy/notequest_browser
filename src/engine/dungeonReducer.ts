@@ -231,6 +231,27 @@ function startCombatIfMonsters(
   startCombat(draft, seg.id, seg.monsters, wasNoisy, rng, isBoss);
 }
 
+/** True once a quiet arrival has revealed a room's monsters but the player hasn't yet chosen
+ * Attack First or Move Silently (RESOLVE_ROOM_ENTRY) -- blocks every other action the same way an
+ * active CombatState does, per "if you enter a segment with monsters, you must face them before
+ * anything else." Boss rooms never reach this state (they start combat immediately, unconditionally). */
+function hasPendingRoomEntry(state: DungeonState): boolean {
+  const level = state.levels[state.activeLevel];
+  const seg = level?.segments.find((s) => s.id === state.currentSegId);
+  return !!seg?.monsters && !seg.monstersDefeated && !seg.sneakedPast;
+}
+
+/** If a room the player previously moved silently through hears a noisy action (a door breaking,
+ * a trap firing) while they're still there, its monsters wake up and attack first -- "If while
+ * hiding you set off a trap or make a noise, monsters attack." */
+function wakeSneakedPastMonsters(draft: Draft<DungeonState>, seg: Draft<SegmentState>, rng: RNG): void {
+  const monsters = seg.monsters;
+  if (!seg.sneakedPast || !monsters) return;
+  seg.sneakedPast = false;
+  pushLog(draft, `Segment ${seg.id}: the noise gives you away -- the monsters attack!`);
+  startCombat(draft, seg.id, monsters, true, rng);
+}
+
 /**
  * Applies a trap's mechanical effect beyond its already-handled `torchCost` (each of this
  * function's three call sites -- RESOLVE_DOOR_LOCK, ROLL_SECRET_PASSAGE, ROLL_CHEST -- spends
@@ -605,7 +626,7 @@ function rerollMonstersIfNeeded(draft: Draft<DungeonState>, seg: Draft<SegmentSt
     }
     return;
   }
-  if (seg.monsters && !seg.monstersDefeated && draft.combat?.segId !== seg.id) {
+  if (seg.monsters && !seg.monstersDefeated && !seg.sneakedPast && draft.combat?.segId !== seg.id) {
     pushLog(draft, `Segment ${seg.id}: the fight you fled from is still waiting.`);
     startCombat(draft, seg.id, seg.monsters, false, rng, seg.type === "final");
   }
@@ -724,8 +745,10 @@ function applyRoomContentReward(draft: Draft<DungeonState>, reward: RoomContentR
 
 /** Everything that happens once a new *room* segment (not a Final Room, which has no Content roll
  * and so never has `roomContent`) is built and pushed onto the level: its Room Content reward (if
- * any) applies first, then combat starts if it rolled monsters -- matching the natural order of
- * noticing what's in the room before whatever's in it notices you back. */
+ * any) applies first. A noisy arrival (a broken door, a fired trap) starts combat immediately with
+ * the monsters attacking first, same as always. A quiet arrival with monsters instead waits for the
+ * player's RESOLVE_ROOM_ENTRY choice (Attack First / Move Silently) rather than defaulting straight
+ * into combat -- see docs/game-rules-reference.md's Move Silently rule. */
 function finishRoomSegment(
   draft: Draft<DungeonState>,
   seg: { id: number; monsters?: MonsterTemplate; roomContent?: { reward?: RoomContentReward } },
@@ -735,7 +758,9 @@ function finishRoomSegment(
   if (seg.roomContent?.reward) {
     applyRoomContentReward(draft, seg.roomContent.reward, rng);
   }
-  startCombatIfMonsters(draft, seg, wasNoisy, rng);
+  if (wasNoisy) {
+    startCombatIfMonsters(draft, seg, true, rng);
+  }
 }
 
 export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: RNG = Math.random): DungeonState {
@@ -779,7 +804,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
       // re-selecting the segment you're already standing in (e.g. to trigger its monster
       // re-roll after a restore, see restoreMapFromPersisted) is always allowed.
       if (action.segId != null && action.segId !== state.currentSegId) {
-        if (state.combat) return state;
+        if (state.combat || hasPendingRoomEntry(state)) return state;
         const level = state.levels[state.activeLevel];
         const reachable = level ? reachableSegIds(level, state.currentSegId) : new Set<number>();
         if (!reachable.has(action.segId)) return state;
@@ -795,7 +820,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "SWITCH_LEVEL": {
-      if (state.combat) return state;
+      if (state.combat || hasPendingRoomEntry(state)) return state;
       // A plain LevelTabs click (no segId) just changes which level's map is displayed -- always
       // allowed, though nothing on a level other than wherever currentSegId actually is will be
       // reachable once you get there (see reachableSegIds). Physically stepping through an
@@ -820,7 +845,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "ROLL_SECRET_PASSAGE": {
-      if (!state.alive || state.combat) return state;
+      if (!state.alive || state.combat || hasPendingRoomEntry(state)) return state;
       return produce(state, (draft) => {
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
@@ -839,13 +864,14 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           if (trap) {
             seg.trapResult = trap.text;
             resolveTrapOutcome(draft, trap, seg.id, rng);
+            wakeSneakedPastMonsters(draft, seg, rng);
           }
         }
       });
     }
 
     case "ROLL_CHEST": {
-      if (!state.alive || state.combat) return state;
+      if (!state.alive || state.combat || hasPendingRoomEntry(state)) return state;
       return produce(state, (draft) => {
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
@@ -866,6 +892,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               seg.trapResult = trap.text;
               pushLog(draft, trap.text);
               resolveTrapOutcome(draft, trap, seg.id, rng);
+              wakeSneakedPastMonsters(draft, seg, rng);
             }
           }
           return;
@@ -885,7 +912,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "COLLECT_REMAINS": {
-      if (!state.alive || state.combat) return state;
+      if (!state.alive || state.combat || hasPendingRoomEntry(state)) return state;
       return produce(state, (draft) => {
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
@@ -907,7 +934,9 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "RESOLVE_DOOR_LOCK": {
-      if (!state.alive || state.combat || action.segId !== state.currentSegId) return state;
+      if (!state.alive || state.combat || hasPendingRoomEntry(state) || action.segId !== state.currentSegId) {
+        return state;
+      }
       return produce(state, (draft) => {
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
@@ -921,6 +950,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           if (!trap) return;
           pushLog(draft, `Segment ${seg.id}: ${trap.text}`);
           resolveTrapOutcome(draft, trap, seg.id, rng);
+          wakeSneakedPastMonsters(draft, seg, rng);
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
             if (draft.className === "Locksmith") {
@@ -940,13 +970,16 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
                 pushLog(draft, "Splintered wood makes for good kindling — you gain 1 torch.");
               }
             }
+            wakeSneakedPastMonsters(draft, seg, rng);
           }
         }
       });
     }
 
     case "OPEN_DOOR": {
-      if (!state.alive || state.combat || action.segId !== state.currentSegId) return state;
+      if (!state.alive || state.combat || hasPendingRoomEntry(state) || action.segId !== state.currentSegId) {
+        return state;
+      }
       const classification = classifyDoorOpen(state, action.segId, action.doorIdx);
 
       return produce(state, (draft) => {
@@ -1138,6 +1171,45 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             finishRoomSegment(draft, childSeg, action.wasNoisy, rng);
             break;
           }
+        }
+      });
+    }
+
+    case "RESOLVE_ROOM_ENTRY": {
+      if (!state.alive || state.combat || action.segId !== state.currentSegId) return state;
+      return produce(state, (draft) => {
+        const level = draft.levels[draft.activeLevel];
+        const seg = level?.segments.find((s) => s.id === action.segId);
+        const monsters = seg?.monsters;
+        if (!seg || !monsters || seg.monstersDefeated || seg.sneakedPast) return;
+
+        if (action.choice === "attack") {
+          startCombat(draft, seg.id, monsters, false, rng);
+          return;
+        }
+
+        // Move Silently: "Spend 1 torch and roll a die for each monster inside the room; if any
+        // die results in a 1, the monsters see you and attack first." The room's monster count can
+        // itself be a dice roll (e.g. "1d6 Goblins"), so it's resolved here rather than passed in
+        // from the client, same as any other hidden roll (a fresh room's monster count included).
+        if (!spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch trying to move silently.`, seg.id)) {
+          return;
+        }
+        const monsterCount = resolveMonsterCount(monsters.count, rng);
+        // Halfling: "When you roll to Move Silently, roll two dice and discard the lowest (except
+        // in the Boss)" -- Boss rooms never reach this action at all (see startCombatIfMonsters's
+        // direct, unconditional calls for descend-final/dead-end-final), so no extra check needed.
+        const isHalfling = draft.raceName === "Halfling";
+        const detected = Array.from({ length: monsterCount }, () => {
+          const rolls = isHalfling ? [rollDie(rng), rollDie(rng)] : [rollDie(rng)];
+          return Math.max(...rolls);
+        }).some((roll) => roll === 1);
+        if (detected) {
+          pushLog(draft, `Segment ${seg.id}: you're spotted! The monsters attack first.`);
+          startCombat(draft, seg.id, monsters, true, rng);
+        } else {
+          seg.sneakedPast = true;
+          pushLog(draft, `Segment ${seg.id}: you slip through undetected.`);
         }
       });
     }
@@ -1335,7 +1407,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "CAST_SPELL": {
-      if (!state.alive || state.combat?.pendingDamage != null) return state;
+      if (!state.alive || state.combat?.pendingDamage != null || hasPendingRoomEntry(state)) return state;
       const spell = SPELL_TABLE[action.spellRoll];
       const remaining = state.spellUses[action.spellRoll] ?? 0;
       if (!spell || remaining <= 0) return state;
@@ -1445,7 +1517,13 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "OPEN_TREASURE": {
-      if (!state.alive || state.treasures <= 0 || !state.dungeonTypeKey || state.combat?.pendingDamage != null) {
+      if (
+        !state.alive ||
+        state.treasures <= 0 ||
+        !state.dungeonTypeKey ||
+        state.combat?.pendingDamage != null ||
+        hasPendingRoomEntry(state)
+      ) {
         return state;
       }
       const outcome = DUNGEON_TABLES[state.dungeonTypeKey].treasure[action.roll];

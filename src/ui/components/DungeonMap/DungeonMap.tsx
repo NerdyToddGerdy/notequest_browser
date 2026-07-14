@@ -62,6 +62,10 @@ export function DungeonMap({
   // other than wherever the player actually stands ends up with an empty reachable set here (its
   // segment ids never match currentSegId, which lives elsewhere), correctly locking it read-only.
   const reachable = useMemo(() => (level ? reachableSegIds(level, state.currentSegId) : new Set<number>()), [level, state.currentSegId]);
+  // Mirrors the reducer's hasPendingRoomEntry: a quiet arrival revealed monsters the player hasn't
+  // yet chosen to Attack First or Move Silently past -- no further doors open until they decide.
+  const currentSeg = level?.segments.find((s) => s.id === state.currentSegId);
+  const pendingRoomEntry = !!currentSeg?.monsters && !currentSeg.monstersDefeated && !currentSeg.sneakedPast;
 
   const [doorFlow, setDoorFlow] = useState<DoorFlow | null>(null);
   const [dieValue, setDieValue] = useState(1);
@@ -142,7 +146,7 @@ export function DungeonMap({
   }
 
   function handleDoorClick(segId: number, doorIdx: number, x: number, y: number) {
-    if (doorFlow || !state.alive || state.combat || segId !== state.currentSegId) return;
+    if (doorFlow || !state.alive || state.combat || pendingRoomEntry || segId !== state.currentSegId) return;
     setDoorFlow({ kind: "rolling", segId, doorIdx, x, y });
     const doorRoll = rollDie();
     animateDie(doorRoll, () => {
@@ -271,7 +275,13 @@ export function DungeonMap({
                     type="button"
                     className={styles.doorBtn}
                     style={{ left: mx - 12, top: my - 12 }}
-                    disabled={doorFlow !== null || !state.alive || !!state.combat || seg.id !== state.currentSegId}
+                    disabled={
+                      doorFlow !== null ||
+                      !state.alive ||
+                      !!state.combat ||
+                      pendingRoomEntry ||
+                      seg.id !== state.currentSegId
+                    }
                     title={seg.id === state.currentSegId ? "Open door" : "Walk here first"}
                     onClick={() => handleDoorClick(seg.id, idx, mx, my)}
                   >

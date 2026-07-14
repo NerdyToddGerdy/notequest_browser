@@ -68,7 +68,7 @@ describe("combat auto-start on OPEN_DOOR", () => {
     return { ...createInitialDungeonState(), dungeonTypeKey: "palace", levels: [level], nextSegmentId: 100, currentSegId: entrance.id };
   }
 
-  it("spawns combat when the newly-revealed room rolls monsters, quiet door -> no surprise attack", () => {
+  it("a quiet door with monsters waits for RESOLVE_ROOM_ENTRY instead of starting combat immediately", () => {
     // content sum 2 ([1,1]), monster sum 4 -> a single Orc (palace table)
     const rng = sequenceDie([1, 1, 2, 2]);
     const next = dungeonReducer(
@@ -76,10 +76,20 @@ describe("combat auto-start on OPEN_DOOR", () => {
       { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 2, wasNoisy: false },
       rng,
     );
-    expect(next.combat).not.toBeNull();
-    expect(next.combat!.monsters).toHaveLength(1);
-    expect(next.combat!.monsters[0]).toMatchObject({ name: "Orc", hp: 6, maxHp: 6, damage: 3 });
+    expect(next.combat).toBeNull();
+    const revealedSeg = next.levels[0]!.segments.find((s) => s.id !== 1)!;
+    expect(next.currentSegId).toBe(revealedSeg.id);
+    expect(revealedSeg.monsters).toMatchObject({ name: "Orc", hp: 6, damage: 3 });
+    expect(revealedSeg.monstersDefeated).toBeFalsy();
+    expect(revealedSeg.sneakedPast).toBeFalsy();
     expect(next.hp).toBe(next.maxHp);
+
+    // Choosing "Attack First" still gets the player the first attack, same as before this action existed.
+    const afterChoice = dungeonReducer(next, { type: "RESOLVE_ROOM_ENTRY", segId: revealedSeg.id, choice: "attack" });
+    expect(afterChoice.combat).not.toBeNull();
+    expect(afterChoice.combat!.monsters).toHaveLength(1);
+    expect(afterChoice.combat!.monsters[0]).toMatchObject({ name: "Orc", hp: 6, maxHp: 6, damage: 3 });
+    expect(afterChoice.hp).toBe(afterChoice.maxHp);
   });
 
   it("lets the monsters strike first when the door was noisy", () => {
@@ -106,16 +116,108 @@ describe("combat auto-start on OPEN_DOOR", () => {
   });
 });
 
-describe("combat can start immediately at a room-type dungeon entrance", () => {
-  it("Palace's entrance (room-large) can auto-start combat", () => {
+describe("a room-type dungeon entrance with monsters waits for RESOLVE_ROOM_ENTRY", () => {
+  it("Palace's entrance (room-large) waits, then starts combat once Attack First is chosen", () => {
     const rng = sequenceDie([1, 1, 2, 2]); // content sum 2, monster sum 4 -> single Orc
     const next = dungeonReducer(
       createInitialDungeonState(),
       { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
       rng,
     );
+    expect(next.combat).toBeNull();
+    const entranceSeg = next.levels[0]!.segments[0]!;
+    expect(entranceSeg.monsters).toMatchObject({ name: "Orc", hp: 6 });
+
+    const afterChoice = dungeonReducer(next, {
+      type: "RESOLVE_ROOM_ENTRY",
+      segId: entranceSeg.id,
+      choice: "attack",
+    });
+    expect(afterChoice.combat).not.toBeNull();
+    expect(afterChoice.combat!.monsters[0]).toMatchObject({ name: "Orc", hp: 6 });
+  });
+});
+
+describe("RESOLVE_ROOM_ENTRY: Move Silently", () => {
+  function statePendingRoomEntry(overrides: Partial<DungeonState> = {}): DungeonState {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    return {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+      currentSegId: 1,
+      ...overrides,
+    };
+  }
+
+  it("succeeds silently, skipping combat, when no monster rolls a 1", () => {
+    const next = dungeonReducer(
+      statePendingRoomEntry(),
+      { type: "RESOLVE_ROOM_ENTRY", segId: 1, choice: "moveSilently" },
+      sequenceDie([4]),
+    );
+    expect(next.combat).toBeNull();
+    expect(next.torches).toBe(9);
+    const seg = next.levels[0]!.segments[0]!;
+    expect(seg.sneakedPast).toBe(true);
+    expect(seg.monstersDefeated).toBeFalsy();
+  });
+
+  it("gets detected and lets the monsters attack first when a monster rolls a 1", () => {
+    const next = dungeonReducer(
+      statePendingRoomEntry(),
+      { type: "RESOLVE_ROOM_ENTRY", segId: 1, choice: "moveSilently" },
+      sequenceDie([1]),
+    );
+    expect(next.torches).toBe(9);
     expect(next.combat).not.toBeNull();
-    expect(next.combat!.monsters[0]).toMatchObject({ name: "Orc", hp: 6 });
+    expect(next.combat!.monsters[0]).toMatchObject({ name: "Orc" });
+    const seg = next.levels[0]!.segments[0]!;
+    expect(seg.sneakedPast).toBeFalsy();
+    expect(next.log.some((entry) => entry.message.includes("spotted"))).toBe(true);
+  });
+
+  it("Halfling keeps the higher of two dice per monster, avoiding detection a plain roll would suffer", () => {
+    const next = dungeonReducer(
+      statePendingRoomEntry({ raceName: "Halfling" }),
+      { type: "RESOLVE_ROOM_ENTRY", segId: 1, choice: "moveSilently" },
+      sequenceDie([1, 6]), // discards the 1, keeps the 6 -> undetected
+    );
+    expect(next.combat).toBeNull();
+    expect(next.levels[0]!.segments[0]!.sneakedPast).toBe(true);
+  });
+
+  it("blocks other dungeon actions until the player chooses Attack First or Move Silently", () => {
+    const pending = statePendingRoomEntry();
+    expect(dungeonReducer(pending, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 6, trapRoll: null })).toBe(pending);
+    expect(dungeonReducer(pending, { type: "SWITCH_LEVEL", levelIndex: 0 })).toBe(pending);
+  });
+
+  it("waking a sneaked-past room: breaking a door there afterward alerts its monsters", () => {
+    const sneaked = dungeonReducer(
+      statePendingRoomEntry(),
+      { type: "RESOLVE_ROOM_ENTRY", segId: 1, choice: "moveSilently" },
+      sequenceDie([4]),
+    );
+    expect(sneaked.levels[0]!.segments[0]!.sneakedPast).toBe(true);
+
+    const afterBreak = dungeonReducer(sneaked, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 2, // "locked"
+      trapRoll: null,
+      lockChoice: "breakDoor",
+    });
+    expect(afterBreak.levels[0]!.segments[0]!.sneakedPast).toBe(false);
+    expect(afterBreak.combat).not.toBeNull();
+    expect(afterBreak.log.some((entry) => entry.message.includes("noise gives you away"))).toBe(true);
   });
 });
 

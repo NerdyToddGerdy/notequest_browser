@@ -25,6 +25,7 @@ import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.t
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
 import { CombatPanel } from "../../components/CombatPanel/CombatPanel.tsx";
+import { RoomEntryPrompt } from "../../components/RoomEntryPrompt/RoomEntryPrompt.tsx";
 import { DungeonMap } from "../../components/DungeonMap/DungeonMap.tsx";
 import { LevelTabs } from "../../components/LevelTabs/LevelTabs.tsx";
 import { RoomInspector } from "../../components/RoomInspector/RoomInspector.tsx";
@@ -148,6 +149,10 @@ export function DungeonScreen({
 
   const hasDungeon = state.levels.length > 0;
   const bossDefeated = isDungeonBeaten(state);
+  const currentSeg = state.levels[state.activeLevel]?.segments.find((s) => s.id === state.currentSegId) ?? null;
+  // Mirrors the reducer's hasPendingRoomEntry: a quiet arrival revealed monsters, but the player
+  // hasn't yet chosen Attack First vs. Move Silently (RESOLVE_ROOM_ENTRY).
+  const pendingRoomEntry = !!currentSeg?.monsters && !currentSeg.monstersDefeated && !currentSeg.sneakedPast;
 
   // Records the character in the Graveyard exactly once per death (the effect only re-runs
   // when `alive` actually flips, not on every render while the death panel stays up).
@@ -299,7 +304,7 @@ export function DungeonScreen({
                   onTrapTriggered={triggerTrapToast}
                 />
                 <TrapToast token={trapToastToken} />
-                {!state.combat && (
+                {!state.combat && !pendingRoomEntry && (
                   <div className={styles.roomInspectorOverlay}>
                     <RoomInspector
                       key={state.selectedSegId ?? "none"}
@@ -311,6 +316,19 @@ export function DungeonScreen({
                       onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
                       onTrapTriggered={triggerTrapToast}
                     />
+                  </div>
+                )}
+                {!state.combat && pendingRoomEntry && currentSeg && (
+                  <div className={styles.combatOverlay}>
+                    <div className={styles.combatOverlayInner}>
+                      <RoomEntryPrompt
+                        torches={state.torches}
+                        onAttack={() => dispatch({ type: "RESOLVE_ROOM_ENTRY", segId: currentSeg.id, choice: "attack" })}
+                        onMoveSilently={() =>
+                          dispatch({ type: "RESOLVE_ROOM_ENTRY", segId: currentSeg.id, choice: "moveSilently" })
+                        }
+                      />
+                    </div>
                   </div>
                 )}
                 {state.combat && (

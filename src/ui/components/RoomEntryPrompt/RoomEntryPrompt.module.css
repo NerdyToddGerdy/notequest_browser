@@ -1,0 +1,84 @@
+.panel {
+  padding: 16px 18px;
+  background: rgba(221, 204, 162, 0.93);
+  backdrop-filter: blur(2px);
+  border-radius: 4px;
+  border: 1px solid var(--danger);
+  box-shadow:
+    0 0 0 3px rgba(139, 30, 30, 0.12),
+    0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--danger);
+  margin: 0 0 10px;
+}
+
+.copy {
+  font-size: 0.85rem;
+  color: var(--ink);
+  line-height: 1.4;
+  margin: 0 0 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.attackBtn {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  color: var(--parchment);
+  background: linear-gradient(180deg, #6e2320, #470f0f);
+  border: 1px solid var(--danger);
+  border-radius: 3px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.attackBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #832b27, #571414);
+}
+.attackBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.attackBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.silentBtn {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.silentBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #eabb5e, #c69537);
+}
+.silentBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.silentBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.silentBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
