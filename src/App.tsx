@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CharacterCreationScreen } from "./ui/screens/CharacterCreationScreen/CharacterCreationScreen.tsx";
 import { TownScreen } from "./ui/screens/TownScreen/TownScreen.tsx";
 import { DungeonScreen } from "./ui/screens/DungeonScreen/DungeonScreen.tsx";
@@ -6,19 +6,31 @@ import type { CreatedCharacter } from "./data/types.ts";
 import { computeSpellUses } from "./engine/character.ts";
 import { isDungeonBeaten, type DungeonState, type PendingDungeon } from "./engine/dungeonState.ts";
 import type { AdventurerResources } from "./engine/town.ts";
+import { loadSession, saveSession } from "./engine/session.ts";
 
 type Screen = "town" | "dungeon";
 
 export default function App() {
-  const [character, setCharacter] = useState<CreatedCharacter | null>(null);
-  const [resources, setResources] = useState<AdventurerResources | null>(null);
+  // Loaded once, on mount -- the four pieces below seed themselves from it and then live as
+  // their own independent state, same as before persistence existed. `screen`/`selectedRunId`
+  // deliberately aren't part of this: they're transient navigation state, not worth remembering.
+  const [initialSession] = useState(() => loadSession());
+  const [character, setCharacter] = useState<CreatedCharacter | null>(initialSession.character);
+  const [resources, setResources] = useState<AdventurerResources | null>(initialSession.resources);
   const [screen, setScreen] = useState<Screen>("town");
   /** This character's own paused dungeon, if any -- looked up in pendingDungeons below. */
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [activeRunId, setActiveRunId] = useState<string | null>(initialSession.activeRunId);
   /** Which dungeon Town sent the player into -- their own active one, an abandoned one they
    * picked up, or null for a fresh roll. Read once when DungeonScreen mounts. */
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [dungeonHistory, setDungeonHistory] = useState<PendingDungeon[]>([]);
+  const [dungeonHistory, setDungeonHistory] = useState<PendingDungeon[]>(initialSession.dungeonHistory);
+
+  // Persists the whole session in one blob whenever any piece of it changes -- mirrors
+  // addGraveyardEntry's "mutate then persist immediately" behavior, just via an effect instead
+  // of inline at each call site, since several setters above would otherwise each need their own.
+  useEffect(() => {
+    saveSession({ character, resources, dungeonHistory, activeRunId });
+  }, [character, resources, dungeonHistory, activeRunId]);
 
   // A freshly created character always arrives in Town first, never straight into a dungeon.
   function handleCharacterCreated(newCharacter: CreatedCharacter) {
