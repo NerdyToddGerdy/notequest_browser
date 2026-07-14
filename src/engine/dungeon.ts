@@ -1,6 +1,6 @@
 import { SEGMENTS_TABLE, type DungeonTypeKey, type SegmentType } from "../data/dungeonTypes.ts";
 import { DUNGEON_TABLES, type MonsterTemplate, type RoomContentEntry } from "../data/dungeonTables.ts";
-import type { Box, Direction, DungeonState } from "./dungeonState.ts";
+import type { Box, Direction, DungeonState, LevelState } from "./dungeonState.ts";
 import { rollDie } from "./dice.ts";
 import type { RNG } from "./rng.ts";
 
@@ -224,4 +224,26 @@ export function classifyDoorOpen(
   const triggersDeadEnd =
     !isEntranceStaircase && !level.finalRoomPlaced && level.doorsRemaining === 1 && !level.hasStaircase;
   return triggersDeadEnd ? { kind: "dead-end-final" } : { kind: "normal" };
+}
+
+/** The player's current segment plus every segment directly connected to it by an already-opened
+ * door, within this one level -- the "fog of war" boundary for what's interactive right now (see
+ * CLAUDE.md's Positional movement section). A door only records its parent -> child link
+ * (`childId`), so this walks every segment's doors once to build the link in both directions. A
+ * door's `childId` crossing to a different level (a staircase) never matches anything in this
+ * level's own segment list, so cross-level links are harmless noise here, not a correctness bug --
+ * level transitions are handled separately by whichever action crosses them, updating
+ * `currentSegId` directly rather than through this adjacency walk. */
+export function reachableSegIds(level: Pick<LevelState, "segments">, currentSegId: number | null): Set<number> {
+  const reachable = new Set<number>();
+  if (currentSegId == null) return reachable;
+  reachable.add(currentSegId);
+  for (const seg of level.segments) {
+    for (const door of seg.doors) {
+      if (!door.opened || door.childId == null) continue;
+      if (seg.id === currentSegId) reachable.add(door.childId);
+      else if (door.childId === currentSegId) reachable.add(seg.id);
+    }
+  }
+  return reachable;
 }

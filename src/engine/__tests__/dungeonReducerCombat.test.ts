@@ -65,7 +65,7 @@ describe("combat auto-start on OPEN_DOOR", () => {
       ],
     });
     const level = { ...makeLevel(1), segments: [entrance], doorsRemaining: 2 };
-    return { ...createInitialDungeonState(), dungeonTypeKey: "palace", levels: [level], nextSegmentId: 100 };
+    return { ...createInitialDungeonState(), dungeonTypeKey: "palace", levels: [level], nextSegmentId: 100, currentSegId: entrance.id };
   }
 
   it("spawns combat when the newly-revealed room rolls monsters, quiet door -> no surprise attack", () => {

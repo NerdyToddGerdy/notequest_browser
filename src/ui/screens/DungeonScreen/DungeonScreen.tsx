@@ -270,7 +270,7 @@ export function DungeonScreen({
                     dispatch({ type: "RESOLVE_DOOR_LOCK", segId, doorIdx, doorRoll, trapRoll, lockChoice })
                   }
                   onSelectSegment={(segId) => dispatch({ type: "SELECT_SEGMENT", segId })}
-                  onSwitchLevel={(levelIndex) => dispatch({ type: "SWITCH_LEVEL", levelIndex })}
+                  onSwitchLevel={(levelIndex, segId) => dispatch({ type: "SWITCH_LEVEL", levelIndex, segId })}
                 />
                 <div className={styles.roomInspectorOverlay}>
                   <RoomInspector

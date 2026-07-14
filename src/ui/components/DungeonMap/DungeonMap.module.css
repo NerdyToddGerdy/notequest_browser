@@ -50,6 +50,21 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+.room.current {
+  outline: 2px solid var(--gold-bright, var(--gold));
+  outline-offset: 2px;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.25),
+    0 0 14px rgba(217, 121, 31, 0.55),
+    0 3px 10px rgba(0, 0, 0, 0.3);
+}
+.room.locked {
+  cursor: not-allowed;
+  filter: grayscale(0.85) brightness(0.62);
+}
+.room.locked:hover {
+  filter: grayscale(0.85) brightness(0.62);
+}
 
 .typeCorridor {
   background: var(--parchment-3);

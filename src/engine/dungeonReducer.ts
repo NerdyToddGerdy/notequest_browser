@@ -28,6 +28,7 @@ import {
   assignDirections,
   placeChild,
   placeIslandRoot,
+  reachableSegIds,
   resolveBoss,
   resolveRoomExtras,
   rollSegment,
@@ -524,7 +525,11 @@ function restoreMapFromPersisted(
   draft.nextSegmentId = persisted.nextSegmentId;
   draft.nextLogId = persisted.nextLogId;
   draft.nextMonsterId = persisted.nextMonsterId;
-  draft.selectedSegId = persisted.selectedSegId;
+  // Positional movement (see CLAUDE.md): the player starts back at their level's own entry point,
+  // not wherever they last stood -- "you must roll on the Monster table for each empty room you
+  // enter" only means something if walking back through those rooms is unavoidable.
+  draft.selectedSegId = draft.levels[draft.activeLevel]?.segments[0]?.id ?? null;
+  draft.currentSegId = draft.selectedSegId;
   draft.stats = persisted.stats;
   draft.log = persisted.log;
   pushLog(draft, logMessage, "descend");
@@ -539,6 +544,7 @@ function restoreMapFromPersisted(
     const seg = level?.segments.find((s) => s.id === oldCombat.segId);
     if (seg?.monsters) {
       draft.selectedSegId = seg.id;
+      draft.currentSegId = seg.id;
       startCombat(draft, seg.id, seg.monsters, false, rng, oldCombat.isBoss);
     }
   }
@@ -546,6 +552,7 @@ function restoreMapFromPersisted(
   if (resetToEntrance) {
     draft.activeLevel = 0;
     draft.selectedSegId = draft.levels[0]?.segments[0]?.id ?? null;
+    draft.currentSegId = draft.selectedSegId;
   }
 
   // Per the rulebook, this also applies: "you must roll on the Monster table for each empty
@@ -564,7 +571,7 @@ function restoreMapFromPersisted(
       seg.needsMonsterReroll = true;
     }
   }
-  const current = draft.levels[draft.activeLevel]?.segments.find((s) => s.id === draft.selectedSegId);
+  const current = draft.levels[draft.activeLevel]?.segments.find((s) => s.id === draft.currentSegId);
   if (current) rerollMonstersIfNeeded(draft, current, rng);
 }
 
@@ -740,6 +747,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const entrance = buildSegment(draft, dtype.entranceType, box, null, dtype.doors, null, rng, true);
         level.segments.push(entrance);
         level.doorsRemaining += dtype.doors;
+        draft.currentSegId = entrance.id;
         bumpStatsForNewSegment(draft.stats, dtype.entranceType, dtype.doors);
         finishRoomSegment(draft, entrance, false, rng);
       });
@@ -747,9 +755,20 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
 
     case "SELECT_SEGMENT": {
       if (state.selectedSegId === action.segId) return state;
+      // Moving to a *different* segment than the one the player currently occupies is only
+      // possible into the fog-of-war boundary (see reachableSegIds) and never mid-combat;
+      // re-selecting the segment you're already standing in (e.g. to trigger its monster
+      // re-roll after a restore, see restoreMapFromPersisted) is always allowed.
+      if (action.segId != null && action.segId !== state.currentSegId) {
+        if (state.combat) return state;
+        const level = state.levels[state.activeLevel];
+        const reachable = level ? reachableSegIds(level, state.currentSegId) : new Set<number>();
+        if (!reachable.has(action.segId)) return state;
+      }
       return produce(state, (draft) => {
         draft.selectedSegId = action.segId;
-        if (draft.combat) return;
+        if (action.segId == null) return;
+        draft.currentSegId = action.segId;
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (seg) rerollMonstersIfNeeded(draft, seg, rng);
@@ -758,10 +777,26 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
 
     case "SWITCH_LEVEL": {
       if (state.combat) return state;
-      if (state.activeLevel === action.levelIndex) return state;
+      // A plain LevelTabs click (no segId) just changes which level's map is displayed -- always
+      // allowed, though nothing on a level other than wherever currentSegId actually is will be
+      // reachable once you get there (see reachableSegIds). Physically stepping through an
+      // already-opened staircase (segId set, from DungeonMap's descend button) additionally moves
+      // the player -- only valid if that staircase leads out of the segment they're currently in.
+      if (action.segId != null) {
+        const level = state.levels[state.activeLevel];
+        const reachable = level ? reachableSegIds(level, state.currentSegId) : new Set<number>();
+        if (!reachable.has(action.segId)) return state;
+      } else if (state.activeLevel === action.levelIndex) {
+        return state;
+      }
       return produce(state, (draft) => {
         draft.activeLevel = action.levelIndex;
-        draft.selectedSegId = null;
+        draft.selectedSegId = action.segId ?? null;
+        if (action.segId == null) return;
+        draft.currentSegId = action.segId;
+        const targetLevel = draft.levels[action.levelIndex];
+        const seg = targetLevel?.segments.find((s) => s.id === action.segId);
+        if (seg) rerollMonstersIfNeeded(draft, seg, rng);
       });
     }
 
@@ -853,7 +888,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "RESOLVE_DOOR_LOCK": {
-      if (!state.alive || state.combat) return state;
+      if (!state.alive || state.combat || action.segId !== state.currentSegId) return state;
       return produce(state, (draft) => {
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
@@ -892,7 +927,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "OPEN_DOOR": {
-      if (!state.alive || state.combat) return state;
+      if (!state.alive || state.combat || action.segId !== state.currentSegId) return state;
       const classification = classifyDoorOpen(state, action.segId, action.doorIdx);
 
       return produce(state, (draft) => {
@@ -916,6 +951,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             );
             draft.activeLevel = classification.targetLevel;
             draft.selectedSegId = null;
+            draft.currentSegId = finalSeg.id;
             break;
           }
 
@@ -943,6 +979,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             );
             draft.activeLevel = classification.targetLevel;
             draft.selectedSegId = null;
+            draft.currentSegId = island.id;
             finishRoomSegment(draft, island, false, rng);
             break;
           }
@@ -985,6 +1022,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             );
             draft.activeLevel = targetIndex;
             draft.selectedSegId = null;
+            draft.currentSegId = finalId;
             startCombatIfMonsters(draft, finalSeg, false, rng, true);
             break;
           }
@@ -1020,6 +1058,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               `Segment ${seg.id} was the last door on Level ${draft.activeLevel + 1} — the Final Room (Segment ${finalId}), no stairs ever found`,
               "descend",
             );
+            draft.currentSegId = finalId;
             startCombatIfMonsters(draft, finalSeg, false, rng, true);
             break;
           }
@@ -1052,6 +1091,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             );
             draft.activeLevel = targetIndex;
             draft.selectedSegId = null;
+            draft.currentSegId = rootSeg.id;
             finishRoomSegment(draft, rootSeg, false, rng);
             break;
           }
@@ -1073,6 +1113,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             draft.stats.doorsRemaining -= 1;
 
             pushLog(draft, `Segment ${seg.id} → ${TYPE_LABELS[row.type]} (Segment ${childSeg.id})`);
+            draft.currentSegId = childSeg.id;
             finishRoomSegment(draft, childSeg, action.wasNoisy, rng);
             break;
           }

@@ -9,6 +9,7 @@ import {
   MARGIN,
   placeChild,
   placeIslandRoot,
+  reachableSegIds,
   resolveBoss,
   resolveRoomExtras,
   rollSegment,
@@ -187,6 +188,7 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     nextSegmentId: 100,
     nextLogId: 1,
     selectedSegId: null,
+    currentSegId: null,
     stats: { segments: 0, corridors: 0, rooms: 0, staircases: 0, doorsRemaining: 0, finalRooms: 0 },
     log: [],
     torches: 10,
@@ -305,5 +307,68 @@ describe("classifyDoorOpen", () => {
     const finalTarget = makeLevel({ depth: 3, isFinalRoomLevel: true });
     const state = makeState([level, finalTarget]);
     expect(classifyDoorOpen(state, 1, 0)).toEqual({ kind: "reuse-final", targetLevel: 1 });
+  });
+});
+
+describe("reachableSegIds", () => {
+  it("is empty when there's no current position", () => {
+    const seg = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = makeLevel({ segments: [seg] });
+    expect(reachableSegIds(level, null)).toEqual(new Set());
+  });
+
+  it("always includes the current segment itself, even with no doors", () => {
+    const seg = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = makeLevel({ segments: [seg] });
+    expect(reachableSegIds(level, 1)).toEqual(new Set([1]));
+  });
+
+  it("includes a neighbor reached via the current segment's own opened door", () => {
+    const seg1 = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [{ dir: "E", opened: true, childId: 2, leadsToLevel: null }],
+    });
+    const seg2 = makeSegment({ id: 2, type: "room-small", doors: [] });
+    const level = makeLevel({ segments: [seg1, seg2] });
+    expect(reachableSegIds(level, 1)).toEqual(new Set([1, 2]));
+  });
+
+  it("includes a neighbor whose own door instead points back to the current segment", () => {
+    const seg1 = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const seg2 = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [{ dir: "W", opened: true, childId: 1, leadsToLevel: null }],
+    });
+    const level = makeLevel({ segments: [seg1, seg2] });
+    expect(reachableSegIds(level, 1)).toEqual(new Set([1, 2]));
+  });
+
+  it("excludes a neighbor whose connecting door hasn't been opened yet", () => {
+    const seg1 = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
+    });
+    const seg2 = makeSegment({ id: 2, type: "room-small", doors: [] });
+    const level = makeLevel({ segments: [seg1, seg2] });
+    expect(reachableSegIds(level, 1)).toEqual(new Set([1]));
+  });
+
+  it("excludes a segment two hops away -- reachability is direct neighbors only", () => {
+    const seg1 = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [{ dir: "E", opened: true, childId: 2, leadsToLevel: null }],
+    });
+    const seg2 = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [{ dir: "E", opened: true, childId: 3, leadsToLevel: null }],
+    });
+    const seg3 = makeSegment({ id: 3, type: "room-small", doors: [] });
+    const level = makeLevel({ segments: [seg1, seg2, seg3] });
+    expect(reachableSegIds(level, 1)).toEqual(new Set([1, 2]));
   });
 });

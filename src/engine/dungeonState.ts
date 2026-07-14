@@ -171,6 +171,11 @@ export interface DungeonState {
   nextLogId: number;
   nextMonsterId: number;
   selectedSegId: number | null;
+  /** The segment the player physically occupies right now -- distinct from `selectedSegId`
+   * (what's shown in the RoomInspector), though the two are always kept in lockstep by
+   * SELECT_SEGMENT (see CLAUDE.md's Positional movement section): selecting a segment other than
+   * the current one only succeeds if it's reachable, and doing so moves you there. */
+  currentSegId: number | null;
   stats: DungeonStats;
   log: LogEntryState[];
   torches: number;
@@ -274,6 +279,7 @@ export function createInitialDungeonState(
     nextLogId: 1,
     nextMonsterId: 1,
     selectedSegId: null,
+    currentSegId: null,
     stats: { segments: 0, corridors: 0, rooms: 0, staircases: 0, doorsRemaining: 0, finalRooms: 0 },
     log: [],
     torches: startingTorches,
@@ -311,7 +317,10 @@ export type DungeonAction =
       lockChoice: LockChoice | null;
     }
   | { type: "OPEN_DOOR"; segId: number; doorIdx: number; roll: number | null; wasNoisy: boolean }
-  | { type: "SWITCH_LEVEL"; levelIndex: number }
+  /** `segId`: only set when triggered by physically stepping through an already-opened staircase
+   * (DungeonMap's descend button) -- moves the player there too. Omitted for a plain LevelTabs
+   * click, which only changes which level's map is *displayed*, not where the player stands. */
+  | { type: "SWITCH_LEVEL"; levelIndex: number; segId?: number }
   | { type: "SELECT_SEGMENT"; segId: number | null }
   | { type: "ROLL_SECRET_PASSAGE"; segId: number; roll: number; trapRoll: number | null }
   | { type: "ROLL_CHEST"; segId: number; dice: [number, number]; trapRoll: number | null }

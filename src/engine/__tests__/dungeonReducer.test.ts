@@ -16,7 +16,14 @@ function makeSegment(overrides: Partial<SegmentState> & Pick<SegmentState, "id" 
 }
 
 function stateWithLevel(level: ReturnType<typeof makeLevel>, activeLevel = 0): DungeonState {
-  return { ...createInitialDungeonState(), dungeonTypeKey: "palace", levels: [level], activeLevel, nextSegmentId: 100 };
+  return {
+    ...createInitialDungeonState(),
+    dungeonTypeKey: "palace",
+    levels: [level],
+    activeLevel,
+    nextSegmentId: 100,
+    currentSegId: level.segments[0]?.id ?? null,
+  };
 }
 
 describe("ROLL_DUNGEON", () => {
@@ -96,7 +103,10 @@ describe("OPEN_DOOR: normal room resolution", () => {
     const level = { ...makeLevel(1), segments: [entrance], doorsRemaining: 2 };
     const state = { ...stateWithLevel(level), stats: { ...createInitialDungeonState().stats, doorsRemaining: 2 } };
 
-    const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 1, wasNoisy: false });
+    // content sum 2 (Palace row 2: no reward), monster sum 7 (null) -- keeps the log to just the
+    // "Segment 1 -> ..." line below, instead of leaving it to chance which row a real roll lands on.
+    const rng = sequenceDie([1, 1, 3, 4]);
+    const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 1, wasNoisy: false }, rng);
 
     expect(next.levels[0]!.segments).toHaveLength(2);
     const child = next.levels[0]!.segments[1]!;
@@ -110,6 +120,132 @@ describe("OPEN_DOOR: normal room resolution", () => {
     expect(next.stats.rooms).toBe(1);
     expect(next.stats.doorsRemaining).toBe(2);
     expect(next.log[0]!.message).toContain("Segment 1");
+  });
+});
+
+describe("Positional movement", () => {
+  it("currentSegId auto-advances to a newly-built segment when a door opens", () => {
+    const entrance = makeSegment({
+      id: 1,
+      type: "corridor",
+      w: 60,
+      h: 140,
+      doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
+    });
+    const level = { ...makeLevel(1), segments: [entrance], doorsRemaining: 1 };
+    const state = { ...stateWithLevel(level), stats: { ...createInitialDungeonState().stats, doorsRemaining: 1 } };
+
+    const rng = sequenceDie([1, 1, 3, 4]); // content row 2 (no reward), monster sum 7 (null)
+    const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 1, wasNoisy: false }, rng);
+
+    const child = next.levels[0]!.segments[1]!;
+    expect(next.currentSegId).toBe(child.id);
+  });
+
+  it("OPEN_DOOR is a no-op on a segment the player isn't currently standing in", () => {
+    const seg1 = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
+    });
+    const seg2 = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [{ dir: "W", opened: false, childId: null, leadsToLevel: null }],
+    });
+    const level = { ...makeLevel(1), segments: [seg1, seg2], doorsRemaining: 2 };
+    // currentSegId (seg1) via stateWithLevel's default -- seg2's door is out of reach.
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 2, doorIdx: 0, roll: 1, wasNoisy: false });
+    expect(next).toBe(state);
+  });
+
+  it("RESOLVE_DOOR_LOCK is a no-op on a segment the player isn't currently standing in", () => {
+    const seg1 = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
+    });
+    const seg2 = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [{ dir: "W", opened: false, childId: null, leadsToLevel: null }],
+    });
+    const level = { ...makeLevel(1), segments: [seg1, seg2], doorsRemaining: 2 };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 2,
+      doorIdx: 0,
+      doorRoll: 2,
+      trapRoll: null,
+      lockChoice: "pickLock",
+    });
+    expect(next).toBe(state);
+  });
+
+  it("SWITCH_LEVEL with a segId moves the player, only when it's reachable from the current segment", () => {
+    const stair = makeSegment({
+      id: 1,
+      type: "staircase",
+      doors: [{ dir: "E", opened: true, childId: 10, leadsToLevel: 1 }],
+    });
+    const level0 = { ...makeLevel(1), segments: [stair] };
+    const entry = makeSegment({ id: 10, type: "corridor", doors: [] });
+    const level1 = { ...makeLevel(2), segments: [entry] };
+    const state: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level0, level1],
+      activeLevel: 0,
+      currentSegId: 1,
+    };
+
+    const next = dungeonReducer(state, { type: "SWITCH_LEVEL", levelIndex: 1, segId: 10 });
+    expect(next.activeLevel).toBe(1);
+    expect(next.currentSegId).toBe(10);
+    expect(next.selectedSegId).toBe(10);
+  });
+
+  it("SWITCH_LEVEL with a segId is a no-op if that staircase isn't the segment the player is standing in", () => {
+    const stair = makeSegment({
+      id: 1,
+      type: "staircase",
+      doors: [{ dir: "E", opened: true, childId: 10, leadsToLevel: 1 }],
+    });
+    const otherRoom = makeSegment({ id: 2, type: "room-small", doors: [] });
+    const level0 = { ...makeLevel(1), segments: [stair, otherRoom] };
+    const entry = makeSegment({ id: 10, type: "corridor", doors: [] });
+    const level1 = { ...makeLevel(2), segments: [entry] };
+    const state: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level0, level1],
+      activeLevel: 0,
+      currentSegId: 2, // standing in otherRoom, not the staircase
+    };
+
+    const next = dungeonReducer(state, { type: "SWITCH_LEVEL", levelIndex: 1, segId: 10 });
+    expect(next).toBe(state);
+  });
+
+  it("SWITCH_LEVEL without a segId (a plain LevelTabs click) never moves the player", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level0 = { ...makeLevel(1), segments: [room] };
+    const level1 = makeLevel(2);
+    const state: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level0, level1],
+      activeLevel: 0,
+      currentSegId: 1,
+    };
+
+    const next = dungeonReducer(state, { type: "SWITCH_LEVEL", levelIndex: 1 });
+    expect(next.activeLevel).toBe(1);
+    expect(next.currentSegId).toBe(1); // unchanged -- just viewing, not standing there
   });
 });
 
@@ -330,6 +466,7 @@ describe("OPEN_DOOR: staircases", () => {
       levels: [originLevel, targetLevel],
       activeLevel: 0,
       nextSegmentId: 100,
+      currentSegId: 2,
     };
 
     const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 2, doorIdx: 0, roll: 1, wasNoisy: false });
@@ -361,6 +498,7 @@ describe("OPEN_DOOR: staircases", () => {
       levels: [originLevel, finalLevel],
       activeLevel: 0,
       nextSegmentId: 100,
+      currentSegId: 2,
     };
 
     const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 2, doorIdx: 0, roll: null, wasNoisy: false });
@@ -1035,10 +1173,29 @@ describe("SWITCH_LEVEL / SELECT_SEGMENT", () => {
     expect(next.selectedSegId).toBeNull();
   });
 
-  it("selects a segment by id", () => {
-    const state = stateWithLevel(makeLevel(1));
-    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 7 });
-    expect(next.selectedSegId).toBe(7);
+  it("moves to a reachable neighboring segment, updating both selectedSegId and currentSegId", () => {
+    const seg1 = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [{ dir: "E", opened: true, childId: 2, leadsToLevel: null }],
+    });
+    const seg2 = makeSegment({ id: 2, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [seg1, seg2] };
+    const state = stateWithLevel(level); // currentSegId defaults to seg1's id
+
+    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 2 });
+    expect(next.selectedSegId).toBe(2);
+    expect(next.currentSegId).toBe(2);
+  });
+
+  it("is a no-op when selecting a segment that isn't reachable from the current one", () => {
+    const seg1 = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const seg2 = makeSegment({ id: 2, type: "room-small", doors: [] }); // not connected to seg1
+    const level = { ...makeLevel(1), segments: [seg1, seg2] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 2 });
+    expect(next).toBe(state);
   });
 });
 
@@ -1598,17 +1755,21 @@ describe("RETURN_TO_DUNGEON", () => {
     expect(next.selectedSegId).toBe(1);
   });
 
-  it("keeps the same character's exact position, unlike RESUME_DUNGEON's reset to the entrance", () => {
+  it("stays on the same level, unlike RESUME_DUNGEON's reset to Level 1, but still walks back to that level's own entry point", () => {
     const entrance = makeSegment({ id: 1, type: "room-small", doors: [] });
     const entranceLevel = { ...makeLevel(1), segments: [entrance] };
+    // Two segments on the deep level -- the player had wandered from the level's own entry
+    // point (id 6) to a second room (id 7) before retreating to town.
+    const deepEntry = makeSegment({ id: 6, type: "room-small", doors: [] });
     const deepRoom = makeSegment({ id: 7, type: "room-small", doors: [] });
-    const deepLevel = { ...makeLevel(2), segments: [deepRoom] };
+    const deepLevel = { ...makeLevel(2), segments: [deepEntry, deepRoom] };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
       dungeonTypeKey: "palace",
       levels: [entranceLevel, deepLevel],
       activeLevel: 1,
       selectedSegId: 7,
+      currentSegId: 7,
     };
 
     const next = dungeonReducer(createInitialDungeonState(), {
@@ -1632,8 +1793,12 @@ describe("RETURN_TO_DUNGEON", () => {
       bossKills: 0,
     });
 
+    // still on Level 2 (unlike RESUME_DUNGEON, which always resets activeLevel to 0)...
     expect(next.activeLevel).toBe(1);
-    expect(next.selectedSegId).toBe(7);
+    // ...but back at that level's own entry segment, not the deep room -- closing the loophole
+    // where returning would otherwise let the player skip straight past #18's Monster re-roll.
+    expect(next.selectedSegId).toBe(6);
+    expect(next.currentSegId).toBe(6);
   });
 });
 
