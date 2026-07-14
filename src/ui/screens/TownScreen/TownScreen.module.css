@@ -40,9 +40,34 @@
   width: min(1180px, 100%);
   align-items: start;
 }
-@media (max-width: 900px) {
+/* Only a narrow *portrait* viewport stacks the sidebar below the main column -- a narrow
+   landscape one (a phone turned sideways) keeps them side by side, gap tightened and the
+   sidebar narrowed, since that's a short viewport where losing the sidebar below the fold
+   entirely is worse than a snugger fit. */
+@media (max-width: 900px) and (orientation: portrait) {
   .layout {
     grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 900px) and (orientation: landscape) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 14px;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .page {
+    padding-top: 12px;
+    padding-bottom: 24px;
+  }
+  .wordmark {
+    margin-bottom: 10px;
+  }
+  .wordmark h1 {
+    font-size: 1.6rem;
+  }
+  .tagline {
+    display: none;
   }
 }
 
