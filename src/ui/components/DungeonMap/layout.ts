@@ -10,6 +10,12 @@ const MARKER_HALF = 14;
  * minimum (previously 320) left a lot of dead space around anything smaller/narrower than a
  * perfect square. */
 const MIN_SIZE = 240;
+/** Extra slack added only to width/height (not originX/originY), so there's always room to pan
+ * a segment or door marker out from under `RoomInspectorOverlay`'s fixed bottom-right corner
+ * (up to ~340x320px, see DungeonScreen.module.css) -- without this, a tightly-fit canvas that
+ * already fits the viewport has nowhere to scroll to, permanently hiding whatever renders behind
+ * the overlay. */
+const OVERLAY_CLEARANCE = 360;
 
 export interface MapLayout {
   originX: number;
@@ -56,7 +62,7 @@ export function computeMapLayout(level: Pick<LevelState, "segments">): MapLayout
   return {
     originX: minX - PAD,
     originY: minY - PAD,
-    width: Math.max(maxX - minX + PAD * 2, MIN_SIZE),
-    height: Math.max(maxY - minY + PAD * 2, MIN_SIZE),
+    width: Math.max(maxX - minX + PAD * 2, MIN_SIZE) + OVERLAY_CLEARANCE,
+    height: Math.max(maxY - minY + PAD * 2, MIN_SIZE) + OVERLAY_CLEARANCE,
   };
 }
