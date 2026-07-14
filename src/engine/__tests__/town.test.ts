@@ -70,6 +70,12 @@ describe("sellItem", () => {
     const next = sellItem(resources, 3);
     expect(next).toEqual(resources);
   });
+
+  it("Cat-Person: sells for double the item's worth", () => {
+    const resources = makeResources({ coins: 0, heldItems: [{ name: "Ornament", worth: 5 }] });
+    const next = sellItem(resources, 0, true);
+    expect(next.coins).toBe(10);
+  });
 });
 
 describe("canFixArmor / fixArmor", () => {
@@ -100,5 +106,17 @@ describe("canFixArmor / fixArmor", () => {
     const resources = makeResources({ coins: 2, armor: [{ piece: "boots", hp: 1, maxHp: 3 }] });
     const next = fixArmor(resources, 5);
     expect(next).toEqual(resources);
+  });
+
+  it("Blacksmith: costs 1 torch instead of 1 coin", () => {
+    const piece = { piece: "boots" as const, hp: 1, maxHp: 3 };
+    expect(canFixArmor(makeResources({ coins: 0, torches: 0, armor: [piece] }), 0, true)).toBe(false);
+    expect(canFixArmor(makeResources({ coins: 0, torches: 1, armor: [piece] }), 0, true)).toBe(true);
+
+    const resources = makeResources({ coins: 5, torches: 3, armor: [piece] });
+    const next = fixArmor(resources, 0, true);
+    expect(next.torches).toBe(2);
+    expect(next.coins).toBe(5); // untouched
+    expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3 }]);
   });
 });

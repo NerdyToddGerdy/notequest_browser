@@ -747,6 +747,75 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.log[0]!.message).toContain("broke the door open");
   });
 
+  it("Locksmith: pick lock costs no torch", () => {
+    const state = { ...doorState(0), className: "Locksmith" };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 2,
+      trapRoll: null,
+      lockChoice: "pickLock",
+    });
+    expect(next.torches).toBe(0);
+    expect(next.alive).toBe(true);
+    expect(next.log[0]!.message).toContain("needs no torch");
+  });
+
+  it("Lumberjack: breaking a door gains 1 torch on a roll of 6", () => {
+    const state = { ...doorState(3), className: "Lumberjack" };
+    const next = dungeonReducer(
+      state,
+      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 2, trapRoll: null, lockChoice: "breakDoor" },
+      fixedDie(6),
+    );
+    expect(next.torches).toBe(4);
+    expect(next.log.some((e) => e.message.includes("gain 1 torch"))).toBe(true);
+  });
+
+  it("Lumberjack: no torch gained on anything but a 6, and it's capped at 10", () => {
+    const state = { ...doorState(3), className: "Lumberjack" };
+    const next = dungeonReducer(
+      state,
+      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 2, trapRoll: null, lockChoice: "breakDoor" },
+      fixedDie(5),
+    );
+    expect(next.torches).toBe(3);
+
+    const capped = { ...doorState(10), className: "Lumberjack" };
+    const next2 = dungeonReducer(
+      capped,
+      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 2, trapRoll: null, lockChoice: "breakDoor" },
+      fixedDie(6),
+    );
+    expect(next2.torches).toBe(10);
+  });
+
+  it("a non-Lumberjack never gains a torch from breaking a door", () => {
+    const state = doorState(3);
+    const next = dungeonReducer(
+      state,
+      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 2, trapRoll: null, lockChoice: "breakDoor" },
+      fixedDie(6),
+    );
+    expect(next.torches).toBe(3);
+  });
+
+  it("Miner: spared from the Darkness when out of torches, instead of dying", () => {
+    const state = { ...doorState(0), className: "Miner" };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 3,
+      trapRoll: null,
+      lockChoice: "pickLock",
+    });
+    expect(next.alive).toBe(true);
+    expect(next.torches).toBe(0);
+    expect(next.log[0]!.message).toContain("Retreat to Town");
+  });
+
   it("trap (roll 1) with no torch cost deals its flat damage instead", () => {
     const state = doorState(5);
     const next = dungeonReducer(state, {
@@ -1213,6 +1282,8 @@ describe("RESUME_DUNGEON", () => {
       weaponFormula: "1d6+1",
       spellUses: { 1: 2 },
       characterName: "New Hero",
+      raceName: "",
+      className: "",
     });
 
     expect(next.dungeonName).toBe("The Palace of the Secret Horrors");
@@ -1273,6 +1344,8 @@ describe("RESUME_DUNGEON", () => {
         weaponFormula: "1d6",
         spellUses: {},
         characterName: "New Hero",
+        raceName: "",
+        className: "",
       },
       sequenceDie([1, 6]),
     );
@@ -1310,6 +1383,7 @@ describe("RESUME_DUNGEON", () => {
       outcome: "ongoing",
       pendingDamage: null,
       playerDamageBonus: 0,
+      engulfableBodies: 0,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -1329,6 +1403,8 @@ describe("RESUME_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "New Hero",
+      raceName: "",
+      className: "",
     });
 
     expect(next.combat).not.toBeNull();
@@ -1359,6 +1435,8 @@ describe("RESUME_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "New Hero",
+      raceName: "",
+      className: "",
     });
 
     expect(next.levels).toHaveLength(2); // the full map is still there, just not where you start
@@ -1395,6 +1473,8 @@ describe("RETURN_TO_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: { 1: 3 },
       characterName: "Pip",
+      raceName: "",
+      className: "",
       monsterKills: 5,
       bossKills: 1,
     });
@@ -1443,6 +1523,8 @@ describe("RETURN_TO_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "Pip",
+      raceName: "",
+      className: "",
       monsterKills: 0,
       bossKills: 0,
     });
@@ -1481,6 +1563,7 @@ describe("RETURN_TO_DUNGEON", () => {
       outcome: "ongoing",
       pendingDamage: null,
       playerDamageBonus: 0,
+      engulfableBodies: 0,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -1504,6 +1587,8 @@ describe("RETURN_TO_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "Pip",
+      raceName: "",
+      className: "",
       monsterKills: 0,
       bossKills: 0,
     });
@@ -1541,6 +1626,8 @@ describe("RETURN_TO_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "Pip",
+      raceName: "",
+      className: "",
       monsterKills: 0,
       bossKills: 0,
     });
@@ -1587,6 +1674,8 @@ describe("Monster table re-roll on return", () => {
         weaponFormula: "1d6",
         spellUses: {},
         characterName: "Pip",
+        raceName: "",
+        className: "",
         monsterKills: 0,
         bossKills: 0,
       },
@@ -1625,6 +1714,7 @@ describe("Monster table re-roll on return", () => {
       outcome: "ongoing",
       pendingDamage: null,
       playerDamageBonus: 0,
+      engulfableBodies: 0,
     };
     const persisted: DungeonState = { ...createInitialDungeonState(), dungeonTypeKey: "palace", levels: [level], combat };
 
@@ -1643,6 +1733,8 @@ describe("Monster table re-roll on return", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "Pip",
+      raceName: "",
+      className: "",
       monsterKills: 0,
       bossKills: 0,
     });

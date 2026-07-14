@@ -52,6 +52,8 @@ export function TownScreen({
 }: TownScreenProps) {
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const sortedHistory = sortDungeonHistory(dungeonHistory);
+  const isCatPerson = character.race.name === "Cat-Person";
+  const isBlacksmith = character.cls.name === "Blacksmith";
   const [graveyard] = useState(() => loadGraveyard());
 
   return (
@@ -92,8 +94,8 @@ export function TownScreen({
                   </button>
                 </div>
                 <p className={styles.sellNote}>
-                  Sell items from your Pack for their listed worth in coins, or fix a damaged armor piece from
-                  your Equipment, for 1 coin.
+                  Sell items from your Pack for their listed worth in coins{isCatPerson ? " (doubled, Cat-Person)" : ""}, or
+                  fix a damaged armor piece from your Equipment, for {isBlacksmith ? "1 torch (Blacksmith)" : "1 coin"}.
                 </p>
               </section>
 
@@ -179,9 +181,13 @@ export function TownScreen({
           <Equipment
             armor={resources.armor}
             weapon={resources.weapon}
-            onFixArmor={(index) => onUpdateResources(fixArmor(resources, index))}
+            onFixArmor={(index) => onUpdateResources(fixArmor(resources, index, isBlacksmith))}
+            isBlacksmith={isBlacksmith}
           />
-          <Pack items={resources.heldItems} onSell={(index) => onUpdateResources(sellItem(resources, index))} />
+          <Pack
+            items={resources.heldItems}
+            onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson))}
+          />
         </aside>
       </div>
 

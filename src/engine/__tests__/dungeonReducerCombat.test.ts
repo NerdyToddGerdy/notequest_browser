@@ -43,6 +43,7 @@ function stateWithCombat(overrides: Partial<DungeonState> = {}, monsters: Combat
     outcome: "ongoing",
     pendingDamage: null,
     playerDamageBonus: 0,
+    engulfableBodies: 0,
   };
   return {
     ...createInitialDungeonState(),
@@ -708,5 +709,104 @@ describe("Weapon bonus effects", () => {
     state.combat!.playerDamageBonus = 2;
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
     expect(next.combat!.monsters[0]!.hp).toBe(15); // 3 + 2
+  });
+});
+
+describe("Grave Digger: +2 damage to Undead", () => {
+  it("adds +2 damage against an Undead-ability monster", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: ["undead"] });
+    const state = stateWithCombat({ className: "Grave Digger" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(15); // 3 + 2
+  });
+
+  it("does not apply the bonus against a non-Undead monster", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: [] });
+    const state = stateWithCombat({ className: "Grave Digger" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(17); // just 3
+  });
+
+  it("a non-Grave-Digger gets no bonus even against Undead", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: ["undead"] });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(17); // just 3
+  });
+});
+
+describe("Cook: +1 coin per kill (except Undead)", () => {
+  it("gains 1 coin when a non-Undead monster is killed", () => {
+    const monster = makeMonster({ hp: 3, abilities: [] });
+    const state = stateWithCombat({ className: "Cook" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, sequenceDie([1]));
+    expect(next.coins).toBe(1);
+    expect(next.log.some((e) => e.message.includes("Cook's instincts"))).toBe(true);
+  });
+
+  it("does not gain a coin from killing an Undead monster", () => {
+    const monster = makeMonster({ hp: 3, abilities: ["undead"] });
+    const state = stateWithCombat({ className: "Cook" }, [monster]);
+    // roll of 1 on the Undead-revival check -> stays dead; no further rng needed
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(6));
+    expect(next.coins).toBe(0);
+  });
+
+  it("a non-Cook gets no coin from a kill", () => {
+    const monster = makeMonster({ hp: 3, abilities: [] });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, sequenceDie([1]));
+    expect(next.coins).toBe(0);
+  });
+});
+
+describe("Rinoceroid: horn attack", () => {
+  it("attacks with a flat 1d6, ignoring the equipped weapon's formula and bonus effects", () => {
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const weapon = { name: "Halberd", formula: "1d6+3", twoHanded: true };
+    const state = stateWithCombat({ raceName: "Rinoceroid", weapon }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 4, useHorn: true });
+    expect(next.combat!.monsters[0]!.hp).toBe(16); // just the raw roll, no +3 weapon modifier
+  });
+
+  it("useHorn is ignored for a non-Rinoceroid, falling back to the equipped weapon", () => {
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const state = stateWithCombat({ weaponFormula: "1d6+3" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 4, useHorn: true });
+    expect(next.combat!.monsters[0]!.hp).toBe(13); // 4 + 3 modifier applied
+  });
+});
+
+describe("Slimemen: engulf a fallen enemy's body", () => {
+  it("tracks an engulfable body for every monster actually killed (not revived), regardless of race", () => {
+    const monster = makeMonster({ hp: 3, abilities: [] });
+    const state = stateWithCombat({}, [monster, makeMonster({ id: 9, hp: 20, damage: 0 })]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 });
+    expect(next.combat!.engulfableBodies).toBe(1);
+  });
+
+  it("ENGULF_BODY heals a Slimemen to full HP and consumes one body, then the fight continues", () => {
+    const monster = makeMonster({ hp: 20, damage: 4 });
+    const state = stateWithCombat({ raceName: "Slimemen", hp: 5, maxHp: 20 }, [monster]);
+    state.combat!.engulfableBodies = 1;
+    const next = dungeonReducer(state, { type: "ENGULF_BODY" });
+    expect(next.hp).toBe(20 - 4); // healed to full, then the monster's counter-attack landed
+    expect(next.combat!.engulfableBodies).toBe(0);
+    expect(next.log.some((e) => e.message.includes("engulf"))).toBe(true);
+  });
+
+  it("is a no-op for a non-Slimemen", () => {
+    const monster = makeMonster({ hp: 20, damage: 4 });
+    const state = stateWithCombat({ hp: 5, maxHp: 20 }, [monster]);
+    state.combat!.engulfableBodies = 1;
+    const next = dungeonReducer(state, { type: "ENGULF_BODY" });
+    expect(next).toBe(state);
+  });
+
+  it("is a no-op when there's no body to engulf", () => {
+    const monster = makeMonster({ hp: 20, damage: 4 });
+    const state = stateWithCombat({ raceName: "Slimemen", hp: 5, maxHp: 20 }, [monster]);
+    const next = dungeonReducer(state, { type: "ENGULF_BODY" });
+    expect(next).toBe(state);
   });
 });

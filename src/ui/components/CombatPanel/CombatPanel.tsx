@@ -16,10 +16,17 @@ export interface CombatPanelProps {
   armor: ArmorPiece[];
   /** Remaining uses per spell, keyed by its 1d6 Basic Spells table roll. */
   spellUses: Record<number, number>;
-  onAttack: (targetId: number, roll: number) => void;
+  /** Rinoceroid: "You can attack with your horn (Damage 1d6)" -- offered alongside the normal weapon. */
+  isRinoceroid?: boolean;
+  /** Slimemen: "If you engulf the body of an enemy, you regain all HP." */
+  isSlimemen?: boolean;
+  onAttack: (targetId: number, roll: number, useHorn?: boolean) => void;
   onCastSpell: (spellRoll: number, targetId?: number) => void;
   onResolveDamage: (absorbWith: "hp" | number) => void;
+  onEngulfBody: () => void;
 }
+
+const HORN_FORMULA = "1d6";
 
 /** Cold Ray and Lightning target one monster; Heal/Light/Fireball/Teleport don't. */
 const TARGETED_SPELLS = new Set([4, 5]);
@@ -77,9 +84,12 @@ export function CombatPanel({
   weaponFormula,
   armor,
   spellUses,
+  isRinoceroid = false,
+  isSlimemen = false,
   onAttack,
   onCastSpell,
   onResolveDamage,
+  onEngulfBody,
 }: CombatPanelProps) {
   const [dieValue, setDieValue] = useState(1);
   const [rollToken, setRollToken] = useState(0);
@@ -100,15 +110,15 @@ export function CombatPanel({
   const targetedSpells = knownSpellRolls.filter((roll) => TARGETED_SPELLS.has(roll));
   const generalSpells = knownSpellRolls.filter((roll) => !TARGETED_SPELLS.has(roll));
 
-  function rollAndAttack(targetId: number) {
+  function rollAndAttack(targetId: number, useHorn = false) {
     if (!canAct) return;
-    const { rawRoll } = rollWeaponDamage(weaponFormula);
+    const { rawRoll } = rollWeaponDamage(useHorn ? HORN_FORMULA : weaponFormula);
     setDieValue(rawRoll);
     setRollToken((t) => t + 1);
     setRolling(true);
     window.setTimeout(() => {
       setRolling(false);
-      onAttack(targetId, rawRoll);
+      onAttack(targetId, rawRoll, useHorn);
     }, revealDelay(1));
   }
 
@@ -174,6 +184,16 @@ export function CombatPanel({
               >
                 Attack
               </button>
+              {isRinoceroid && (
+                <button
+                  type="button"
+                  className={styles.attackBtn}
+                  disabled={!canAct}
+                  onClick={() => rollAndAttack(monster.id, true)}
+                >
+                  Horn ({HORN_FORMULA})
+                </button>
+              )}
               {targetedSpells.map((spellRoll) => (
                 <button
                   key={spellRoll}
@@ -206,6 +226,20 @@ export function CombatPanel({
               {SPELL_TABLE[spellRoll]!.name} ({spellUses[spellRoll]})
             </button>
           ))}
+        </div>
+      )}
+
+      {isSlimemen && combat.engulfableBodies > 0 && (
+        <div className={styles.spellRow}>
+          <button
+            type="button"
+            className={styles.spellBtn}
+            disabled={!canAct}
+            title="Regain all HP -- consumes a fallen enemy's body."
+            onClick={onEngulfBody}
+          >
+            Engulf Body ({combat.engulfableBodies})
+          </button>
         </div>
       )}
 

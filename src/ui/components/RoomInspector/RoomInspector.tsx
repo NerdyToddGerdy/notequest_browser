@@ -3,7 +3,6 @@ import type { DungeonState, SegmentState } from "../../../engine/dungeonState.ts
 import { rollDie } from "../../../engine/dice.ts";
 import { TYPE_LABELS } from "../../../data/dungeonTypes.ts";
 import { formatMonsterTemplate } from "../../../data/dungeonTables.ts";
-import { Die } from "../Die/Die.tsx";
 import { DicePool } from "../DicePool/DicePool.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import styles from "./RoomInspector.module.css";
@@ -35,7 +34,7 @@ function describeRemains(remains: NonNullable<SegmentState["remains"]>): string 
  * state resets cleanly whenever a different segment is selected.
  */
 export function RoomInspector({ state, onRollSecretPassage, onRollChest, onCollectRemains }: RoomInspectorProps) {
-  const [dieValue, setDieValue] = useState(1);
+  const [passageDice, setPassageDice] = useState<number[]>([1]);
   const [rollToken, setRollToken] = useState(0);
   const [revealing, setRevealing] = useState(false);
 
@@ -56,15 +55,20 @@ export function RoomInspector({ state, onRollSecretPassage, onRollChest, onColle
 
   function handleSearch() {
     if (revealing || !seg || seg.secretPassageSearched) return;
-    const roll = rollDie();
-    setDieValue(roll);
+    // Dwarf: "When you roll to Find Secret Passages, roll two dice and discard the lowest" --
+    // row 1 is the only bad outcome (it triggers a trap roll), so keeping the higher die is
+    // strictly an advantage.
+    const isDwarf = state.raceName === "Dwarf";
+    const dice = isDwarf ? [rollDie(), rollDie()] : [rollDie()];
+    const roll = Math.max(...dice);
+    setPassageDice(dice);
     setRollToken((t) => t + 1);
     setRevealing(true);
     window.setTimeout(() => {
       setRevealing(false);
       const trapRoll = roll === 1 ? rollDie() : null;
       onRollSecretPassage(seg.id, roll, trapRoll);
-    }, revealDelay(1));
+    }, revealDelay(dice.length));
   }
 
   function handleOpenChest() {
@@ -141,7 +145,7 @@ export function RoomInspector({ state, onRollSecretPassage, onRollChest, onColle
 
       {seg.roomContent?.secretPassage && !seg.secretPassageSearched && (
         <div className={styles.dieRow}>
-          <Die value={dieValue} rollToken={rollToken} size={40} />
+          <DicePool values={passageDice} rollToken={rollToken} size={40} />
           <button
             className={styles.rollBtn}
             type="button"

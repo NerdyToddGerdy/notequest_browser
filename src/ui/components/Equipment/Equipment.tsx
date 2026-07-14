@@ -7,10 +7,12 @@ export interface EquipmentProps {
   weapon: EquippedWeapon | null;
   /** Set only in Town -- rendering a Fix button per damaged piece and enabling the "Fix Armor" city action. */
   onFixArmor?: (index: number) => void;
+  /** Blacksmith: "You can repair an armor by spending 1 Torch" instead of the usual 1 coin. */
+  isBlacksmith?: boolean;
 }
 
 /** Worn armor pieces and an acquired weapon override -- see ArmorPiece/EquippedWeapon for how they're earned. */
-export function Equipment({ armor, weapon, onFixArmor }: EquipmentProps) {
+export function Equipment({ armor, weapon, onFixArmor, isBlacksmith = false }: EquipmentProps) {
   if (armor.length === 0 && !weapon) return null;
 
   const weaponEffectText = weapon?.bonusEffect ? describeItemEffect(weapon.bonusEffect) : null;
@@ -44,7 +46,7 @@ export function Equipment({ armor, weapon, onFixArmor }: EquipmentProps) {
                 )}
                 {onFixArmor && needsFixing && (
                   <button type="button" className={styles.fixBtn} onClick={() => onFixArmor(index)}>
-                    Fix (1 coin)
+                    Fix ({isBlacksmith ? "1 torch" : "1 coin"})
                   </button>
                 )}
               </li>

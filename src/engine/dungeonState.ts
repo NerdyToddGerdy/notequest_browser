@@ -150,6 +150,9 @@ export interface CombatState {
    * fight") -- added to the player's weapon damage roll each round of *this* fight, then discarded
    * when combat ends (not persisted onto the character outside combat). */
   playerDamageBonus: number;
+  /** Slimemen only: bumped by `handleMonsterDefeat` for every monster actually removed (killed, not
+   * revived) this fight -- each one is a "body" ENGULF_BODY can consume for a full heal. */
+  engulfableBodies: number;
 }
 
 /** A "worth N Coins in the town" item found by opening a Treasure -- held until there's a town to sell it in. */
@@ -193,6 +196,13 @@ export interface DungeonState {
   bossKills: number;
   /** The active character's name -- used only to label remains left behind if they die. */
   characterName: string;
+  /** The active character's race/class names (e.g. "Dwarf", "Grave Digger") -- matched by exact
+   * string against `RaceDef.name`/`ClassDef.name`, the same "no formal taxonomy" pattern the
+   * Armor & Weapons system already uses for monster-tag matching. Drives every race/class ability
+   * that needs reducer-level logic (see CLAUDE.md's "Race and class abilities" section); abilities
+   * resolvable entirely in a UI component instead read `character.race`/`character.cls` directly. */
+  raceName: string;
+  className: string;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by its 1d6 Basic Spells table roll. Depleted uses are gone until Rest (not yet built). */
@@ -251,6 +261,8 @@ export function createInitialDungeonState(
   weapon: EquippedWeapon | null = null,
   monsterKills = 0,
   bossKills = 0,
+  raceName = "",
+  className = "",
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -277,6 +289,8 @@ export function createInitialDungeonState(
     monsterKills,
     bossKills,
     characterName,
+    raceName,
+    className,
     weaponFormula,
     spellUses,
     alive: true,
@@ -303,7 +317,13 @@ export type DungeonAction =
   | { type: "ROLL_CHEST"; segId: number; dice: [number, number]; trapRoll: number | null }
   | { type: "COLLECT_REMAINS"; segId: number }
   | { type: "OPEN_TREASURE"; roll: number; maxSpellUses: Record<number, number> }
-  | { type: "PLAYER_ATTACK"; targetId: number; roll: number }
+  /** `useHorn`: Rinoceroid's "You can attack with your horn (Damage 1d6)" -- a flat 1d6, no
+   * weapon modifier, ignoring whatever's equipped, for this one attack. */
+  | { type: "PLAYER_ATTACK"; targetId: number; roll: number; useHorn?: boolean }
+  /** Slimemen's "If you engulf the body of an enemy, you regain all HP" -- consumes one body from
+   * `CombatState.engulfableBodies` (set by `handleMonsterDefeat` whenever a monster is actually
+   * removed, not revived) and heals to full, same as a full round (the monsters still counter-attack). */
+  | { type: "ENGULF_BODY" }
   | { type: "CAST_SPELL"; spellRoll: number; targetId?: number }
   /** Resolves a CombatState.pendingDamage from a monster counter-attack: onto the player's HP, or
    * onto one of `armor`'s indices ("your call" per the rulebook). */
@@ -317,6 +337,8 @@ export type DungeonAction =
       weaponFormula: string;
       spellUses: Record<number, number>;
       characterName: string;
+      raceName: string;
+      className: string;
     }
   | {
       /** The same still-living character coming back from a Town visit -- unlike RESUME_DUNGEON
@@ -335,6 +357,8 @@ export type DungeonAction =
       weaponFormula: string;
       spellUses: Record<number, number>;
       characterName: string;
+      raceName: string;
+      className: string;
       monsterKills: number;
       bossKills: number;
     }

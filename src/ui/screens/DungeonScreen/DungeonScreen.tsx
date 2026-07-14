@@ -75,6 +75,8 @@ export function DungeonScreen({
         weaponFormula: character.cls.weaponDamage,
         spellUses: resources.spellUses,
         characterName: character.name,
+        raceName: character.race.name,
+        className: character.cls.name,
         monsterKills: resources.monsterKills,
         bossKills: resources.bossKills,
       });
@@ -89,6 +91,8 @@ export function DungeonScreen({
         weaponFormula: character.cls.weaponDamage,
         spellUses: resources.spellUses,
         characterName: character.name,
+        raceName: character.race.name,
+        className: character.cls.name,
       });
     }
     return createInitialDungeonState(
@@ -106,6 +110,8 @@ export function DungeonScreen({
       resources.weapon,
       resources.monsterKills,
       resources.bossKills,
+      character.race.name,
+      character.cls.name,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -287,9 +293,12 @@ export function DungeonScreen({
                   weaponFormula={state.weapon?.formula ?? character.cls.weaponDamage}
                   armor={state.armor}
                   spellUses={state.spellUses}
-                  onAttack={(targetId, roll) => dispatch({ type: "PLAYER_ATTACK", targetId, roll })}
+                  isRinoceroid={character.race.name === "Rinoceroid"}
+                  isSlimemen={character.race.name === "Slimemen"}
+                  onAttack={(targetId, roll, useHorn) => dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })}
                   onCastSpell={(spellRoll, targetId) => dispatch({ type: "CAST_SPELL", spellRoll, targetId })}
                   onResolveDamage={(absorbWith) => dispatch({ type: "RESOLVE_DAMAGE", absorbWith })}
+                  onEngulfBody={() => dispatch({ type: "ENGULF_BODY" })}
                 />
               )}
               <RollLog entries={state.log} />

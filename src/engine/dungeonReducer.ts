@@ -118,6 +118,13 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
 /** Spends `cost` torches, logging `message`; if there aren't enough, the Darkness kills the character instead. */
 function spendTorches(draft: Draft<DungeonState>, cost: number, message: string, segId: number | null = null): boolean {
   if (draft.torches < cost) {
+    if (draft.className === "Miner") {
+      // "If you run out of torches, you can leave the dungeon" -- the Darkness spares a Miner
+      // outright rather than killing them; the action they were attempting still fails (they're
+      // still out of torches), but they're free to use the existing Retreat to Town button.
+      pushLog(draft, "You're out of torches, but a lifetime underground taught you the way out. Retreat to Town before the Darkness finds you.");
+      return false;
+    }
     draft.alive = false;
     pushLog(draft, DARKNESS_MESSAGE, "descend");
     leaveRemains(draft, segId);
@@ -197,6 +204,7 @@ function startCombat(
     outcome: "ongoing",
     pendingDamage: null,
     playerDamageBonus: 0,
+    engulfableBodies: 0,
   };
   pushLog(
     draft,
@@ -316,8 +324,14 @@ function matchesTags(monster: Draft<CombatMonsterState>, tags: string[]): boolea
   return tags.some((tag) => name.includes(tag.toLowerCase()));
 }
 
-function attackBonus(draft: Draft<DungeonState>, monster: Draft<CombatMonsterState>): number {
+/** `isHorn`: Rinoceroid's horn attack bypasses the equipped weapon entirely, so it skips any
+ * weapon-specific bonus effect -- general combat buffs (Potion of Fury, Grave Digger) still apply. */
+function attackBonus(draft: Draft<DungeonState>, monster: Draft<CombatMonsterState>, isHorn = false): number {
   let bonus = draft.combat?.playerDamageBonus ?? 0;
+  if (draft.className === "Grave Digger" && monster.abilities.includes("undead")) {
+    bonus += 2;
+  }
+  if (isHorn) return bonus;
   for (const effect of equippedEffects(draft)) {
     if (effect.kind === "weaponDamageBonus") {
       bonus += effect.amount;
@@ -330,8 +344,9 @@ function attackBonus(draft: Draft<DungeonState>, monster: Draft<CombatMonsterSta
 
 /** Multiplier applied to just the weapon's own roll (e.g. "[Weapon] of the Dragon Slayer: Double
  * damage against Dragons"), before `attackBonus` is added. */
-function attackMultiplier(draft: Draft<DungeonState>, monster: Draft<CombatMonsterState>): number {
+function attackMultiplier(draft: Draft<DungeonState>, monster: Draft<CombatMonsterState>, isHorn = false): number {
   let multiplier = 1;
+  if (isHorn) return multiplier;
   for (const effect of equippedEffects(draft)) {
     if (effect.kind === "damageMultiplierVsTag" && matchesTags(monster, effect.tags)) {
       multiplier *= effect.multiplier;
@@ -441,6 +456,12 @@ function handleMonsterDefeat(
     draft.monsterKills += 1;
     if (combat.isBoss) draft.bossKills += 1;
     pushLog(draft, `${monster.name} is defeated!`);
+
+    combat.engulfableBodies += 1; // Slimemen's engulf-for-full-HP -- no Undead exception in the rulebook
+    if (draft.className === "Cook" && !monster.abilities.includes("undead")) {
+      draft.coins += 1;
+      pushLog(draft, "Cook's instincts: +1 coin from the kill.");
+    }
   }
 }
 
@@ -848,12 +869,23 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           resolveTrapOutcome(draft, trap, seg.id, rng);
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
-            spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id);
+            if (draft.className === "Locksmith") {
+              pushLog(draft, `Segment ${seg.id}: your lockpicking skill needs no torch.`);
+            } else {
+              spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id);
+            }
           } else if (action.lockChoice === "breakDoor") {
             pushLog(
               draft,
-              `Segment ${seg.id}: broke the door open — no torch spent, but it alerts nearby monsters (not modeled yet).`,
+              `Segment ${seg.id}: broke the door open — no torch spent, but it alerts nearby monsters.`,
             );
+            if (draft.className === "Lumberjack") {
+              const roll = rollDie(rng);
+              if (roll === 6) {
+                draft.torches = Math.min(draft.torches + 1, 10);
+                pushLog(draft, "Splintered wood makes for good kindling — you gain 1 torch.");
+              }
+            }
           }
         }
       });
@@ -1066,16 +1098,20 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const monster = combat.monsters.find((m) => m.id === action.targetId);
         if (!monster) return;
 
-        const weaponBonus = draft.weapon?.bonusEffect;
+        const useHorn = action.useHorn === true && draft.raceName === "Rinoceroid";
+        const weaponBonus = useHorn ? undefined : draft.weapon?.bonusEffect;
         if (weaponBonus?.kind === "instantKillOnRoll" && action.roll === weaponBonus.roll) {
           pushLog(draft, `Your ${draft.weapon!.name} strikes true, killing ${monster.name} instantly!`);
           monster.hp = 0;
           handleMonsterDefeat(draft, combat, monster, rng);
         } else {
-          const { modifier } = parseWeaponFormula(draft.weapon?.formula ?? draft.weaponFormula);
+          const { modifier } = useHorn
+            ? { modifier: 0 }
+            : parseWeaponFormula(draft.weapon?.formula ?? draft.weaponFormula);
           const baseTotal = Math.max(0, action.roll + modifier);
-          const weaponTotal = baseTotal * attackMultiplier(draft, monster) + attackBonus(draft, monster);
-          const result = resolvePlayerAttack(monster, action.roll, weaponTotal, rng, ignoredAbilities(draft));
+          const weaponTotal =
+            baseTotal * attackMultiplier(draft, monster, useHorn) + attackBonus(draft, monster, useHorn);
+          const result = resolvePlayerAttack(monster, action.roll, weaponTotal, rng, useHorn ? [] : ignoredAbilities(draft));
 
           if (result.selfDestructDamageToPlayer > 0) {
             pushLog(draft, `${monster.name} explodes, dealing ${result.selfDestructDamageToPlayer} damage to you!`);
@@ -1093,7 +1129,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           }
           monster.hp = Math.max(0, monster.hp - result.damageDealt);
 
-          if (result.damageDealt > 0) {
+          if (result.damageDealt > 0 && !useHorn) {
             const lifesteal = equippedEffects(draft).find((e) => e.kind === "lifesteal");
             if (lifesteal && lifesteal.kind === "lifesteal") {
               const healed = Math.min(lifesteal.amount, draft.maxHp - draft.hp);
@@ -1163,6 +1199,38 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         }
 
         finishIfVictorious(draft, combat, rng);
+        if (draft.combat && draft.combat.outcome === "ongoing") {
+          applyMonsterTurn(draft, draft.combat);
+        }
+      });
+    }
+
+    case "ENGULF_BODY": {
+      if (
+        !state.alive ||
+        !state.combat ||
+        state.combat.outcome !== "ongoing" ||
+        state.combat.pendingDamage !== null ||
+        state.raceName !== "Slimemen" ||
+        state.combat.engulfableBodies <= 0
+      ) {
+        return state;
+      }
+      return produce(state, (draft) => {
+        const combat = draft.combat;
+        if (!combat) return;
+
+        if (combat.paralyzedTurns > 0) {
+          combat.paralyzedTurns -= 1;
+          pushLog(draft, "You are paralyzed and cannot act this turn.");
+          applyMonsterTurn(draft, combat);
+          return;
+        }
+
+        combat.engulfableBodies -= 1;
+        draft.hp = draft.maxHp;
+        pushLog(draft, "You engulf a fallen enemy's body, regaining all your HP.");
+
         if (draft.combat && draft.combat.outcome === "ongoing") {
           applyMonsterTurn(draft, draft.combat);
         }
@@ -1408,6 +1476,12 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           0,
           [],
           action.maxHp,
+          [],
+          null,
+          0,
+          0,
+          action.raceName,
+          action.className,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "A new adventurer takes up the fallen's path.", true);
@@ -1434,6 +1508,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           action.weapon,
           action.monsterKills,
           action.bossKills,
+          action.raceName,
+          action.className,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);
