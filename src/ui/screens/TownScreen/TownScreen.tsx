@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import { isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
+import { loadGraveyard } from "../../../engine/graveyard.ts";
 import {
   buyTorch,
   canBuyTorch,
@@ -13,6 +15,7 @@ import {
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
+import { Graveyard } from "../../components/Graveyard/Graveyard.tsx";
 import styles from "./TownScreen.module.css";
 
 export interface TownScreenProps {
@@ -49,6 +52,7 @@ export function TownScreen({
 }: TownScreenProps) {
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const sortedHistory = sortDungeonHistory(dungeonHistory);
+  const [graveyard] = useState(() => loadGraveyard());
 
   return (
     <div className={styles.page}>
@@ -158,6 +162,8 @@ export function TownScreen({
               </section>
             </div>
           </main>
+
+          <Graveyard entries={graveyard} />
         </div>
 
         <aside className={styles.side}>
