@@ -37,13 +37,23 @@ export interface DungeonMapProps {
   ) => void;
   onSelectSegment: (segId: number) => void;
   onSwitchLevel: (levelIndex: number, segId?: number) => void;
+  /** Fires the instant a door-lock roll is confirmed as a trap -- before the second die rolls to
+   * decide *which* trap, so the warning lands as an ambush rather than after-the-fact flavor text. */
+  onTrapTriggered?: () => void;
 }
 
 type DoorFlow =
   | { kind: "rolling"; segId: number; doorIdx: number; x: number; y: number }
   | { kind: "lockChoice"; segId: number; doorIdx: number; x: number; y: number; doorRoll: number };
 
-export function DungeonMap({ state, onDoorResolved, onResolveLock, onSelectSegment, onSwitchLevel }: DungeonMapProps) {
+export function DungeonMap({
+  state,
+  onDoorResolved,
+  onResolveLock,
+  onSelectSegment,
+  onSwitchLevel,
+  onTrapTriggered,
+}: DungeonMapProps) {
   const level = state.levels[state.activeLevel];
   const layout = useMemo(() => computeMapLayout(level ?? { segments: [] }), [level]);
   // Fog of war: only the player's current segment and its direct, already-opened-door neighbors
@@ -141,6 +151,7 @@ export function DungeonMap({ state, onDoorResolved, onResolveLock, onSelectSegme
         onResolveLock(segId, doorIdx, doorRoll, null, null);
         proceedToSegment(segId, doorIdx, x, y, false);
       } else if (outcome === "trap") {
+        onTrapTriggered?.();
         setDoorFlow({ kind: "rolling", segId, doorIdx, x, y });
         const trapRoll = rollDie();
         animateDie(trapRoll, () => {

@@ -1,0 +1,68 @@
+.wrap {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.toast {
+  position: relative;
+  left: -50%;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd9c2;
+  background: linear-gradient(180deg, #6e2320, #3a0f0f);
+  border: 1px solid var(--danger);
+  border-radius: 4px;
+  padding: 10px 26px;
+  white-space: nowrap;
+  box-shadow:
+    0 0 0 3px rgba(139, 30, 30, 0.25),
+    0 0 30px rgba(184, 72, 31, 0.65),
+    0 14px 30px rgba(0, 0, 0, 0.55);
+  animation: trapToast 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes trapToast {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(-8px);
+  }
+  8% {
+    opacity: 1;
+    transform: scale(1.08) translateY(0) rotate(-2deg);
+  }
+  14% {
+    transform: scale(1) translateY(0) rotate(2deg);
+  }
+  20% {
+    transform: scale(1) translateY(0) rotate(0deg);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1) translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: trapToastReduced 1.6s ease both;
+  }
+}
+@keyframes trapToastReduced {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

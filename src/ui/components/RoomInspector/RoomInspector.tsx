@@ -12,6 +12,10 @@ export interface RoomInspectorProps {
   onRollSecretPassage: (segId: number, roll: number, trapRoll: number | null) => void;
   onRollChest: (segId: number, dice: [number, number], trapRoll: number | null) => void;
   onCollectRemains: (segId: number) => void;
+  /** Fires the instant a secret-passage or chest roll is confirmed as a trap -- before the extra
+   * die rolls to decide *which* trap, so the warning lands as an ambush rather than after-the-fact
+   * flavor text. */
+  onTrapTriggered?: () => void;
 }
 
 function hasChest(seg: SegmentState): boolean {
@@ -33,7 +37,13 @@ function describeRemains(remains: NonNullable<SegmentState["remains"]>): string 
  * Rendered with `key={selectedSegId}` by the caller so its local die-roll
  * state resets cleanly whenever a different segment is selected.
  */
-export function RoomInspector({ state, onRollSecretPassage, onRollChest, onCollectRemains }: RoomInspectorProps) {
+export function RoomInspector({
+  state,
+  onRollSecretPassage,
+  onRollChest,
+  onCollectRemains,
+  onTrapTriggered,
+}: RoomInspectorProps) {
   const [passageDice, setPassageDice] = useState<number[]>([1]);
   const [rollToken, setRollToken] = useState(0);
   const [revealing, setRevealing] = useState(false);
@@ -66,7 +76,9 @@ export function RoomInspector({ state, onRollSecretPassage, onRollChest, onColle
     setRevealing(true);
     window.setTimeout(() => {
       setRevealing(false);
-      const trapRoll = roll === 1 ? rollDie() : null;
+      const isTrap = roll === 1;
+      if (isTrap) onTrapTriggered?.();
+      const trapRoll = isTrap ? rollDie() : null;
       onRollSecretPassage(seg.id, roll, trapRoll);
     }, revealDelay(dice.length));
   }
@@ -79,7 +91,9 @@ export function RoomInspector({ state, onRollSecretPassage, onRollChest, onColle
     setChestRevealing(true);
     window.setTimeout(() => {
       setChestRevealing(false);
-      const trapRoll = dice[0] === 1 && dice[1] === 1 ? rollDie() : null;
+      const isTrap = dice[0] === 1 && dice[1] === 1;
+      if (isTrap) onTrapTriggered?.();
+      const trapRoll = isTrap ? rollDie() : null;
       onRollChest(seg.id, dice, trapRoll);
     }, revealDelay(2));
   }

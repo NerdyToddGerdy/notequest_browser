@@ -29,6 +29,7 @@ import { DungeonMap } from "../../components/DungeonMap/DungeonMap.tsx";
 import { LevelTabs } from "../../components/LevelTabs/LevelTabs.tsx";
 import { RoomInspector } from "../../components/RoomInspector/RoomInspector.tsx";
 import { RollLog } from "../../components/RollLog/RollLog.tsx";
+import { TrapToast } from "../../components/TrapToast/TrapToast.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import styles from "./DungeonScreen.module.css";
 
@@ -120,6 +121,11 @@ export function DungeonScreen({
   const [treasureDie, setTreasureDie] = useState(1);
   const [treasureRollToken, setTreasureRollToken] = useState(0);
   const [openingTreasure, setOpeningTreasure] = useState(false);
+  /** Bumped by DungeonMap/RoomInspector the instant any of the 3 trap-firing rolls (a door lock,
+   * a secret passage, an empty chest) is confirmed as a trap -- 0 means "never fired yet", so
+   * TrapToast stays unmounted until the first one. */
+  const [trapToastToken, setTrapToastToken] = useState(0);
+  const triggerTrapToast = () => setTrapToastToken((t) => t + 1);
 
   const hasDungeon = state.levels.length > 0;
   const bossDefeated = isDungeonBeaten(state);
@@ -271,7 +277,9 @@ export function DungeonScreen({
                   }
                   onSelectSegment={(segId) => dispatch({ type: "SELECT_SEGMENT", segId })}
                   onSwitchLevel={(levelIndex, segId) => dispatch({ type: "SWITCH_LEVEL", levelIndex, segId })}
+                  onTrapTriggered={triggerTrapToast}
                 />
+                <TrapToast token={trapToastToken} />
                 {!state.combat && (
                   <div className={styles.roomInspectorOverlay}>
                     <RoomInspector
@@ -282,6 +290,7 @@ export function DungeonScreen({
                       }
                       onRollChest={(segId, dice, trapRoll) => dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })}
                       onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
+                      onTrapTriggered={triggerTrapToast}
                     />
                   </div>
                 )}
