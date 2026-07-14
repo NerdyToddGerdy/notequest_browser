@@ -268,6 +268,28 @@ function applyTrapEffect(draft: Draft<DungeonState>, trap: TrapEntry, segId: num
 }
 
 /**
+ * Resolves everything a fired trap does: a trapImmunity item (Potion of Luck, Cultist's
+ * [Armor]) blocks the whole trap -- torchCost included -- and is consumed, matching the
+ * rulebook's "ignores the next activated trap" / "discard to ignore a trap" phrasing (a one-shot
+ * use, not a standing immunity like `ignoresMonsterAbility`). Every `trapImmunity` grant in
+ * `dungeonTables.ts` is a Wonder or `grants: "armor"` Magic Item, so only `draft.armor` needs
+ * checking, never the weapon. Otherwise applies `torchCost` (if any) then `applyTrapEffect()`.
+ */
+function resolveTrapOutcome(draft: Draft<DungeonState>, trap: TrapEntry, segId: number, rng: RNG): void {
+  const immunityIndex = draft.armor.findIndex((piece) => piece.effect?.kind === "trapImmunity");
+  if (immunityIndex !== -1) {
+    const item = draft.armor[immunityIndex]!;
+    draft.armor.splice(immunityIndex, 1);
+    pushLog(draft, `Your ${item.itemName ?? "trinket"} shields you from the trap and crumbles to dust.`);
+    return;
+  }
+  if (trap.torchCost) {
+    spendTorches(draft, trap.torchCost, `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`, segId);
+  }
+  applyTrapEffect(draft, trap, segId, rng);
+}
+
+/**
  * One full monster counter-attack: sums damage (including any queued Firebreath/Sorcery
  * bonuses), applies a queued Deathtouch or Paralyze, then clears those queued effects.
  */
@@ -635,15 +657,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
           if (trap) {
             seg.trapResult = trap.text;
-            if (trap.torchCost) {
-              spendTorches(
-                draft,
-                trap.torchCost,
-                `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
-                seg.id,
-              );
-            }
-            applyTrapEffect(draft, trap, seg.id, rng);
+            resolveTrapOutcome(draft, trap, seg.id, rng);
           }
         }
       });
@@ -670,15 +684,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             if (trap) {
               seg.trapResult = trap.text;
               pushLog(draft, trap.text);
-              if (trap.torchCost) {
-                spendTorches(
-                  draft,
-                  trap.torchCost,
-                  `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
-                  seg.id,
-                );
-              }
-              applyTrapEffect(draft, trap, seg.id, rng);
+              resolveTrapOutcome(draft, trap, seg.id, rng);
             }
           }
           return;
@@ -733,15 +739,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
           if (!trap) return;
           pushLog(draft, `Segment ${seg.id}: ${trap.text}`);
-          if (trap.torchCost) {
-            spendTorches(
-              draft,
-              trap.torchCost,
-              `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
-              seg.id,
-            );
-          }
-          applyTrapEffect(draft, trap, seg.id, rng);
+          resolveTrapOutcome(draft, trap, seg.id, rng);
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
             spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id);

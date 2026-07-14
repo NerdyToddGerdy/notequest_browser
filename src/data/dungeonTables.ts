@@ -109,7 +109,11 @@ export interface WeaponEntry {
   formula: string;
   /** Conflicts with holding a torch per the rulebook's "Your Hands" section; not enforced -- this
    * app has no hand-economy/limb-tracking system, so it's informational only (same treatment as
-   * other consciously-deferred rules -- see the stub list in CLAUDE.md). */
+   * other consciously-deferred rules -- see the stub list in CLAUDE.md). Audited: `ArmorPieceKind`
+   * has no off-hand/shield slot (ring/bracelets/boots/shoulderpads/helm/breastplate are all body
+   * slots, and there's exactly one `DungeonState.weapon` slot) -- there is currently no equippable
+   * combination this flag could conflict with, so there's nothing to block without first building
+   * that hand-economy system. */
   twoHanded?: boolean;
 }
 

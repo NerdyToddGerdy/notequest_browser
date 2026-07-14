@@ -761,6 +761,78 @@ describe("RESOLVE_DOOR_LOCK", () => {
     });
     expect(next).toBe(state);
   });
+
+  it("a trapImmunity item blocks a damage trap entirely and is consumed", () => {
+    const state = {
+      ...doorState(5),
+      hp: 3, // would die to Acid Spout's 5 damage if the immunity didn't hold
+      armor: [{ piece: "wonderItem" as const, hp: 0, maxHp: 0, itemName: "Potion of Luck", effect: { kind: "trapImmunity" as const } }],
+    };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 1,
+      trapRoll: 2, // palace trap 2: Acid Spout, 5 damage
+      lockChoice: null,
+    });
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(3); // untouched
+    expect(next.armor).toHaveLength(0); // consumed, one-shot
+    expect(next.log.some((entry) => entry.message.includes("Potion of Luck"))).toBe(true);
+  });
+
+  it("a trapImmunity item blocks the ditch trap's torch cost too", () => {
+    const state = {
+      ...doorState(0), // no torches -- would trigger the Darkness if the ditch trap's cost applied
+      armor: [{ piece: "wonderItem" as const, hp: 0, maxHp: 0, itemName: "Potion of Luck", effect: { kind: "trapImmunity" as const } }],
+    };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 1,
+      trapRoll: 3, // palace trap 3: ditch, torchCost 1
+      lockChoice: null,
+    });
+    expect(next.alive).toBe(true);
+    expect(next.torches).toBe(0);
+    expect(next.armor).toHaveLength(0);
+  });
+
+  it("a trapImmunity item blocks the Blade Trap's death roll", () => {
+    const state = {
+      ...doorState(5),
+      armor: [{ piece: "wonderItem" as const, hp: 0, maxHp: 0, itemName: "Cultist's [Armor]", effect: { kind: "trapImmunity" as const } }],
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 1, trapRoll: 1, lockChoice: null },
+      fixedDie(1), // would kill outright if immunity didn't intercept it first
+    );
+    expect(next.alive).toBe(true);
+    expect(next.armor).toHaveLength(0);
+  });
+
+  it("only consumes one trapImmunity item, leaving any others equipped", () => {
+    const state = {
+      ...doorState(5),
+      hp: 3,
+      armor: [
+        { piece: "wonderItem" as const, hp: 0, maxHp: 0, itemName: "Potion of Luck", effect: { kind: "trapImmunity" as const } },
+        { piece: "boots" as const, hp: 3, maxHp: 3, itemName: "Boots" },
+      ],
+    };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 1,
+      trapRoll: 2,
+      lockChoice: null,
+    });
+    expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3, itemName: "Boots" }]);
+  });
 });
 
 describe("OPEN_DOOR guards against a dead character", () => {
