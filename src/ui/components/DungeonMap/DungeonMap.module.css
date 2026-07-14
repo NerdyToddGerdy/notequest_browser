@@ -13,6 +13,11 @@
   max-height: 560px;
   border-radius: 3px;
   background: var(--parchment-2);
+  cursor: grab;
+  user-select: none;
+}
+.scroll:active {
+  cursor: grabbing;
 }
 
 .canvas {

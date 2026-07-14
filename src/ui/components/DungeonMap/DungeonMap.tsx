@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { DungeonState } from "../../../engine/dungeonState.ts";
 import { classifyDoorOpen, DIR_VEC, edgePoint } from "../../../engine/dungeon.ts";
 import { rollDie } from "../../../engine/dice.ts";
@@ -51,7 +51,57 @@ export function DungeonMap({ state, onDoorResolved, onResolveLock, onSelectSegme
   const [dieValue, setDieValue] = useState(1);
   const [dieRollToken, setDieRollToken] = useState(0);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const dragOrigin = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
+  /** True once a pointer-down has moved past the click-vs-drag threshold -- checked (and reset) by
+   * the capturing click handler below so a drag-to-pan gesture doesn't also select whatever room or
+   * door the pointer happened to release over. */
+  const didDrag = useRef(false);
+
   if (!level) return null;
+
+  // Click-and-drag panning (mouse only -- touch already gets native scrolling from `overflow:
+  // auto` on .scroll, and fighting that with a custom touch handler would be a net regression).
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    dragOrigin.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop };
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const origin = dragOrigin.current;
+    const el = scrollRef.current;
+    if (!origin || !el) return;
+    const dx = e.clientX - origin.x;
+    const dy = e.clientY - origin.y;
+    if (!didDrag.current && Math.hypot(dx, dy) > 4) {
+      didDrag.current = true;
+      // Deferred until movement is confirmed: capturing on pointerdown itself retargets the
+      // resulting mouseup/click compatibility events to this element (per the Pointer Events
+      // spec), which would swallow a plain click on a room/door before it ever reaches them.
+      el.setPointerCapture(e.pointerId);
+    }
+    if (didDrag.current) {
+      el.scrollLeft = origin.scrollLeft - dx;
+      el.scrollTop = origin.scrollTop - dy;
+    }
+  }
+
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    dragOrigin.current = null;
+    if (scrollRef.current?.hasPointerCapture(e.pointerId)) {
+      scrollRef.current.releasePointerCapture(e.pointerId);
+    }
+  }
+
+  function handleClickCapture(e: React.MouseEvent<HTMLDivElement>) {
+    if (didDrag.current) {
+      didDrag.current = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }
 
   function animateDie(value: number, onDone: () => void) {
     setDieValue(value);
@@ -118,7 +168,15 @@ export function DungeonMap({ state, onDoorResolved, onResolveLock, onSelectSegme
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.scroll}>
+      <div
+        ref={scrollRef}
+        className={styles.scroll}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onClickCapture={handleClickCapture}
+      >
         <div className={styles.canvas} style={{ width: layout.width, height: layout.height }}>
           {level.connectors.map((connector, index) => (
             <div
