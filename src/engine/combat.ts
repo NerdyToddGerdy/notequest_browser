@@ -3,6 +3,11 @@ import type { CombatMonsterState } from "./dungeonState.ts";
 import { rollDie } from "./dice.ts";
 import type { RNG } from "./rng.ts";
 
+/** Basic Spells table, roll 1 (Heal): "Heals 5 HP." A flat, non-random amount -- exported so the
+ * UI can compute the post-heal HP itself (see CombatPanel's heal preview) without duplicating the
+ * reducer's clamping logic or re-deriving it from `spells.ts`'s free-text `effect` string. */
+export const HEAL_AMOUNT = 5;
+
 /** Fixed stat block from the Horde ability text: "an Orc (6 HP; Damage 3) enters the room." */
 export const HORDE_ORC: Omit<CombatMonsterState, "id"> = {
   name: "Orc",

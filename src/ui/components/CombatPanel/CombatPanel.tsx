@@ -2,9 +2,9 @@ import { useState } from "react";
 import type { ArmorPiece, CombatState } from "../../../engine/dungeonState.ts";
 import { ARMOR_PIECE_LABELS, type MonsterAbility } from "../../../data/dungeonTables.ts";
 import { SPELL_TABLE } from "../../../data/spells.ts";
-import { rollWeaponDamage } from "../../../engine/combat.ts";
+import { HEAL_AMOUNT, rollWeaponDamage } from "../../../engine/combat.ts";
 import { Die } from "../Die/Die.tsx";
-import { revealDelay } from "../../rollTiming.ts";
+import { HEAL_PREVIEW_MS, revealDelay } from "../../rollTiming.ts";
 import styles from "./CombatPanel.module.css";
 
 export interface CombatPanelProps {
@@ -84,6 +84,11 @@ export function CombatPanel({
   const [dieValue, setDieValue] = useState(1);
   const [rollToken, setRollToken] = useState(0);
   const [rolling, setRolling] = useState(false);
+  /** Set while a just-cast Heal's HP bump is being held on screen, before the same dispatch's
+   * monster counter-attack (see CAST_SPELL in dungeonReducer.ts) lands on the same `hp` value --
+   * otherwise the heal and the counter-attack cancel out in a single render and the heal never
+   * visibly registers. Null once the real `hp` prop should be shown again. */
+  const [healPreviewHp, setHealPreviewHp] = useState<number | null>(null);
 
   const paralyzed = combat.paralyzedTurns > 0;
   const awaitingDamageChoice = combat.pendingDamage !== null;
@@ -113,6 +118,17 @@ export function CombatPanel({
     onAttack(first.id, 1);
   }
 
+  function castHeal() {
+    if (!canAct) return;
+    setHealPreviewHp(Math.min(hp + HEAL_AMOUNT, maxHp));
+    setRolling(true);
+    window.setTimeout(() => {
+      setRolling(false);
+      setHealPreviewHp(null);
+      onCastSpell(1);
+    }, HEAL_PREVIEW_MS);
+  }
+
   return (
     <div className={styles.panel}>
       <p className={styles.title}>Combat</p>
@@ -124,9 +140,9 @@ export function CombatPanel({
             {weaponName} ({weaponFormula})
           </span>
         </div>
-        <HpBar value={hp} max={maxHp} kind="player" />
+        <HpBar value={healPreviewHp ?? hp} max={maxHp} kind="player" />
         <span className={styles.hpText}>
-          {hp} / {maxHp} HP
+          {healPreviewHp ?? hp} / {maxHp} HP
         </span>
       </div>
 
@@ -184,7 +200,7 @@ export function CombatPanel({
               className={spellRoll === 3 ? styles.fleeBtn : styles.spellBtn}
               disabled={!canAct}
               title={SPELL_TABLE[spellRoll]!.effect}
-              onClick={() => onCastSpell(spellRoll)}
+              onClick={() => (spellRoll === 1 ? castHeal() : onCastSpell(spellRoll))}
             >
               {spellRoll === 3 ? "Flee — " : ""}
               {SPELL_TABLE[spellRoll]!.name} ({spellUses[spellRoll]})

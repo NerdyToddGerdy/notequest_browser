@@ -34,6 +34,7 @@ import {
 import { rollDie } from "./dice.ts";
 import {
   checkUndeadRevival,
+  HEAL_AMOUNT,
   HORDE_ORC,
   NECROMANCY_SKELETON,
   parseWeaponFormula,
@@ -1066,7 +1067,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
 
         switch (action.spellRoll) {
           case 1: {
-            const healed = Math.min(5, draft.maxHp - draft.hp);
+            const healed = Math.min(HEAL_AMOUNT, draft.maxHp - draft.hp);
             draft.hp += healed;
             pushLog(draft, `You cast Heal, recovering ${healed} HP.`);
             break;
