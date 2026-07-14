@@ -68,6 +68,16 @@ export function DescentIcon() {
   );
 }
 
+/** DescentIcon's arrow flipped vertically -- "the way back up and out," badged onto the
+ * dungeon's entrance segment so it reads differently from an ordinary descent staircase. */
+export function EntranceIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 17V6M5 10l5-5 5 5" />
+    </svg>
+  );
+}
+
 export function MonsterIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">

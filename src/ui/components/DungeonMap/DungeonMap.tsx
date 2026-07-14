@@ -7,7 +7,7 @@ import { DUNGEON_TABLES } from "../../../data/dungeonTables.ts";
 import { Die } from "../Die/Die.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import { computeMapLayout } from "./layout.ts";
-import { DescentIcon, DoorIcon, MonsterIcon, SecretIcon, SegmentIcon } from "./icons.tsx";
+import { DescentIcon, DoorIcon, EntranceIcon, MonsterIcon, SecretIcon, SegmentIcon } from "./icons.tsx";
 import styles from "./DungeonMap.module.css";
 
 const AUTOMATIC_KINDS = new Set(["descend-final", "dead-end-final", "reuse-final"]);
@@ -194,9 +194,9 @@ export function DungeonMap({ state, onDoorResolved, onResolveLock, onSelectSegme
           {level.segments.map((seg) => (
             <div
               key={seg.id}
-              className={`${styles.room} ${TYPE_CLASS[seg.type] ?? ""} ${seg.id === state.selectedSegId ? styles.selected : ""}`}
+              className={`${styles.room} ${TYPE_CLASS[seg.type] ?? ""} ${seg.isEntrance ? styles.typeEntrance : ""} ${seg.id === state.selectedSegId ? styles.selected : ""}`}
               style={{ left: seg.x - layout.originX, top: seg.y - layout.originY, width: seg.w, height: seg.h }}
-              title={`${TYPE_LABELS[seg.type]}${seg.flavor ? ` — ${seg.flavor}` : ""}`}
+              title={`${seg.isEntrance ? "Entrance " : ""}${TYPE_LABELS[seg.type]}${seg.flavor ? ` — ${seg.flavor}` : ""}`}
               onClick={() => onSelectSegment(seg.id)}
             >
               <span className={styles.roomId}>S{seg.id}</span>
@@ -214,6 +214,11 @@ export function DungeonMap({ state, onDoorResolved, onResolveLock, onSelectSegme
                     }}
                   />
                 ))}
+              {seg.isEntrance && (
+                <span className={`${styles.badge} ${styles.entrance}`} title="Dungeon entrance">
+                  <EntranceIcon />
+                </span>
+              )}
               {seg.monsters && !seg.monstersDefeated && (
                 <span className={`${styles.badge} ${styles.monster}`}>
                   <MonsterIcon />
