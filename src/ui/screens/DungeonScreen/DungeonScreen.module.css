@@ -53,6 +53,21 @@
   min-width: 0;
 }
 
+.mapArea {
+  position: relative;
+}
+
+.roomInspectorOverlay {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  width: min(340px, calc(100% - 56px));
+  max-height: min(320px, calc(100% - 56px));
+  overflow-y: auto;
+  z-index: 10;
+  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.55));
+}
+
 .sheet {
   position: relative;
   min-width: 0;

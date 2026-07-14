@@ -290,6 +290,30 @@ export function DungeonScreen({
                   </button>
                 </div>
               )}
+              <div className={styles.mapArea}>
+                <DungeonMap
+                  state={state}
+                  onDoorResolved={(segId, doorIdx, roll, wasNoisy) =>
+                    dispatch({ type: "OPEN_DOOR", segId, doorIdx, roll, wasNoisy })
+                  }
+                  onResolveLock={(segId, doorIdx, doorRoll, trapRoll, lockChoice) =>
+                    dispatch({ type: "RESOLVE_DOOR_LOCK", segId, doorIdx, doorRoll, trapRoll, lockChoice })
+                  }
+                  onSelectSegment={(segId) => dispatch({ type: "SELECT_SEGMENT", segId })}
+                  onSwitchLevel={(levelIndex) => dispatch({ type: "SWITCH_LEVEL", levelIndex })}
+                />
+                <div className={styles.roomInspectorOverlay}>
+                  <RoomInspector
+                    key={state.selectedSegId ?? "none"}
+                    state={state}
+                    onRollSecretPassage={(segId, roll, trapRoll) =>
+                      dispatch({ type: "ROLL_SECRET_PASSAGE", segId, roll, trapRoll })
+                    }
+                    onRollChest={(segId, dice, trapRoll) => dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })}
+                    onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
+                  />
+                </div>
+              </div>
               {state.combat && (
                 <CombatPanel
                   combat={state.combat}
@@ -304,26 +328,6 @@ export function DungeonScreen({
                   onResolveDamage={(absorbWith) => dispatch({ type: "RESOLVE_DAMAGE", absorbWith })}
                 />
               )}
-              <DungeonMap
-                state={state}
-                onDoorResolved={(segId, doorIdx, roll, wasNoisy) =>
-                  dispatch({ type: "OPEN_DOOR", segId, doorIdx, roll, wasNoisy })
-                }
-                onResolveLock={(segId, doorIdx, doorRoll, trapRoll, lockChoice) =>
-                  dispatch({ type: "RESOLVE_DOOR_LOCK", segId, doorIdx, doorRoll, trapRoll, lockChoice })
-                }
-                onSelectSegment={(segId) => dispatch({ type: "SELECT_SEGMENT", segId })}
-                onSwitchLevel={(levelIndex) => dispatch({ type: "SWITCH_LEVEL", levelIndex })}
-              />
-              <RoomInspector
-                key={state.selectedSegId ?? "none"}
-                state={state}
-                onRollSecretPassage={(segId, roll, trapRoll) =>
-                  dispatch({ type: "ROLL_SECRET_PASSAGE", segId, roll, trapRoll })
-                }
-                onRollChest={(segId, dice, trapRoll) => dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })}
-                onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
-              />
               <RollLog entries={state.log} />
             </>
           )}
