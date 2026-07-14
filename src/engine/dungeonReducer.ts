@@ -526,6 +526,43 @@ function restoreMapFromPersisted(
     draft.activeLevel = 0;
     draft.selectedSegId = draft.levels[0]?.segments[0]?.id ?? null;
   }
+
+  // Per the rulebook, this also applies: "you must roll on the Monster table for each empty
+  // room you enter" -- fresh monsters may have moved in while the character was away. Flagged
+  // here and resolved lazily by SELECT_SEGMENT (rather than eagerly for the whole map) since this
+  // app only has one combat slot at a time; eagerly rolling every empty room could produce several
+  // newly-occupied rooms with no way to fight more than one of them. The interrupted-fight room
+  // above is excluded (it already has monsters, full-health, from persisted state). Content
+  // (roomContent/chests/secret passages already searched) is untouched -- the rulebook penalty is
+  // specifically about monsters repopulating, not the room resetting.
+  for (const level of draft.levels) {
+    for (const seg of level.segments) {
+      if (!seg.type.startsWith("room-")) continue;
+      if (oldCombat && seg.id === oldCombat.segId) continue;
+      if (seg.monsters && !seg.monstersDefeated) continue;
+      seg.needsMonsterReroll = true;
+    }
+  }
+  const current = draft.levels[draft.activeLevel]?.segments.find((s) => s.id === draft.selectedSegId);
+  if (current) rerollMonstersIfNeeded(draft, current, rng);
+}
+
+/** Rolls a fresh Monster table entry for a room flagged `needsMonsterReroll` (see
+ * `restoreMapFromPersisted`), replacing whatever was there (empty or already-cleared) and
+ * starting combat if the roll produced one -- the moment the player actually looks at the room is
+ * this app's closest equivalent to the rulebook's "each empty room you enter." */
+function rerollMonstersIfNeeded(draft: Draft<DungeonState>, seg: Draft<SegmentState>, rng: RNG): void {
+  if (!seg.needsMonsterReroll) return;
+  seg.needsMonsterReroll = false;
+  if (!draft.dungeonTypeKey) return;
+  const monsterSum = rollDie(rng) + rollDie(rng);
+  const monsters = DUNGEON_TABLES[draft.dungeonTypeKey].monsters[monsterSum] ?? null;
+  seg.monsters = monsters ?? undefined;
+  seg.monstersDefeated = undefined;
+  if (monsters) {
+    pushLog(draft, `Segment ${seg.id}: fresh monsters have moved in.`);
+    startCombat(draft, seg.id, monsters, false, rng);
+  }
 }
 
 /** A Wonder either grants its own HP-bearing item (Jester Hat, 2 HP) or a standing ability with
@@ -691,6 +728,10 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
       if (state.selectedSegId === action.segId) return state;
       return produce(state, (draft) => {
         draft.selectedSegId = action.segId;
+        if (draft.combat) return;
+        const level = draft.levels[draft.activeLevel];
+        const seg = level?.segments.find((s) => s.id === action.segId);
+        if (seg) rerollMonstersIfNeeded(draft, seg, rng);
       });
     }
 

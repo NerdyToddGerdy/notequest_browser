@@ -1260,16 +1260,22 @@ describe("RESUME_DUNGEON", () => {
       combat: null,
     };
 
-    const next = dungeonReducer(createInitialDungeonState(), {
-      type: "RESUME_DUNGEON",
-      dungeon: persisted,
-      torches: 10,
-      hp: 20,
-      maxHp: 20,
-      weaponFormula: "1d6",
-      spellUses: {},
-      characterName: "New Hero",
-    });
+    // this room is also the entrance the new character starts at, so it's immediately rerolled
+    // (see "Monster table re-roll on return" below) -- monster sum 1+6 = 7 -> null, no monster.
+    const next = dungeonReducer(
+      createInitialDungeonState(),
+      {
+        type: "RESUME_DUNGEON",
+        dungeon: persisted,
+        torches: 10,
+        hp: 20,
+        maxHp: 20,
+        weaponFormula: "1d6",
+        spellUses: {},
+        characterName: "New Hero",
+      },
+      sequenceDie([1, 6]),
+    );
 
     expect(next.combat).toBeNull();
   });
@@ -1541,6 +1547,182 @@ describe("RETURN_TO_DUNGEON", () => {
 
     expect(next.activeLevel).toBe(1);
     expect(next.selectedSegId).toBe(7);
+  });
+});
+
+describe("Monster table re-roll on return", () => {
+  it("flags empty/cleared rooms, rerolling the currently-selected one immediately but leaving others flagged for later", () => {
+    const room1 = makeSegment({ id: 1, type: "room-small", doors: [] }); // never had a monster
+    const room2 = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+      monstersDefeated: true, // already cleared
+    });
+    const level = { ...makeLevel(1), segments: [room1, room2] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+      selectedSegId: 1,
+    };
+
+    // monster sum for room1's immediate reroll: 1+1 = 2 -> Minotaur (Palace row 2)
+    const rng = sequenceDie([1, 1]);
+    const next = dungeonReducer(
+      createInitialDungeonState(),
+      {
+        type: "RETURN_TO_DUNGEON",
+        dungeon: persisted,
+        torches: 10,
+        hp: 20,
+        maxHp: 20,
+        coins: 0,
+        treasures: 0,
+        keys: 0,
+        heldItems: [],
+        armor: [],
+        weapon: null,
+        weaponFormula: "1d6",
+        spellUses: {},
+        characterName: "Pip",
+        monsterKills: 0,
+        bossKills: 0,
+      },
+      rng,
+    );
+
+    const seg1 = next.levels[0]!.segments.find((s) => s.id === 1)!;
+    expect(seg1.monsters).toEqual(DUNGEON_TABLES.palace.monsters[2]);
+    expect(seg1.needsMonsterReroll).toBe(false);
+    expect(next.combat).not.toBeNull();
+    expect(next.combat!.monsters[0]).toMatchObject({ name: "Minotaur" });
+
+    // room2 wasn't looked at -- still flagged, untouched until the player selects it
+    const seg2 = next.levels[0]!.segments.find((s) => s.id === 2)!;
+    expect(seg2.needsMonsterReroll).toBe(true);
+    expect(seg2.monsters).toEqual({ name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 });
+    expect(seg2.monstersDefeated).toBe(true);
+  });
+
+  it("does not flag the room whose interrupted fight was just respawned", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const combat: CombatState = {
+      segId: 1,
+      monsters: [
+        { id: 1, name: "Orc", hp: 2, maxHp: 6, damage: 3, abilities: [], bonusDamage: 0, deathtouchPending: false, paralyzePending: 0, skipNextAttack: false },
+      ],
+      paralyzedTurns: 0,
+      pendingLootRolls: 0,
+      isBoss: false,
+      outcome: "ongoing",
+      pendingDamage: null,
+      playerDamageBonus: 0,
+    };
+    const persisted: DungeonState = { ...createInitialDungeonState(), dungeonTypeKey: "palace", levels: [level], combat };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RETURN_TO_DUNGEON",
+      dungeon: persisted,
+      torches: 10,
+      hp: 20,
+      maxHp: 20,
+      coins: 0,
+      treasures: 0,
+      keys: 0,
+      heldItems: [],
+      armor: [],
+      weapon: null,
+      weaponFormula: "1d6",
+      spellUses: {},
+      characterName: "Pip",
+      monsterKills: 0,
+      bossKills: 0,
+    });
+
+    expect(next.levels[0]!.segments[0]!.needsMonsterReroll).toBeFalsy();
+    expect(next.combat!.monsters[0]!.hp).toBe(6); // respawned at full HP, not rerolled into a new monster
+  });
+
+  it("SELECT_SEGMENT resolves a flagged room's reroll and starts combat when monsters appear", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [], needsMonsterReroll: true });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), selectedSegId: 2 }; // start on a different id so the click actually changes selection
+
+    // monster sum 3+3 = 6 -> Goblins (Palace row 6)
+    const rng = sequenceDie([3, 3]);
+    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 1 }, rng);
+
+    const seg = next.levels[0]!.segments[0]!;
+    expect(seg.needsMonsterReroll).toBe(false);
+    expect(seg.monsters).toEqual(DUNGEON_TABLES.palace.monsters[6]);
+    expect(next.combat).not.toBeNull();
+    expect(next.combat!.monsters[0]).toMatchObject({ name: "Goblins" });
+  });
+
+  it("SELECT_SEGMENT leaves an unflagged room untouched", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), selectedSegId: 2 };
+
+    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 1 }, fixedDie(1));
+
+    expect(next.levels[0]!.segments[0]!.monsters).toBeUndefined();
+    expect(next.combat).toBeNull();
+  });
+
+  it("a reroll that lands on an empty result clears any stale monstersDefeated flag", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      needsMonsterReroll: true,
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+      monstersDefeated: true,
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), selectedSegId: 2 };
+
+    // monster sum 4+3 = 7 -> null (Palace row 7 has no monster)
+    const rng = sequenceDie([4, 3]);
+    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 1 }, rng);
+
+    const seg = next.levels[0]!.segments[0]!;
+    expect(seg.needsMonsterReroll).toBe(false);
+    expect(seg.monsters).toBeUndefined();
+    expect(seg.monstersDefeated).toBeUndefined();
+    expect(next.combat).toBeNull();
+  });
+
+  it("leaves already-resolved room content (chest, secret passage) untouched by the reroll", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      needsMonsterReroll: true,
+      monstersDefeated: true,
+      chestOpened: true,
+      chestResult: "5 coins, 2 Treasures.",
+      secretPassageSearched: true,
+      secretPassageResult: "Nothing here.",
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), selectedSegId: 2 };
+
+    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 1 }, sequenceDie([5, 5]));
+
+    const seg = next.levels[0]!.segments[0]!;
+    expect(seg.chestOpened).toBe(true);
+    expect(seg.chestResult).toBe("5 coins, 2 Treasures.");
+    expect(seg.secretPassageSearched).toBe(true);
+    expect(seg.secretPassageResult).toBe("Nothing here.");
   });
 });
 

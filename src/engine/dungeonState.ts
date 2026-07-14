@@ -30,6 +30,13 @@ export interface SegmentState extends Box {
   roomContent?: RoomContentEntry;
   monsters?: MonsterTemplate;
   monstersDefeated?: boolean;
+  /** Set on empty rooms when RETURN_TO_DUNGEON/RESUME_DUNGEON restores a persisted map -- per the
+   * rulebook, resting in town (or a new character taking over) means fresh monsters may have moved
+   * into any room that's currently empty, re-rolled the next time the player actually looks at it
+   * (SELECT_SEGMENT), not eagerly for the whole map at once -- this app has only one combat slot,
+   * so eagerly rolling every empty room could produce several "occupied" rooms with no way to fight
+   * more than one at a time. */
+  needsMonsterReroll?: boolean;
   secretPassageSearched?: boolean;
   secretPassageResult?: string | null;
   trapResult?: string | null;
