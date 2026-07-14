@@ -1,4 +1,4 @@
-import type { MonsterCount, MonsterTemplate } from "../data/dungeonTables.ts";
+import type { MonsterAbility, MonsterCount, MonsterTemplate } from "../data/dungeonTables.ts";
 import type { CombatMonsterState } from "./dungeonState.ts";
 import { rollDie } from "./dice.ts";
 import type { RNG } from "./rng.ts";
@@ -98,16 +98,20 @@ export interface PlayerAttackResult {
 
 /**
  * Stoneskin and Intangible describe "any damage taken," not just a weapon-roll outcome, so
- * both weapon attacks and spell damage run through this same filter.
+ * both weapon attacks and spell damage run through this same filter. `ignoreAbilities` lets an
+ * equipped item's `ignoresMonsterAbility` bypass one of these (e.g. Boatman's Oar ignoring
+ * Intangible) -- the reducer collects these from `equippedEffects()`, since this file has no
+ * notion of the player's inventory.
  */
 function applyDefensiveAbilities(
   monster: CombatMonsterState,
   damage: number,
+  ignoreAbilities: readonly MonsterAbility[] = [],
 ): { damage: number; blocked: "stoneskin" | "intangible" | null } {
-  if (monster.abilities.includes("stoneskin") && damage <= 3) {
+  if (monster.abilities.includes("stoneskin") && !ignoreAbilities.includes("stoneskin") && damage <= 3) {
     return { damage: 0, blocked: "stoneskin" };
   }
-  if (monster.abilities.includes("intangible") && damage % 2 === 0) {
+  if (monster.abilities.includes("intangible") && !ignoreAbilities.includes("intangible") && damage % 2 === 0) {
     return { damage: 0, blocked: "intangible" };
   }
   return { damage, blocked: null };
@@ -123,6 +127,7 @@ export function resolvePlayerAttack(
   rawRoll: number,
   weaponTotal: number,
   rng: RNG = Math.random,
+  ignoreAbilities: readonly MonsterAbility[] = [],
 ): PlayerAttackResult {
   if (rawRoll === 1 && monster.abilities.includes("explosive")) {
     return {
@@ -140,7 +145,7 @@ export function resolvePlayerAttack(
     damage *= 2;
     events.push({ kind: "weakness" });
   }
-  const defended = applyDefensiveAbilities(monster, damage);
+  const defended = applyDefensiveAbilities(monster, damage, ignoreAbilities);
   damage = defended.damage;
   if (defended.blocked) events.push({ kind: defended.blocked });
 

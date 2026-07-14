@@ -17,10 +17,12 @@ function reduceDungeon(state: DungeonState, action: DungeonAction): DungeonState
 }
 import { rollDie } from "../../../engine/dice.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
+import type { AdventurerResources } from "../../../engine/town.ts";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import { Die } from "../../components/Die/Die.tsx";
 import { DicePool } from "../../components/DicePool/DicePool.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
+import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
 import { CombatPanel } from "../../components/CombatPanel/CombatPanel.tsx";
 import { DungeonMap } from "../../components/DungeonMap/DungeonMap.tsx";
@@ -32,38 +34,75 @@ import styles from "./DungeonScreen.module.css";
 
 export interface DungeonScreenProps {
   character: CreatedCharacter;
-  /** If set, this run resumes a previously-left-unbeaten dungeon instead of starting empty. */
+  /** The character's current stats -- seeds a fresh dungeon roll, or either resume path below. */
+  resources: AdventurerResources;
+  /** This character's own paused dungeon, if they retreated from one earlier and it isn't beaten. */
+  activeDungeon: PendingDungeon | null;
+  /** A dead adventurer's abandoned dungeon the player picked up in Town, if any. */
   resumeDungeon: PendingDungeon | null;
-  /** Every other unbeaten dungeon, offered as an alternative at the "Roll for Dungeon" gate. */
-  pendingDungeons: PendingDungeon[];
   /** Sends the player back to Character Creation to roll a new adventurer -- this one is permadead. */
   onNewAdventurer: () => void;
+  /** A voluntary retreat, alive -- back to Town with this run's current resources and map saved. */
+  onReturnToTown: (runId: string, dungeon: DungeonState) => void;
   /** Fires whenever this run ends (death, retreat, or "Start a New Dungeon") so it can be resumed later if unbeaten. */
   onLeaveDungeon: (runId: string, dungeon: DungeonState, characterName: string) => void;
 }
 
 export function DungeonScreen({
   character,
+  resources,
+  activeDungeon,
   resumeDungeon,
-  pendingDungeons,
   onNewAdventurer,
+  onReturnToTown,
   onLeaveDungeon,
 }: DungeonScreenProps) {
-  const [runId, setRunId] = useState(() => resumeDungeon?.id ?? crypto.randomUUID());
-  const [state, dispatch] = useReducer(reduceDungeon, character, (c) => {
-    const spellUses = computeSpellUses(c.spells, c.fixedGrants);
+  const [runId, setRunId] = useState(() => activeDungeon?.id ?? resumeDungeon?.id ?? crypto.randomUUID());
+  const [state, dispatch] = useReducer(reduceDungeon, undefined, () => {
+    if (activeDungeon) {
+      return dungeonReducer(createInitialDungeonState(), {
+        type: "RETURN_TO_DUNGEON",
+        dungeon: activeDungeon.dungeon,
+        torches: resources.torches,
+        hp: resources.hp,
+        maxHp: resources.maxHp,
+        coins: resources.coins,
+        treasures: resources.treasures,
+        keys: resources.keys,
+        heldItems: resources.heldItems,
+        armor: resources.armor,
+        weapon: resources.weapon,
+        weaponFormula: character.cls.weaponDamage,
+        spellUses: resources.spellUses,
+        characterName: character.name,
+      });
+    }
     if (resumeDungeon) {
       return dungeonReducer(createInitialDungeonState(), {
         type: "RESUME_DUNGEON",
         dungeon: resumeDungeon.dungeon,
-        torches: c.torches,
-        hp: c.totalHp,
-        weaponFormula: c.cls.weaponDamage,
-        spellUses,
-        characterName: c.name,
+        torches: resources.torches,
+        hp: resources.hp,
+        maxHp: resources.maxHp,
+        weaponFormula: character.cls.weaponDamage,
+        spellUses: resources.spellUses,
+        characterName: character.name,
       });
     }
-    return createInitialDungeonState(c.torches, c.totalHp, c.cls.weaponDamage, spellUses, c.name);
+    return createInitialDungeonState(
+      resources.torches,
+      resources.hp,
+      character.cls.weaponDamage,
+      resources.spellUses,
+      character.name,
+      resources.coins,
+      resources.treasures,
+      resources.keys,
+      resources.heldItems,
+      resources.maxHp,
+      resources.armor,
+      resources.weapon,
+    );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
   const [diceRollToken, setDiceRollToken] = useState(0);
@@ -117,20 +156,6 @@ export function DungeonScreen({
     dispatch({ type: "RESET" });
   }
 
-  /** Picking a previous dungeon from the "Roll for Dungeon" gate, instead of rolling fresh. */
-  function handleResumeFromGate(pending: PendingDungeon) {
-    setRunId(pending.id);
-    dispatch({
-      type: "RESUME_DUNGEON",
-      dungeon: pending.dungeon,
-      torches: character.torches,
-      hp: character.totalHp,
-      weaponFormula: character.cls.weaponDamage,
-      spellUses: computeSpellUses(character.spells, character.fixedGrants),
-      characterName: character.name,
-    });
-  }
-
   function handleRollDungeon() {
     if (rollingDungeon) return;
     const rolls = [rollDie(), rollDie(), rollDie()];
@@ -164,100 +189,78 @@ export function DungeonScreen({
 
       <div className={styles.layout}>
         <div className={styles.mainCol}>
-          <main className={styles.sheet}>
-            <div className={styles.sheetInner}>
-              <span className={styles.sheetLabel}>Dungeon Log</span>
+          {(!hasDungeon || !state.alive || bossDefeated) && (
+            <main className={styles.sheet}>
+              <div className={styles.sheetInner}>
+                <span className={styles.sheetLabel}>Dungeon Log</span>
 
-              {!hasDungeon ? (
-                <section>
-                  <h2 className={styles.trackTitle}>
-                    <span className={styles.dieBadge}>3d6</span>Roll for Dungeon
-                  </h2>
-                  <p className={styles.gateCopy}>
-                    One die picks the dungeon&apos;s type, two more shape its name. The dungeon is built as
-                    you explore it — door by door, from here on out.
-                  </p>
-                  <div className={styles.diceRow}>
-                    <DicePool values={diceValues} rollToken={diceRollToken} />
-                  </div>
-                  <button className={styles.rollBtn} type="button" disabled={rollingDungeon} onClick={handleRollDungeon}>
-                    Roll for Dungeon
-                  </button>
-
-                  {pendingDungeons.length > 0 && (
-                    <div className={styles.resumeSection}>
-                      <p className={styles.resumeLabel}>Or take up an unfinished dungeon:</p>
-                      <ul className={styles.resumeList}>
-                        {pendingDungeons.map((pd) => (
-                          <li key={pd.id}>
-                            <button
-                              className={styles.resumeBtn}
-                              type="button"
-                              disabled={rollingDungeon}
-                              onClick={() => handleResumeFromGate(pd)}
-                            >
-                              <span className={styles.resumeName}>
-                                {pd.dungeon.dungeonName ?? "An unnamed dungeon"} — Level {pd.dungeon.activeLevel + 1}
-                              </span>
-                              <span className={styles.resumeMeta}>last explored by {pd.lastCharacterName}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                {!hasDungeon && (
+                  <section>
+                    <h2 className={styles.trackTitle}>
+                      <span className={styles.dieBadge}>3d6</span>Roll for Dungeon
+                    </h2>
+                    <p className={styles.gateCopy}>
+                      One die picks the dungeon&apos;s type, two more shape its name. The dungeon is built as
+                      you explore it — door by door, from here on out.
+                    </p>
+                    <div className={styles.diceRow}>
+                      <DicePool values={diceValues} rollToken={diceRollToken} />
                     </div>
-                  )}
-                </section>
-              ) : (
-                <section className={styles.dungeonHeader}>
-                  <p className={styles.dungeonEyebrow}>Level {state.activeLevel + 1}</p>
-                  <h2 className={styles.dungeonName}>{state.dungeonName}</h2>
-                  <p className={styles.dungeonEntrance}>{state.entranceFlavor}</p>
-                  {state.alive && (
                     <div className={styles.headerActions}>
-                      {!state.combat && (
-                        <button className={styles.ghostBtn} type="button" onClick={onNewAdventurer}>
-                          Retreat to Town
-                        </button>
-                      )}
-                      <button className={styles.ghostBtn} type="button" onClick={handleStartNewDungeon}>
-                        Start a New Dungeon
+                      <button className={styles.rollBtn} type="button" disabled={rollingDungeon} onClick={handleRollDungeon}>
+                        Roll for Dungeon
+                      </button>
+                      <button
+                        className={styles.ghostBtn}
+                        type="button"
+                        disabled={rollingDungeon}
+                        onClick={() => onReturnToTown(runId, state)}
+                      >
+                        Back to Town
                       </button>
                     </div>
-                  )}
-                </section>
-              )}
+                  </section>
+                )}
 
-              {!state.alive && state.deathCause === "combat" && (
-                <div className={styles.deathPanel}>
-                  <p className={styles.deathTitle}>{character.name} Has Fallen</p>
-                  <p>Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.</p>
-                  <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
-                  <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
-                    Roll a New Adventurer
-                  </button>
-                </div>
-              )}
-              {!state.alive && state.deathCause !== "combat" && (
-                <div className={styles.deathPanel}>
-                  <p className={styles.deathTitle}>The Darkness Devours You</p>
-                  <p>
-                    {character.name}&apos;s torch has burned out with no way to relight it. The dungeon keeps
-                    what it took.
-                  </p>
-                  <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
-                  <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
-                    Roll a New Adventurer
-                  </button>
-                </div>
-              )}
-              {state.alive && bossDefeated && (
-                <div className={styles.victoryPanel}>
-                  <p className={styles.victoryTitle}>The Dungeon Boss Falls</p>
-                  <p>{character.name} stands victorious over the dungeon&apos;s master. The depths grow quiet.</p>
-                </div>
-              )}
-            </div>
-          </main>
+                {!state.alive && state.deathCause === "combat" && (
+                  <div className={styles.deathPanel}>
+                    <p className={styles.deathTitle}>{character.name} Has Fallen</p>
+                    <p>Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.</p>
+                    <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+                    <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+                      Roll a New Adventurer
+                    </button>
+                  </div>
+                )}
+                {!state.alive && state.deathCause !== "combat" && (
+                  <div className={styles.deathPanel}>
+                    <p className={styles.deathTitle}>The Darkness Devours You</p>
+                    <p>
+                      {character.name}&apos;s torch has burned out with no way to relight it. The dungeon keeps
+                      what it took.
+                    </p>
+                    <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+                    <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+                      Roll a New Adventurer
+                    </button>
+                  </div>
+                )}
+                {state.alive && bossDefeated && (
+                  <div className={styles.victoryPanel}>
+                    <p className={styles.victoryTitle}>The Dungeon Boss Falls</p>
+                    <p>{character.name} stands victorious over the dungeon&apos;s master. The depths grow quiet.</p>
+                    <button
+                      className={styles.deathBtn}
+                      type="button"
+                      onClick={() => onReturnToTown(runId, state)}
+                    >
+                      Return to Town
+                    </button>
+                  </div>
+                )}
+              </div>
+            </main>
+          )}
 
           {hasDungeon && (
             <>
@@ -284,11 +287,13 @@ export function DungeonScreen({
                   combat={state.combat}
                   hp={state.hp}
                   maxHp={state.maxHp}
-                  weaponName={character.cls.weapon}
-                  weaponFormula={character.cls.weaponDamage}
+                  weaponName={state.weapon?.name ?? character.cls.weapon}
+                  weaponFormula={state.weapon?.formula ?? character.cls.weaponDamage}
+                  armor={state.armor}
                   spellUses={state.spellUses}
                   onAttack={(targetId, roll) => dispatch({ type: "PLAYER_ATTACK", targetId, roll })}
                   onCastSpell={(spellRoll, targetId) => dispatch({ type: "CAST_SPELL", spellRoll, targetId })}
+                  onResolveDamage={(absorbWith) => dispatch({ type: "RESOLVE_DAMAGE", absorbWith })}
                 />
               )}
               <DungeonMap
@@ -316,12 +321,33 @@ export function DungeonScreen({
           )}
 
           <p className={styles.scopeNote}>
-            Breaking a door or setting off a trap alerts monsters beyond it, letting them strike first — the
-            armor system isn&apos;t modeled yet.
+            Breaking a door or setting off a trap alerts monsters beyond it, letting them strike first.
           </p>
         </div>
 
         <aside className={styles.side}>
+          {hasDungeon && (
+            <div className={styles.statsCard}>
+              <section className={styles.dungeonHeader}>
+                <p className={styles.dungeonEyebrow}>Level {state.activeLevel + 1}</p>
+                <h2 className={styles.dungeonName}>{state.dungeonName}</h2>
+                <p className={styles.dungeonEntrance}>{state.entranceFlavor}</p>
+                {state.alive && (
+                  <div className={styles.headerActions}>
+                    {!state.combat && (
+                      <button className={styles.ghostBtn} type="button" onClick={() => onReturnToTown(runId, state)}>
+                        Retreat to Town
+                      </button>
+                    )}
+                    <button className={styles.ghostBtn} type="button" onClick={handleStartNewDungeon}>
+                      Start a New Dungeon
+                    </button>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
           <CharacterSheet
             character={character}
             torches={state.torches}
@@ -333,6 +359,8 @@ export function DungeonScreen({
             canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
             onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}
           />
+
+          <Equipment armor={state.armor} weapon={state.weapon} />
 
           <Pack items={state.heldItems} />
 

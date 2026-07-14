@@ -41,6 +41,8 @@ function stateWithCombat(overrides: Partial<DungeonState> = {}, monsters: Combat
     pendingLootRolls: 0,
     isBoss: false,
     outcome: "ongoing",
+    pendingDamage: null,
+    playerDamageBonus: 0,
   };
   return {
     ...createInitialDungeonState(),
@@ -190,6 +192,8 @@ describe("PLAYER_ATTACK", () => {
       treasures: 1,
       keys: 2,
       heldItems: [],
+    armor: [],
+    weapon: null,
     });
   });
 
@@ -443,5 +447,231 @@ describe("combat blocks other dungeon actions", () => {
     const state = stateWithCombat({ levels: [makeLevel(1), makeLevel(2)] });
     const next = dungeonReducer(state, { type: "SWITCH_LEVEL", levelIndex: 1 });
     expect(next).toBe(state);
+  });
+});
+
+describe("Armor: damage-absorption choice", () => {
+  it("defers to pendingDamage instead of subtracting HP when the player has usable armor", () => {
+    const monster = makeMonster({ hp: 10, damage: 4 });
+    const state = stateWithCombat({ armor: [{ piece: "boots", hp: 3, maxHp: 3 }] }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+
+    expect(next.hp).toBe(next.maxHp); // untouched -- the choice hasn't been made yet
+    expect(next.combat!.pendingDamage).toBe(4);
+  });
+
+  it("applies damage straight to HP when there's no usable armor (0 HP pieces don't count)", () => {
+    const monster = makeMonster({ hp: 10, damage: 4 });
+    const state = stateWithCombat({ armor: [{ piece: "ring", hp: 0, maxHp: 0 }] }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+
+    expect(next.hp).toBe(next.maxHp - 4);
+    expect(next.combat!.pendingDamage).toBeNull();
+  });
+
+  it("PLAYER_ATTACK, CAST_SPELL, and OPEN_TREASURE are no-ops while a damage choice is pending", () => {
+    const state = stateWithCombat({
+      armor: [{ piece: "boots", hp: 3, maxHp: 3 }],
+      treasures: 1,
+      spellUses: { 1: 1 },
+    });
+    state.combat!.pendingDamage = 4;
+
+    expect(dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: state.combat!.monsters[0]!.id, roll: 3 })).toBe(state);
+    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 1 })).toBe(state);
+    expect(dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} })).toBe(state);
+  });
+
+  it("RESOLVE_DAMAGE applied to HP subtracts it directly", () => {
+    const state = stateWithCombat({ armor: [{ piece: "boots", hp: 3, maxHp: 3 }] });
+    state.combat!.pendingDamage = 5;
+
+    const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: "hp" });
+    expect(next.hp).toBe(next.maxHp - 5);
+    expect(next.combat!.pendingDamage).toBeNull();
+  });
+
+  it("RESOLVE_DAMAGE applied to an armor piece absorbs what it can and overflows the rest onto HP", () => {
+    const state = stateWithCombat({ armor: [{ piece: "boots", hp: 3, maxHp: 3 }] });
+    state.combat!.pendingDamage = 5;
+
+    const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: 0 });
+    expect(next.armor[0]!.hp).toBe(0); // fully depleted
+    expect(next.hp).toBe(next.maxHp - 2); // the 2-damage overflow landed on HP
+  });
+
+  it("RESOLVE_DAMAGE fully absorbed by an armor piece leaves HP untouched", () => {
+    const state = stateWithCombat({ armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] });
+    state.combat!.pendingDamage = 4;
+
+    const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: 0 });
+    expect(next.armor[0]!.hp).toBe(6);
+    expect(next.hp).toBe(next.maxHp);
+  });
+
+  it("resolving pending damage down to 0 HP still kills the character and leaves remains", () => {
+    const monster = makeMonster({ hp: 10, damage: 4 });
+    const state = stateWithCombat(
+      { hp: 3, armor: [{ piece: "boots", hp: 1, maxHp: 3 }], characterName: "Doomed Dara" },
+      [monster],
+    );
+    const afterAttack = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(afterAttack.combat!.pendingDamage).toBe(4);
+
+    const next = dungeonReducer(afterAttack, { type: "RESOLVE_DAMAGE", absorbWith: 0 });
+    expect(next.alive).toBe(false);
+    expect(next.deathCause).toBe("combat");
+    expect(next.levels[0]!.segments[0]!.remains).not.toBeNull();
+  });
+
+  it("Poison damage always hits HP directly, even with usable armor equipped -- only non-poison damage is offered as a choice", () => {
+    const poisoner = makeMonster({ id: 1, hp: 10, damage: 2, abilities: ["poison"] });
+    const brute = makeMonster({ id: 2, hp: 10, damage: 5, abilities: [] });
+    const state = stateWithCombat({ armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [poisoner, brute]);
+
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: poisoner.id, roll: 3 });
+
+    expect(next.hp).toBe(next.maxHp - 2); // the Poison damage landed on HP immediately
+    expect(next.combat!.pendingDamage).toBe(5); // only the Brute's damage is offered as a choice
+  });
+
+  it("a fatal Poison tick doesn't leave a moot absorption choice pending for the rest of the round's damage", () => {
+    const poisoner = makeMonster({ id: 1, hp: 10, damage: 20, abilities: ["poison"] });
+    const brute = makeMonster({ id: 2, hp: 10, damage: 5, abilities: [] });
+    const state = stateWithCombat({ hp: 5, armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [poisoner, brute]);
+
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: poisoner.id, roll: 3 });
+
+    expect(next.alive).toBe(false);
+    expect(next.combat!.pendingDamage).toBeNull(); // no lingering absorption prompt for a dead character
+  });
+});
+
+describe("Armor: ignoresMonsterAbility", () => {
+  it("skips the Undead revival roll when the player has an item that ignores it", () => {
+    const monster = makeMonster({ hp: 3, abilities: ["undead"] });
+    const state = stateWithCombat(
+      { armor: [{ piece: "wonderItem", hp: 0, maxHp: 0, itemName: "Amulet of the Dead", effect: { kind: "ignoresMonsterAbility", ability: "undead" } }] },
+      [monster],
+    );
+    // roll of 1 would normally revive the Undead monster -- ignored here, so it just dies.
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(1));
+    expect(next.combat).toBeNull(); // fight over -- the monster was removed, not revived
+  });
+
+  it("[Weapon] of the Dragon shields against a Firebreath counterattack on a roll of 1", () => {
+    const monster = makeMonster({ hp: 20, damage: 3, abilities: ["firebreath"] });
+    const weapon = {
+      name: "[Weapon] of the Dragon",
+      formula: "1d6",
+      bonusEffect: { kind: "ignoresMonsterAbility" as const, ability: "firebreath" as const },
+    };
+    const state = stateWithCombat({ weapon }, [monster]);
+    // roll of 1 would normally arm a +10 Firebreath counterattack -- ignored here.
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 }, fixedDie(3));
+    expect(next.combat!.monsters[0]!.bonusDamage).toBe(0);
+    expect(next.hp).toBe(next.maxHp - 3); // only the monster's plain damage lands
+  });
+
+  it("Boatman's Oar bypasses Intangible's even-damage block", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: ["intangible"] });
+    const weapon = {
+      name: "Boatman's Oar",
+      formula: "1d6+1",
+      bonusEffect: { kind: "ignoresMonsterAbility" as const, ability: "intangible" as const },
+    };
+    const state = stateWithCombat({ weapon }, [monster]);
+    // roll 3 + modifier 1 = 4, an even total that Intangible would normally block entirely.
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(16);
+  });
+});
+
+describe("Weapon bonus effects: Phase 2", () => {
+  it("lifesteal heals the player on a successful hit, capped at maxHp", () => {
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const weapon = { name: "Vampiric Sword", formula: "1d6", bonusEffect: { kind: "lifesteal" as const, amount: 1 } };
+    const state = stateWithCombat({ weapon, hp: 15, maxHp: 20 }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(17); // 3 damage dealt
+    expect(next.hp).toBe(16); // healed 1
+  });
+
+  it("lifesteal doesn't overheal past maxHp", () => {
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const weapon = { name: "Vampiric Sword", formula: "1d6", bonusEffect: { kind: "lifesteal" as const, amount: 1 } };
+    const state = stateWithCombat({ weapon, hp: 20, maxHp: 20 }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.hp).toBe(20);
+  });
+
+  it("instantKillOnRoll short-circuits normal damage math and defeats the monster outright", () => {
+    const monster = makeMonster({ hp: 100, damage: 0, abilities: ["loot"] });
+    const weapon = { name: "Vorpal Sword", formula: "1d6-3", bonusEffect: { kind: "instantKillOnRoll" as const, roll: 6 } };
+    const state = stateWithCombat({ weapon }, [monster]);
+    const rng = sequenceDie([4]); // only consumed by the post-victory Loot roll
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, rng);
+    expect(next.combat).toBeNull(); // the 100 HP monster is gone despite the weapon's weak formula
+    expect(next.coins).toBe(1);
+  });
+
+  it("instantKillOnRoll does nothing on a non-matching roll -- normal damage applies", () => {
+    const monster = makeMonster({ hp: 100, damage: 0 });
+    const weapon = { name: "Vorpal Sword", formula: "1d6", bonusEffect: { kind: "instantKillOnRoll" as const, roll: 6 } };
+    const state = stateWithCombat({ weapon }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(97);
+  });
+});
+
+describe("Weapon bonus effects", () => {
+  it("weaponDamageBonus adds flat damage to every attack", () => {
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const state = stateWithCombat(
+      { weapon: { name: "Sword", formula: "1d6", bonusEffect: { kind: "weaponDamageBonus", amount: 2 } } },
+      [monster],
+    );
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(15); // 3 (roll) + 2 (bonus) = 5 damage
+  });
+
+  it("damageBonusVsTag only applies when the monster's name matches", () => {
+    const angel = makeMonster({ hp: 20, damage: 0, name: "Warrior Angel" });
+    const orc = makeMonster({ hp: 20, damage: 0, name: "Orc" });
+    const weapon = { name: "Spear", formula: "1d6", bonusEffect: { kind: "damageBonusVsTag" as const, tags: ["angel"], amount: 2 } };
+
+    const vsAngel = dungeonReducer(stateWithCombat({ weapon }, [angel]), {
+      type: "PLAYER_ATTACK",
+      targetId: angel.id,
+      roll: 3,
+    });
+    expect(vsAngel.combat!.monsters[0]!.hp).toBe(15); // 3 + 2
+
+    const vsOrc = dungeonReducer(stateWithCombat({ weapon }, [orc]), {
+      type: "PLAYER_ATTACK",
+      targetId: orc.id,
+      roll: 3,
+    });
+    expect(vsOrc.combat!.monsters[0]!.hp).toBe(17); // just 3, no bonus
+  });
+
+  it("damageMultiplierVsTag doubles just the weapon roll when the monster's name matches", () => {
+    const dragon = makeMonster({ hp: 20, damage: 0, name: "Dragon" });
+    const weapon = {
+      name: "Dragon Slayer",
+      formula: "1d6",
+      bonusEffect: { kind: "damageMultiplierVsTag" as const, tags: ["dragon"], multiplier: 2 },
+    };
+    const state = stateWithCombat({ weapon }, [dragon]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: dragon.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(14); // 3 * 2 = 6 damage
+  });
+
+  it("combat.playerDamageBonus (e.g. Potion of Fury) adds to every attack this fight", () => {
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const state = stateWithCombat({}, [monster]);
+    state.combat!.playerDamageBonus = 2;
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(15); // 3 + 2
   });
 });

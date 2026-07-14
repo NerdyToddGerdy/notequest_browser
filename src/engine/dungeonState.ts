@@ -1,5 +1,5 @@
 import type { DungeonTypeKey, SegmentType } from "../data/dungeonTypes.ts";
-import type { MonsterAbility, MonsterTemplate, RoomContentEntry } from "../data/dungeonTables.ts";
+import type { ArmorPieceKind, ItemEffect, MonsterAbility, MonsterTemplate, RoomContentEntry } from "../data/dungeonTables.ts";
 
 export type Direction = "N" | "E" | "S" | "W";
 
@@ -45,6 +45,31 @@ export interface FallenAdventurer {
   treasures: number;
   keys: number;
   heldItems: HeldItem[];
+  armor: ArmorPiece[];
+  weapon: EquippedWeapon | null;
+}
+
+/** A worn armor piece -- either one of the 5 named pieces (rolled on the Armor table) or a
+ * `"wonderItem"` (a bespoke Wonder that's itself a protective item, e.g. "Jester Hat (2 HP)"). */
+export interface ArmorPiece {
+  piece: ArmorPieceKind;
+  hp: number;
+  maxHp: number;
+  /** The specific item's name (e.g. "Centurion's [Armor]"), if this came from a named Magic Item
+   * or Wonder -- shown in the Equipment UI in place of the generic ArmorPieceKind label. */
+  itemName?: string;
+  /** The named item's standing ability (e.g. Leprechaun's Armor's doubleChestCoins), if any --
+   * checked by whichever system it affects (combat, chests, traps) for as long as it's equipped. */
+  effect?: ItemEffect;
+}
+
+/** A weapon found in a dungeon, overriding the character's class weapon while carried. */
+export interface EquippedWeapon {
+  name: string;
+  formula: string;
+  twoHanded?: boolean;
+  /** From a Magic Item's bonus (e.g. "[Weapon] of Destruction: Deals +2 damage"), if any. */
+  bonusEffect?: ItemEffect;
 }
 
 export interface ConnectorState {
@@ -108,6 +133,16 @@ export interface CombatState {
   /** True for the Final Room's Dungeon Boss fight -- victory grants 2d6 Treasures instead of normal Loot. */
   isBoss: boolean;
   outcome: "ongoing" | "victory" | "defeat";
+  /** Set instead of applying a monster counter-attack's damage immediately, whenever the player has
+   * at least one usable (hp > 0) armor piece -- "reduce this value from your HP (or armor's HP...
+   * your call)" per the rulebook. Cleared by RESOLVE_DAMAGE, which applies it to whichever pool the
+   * player chose. Null (not 0) when there's nothing pending, so a real 0-damage hit can't be confused
+   * with "no hit happened." */
+  pendingDamage: number | null;
+  /** From a Wonder's `combatDamageBonus` effect (e.g. Potion of Fury: "+2 until the end of the
+   * fight") -- added to the player's weapon damage roll each round of *this* fight, then discarded
+   * when combat ends (not persisted onto the character outside combat). */
+  playerDamageBonus: number;
 }
 
 /** A "worth N Coins in the town" item found by opening a Treasure -- held until there's a town to sell it in. */
@@ -138,6 +173,11 @@ export interface DungeonState {
   keys: number;
   /** Coin-valued items found by opening Treasures, held until there's a town to sell them in. */
   heldItems: HeldItem[];
+  /** Worn armor pieces (max one of each ArmorPieceKind per the rulebook's "can't use more than one
+   * identical piece"), each an independent HP pool the player may choose to absorb damage with. */
+  armor: ArmorPiece[];
+  /** An acquired weapon overriding the character's class weapon; null falls back to it. */
+  weapon: EquippedWeapon | null;
   combat: CombatState | null;
   /** The active character's name -- used only to label remains left behind if they die. */
   characterName: string;
@@ -150,7 +190,9 @@ export interface DungeonState {
   deathCause: "darkness" | "combat" | null;
 }
 
-/** A dungeon left unbeaten (by death or by voluntarily leaving) -- resumable by a later character. */
+/** A dungeon a character has explored, whether they died, retreated, or beat it -- unbeaten ones
+ * are resumable by a later character; beaten ones are kept only as a historical record (Town's
+ * dungeon list, styled like the Graveyard) since `isDungeonBeaten()` marks them done. */
 export interface PendingDungeon {
   id: string;
   dungeon: DungeonState;
@@ -184,6 +226,17 @@ export function createInitialDungeonState(
   weaponFormula = "1d6",
   spellUses: Record<number, number> = {},
   characterName = "",
+  coins = 0,
+  treasures = 0,
+  keys = 0,
+  heldItems: HeldItem[] = [],
+  /** Defaults to startingHp -- a brand new character always starts at full health, but a
+   * returning one may not (see RESUME_DUNGEON/RETURN_TO_DUNGEON, which pass this explicitly
+   * so a character who retreated at less than full HP doesn't have their max HP clamped down
+   * to whatever they currently have). */
+  maxHp: number = startingHp,
+  armor: ArmorPiece[] = [],
+  weapon: EquippedWeapon | null = null,
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -199,11 +252,13 @@ export function createInitialDungeonState(
     log: [],
     torches: startingTorches,
     hp: startingHp,
-    maxHp: startingHp,
-    coins: 0,
-    treasures: 0,
-    keys: 0,
-    heldItems: [],
+    maxHp,
+    coins,
+    treasures,
+    keys,
+    heldItems,
+    armor,
+    weapon,
     combat: null,
     characterName,
     weaponFormula,
@@ -234,11 +289,33 @@ export type DungeonAction =
   | { type: "OPEN_TREASURE"; roll: number; maxSpellUses: Record<number, number> }
   | { type: "PLAYER_ATTACK"; targetId: number; roll: number }
   | { type: "CAST_SPELL"; spellRoll: number; targetId?: number }
+  /** Resolves a CombatState.pendingDamage from a monster counter-attack: onto the player's HP, or
+   * onto one of `armor`'s indices ("your call" per the rulebook). */
+  | { type: "RESOLVE_DAMAGE"; absorbWith: "hp" | number }
   | {
       type: "RESUME_DUNGEON";
       dungeon: DungeonState;
       torches: number;
       hp: number;
+      maxHp: number;
+      weaponFormula: string;
+      spellUses: Record<number, number>;
+      characterName: string;
+    }
+  | {
+      /** The same still-living character coming back from a Town visit -- unlike RESUME_DUNGEON
+       * (a new character taking over a dead one's map), every resource carries over exactly. */
+      type: "RETURN_TO_DUNGEON";
+      dungeon: DungeonState;
+      torches: number;
+      hp: number;
+      maxHp: number;
+      coins: number;
+      treasures: number;
+      keys: number;
+      heldItems: HeldItem[];
+      armor: ArmorPiece[];
+      weapon: EquippedWeapon | null;
       weaponFormula: string;
       spellUses: Record<number, number>;
       characterName: string;

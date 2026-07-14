@@ -196,6 +196,8 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     treasures: 0,
     keys: 0,
     heldItems: [],
+    armor: [],
+    weapon: null,
     combat: null,
     characterName: "Test Adventurer",
     weaponFormula: "1d6",

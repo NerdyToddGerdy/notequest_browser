@@ -8,7 +8,16 @@ import {
   TYPE_LABELS,
   type SegmentType,
 } from "../data/dungeonTypes.ts";
-import { DUNGEON_TABLES, type MonsterTemplate } from "../data/dungeonTables.ts";
+import {
+  ARMOR_PIECE_LABELS,
+  ARMOR_TABLE,
+  DUNGEON_TABLES,
+  type ItemEffect,
+  type MagicItemEntry,
+  type MonsterAbility,
+  type MonsterTemplate,
+  type WonderEntry,
+} from "../data/dungeonTables.ts";
 import { SPELL_TABLE } from "../data/spells.ts";
 import {
   boxFromCenter,
@@ -68,7 +77,16 @@ const DARKNESS_MESSAGE = "The darkness devours you. Without a torch, there is no
  * already there.
  */
 function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
-  if (draft.coins === 0 && draft.treasures === 0 && draft.keys === 0 && draft.heldItems.length === 0) return;
+  if (
+    draft.coins === 0 &&
+    draft.treasures === 0 &&
+    draft.keys === 0 &&
+    draft.heldItems.length === 0 &&
+    draft.armor.length === 0 &&
+    !draft.weapon
+  ) {
+    return;
+  }
   const level = draft.levels[draft.activeLevel];
   const seg = level?.segments.find((s) => s.id === segId) ?? level?.segments.find((s) => s.isEntrance);
   if (!seg) return;
@@ -78,6 +96,8 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
     seg.remains.treasures += draft.treasures;
     seg.remains.keys += draft.keys;
     seg.remains.heldItems.push(...draft.heldItems);
+    seg.remains.armor.push(...draft.armor);
+    if (!seg.remains.weapon) seg.remains.weapon = draft.weapon;
   } else {
     seg.remains = {
       names: [draft.characterName],
@@ -85,6 +105,8 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
       treasures: draft.treasures,
       keys: draft.keys,
       heldItems: [...draft.heldItems],
+      armor: [...draft.armor],
+      weapon: draft.weapon,
     };
   }
 }
@@ -162,7 +184,16 @@ function startCombat(
     },
     rng,
   );
-  draft.combat = { segId, monsters, paralyzedTurns: 0, pendingLootRolls: 0, isBoss, outcome: "ongoing" };
+  draft.combat = {
+    segId,
+    monsters,
+    paralyzedTurns: 0,
+    pendingLootRolls: 0,
+    isBoss,
+    outcome: "ongoing",
+    pendingDamage: null,
+    playerDamageBonus: 0,
+  };
   pushLog(
     draft,
     isBoss
@@ -191,13 +222,84 @@ function startCombatIfMonsters(
  * One full monster counter-attack: sums damage (including any queued Firebreath/Sorcery
  * bonuses), applies a queued Deathtouch or Paralyze, then clears those queued effects.
  */
+/** Flat damage bonus for the player's next attack: the active fight's `combatDamageBonus` (e.g.
+ * Potion of Fury), plus the equipped weapon's `weaponDamageBonus`/`damageBonusVsTag` if its tag
+ * matches the target (case-insensitive substring of the monster's name -- there's no formal
+ * monster-category system, matching the rulebook's own flavor-driven "+2 damage to Angels" style). */
+/** Every currently-equipped item's ability, whether it lives on the weapon or an armor piece --
+ * e.g. Emperor's Sandals (a Wonder, "wonderItem" armor piece) grants a damage bonus exactly like
+ * a [Weapon] of War would, so damage-bonus effects aren't only ever looked for on the weapon. */
+function equippedEffects(draft: Draft<DungeonState>): ItemEffect[] {
+  const effects: ItemEffect[] = [];
+  if (draft.weapon?.bonusEffect) effects.push(draft.weapon.bonusEffect);
+  for (const piece of draft.armor) {
+    if (piece.effect) effects.push(piece.effect);
+  }
+  return effects;
+}
+
+function matchesTags(monster: Draft<CombatMonsterState>, tags: string[]): boolean {
+  const name = monster.name.toLowerCase();
+  return tags.some((tag) => name.includes(tag.toLowerCase()));
+}
+
+function attackBonus(draft: Draft<DungeonState>, monster: Draft<CombatMonsterState>): number {
+  let bonus = draft.combat?.playerDamageBonus ?? 0;
+  for (const effect of equippedEffects(draft)) {
+    if (effect.kind === "weaponDamageBonus") {
+      bonus += effect.amount;
+    } else if (effect.kind === "damageBonusVsTag" && matchesTags(monster, effect.tags)) {
+      bonus += effect.amount;
+    }
+  }
+  return bonus;
+}
+
+/** Multiplier applied to just the weapon's own roll (e.g. "[Weapon] of the Dragon Slayer: Double
+ * damage against Dragons"), before `attackBonus` is added. */
+function attackMultiplier(draft: Draft<DungeonState>, monster: Draft<CombatMonsterState>): number {
+  let multiplier = 1;
+  for (const effect of equippedEffects(draft)) {
+    if (effect.kind === "damageMultiplierVsTag" && matchesTags(monster, effect.tags)) {
+      multiplier *= effect.multiplier;
+    }
+  }
+  return multiplier;
+}
+
+/** True if any equipped item (weapon or armor) ignores this specific monster ability. */
+function ignoresAbility(draft: Draft<DungeonState>, ability: MonsterAbility): boolean {
+  return equippedEffects(draft).some((effect) => effect.kind === "ignoresMonsterAbility" && effect.ability === ability);
+}
+
+/** Every monster ability ignored by an equipped item, e.g. Boatman's Oar bypassing Intangible's
+ * damage-parity block -- fed into `resolvePlayerAttack`'s defensive-ability filter. */
+function ignoredAbilities(draft: Draft<DungeonState>): MonsterAbility[] {
+  return equippedEffects(draft)
+    .filter((effect): effect is Extract<ItemEffect, { kind: "ignoresMonsterAbility" }> => effect.kind === "ignoresMonsterAbility")
+    .map((effect) => effect.ability);
+}
+
+/** True once at least one equipped armor piece can actually absorb something. */
+function hasUsableArmor(draft: Draft<DungeonState>): boolean {
+  return draft.armor.some((piece) => piece.hp > 0);
+}
+
 function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>): void {
-  let totalDamage = 0;
+  // Poison: "All damage from this creature cannot be absorbed by armor or other means" -- tallied
+  // apart from every other monster's damage, which the player may still choose to absorb.
+  let poisonDamage = 0;
+  let absorbableDamage = 0;
   let deathtouchKill = false;
   let paralyzeTurns = 0;
   for (const monster of combat.monsters) {
     if (!monster.skipNextAttack) {
-      totalDamage += monster.damage + monster.bonusDamage;
+      const dmg = monster.damage + monster.bonusDamage;
+      if (monster.abilities.includes("poison")) {
+        poisonDamage += dmg;
+      } else {
+        absorbableDamage += dmg;
+      }
       if (monster.deathtouchPending) deathtouchKill = true;
       if (monster.paralyzePending > paralyzeTurns) paralyzeTurns = monster.paralyzePending;
     }
@@ -207,6 +309,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     monster.skipNextAttack = false;
   }
 
+  // Deathtouch "kills you" outright per the rulebook -- armor doesn't get a say.
   if (deathtouchKill) {
     draft.hp = 0;
     draft.alive = false;
@@ -216,13 +319,28 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     return;
   }
 
-  if (totalDamage > 0) {
-    draft.hp = Math.max(0, draft.hp - totalDamage);
-    pushLog(draft, `The monsters strike back for ${totalDamage} damage.`);
-  }
   if (paralyzeTurns > 0) {
     combat.paralyzedTurns += paralyzeTurns;
     pushLog(draft, `You are paralyzed for ${paralyzeTurns} turn${paralyzeTurns > 1 ? "s" : ""}!`);
+  }
+
+  // Applied first and unconditionally so a fatal poison tick doesn't leave a moot absorption
+  // choice pending for whatever non-poison damage landed in the same round.
+  if (poisonDamage > 0) {
+    draft.hp = Math.max(0, draft.hp - poisonDamage);
+    pushLog(draft, `Poison courses through you for ${poisonDamage} damage.`);
+  }
+
+  if (draft.hp > 0 && absorbableDamage > 0) {
+    // "Reduce this value from your HP (or armor's HP, if you're using one -- your call)": with
+    // usable armor equipped, defer to RESOLVE_DAMAGE instead of subtracting HP immediately.
+    if (hasUsableArmor(draft)) {
+      combat.pendingDamage = absorbableDamage;
+      pushLog(draft, `The monsters strike for ${absorbableDamage} damage -- choose what absorbs it.`);
+      return;
+    }
+    draft.hp = Math.max(0, draft.hp - absorbableDamage);
+    pushLog(draft, `The monsters strike back for ${absorbableDamage} damage.`);
   }
   if (draft.hp <= 0) {
     draft.alive = false;
@@ -240,7 +358,7 @@ function handleMonsterDefeat(
   rng: RNG,
 ): void {
   if (monster.hp > 0) return;
-  const revived = checkUndeadRevival(monster, rng);
+  const revived = !ignoresAbility(draft, "undead") && checkUndeadRevival(monster, rng);
   if (revived) {
     monster.hp = 1;
     pushLog(draft, `${monster.name} rises again with 1 HP!`);
@@ -284,6 +402,119 @@ function finishIfVictorious(draft: Draft<DungeonState>, combat: Draft<CombatStat
   }
   pushLog(draft, "The room falls silent. You are victorious!", "descend");
   draft.combat = null;
+}
+
+/** Copies a persisted run's map/exploration state onto a fresh draft, shared by RESUME_DUNGEON
+ * (a new character taking over a dead one's map) and RETURN_TO_DUNGEON (the same character
+ * coming back from Town) -- the two differ in what happens to the character's resources (which
+ * the caller has already seeded via `createInitialDungeonState()` before calling this) and in
+ * `resetToEntrance`, see below. */
+function restoreMapFromPersisted(
+  draft: Draft<DungeonState>,
+  persisted: DungeonState,
+  rng: RNG,
+  logMessage: string,
+  /** RESUME_DUNGEON only: a brand new character walks in from the entrance and must explore to
+   * find whatever the previous one left behind, rather than starting wherever they died --
+   * "he will find his backpack and clothes on the floor" implies discovering it, not teleporting
+   * to it. RETURN_TO_DUNGEON (the same still-living character) instead picks up exactly in place. */
+  resetToEntrance: boolean,
+): void {
+  draft.dungeonTypeKey = persisted.dungeonTypeKey;
+  draft.dungeonName = persisted.dungeonName;
+  draft.entranceFlavor = persisted.entranceFlavor;
+  draft.levels = persisted.levels;
+  draft.activeLevel = persisted.activeLevel;
+  draft.nextSegmentId = persisted.nextSegmentId;
+  draft.nextLogId = persisted.nextLogId;
+  draft.nextMonsterId = persisted.nextMonsterId;
+  draft.selectedSegId = persisted.selectedSegId;
+  draft.stats = persisted.stats;
+  draft.log = persisted.log;
+  pushLog(draft, logMessage, "descend");
+
+  // Per the rulebook: returning to a dungeon means any room still holding monsters has them
+  // recover to full health. There's at most one such room -- wherever the previous session's
+  // fight was interrupted, since every other room's combat had already resolved (won) before
+  // its doors could be opened further.
+  const oldCombat = persisted.combat;
+  if (oldCombat) {
+    const level = draft.levels[draft.activeLevel];
+    const seg = level?.segments.find((s) => s.id === oldCombat.segId);
+    if (seg?.monsters) {
+      draft.selectedSegId = seg.id;
+      startCombat(draft, seg.id, seg.monsters, false, rng, oldCombat.isBoss);
+    }
+  }
+
+  if (resetToEntrance) {
+    draft.activeLevel = 0;
+    draft.selectedSegId = draft.levels[0]?.segments[0]?.id ?? null;
+  }
+}
+
+/** A Wonder either grants its own HP-bearing item (Jester Hat, 2 HP) or a standing ability with
+ * nothing else to attach to (Amulet of the Dead) -- both become a `draft.armor` entry (0 HP for
+ * the latter, so it's never offered as a damage-absorption choice but still equipped/trackable and
+ * checked by whichever system its effect concerns), except `combatDamageBonus`/`grantsTorches`/
+ * `randomSpell`, which apply immediately (to the active fight, the torch count, or spellUses
+ * respectively) rather than lingering as an item. */
+function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG): void {
+  if (entry.grantsHp !== undefined) {
+    draft.armor.push({ piece: "wonderItem", hp: entry.grantsHp, maxHp: entry.grantsHp, itemName: entry.name, effect: entry.effect });
+  } else if (entry.effect.kind === "combatDamageBonus") {
+    if (draft.combat) draft.combat.playerDamageBonus += entry.effect.amount;
+  } else if (entry.effect.kind === "grantsTorches") {
+    const gained = Math.min(entry.effect.amount, 10 - draft.torches);
+    draft.torches += gained;
+  } else if (entry.effect.kind === "randomSpell") {
+    const spellRoll = rollDie(rng);
+    draft.spellUses[spellRoll] = (draft.spellUses[spellRoll] ?? 0) + 1;
+    const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
+    pushLog(draft, `Treasure: ${entry.text} — learned ${spellName}!`);
+    return;
+  } else if (entry.effect.kind !== "flavor") {
+    draft.armor.push({ piece: "wonderItem", hp: 0, maxHp: 0, itemName: entry.name, effect: entry.effect });
+  }
+  pushLog(draft, `Treasure: ${entry.text}`);
+}
+
+/** A Magic Item is always "[Armor] of X" or "[Weapon] of X" -- roll the base table for the
+ * concrete piece/weapon, then layer the named item's bonus on top (an armor bonus is baked into
+ * the piece's HP if it's `extraHp`, or attached as `effect` for anything else the piece grants;
+ * a weapon bonus always rides along as `bonusEffect`, applied during combat). */
+function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng: RNG): void {
+  if (entry.grants === "armor") {
+    const roll = rollDie(rng);
+    const base = ARMOR_TABLE[roll]!;
+    const bonusHp = entry.effect.kind === "extraHp" ? entry.effect.amount : 0;
+    const maxHp = Math.max(0, base.maxHp + bonusHp);
+    draft.armor.push({
+      piece: base.piece,
+      hp: maxHp,
+      maxHp,
+      itemName: entry.name,
+      effect: entry.effect.kind === "extraHp" ? undefined : entry.effect,
+    });
+    pushLog(draft, `Treasure: ${entry.text} (${ARMOR_PIECE_LABELS[base.piece]}, ${maxHp} HP)`);
+  } else if (entry.fixedFormula) {
+    draft.weapon = {
+      name: entry.name,
+      formula: entry.fixedFormula,
+      bonusEffect: entry.effect.kind !== "flavor" ? entry.effect : undefined,
+    };
+    pushLog(draft, `Treasure: ${entry.text} (${entry.fixedFormula} damage)`);
+  } else {
+    const roll = rollDie(rng);
+    const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
+    draft.weapon = {
+      name: base.name,
+      formula: base.formula,
+      twoHanded: base.twoHanded,
+      bonusEffect: entry.effect.kind !== "flavor" ? entry.effect : undefined,
+    };
+    pushLog(draft, `Treasure: ${entry.text} (${base.name}, ${base.formula} damage)`);
+  }
 }
 
 export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: RNG = Math.random): DungeonState {
@@ -400,7 +631,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           return;
         }
 
-        const coins = Math.max(a, b);
+        const hasDoubleChestCoins = draft.armor.some((piece) => piece.effect?.kind === "doubleChestCoins");
+        const coins = Math.max(a, b) * (hasDoubleChestCoins ? 2 : 1);
         const treasures = Math.min(a, b);
         draft.coins += coins;
         draft.treasures += treasures;
@@ -418,11 +650,13 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (!seg?.remains) return;
-        const { names, coins, treasures, keys, heldItems } = seg.remains;
+        const { names, coins, treasures, keys, heldItems, armor, weapon } = seg.remains;
         draft.coins += coins;
         draft.treasures += treasures;
         draft.keys += keys;
         draft.heldItems.push(...heldItems);
+        draft.armor.push(...armor);
+        if (weapon) draft.weapon = weapon;
         const itemsPart = heldItems.length > 0 ? `, and ${heldItems.map((item) => item.name).join(", ")}` : "";
         pushLog(
           draft,
@@ -657,7 +891,9 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "PLAYER_ATTACK": {
-      if (!state.alive || !state.combat || state.combat.outcome !== "ongoing") return state;
+      if (!state.alive || !state.combat || state.combat.outcome !== "ongoing" || state.combat.pendingDamage !== null) {
+        return state;
+      }
       return produce(state, (draft) => {
         const combat = draft.combat;
         if (!combat) return;
@@ -672,61 +908,92 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const monster = combat.monsters.find((m) => m.id === action.targetId);
         if (!monster) return;
 
-        const { modifier } = parseWeaponFormula(draft.weaponFormula);
-        const weaponTotal = Math.max(0, action.roll + modifier);
-        const result = resolvePlayerAttack(monster, action.roll, weaponTotal, rng);
-
-        if (result.selfDestructDamageToPlayer > 0) {
-          pushLog(draft, `${monster.name} explodes, dealing ${result.selfDestructDamageToPlayer} damage to you!`);
-          draft.hp = Math.max(0, draft.hp - result.selfDestructDamageToPlayer);
-        } else if (result.damageDealt > 0) {
-          pushLog(draft, `You hit ${monster.name} for ${result.damageDealt} damage.`);
-        } else {
-          pushLog(draft, `Your attack fails to harm ${monster.name}.`);
-        }
-        monster.hp = Math.max(0, monster.hp - result.damageDealt);
-
-        for (const event of result.events) {
-          if (event.kind === "horde") {
-            const id = draft.nextMonsterId;
-            draft.nextMonsterId += 1;
-            combat.monsters.push({ ...HORDE_ORC, id });
-            pushLog(draft, "An Orc joins the fight!");
-          } else if (event.kind === "necromancy") {
-            const id = draft.nextMonsterId;
-            draft.nextMonsterId += 1;
-            combat.monsters.push({ ...NECROMANCY_SKELETON, id });
-            pushLog(draft, "A Skeleton rises to join the fight!");
-          }
-        }
-
-        if (draft.hp <= 0) {
-          draft.alive = false;
-          draft.deathCause = "combat";
-          pushLog(draft, "The explosion kills you instantly.", "descend");
-          leaveRemains(draft, combat.segId);
-          return;
-        }
-
-        if (result.monsterDefeated) {
+        const weaponBonus = draft.weapon?.bonusEffect;
+        if (weaponBonus?.kind === "instantKillOnRoll" && action.roll === weaponBonus.roll) {
+          pushLog(draft, `Your ${draft.weapon!.name} strikes true, killing ${monster.name} instantly!`);
+          monster.hp = 0;
           handleMonsterDefeat(draft, combat, monster, rng);
         } else {
+          const { modifier } = parseWeaponFormula(draft.weapon?.formula ?? draft.weaponFormula);
+          const baseTotal = Math.max(0, action.roll + modifier);
+          const weaponTotal = baseTotal * attackMultiplier(draft, monster) + attackBonus(draft, monster);
+          const result = resolvePlayerAttack(monster, action.roll, weaponTotal, rng, ignoredAbilities(draft));
+
+          if (result.selfDestructDamageToPlayer > 0) {
+            pushLog(draft, `${monster.name} explodes, dealing ${result.selfDestructDamageToPlayer} damage to you!`);
+            draft.hp = Math.max(0, draft.hp - result.selfDestructDamageToPlayer);
+          } else if (result.damageDealt > 0) {
+            pushLog(draft, `You hit ${monster.name} for ${result.damageDealt} damage.`);
+          } else {
+            pushLog(draft, `Your attack fails to harm ${monster.name}.`);
+          }
+          monster.hp = Math.max(0, monster.hp - result.damageDealt);
+
+          if (result.damageDealt > 0) {
+            const lifesteal = equippedEffects(draft).find((e) => e.kind === "lifesteal");
+            if (lifesteal && lifesteal.kind === "lifesteal") {
+              const healed = Math.min(lifesteal.amount, draft.maxHp - draft.hp);
+              if (healed > 0) {
+                draft.hp += healed;
+                pushLog(draft, `Your weapon drains ${healed} HP from ${monster.name}.`);
+              }
+            }
+          }
+
           for (const event of result.events) {
-            if (event.kind === "firebreath") {
-              monster.bonusDamage += 10;
-              pushLog(draft, `${monster.name} breathes fire, readying a scorching counterattack!`);
-            } else if (event.kind === "sorcery") {
-              monster.bonusDamage += event.bonus;
-              pushLog(draft, `${monster.name} casts a spell, empowering its next attack by ${event.bonus}!`);
-            } else if (event.kind === "deathtouch") {
-              monster.deathtouchPending = true;
-              pushLog(draft, `${monster.name}'s touch turns deathly cold...`);
-            } else if (event.kind === "regeneration") {
-              monster.hp = Math.min(monster.maxHp, monster.hp + event.amount);
-              pushLog(draft, `${monster.name} regenerates ${event.amount} HP.`);
-            } else if (event.kind === "paralyze") {
-              monster.paralyzePending = event.turns;
-              pushLog(draft, `${monster.name} prepares a paralyzing strike!`);
+            if (event.kind === "horde") {
+              const id = draft.nextMonsterId;
+              draft.nextMonsterId += 1;
+              combat.monsters.push({ ...HORDE_ORC, id });
+              pushLog(draft, "An Orc joins the fight!");
+            } else if (event.kind === "necromancy") {
+              const id = draft.nextMonsterId;
+              draft.nextMonsterId += 1;
+              combat.monsters.push({ ...NECROMANCY_SKELETON, id });
+              pushLog(draft, "A Skeleton rises to join the fight!");
+            }
+          }
+
+          if (draft.hp <= 0) {
+            draft.alive = false;
+            draft.deathCause = "combat";
+            pushLog(draft, "The explosion kills you instantly.", "descend");
+            leaveRemains(draft, combat.segId);
+            return;
+          }
+
+          if (result.monsterDefeated) {
+            handleMonsterDefeat(draft, combat, monster, rng);
+          } else {
+            for (const event of result.events) {
+              if (event.kind === "firebreath") {
+                if (ignoresAbility(draft, "firebreath")) {
+                  pushLog(draft, `${monster.name} breathes fire, but your weapon shields you from the flames.`);
+                } else {
+                  monster.bonusDamage += 10;
+                  pushLog(draft, `${monster.name} breathes fire, readying a scorching counterattack!`);
+                }
+              } else if (event.kind === "sorcery") {
+                monster.bonusDamage += event.bonus;
+                pushLog(draft, `${monster.name} casts a spell, empowering its next attack by ${event.bonus}!`);
+              } else if (event.kind === "deathtouch") {
+                if (ignoresAbility(draft, "deathtouch")) {
+                  pushLog(draft, `${monster.name}'s touch turns deathly cold, but your ward protects you.`);
+                } else {
+                  monster.deathtouchPending = true;
+                  pushLog(draft, `${monster.name}'s touch turns deathly cold...`);
+                }
+              } else if (event.kind === "regeneration") {
+                monster.hp = Math.min(monster.maxHp, monster.hp + event.amount);
+                pushLog(draft, `${monster.name} regenerates ${event.amount} HP.`);
+              } else if (event.kind === "paralyze") {
+                if (ignoresAbility(draft, "paralyze")) {
+                  pushLog(draft, `${monster.name} prepares a paralyzing strike, but your ward protects you.`);
+                } else {
+                  monster.paralyzePending = event.turns;
+                  pushLog(draft, `${monster.name} prepares a paralyzing strike!`);
+                }
+              }
             }
           }
         }
@@ -738,8 +1005,43 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
       });
     }
 
+    case "RESOLVE_DAMAGE": {
+      if (!state.alive || !state.combat || state.combat.pendingDamage === null) return state;
+      return produce(state, (draft) => {
+        const combat = draft.combat;
+        if (!combat || combat.pendingDamage === null) return;
+        const amount = combat.pendingDamage;
+        combat.pendingDamage = null;
+
+        if (action.absorbWith === "hp") {
+          draft.hp = Math.max(0, draft.hp - amount);
+        } else {
+          const piece = draft.armor[action.absorbWith];
+          if (!piece) return;
+          const absorbed = Math.min(amount, piece.hp);
+          piece.hp -= absorbed;
+          const overflow = amount - absorbed;
+          if (overflow > 0) draft.hp = Math.max(0, draft.hp - overflow);
+          const label = piece.itemName ?? ARMOR_PIECE_LABELS[piece.piece];
+          pushLog(
+            draft,
+            piece.hp <= 0
+              ? `Your ${label} absorbs ${absorbed} damage and is destroyed!`
+              : `Your ${label} absorbs ${absorbed} damage (${piece.hp}/${piece.maxHp} HP left).`,
+          );
+        }
+
+        if (draft.hp <= 0) {
+          draft.alive = false;
+          draft.deathCause = "combat";
+          pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
+          leaveRemains(draft, combat.segId);
+        }
+      });
+    }
+
     case "CAST_SPELL": {
-      if (!state.alive) return state;
+      if (!state.alive || state.combat?.pendingDamage != null) return state;
       const spell = SPELL_TABLE[action.spellRoll];
       const remaining = state.spellUses[action.spellRoll] ?? 0;
       if (!spell || remaining <= 0) return state;
@@ -849,7 +1151,9 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "OPEN_TREASURE": {
-      if (!state.alive || state.treasures <= 0 || !state.dungeonTypeKey) return state;
+      if (!state.alive || state.treasures <= 0 || !state.dungeonTypeKey || state.combat?.pendingDamage != null) {
+        return state;
+      }
       const outcome = DUNGEON_TABLES[state.dungeonTypeKey].treasure[action.roll];
       if (!outcome) return state;
 
@@ -901,6 +1205,19 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             pushLog(draft, `Treasure: ${outcome.text}`);
             break;
           }
+          case "rerollColumn": {
+            const roll = rollDie(rng);
+            if (outcome.effect.column === "wonders") {
+              resolveWonder(draft, DUNGEON_TABLES[draft.dungeonTypeKey!].wonders[roll]!, rng);
+            } else if (outcome.effect.column === "magicItem") {
+              resolveMagicItem(draft, DUNGEON_TABLES[draft.dungeonTypeKey!].magicItem[roll]!, rng);
+            } else {
+              const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
+              draft.weapon = { name: base.name, formula: base.formula, twoHanded: base.twoHanded };
+              pushLog(draft, `Treasure: You find a ${base.name} (${base.formula} damage).`);
+            }
+            break;
+          }
         }
 
         if (draft.combat) {
@@ -922,34 +1239,38 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           action.weaponFormula,
           action.spellUses,
           action.characterName,
+          0,
+          0,
+          0,
+          [],
+          action.maxHp,
         ),
         (draft) => {
-          draft.dungeonTypeKey = persisted.dungeonTypeKey;
-          draft.dungeonName = persisted.dungeonName;
-          draft.entranceFlavor = persisted.entranceFlavor;
-          draft.levels = persisted.levels;
-          draft.activeLevel = persisted.activeLevel;
-          draft.nextSegmentId = persisted.nextSegmentId;
-          draft.nextLogId = persisted.nextLogId;
-          draft.nextMonsterId = persisted.nextMonsterId;
-          draft.selectedSegId = persisted.selectedSegId;
-          draft.stats = persisted.stats;
-          draft.log = persisted.log;
-          pushLog(draft, "A new adventurer takes up the fallen's path.", "descend");
+          restoreMapFromPersisted(draft, persisted, rng, "A new adventurer takes up the fallen's path.", true);
+        },
+      );
+    }
 
-          // Per the rulebook: returning to a dungeon means any room still holding monsters
-          // has them recover to full health. There's at most one such room -- wherever the
-          // previous character's fight was interrupted, since every other room's combat had
-          // already resolved (won) before its doors could be opened further.
-          const oldCombat = persisted.combat;
-          if (oldCombat) {
-            const level = draft.levels[draft.activeLevel];
-            const seg = level?.segments.find((s) => s.id === oldCombat.segId);
-            if (seg?.monsters) {
-              draft.selectedSegId = seg.id;
-              startCombat(draft, seg.id, seg.monsters, false, rng, oldCombat.isBoss);
-            }
-          }
+    case "RETURN_TO_DUNGEON": {
+      // Same aliasing/freezing concern as RESUME_DUNGEON above.
+      const persisted = structuredClone(action.dungeon);
+      return produce(
+        createInitialDungeonState(
+          action.torches,
+          action.hp,
+          action.weaponFormula,
+          action.spellUses,
+          action.characterName,
+          action.coins,
+          action.treasures,
+          action.keys,
+          action.heldItems,
+          action.maxHp,
+          action.armor,
+          action.weapon,
+        ),
+        (draft) => {
+          restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);
         },
       );
     }

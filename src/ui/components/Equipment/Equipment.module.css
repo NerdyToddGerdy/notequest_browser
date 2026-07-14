@@ -21,12 +21,30 @@
   padding-bottom: 8px;
 }
 
-.note {
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 0.76rem;
+.weaponRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dotted rgba(42, 32, 22, 0.25);
+}
+.weaponName {
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+.weaponName.hasEffect,
+.name.hasEffect {
+  cursor: help;
+  border-bottom: 1px dotted var(--gold);
+}
+.weaponFormula {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
   color: var(--ink-soft);
-  margin: 0 0 10px;
+  white-space: nowrap;
 }
 
 .list {
@@ -54,15 +72,18 @@
   font-size: 0.85rem;
   color: var(--ink);
 }
-.worth {
+.hp {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.sellBtn {
+.hp.destroyed {
+  color: var(--danger);
+}
+.fixBtn {
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 0.04em;
@@ -76,13 +97,13 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.sellBtn:hover {
+.fixBtn:hover {
   background: linear-gradient(180deg, #4a3822, #2c2013);
 }
-.sellBtn:active {
+.fixBtn:active {
   transform: translateY(1px);
 }
-.sellBtn:focus-visible {
+.fixBtn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }

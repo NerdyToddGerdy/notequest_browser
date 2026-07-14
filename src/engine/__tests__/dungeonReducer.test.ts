@@ -344,6 +344,8 @@ describe("ROLL_SECRET_PASSAGE", () => {
       treasures: 2,
       keys: 1,
       heldItems: [],
+    armor: [],
+    weapon: null,
     });
   });
 
@@ -352,7 +354,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
       id: 1,
       type: "room-small",
       doors: [],
-      remains: { names: ["Doomed Dara"], coins: 5, treasures: 2, keys: 1, heldItems: [] },
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 2, keys: 1, heldItems: [], armor: [], weapon: null },
     });
     const level = { ...makeLevel(1), segments: [room] };
     const state = {
@@ -371,6 +373,8 @@ describe("ROLL_SECRET_PASSAGE", () => {
       treasures: 2,
       keys: 2,
       heldItems: [],
+    armor: [],
+    weapon: null,
     });
   });
 
@@ -409,6 +413,25 @@ describe("ROLL_CHEST", () => {
     expect(next.coins).toBe(5);
     expect(next.treasures).toBe(2);
     expect(next.torches).toBe(5); // opening a chest doesn't cost a torch
+  });
+
+  it("doubles the coins (not the Treasures) when the player has a doubleChestCoins item (e.g. Leprechaun's Armor)", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      roomContent: { text: "Desk with a Chest.", secretPassage: false, hasChest: true },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = {
+      ...stateWithLevel(level),
+      armor: [{ piece: "boots" as const, hp: 3, maxHp: 3, itemName: "Leprechaun's [Armor]", effect: { kind: "doubleChestCoins" as const } }],
+    };
+
+    const next = dungeonReducer(state, { type: "ROLL_CHEST", segId: 1, dice: [5, 2], trapRoll: null });
+
+    expect(next.coins).toBe(10);
+    expect(next.treasures).toBe(2);
   });
 
   it("double 1s means the chest was empty and triggers a trap instead", () => {
@@ -491,6 +514,8 @@ describe("COLLECT_REMAINS", () => {
         treasures: 2,
         keys: 1,
         heldItems: [{ name: "Ornament", worth: 5 }],
+        armor: [],
+        weapon: null,
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -520,7 +545,7 @@ describe("COLLECT_REMAINS", () => {
       id: 1,
       type: "room-small",
       doors: [],
-      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0, heldItems: [] },
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
     });
     const level = { ...makeLevel(1), segments: [room] };
     const state = { ...stateWithLevel(level), alive: false };
@@ -782,12 +807,41 @@ describe("OPEN_TREASURE", () => {
     expect(next.heldItems).toEqual([{ name: "Valuable jewel", worth: 70 }]); // (4 + 3) * 10
   });
 
-  it("an unmodeled Wonder/Magic Item (Palace rolls 5-6) still consumes the treasure and logs flavor", () => {
+  it("Palace roll 5 redirects to the Wonders table and grants an HP-bearing item", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} });
+    // Wonders roll 1 -> Jester Hat (2 HP; Can't Move in Silence).
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} }, fixedDie(1));
     expect(next.treasures).toBe(0);
-    expect(next.coins).toBe(0);
-    expect(next.log[0]!.message).toContain("not modeled");
+    expect(next.armor).toEqual([{ piece: "wonderItem", hp: 2, maxHp: 2, itemName: "Jester Hat", effect: { kind: "flavor" } }]);
+    expect(next.log[0]!.message).toContain("Jester Hat");
+  });
+
+  it("Palace roll 5 redirects to a Wonder with no HP -- a standing-effect-only 0 HP item", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
+    // Wonders roll 3 -> Amulet of the Dead (Ignores Undead effect).
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} }, fixedDie(3));
+    expect(next.armor).toEqual([
+      { piece: "wonderItem", hp: 0, maxHp: 0, itemName: "Amulet of the Dead", effect: { kind: "ignoresMonsterAbility", ability: "undead" } },
+    ]);
+  });
+
+  it("Palace roll 6 redirects to the Magic Item table and, for an [Armor] grant, rolls the base Armor table and bakes the bonus into its HP", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
+    // Magic Item roll 3 -> Centurion's [Armor] (+1 HP); base Armor roll 3 (same forced die) -> Boots (3 HP).
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} }, fixedDie(3));
+    expect(next.armor).toEqual([{ piece: "boots", hp: 4, maxHp: 4, itemName: "Centurion's [Armor]", effect: undefined }]);
+  });
+
+  it("Palace roll 6 redirects to the Magic Item table and, for a [Weapon] grant, rolls the base Weapon table and attaches the bonus effect", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
+    // Magic Item roll 4 -> [Weapon] of Destruction (+2 damage); base Weapon roll 4 -> Whip (1d6+1).
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} }, fixedDie(4));
+    expect(next.weapon).toEqual({
+      name: "Whip",
+      formula: "1d6+1",
+      twoHanded: undefined,
+      bonusEffect: { kind: "weaponDamageBonus", amount: 2 },
+    });
   });
 
   it("Mana Potion (Tomb roll 1) restores every spell to its max uses", () => {
@@ -803,6 +857,59 @@ describe("OPEN_TREASURE", () => {
       maxSpellUses: { 1: 3, 6: 3 },
     });
     expect(next.spellUses).toEqual({ 1: 3, 6: 3 });
+  });
+
+  it("Crypt roll 5 redirects to the Wonders table; Potion of Luminescence (wonders roll 6) grants torches, capped at 10", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), dungeonTypeKey: "crypt", treasures: 1, torches: 5 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} }, fixedDie(6));
+    expect(next.torches).toBe(7);
+  });
+
+  it("grantsTorches never pushes the total past the 10-torch cap", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), dungeonTypeKey: "crypt", treasures: 1, torches: 9 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} }, fixedDie(6));
+    expect(next.torches).toBe(10);
+  });
+
+  it("Tomb roll 5 redirects to the Wonders table; Sapphire of Magic (wonders roll 5) grants a random Spell use", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), dungeonTypeKey: "tomb", treasures: 1, spellUses: {} };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} }, fixedDie(5));
+    expect(next.spellUses).toEqual({ 5: 1 });
+    expect(next.log[0]!.message).toContain("Lightning");
+  });
+
+  it("Crypt roll 6 redirects to the Magic Item table; Vampiric [Weapon] (magicItem roll 5) attaches a lifesteal bonusEffect", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), dungeonTypeKey: "crypt", treasures: 1 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} }, fixedDie(5));
+    expect(next.weapon).toEqual({
+      name: "Sickle",
+      formula: "1d6+1",
+      twoHanded: undefined,
+      bonusEffect: { kind: "lifesteal", amount: 1 },
+    });
+  });
+
+  it("Boatman's Oar (Crypt magicItem roll 6) uses its own fixed formula instead of rolling the base Weapon table", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), dungeonTypeKey: "crypt", treasures: 1 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} }, fixedDie(6));
+    expect(next.weapon).toEqual({
+      name: "Boatman's Oar",
+      formula: "1d6+1",
+      bonusEffect: { kind: "ignoresMonsterAbility", ability: "intangible" },
+    });
+  });
+
+  it("a negative extraHp Magic Item (Bone [Armor]) clamps the piece's HP at 0 instead of going negative", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), dungeonTypeKey: "tomb", treasures: 1 };
+    // Magic Item roll 1 -> Bone [Armor] (-1 HP); base Armor roll 1 (same forced die) -> Ring (0 HP).
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} }, fixedDie(1));
+    expect(next.armor).toEqual([{ piece: "ring", hp: 0, maxHp: 0, itemName: "Bone [Armor]", effect: undefined }]);
+  });
+
+  it("Prison roll 4 redirects straight to the Weapon table, bypassing Wonders/Magic Item entirely", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), dungeonTypeKey: "prison", treasures: 1 };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 4, maxSpellUses: {} }, fixedDie(3));
+    expect(next.weapon).toEqual({ name: "Spear", formula: "1d6+1", twoHanded: undefined });
   });
 });
 
@@ -827,7 +934,7 @@ describe("RESUME_DUNGEON", () => {
       type: "room-small",
       doors: [],
       monsters: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 },
-      remains: { names: ["An Even Earlier Hero"], coins: 3, treasures: 0, keys: 0, heldItems: [] },
+      remains: { names: ["An Even Earlier Hero"], coins: 3, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
     });
     const level = { ...makeLevel(1), segments: [room] };
     const persisted: DungeonState = {
@@ -848,6 +955,7 @@ describe("RESUME_DUNGEON", () => {
       dungeon: persisted,
       torches: 10,
       hp: 24,
+      maxHp: 24,
       weaponFormula: "1d6+1",
       spellUses: { 1: 2 },
       characterName: "New Hero",
@@ -874,6 +982,8 @@ describe("RESUME_DUNGEON", () => {
       treasures: 0,
       keys: 0,
       heldItems: [],
+    armor: [],
+    weapon: null,
     });
   });
 
@@ -898,6 +1008,7 @@ describe("RESUME_DUNGEON", () => {
       dungeon: persisted,
       torches: 10,
       hp: 20,
+      maxHp: 20,
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "New Hero",
@@ -934,6 +1045,8 @@ describe("RESUME_DUNGEON", () => {
       pendingLootRolls: 0,
       isBoss: true,
       outcome: "ongoing",
+      pendingDamage: null,
+      playerDamageBonus: 0,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -949,6 +1062,7 @@ describe("RESUME_DUNGEON", () => {
       dungeon: persisted,
       torches: 10,
       hp: 30,
+      maxHp: 30,
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "New Hero",
@@ -958,6 +1072,208 @@ describe("RESUME_DUNGEON", () => {
     expect(next.combat!.isBoss).toBe(true);
     expect(next.combat!.monsters[0]!.hp).toBe(24); // full HP again, not the 6 it was left at
     expect(next.selectedSegId).toBe(1);
+  });
+
+  it("starts the new character at the entrance (segment 1), not wherever the dead one left off", () => {
+    const entrance = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const entranceLevel = { ...makeLevel(1), segments: [entrance] };
+    const deepRoom = makeSegment({ id: 7, type: "room-small", doors: [] });
+    const deepLevel = { ...makeLevel(2), segments: [deepRoom] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [entranceLevel, deepLevel],
+      activeLevel: 1, // the dead character was on level 2 when they died
+      selectedSegId: 7,
+    };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RESUME_DUNGEON",
+      dungeon: persisted,
+      torches: 10,
+      hp: 20,
+      maxHp: 20,
+      weaponFormula: "1d6",
+      spellUses: {},
+      characterName: "New Hero",
+    });
+
+    expect(next.levels).toHaveLength(2); // the full map is still there, just not where you start
+    expect(next.activeLevel).toBe(0);
+    expect(next.selectedSegId).toBe(1);
+  });
+});
+
+describe("RETURN_TO_DUNGEON", () => {
+  it("carries over the map/exploration state AND the same character's exact resources", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(3, 12, "1d6"),
+      dungeonTypeKey: "palace",
+      dungeonName: "The Palace of the Secret Horrors",
+      levels: [level],
+      stats: { segments: 1, corridors: 0, rooms: 1, staircases: 0, doorsRemaining: 0, finalRooms: 0 },
+      log: [{ id: 1, message: "Some prior history", variant: "normal" }],
+    };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RETURN_TO_DUNGEON",
+      dungeon: persisted,
+      torches: 8, // after buying torches in town
+      hp: 20, // after resting
+      maxHp: 20,
+      coins: 4,
+      treasures: 1,
+      keys: 2,
+      heldItems: [{ name: "Ornament", worth: 5 }],
+      armor: [],
+      weapon: null,
+      weaponFormula: "1d6",
+      spellUses: { 1: 3 },
+      characterName: "Pip",
+    });
+
+    expect(next.dungeonName).toBe("The Palace of the Secret Horrors");
+    expect(next.levels).toHaveLength(1);
+    expect(next.log.some((entry) => entry.message === "Some prior history")).toBe(true);
+    expect(next.log.some((entry) => entry.message === "You return to the dungeon.")).toBe(true);
+    // the same character's own resources carry over exactly, unlike RESUME_DUNGEON
+    expect(next.torches).toBe(8);
+    expect(next.hp).toBe(20);
+    expect(next.maxHp).toBe(20);
+    expect(next.coins).toBe(4);
+    expect(next.treasures).toBe(1);
+    expect(next.keys).toBe(2);
+    expect(next.heldItems).toEqual([{ name: "Ornament", worth: 5 }]);
+    expect(next.spellUses).toEqual({ 1: 3 });
+    expect(next.alive).toBe(true);
+    expect(next.characterName).toBe("Pip");
+  });
+
+  it("preserves maxHp even when returning without full HP (regression: Rest healing to a shrunken max)", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+    };
+
+    // Retreated without resting first -- hp (12) is well below the true max (20).
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RETURN_TO_DUNGEON",
+      dungeon: persisted,
+      torches: 5,
+      hp: 12,
+      maxHp: 20,
+      coins: 0,
+      treasures: 0,
+      keys: 0,
+      heldItems: [],
+      armor: [],
+      weapon: null,
+      weaponFormula: "1d6",
+      spellUses: {},
+      characterName: "Pip",
+    });
+
+    expect(next.hp).toBe(12);
+    expect(next.maxHp).toBe(20); // NOT clamped down to the current, reduced hp
+  });
+
+  it("respawns an interrupted fight at full HP, same as RESUME_DUNGEON", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const combat: CombatState = {
+      segId: 1,
+      monsters: [
+        {
+          id: 1,
+          name: "Orc",
+          hp: 2,
+          maxHp: 6,
+          damage: 3,
+          abilities: [],
+          bonusDamage: 0,
+          deathtouchPending: false,
+          paralyzePending: 0,
+          skipNextAttack: false,
+        },
+      ],
+      paralyzedTurns: 0,
+      pendingLootRolls: 0,
+      isBoss: false,
+      outcome: "ongoing",
+      pendingDamage: null,
+      playerDamageBonus: 0,
+    };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+      combat,
+    };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RETURN_TO_DUNGEON",
+      dungeon: persisted,
+      torches: 10,
+      hp: 20,
+      maxHp: 20,
+      coins: 0,
+      treasures: 0,
+      keys: 0,
+      heldItems: [],
+      armor: [],
+      weapon: null,
+      weaponFormula: "1d6",
+      spellUses: {},
+      characterName: "Pip",
+    });
+
+    expect(next.combat).not.toBeNull();
+    expect(next.combat!.monsters[0]!.hp).toBe(6); // full HP again, not the 2 it was left at
+    expect(next.selectedSegId).toBe(1);
+  });
+
+  it("keeps the same character's exact position, unlike RESUME_DUNGEON's reset to the entrance", () => {
+    const entrance = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const entranceLevel = { ...makeLevel(1), segments: [entrance] };
+    const deepRoom = makeSegment({ id: 7, type: "room-small", doors: [] });
+    const deepLevel = { ...makeLevel(2), segments: [deepRoom] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [entranceLevel, deepLevel],
+      activeLevel: 1,
+      selectedSegId: 7,
+    };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RETURN_TO_DUNGEON",
+      dungeon: persisted,
+      torches: 10,
+      hp: 20,
+      maxHp: 20,
+      coins: 0,
+      treasures: 0,
+      keys: 0,
+      heldItems: [],
+      armor: [],
+      weapon: null,
+      weaponFormula: "1d6",
+      spellUses: {},
+      characterName: "Pip",
+    });
+
+    expect(next.activeLevel).toBe(1);
+    expect(next.selectedSegId).toBe(7);
   });
 });
 

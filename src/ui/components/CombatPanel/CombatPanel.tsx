@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { CombatState } from "../../../engine/dungeonState.ts";
-import type { MonsterAbility } from "../../../data/dungeonTables.ts";
+import type { ArmorPiece, CombatState } from "../../../engine/dungeonState.ts";
+import { ARMOR_PIECE_LABELS, type MonsterAbility } from "../../../data/dungeonTables.ts";
 import { SPELL_TABLE } from "../../../data/spells.ts";
 import { rollWeaponDamage } from "../../../engine/combat.ts";
 import { Die } from "../Die/Die.tsx";
@@ -13,10 +13,12 @@ export interface CombatPanelProps {
   maxHp: number;
   weaponName: string;
   weaponFormula: string;
+  armor: ArmorPiece[];
   /** Remaining uses per spell, keyed by its 1d6 Basic Spells table roll. */
   spellUses: Record<number, number>;
   onAttack: (targetId: number, roll: number) => void;
   onCastSpell: (spellRoll: number, targetId?: number) => void;
+  onResolveDamage: (absorbWith: "hp" | number) => void;
 }
 
 /** Cold Ray and Lightning target one monster; Heal/Light/Fireball/Teleport don't. */
@@ -54,16 +56,19 @@ export function CombatPanel({
   maxHp,
   weaponName,
   weaponFormula,
+  armor,
   spellUses,
   onAttack,
   onCastSpell,
+  onResolveDamage,
 }: CombatPanelProps) {
   const [dieValue, setDieValue] = useState(1);
   const [rollToken, setRollToken] = useState(0);
   const [rolling, setRolling] = useState(false);
 
   const paralyzed = combat.paralyzedTurns > 0;
-  const canAct = !rolling && !paralyzed;
+  const awaitingDamageChoice = combat.pendingDamage !== null;
+  const canAct = !rolling && !paralyzed && !awaitingDamageChoice;
   const knownSpellRolls = Object.entries(spellUses)
     .filter(([, uses]) => uses > 0)
     .map(([roll]) => Number(roll))
@@ -164,6 +169,24 @@ export function CombatPanel({
               {SPELL_TABLE[spellRoll]!.name} ({spellUses[spellRoll]})
             </button>
           ))}
+        </div>
+      )}
+
+      {awaitingDamageChoice && (
+        <div className={styles.paralyzed}>
+          <p>Take {combat.pendingDamage} damage: your call -- absorb it with your HP, or a piece of armor.</p>
+          <div className={styles.monsterActions}>
+            <button type="button" className={styles.attackBtn} onClick={() => onResolveDamage("hp")}>
+              HP ({hp}/{maxHp})
+            </button>
+            {armor.map((piece, index) =>
+              piece.hp > 0 ? (
+                <button key={index} type="button" className={styles.attackBtn} onClick={() => onResolveDamage(index)}>
+                  {piece.itemName ?? ARMOR_PIECE_LABELS[piece.piece]} ({piece.hp}/{piece.maxHp})
+                </button>
+              ) : null,
+            )}
+          </div>
         </div>
       )}
 

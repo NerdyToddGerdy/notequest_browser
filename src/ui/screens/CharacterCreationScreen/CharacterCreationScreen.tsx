@@ -9,7 +9,6 @@ import {
   rollSpell,
 } from "../../../engine/character.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
-import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import { SPELL_TABLE } from "../../../data/spells.ts";
 import type { ClassDef, CreatedCharacter, RaceDef, SpellDef } from "../../../data/types.ts";
 import { revealDelay } from "../../rollTiming.ts";
@@ -40,11 +39,11 @@ interface SpellRollState {
 const initialSpellRoll: SpellRollState = { values: [], rollToken: 0, entries: null, revealing: false };
 
 export interface CharacterCreationScreenProps {
-  pendingDungeons: PendingDungeon[];
-  onDescend: (character: CreatedCharacter, resumeDungeon: PendingDungeon | null) => void;
+  /** The character heads to Town next, not straight into a dungeon -- see App.tsx's screen state. */
+  onCharacterCreated: (character: CreatedCharacter) => void;
 }
 
-export function CharacterCreationScreen({ pendingDungeons, onDescend }: CharacterCreationScreenProps) {
+export function CharacterCreationScreen({ onCharacterCreated }: CharacterCreationScreenProps) {
   const [name, setName] = useState("");
   const [race, setRace] = useState<RollState<RaceDef>>(() => initialRoll(2));
   const [cls, setCls] = useState<RollState<ClassDef>>(() => initialRoll(2));
@@ -109,7 +108,7 @@ export function CharacterCreationScreen({ pendingDungeons, onDescend }: Characte
   const hasName = name.trim().length > 0;
   const canBegin = hasName && race.entry !== null && cls.entry !== null && spellsSatisfied && !sealed;
 
-  function handleBegin(resumeDungeon: PendingDungeon | null = null) {
+  function handleBegin() {
     if (!canBegin || !race.entry || !cls.entry) return;
     setSealed(true);
     const character: CreatedCharacter = {
@@ -122,7 +121,7 @@ export function CharacterCreationScreen({ pendingDungeons, onDescend }: Characte
       torches: STARTING_TORCHES,
       coins: STARTING_COINS,
     };
-    window.setTimeout(() => onDescend(character, resumeDungeon), SEAL_TO_DESCEND_MS);
+    window.setTimeout(() => onCharacterCreated(character), SEAL_TO_DESCEND_MS);
   }
 
   const spellsNoteText = useMemo(() => {
@@ -141,9 +140,9 @@ export function CharacterCreationScreen({ pendingDungeons, onDescend }: Characte
 
   const beginStatusText =
     sealed && race.entry && cls.entry
-      ? `${name.trim()}, the ${race.entry.name} ${cls.entry.name} — ${computeTotalHp(race.entry, cls.entry)} HP, ${STARTING_TORCHES} torches, ${STARTING_COINS} coins. The dungeon awaits.`
+      ? `${name.trim()}, the ${race.entry.name} ${cls.entry.name} — ${computeTotalHp(race.entry, cls.entry)} HP, ${STARTING_TORCHES} torches, ${STARTING_COINS} coins. The town awaits.`
       : !sealed && !hasName && (race.entry || cls.entry)
-        ? "Name your adventurer before descending."
+        ? "Name your adventurer before setting out."
         : "";
 
   return (
@@ -324,36 +323,13 @@ export function CharacterCreationScreen({ pendingDungeons, onDescend }: Characte
               type="button"
               data-testid="begin-btn"
               disabled={!canBegin}
-              onClick={() => handleBegin(null)}
+              onClick={() => handleBegin()}
             >
-              {sealed ? "Character Sealed" : "Descend Into the Dungeon"}
+              {sealed ? "Character Sealed" : "Set Out for Town"}
             </button>
             <p className={styles.beginStatus} data-testid="begin-status" aria-live="polite">
               {beginStatusText}
             </p>
-
-            {pendingDungeons.length > 0 && (
-              <div className={styles.resumeSection}>
-                <p className={styles.resumeLabel}>Or take up an unfinished dungeon:</p>
-                <ul className={styles.resumeList}>
-                  {pendingDungeons.map((pd) => (
-                    <li key={pd.id}>
-                      <button
-                        className={styles.resumeBtn}
-                        type="button"
-                        disabled={!canBegin}
-                        onClick={() => handleBegin(pd)}
-                      >
-                        <span className={styles.resumeName}>
-                          {pd.dungeon.dungeonName ?? "An unnamed dungeon"} — Level {pd.dungeon.activeLevel + 1}
-                        </span>
-                        <span className={styles.resumeMeta}>last explored by {pd.lastCharacterName}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </footer>
         </div>
       </main>

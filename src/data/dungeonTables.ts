@@ -41,12 +41,13 @@ export interface MonsterTemplate {
 }
 
 /**
- * What opening a Treasure actually does. Only the outcomes this app can mechanically apply are
- * modeled here (held valuables, healing, spells); the "[Roll in the Wonders/Magic Item column]"
- * redirects and the Prison table's "[Roll in the Weapon table]" aren't -- those columns are
- * unmodeled (armor/weapon items), so they resolve as flavor text only, same as this codebase's
- * other "not modeled" outcomes. "worth N Coins in the town" isn't paid out as coins on the spot
- * either -- there's no town to sell it in yet, so it becomes a held item instead (see HeldItem).
+ * What opening a Treasure actually does. "worth N Coins in the town" isn't paid out as coins on
+ * the spot -- it becomes a held item instead, sellable in Town (see HeldItem). The Reward table's
+ * "[Roll in the Wonders/Magic Item column]" redirects (and Prison's "[Roll in the Weapon table]")
+ * are `rerollColumn` -- see ItemEffect/WonderEntry/MagicItemEntry below for what those columns
+ * actually grant. Only Palace's Wonders/Magic Item tables are fully authored so far (the other
+ * five dungeon types' Treasure rows that would redirect there still resolve as flavor-only text,
+ * matching this codebase's other "not modeled" outcomes, until a later pass authors them too).
  */
 export type RewardEffect =
   | { kind: "heldValue"; name: string; amount: number }
@@ -54,11 +55,99 @@ export type RewardEffect =
   | { kind: "healAll" }
   | { kind: "restoreAllSpells" }
   | { kind: "randomSpell" }
+  | { kind: "rerollColumn"; column: "wonders" | "magicItem" | "weapon" }
   | { kind: "flavor" };
 
 export interface RewardOutcome {
   text: string;
   effect: RewardEffect;
+}
+
+/** Table: Armor (1d6) -- identical across all six dungeon types, unlike Weapon. "Ring" (0 HP) is
+ * a dud roll reconciling the rulebook's "5 pieces" prose with the table's 6 rows: it can never
+ * actually absorb damage. `"wonderItem"` isn't a real Armor table row -- it's used for Wonders
+ * that are themselves a bespoke protective item (e.g. "Jester Hat (2 HP)"), which grant their own
+ * HP pool outside the 5 named pieces (see WonderEntry.grantsHp). */
+export type ArmorPieceKind = "ring" | "bracelets" | "boots" | "shoulderpads" | "helm" | "breastplate" | "wonderItem";
+
+export const ARMOR_PIECE_LABELS: Record<ArmorPieceKind, string> = {
+  ring: "Ring",
+  bracelets: "Bracelets",
+  boots: "Boots",
+  shoulderpads: "Shoulderpads",
+  helm: "Helm",
+  breastplate: "Breastplate",
+  wonderItem: "Trinket",
+};
+
+export interface ArmorTableEntry {
+  piece: ArmorPieceKind;
+  maxHp: number;
+}
+
+export const ARMOR_TABLE: Record<number, ArmorTableEntry> = {
+  1: { piece: "ring", maxHp: 0 },
+  2: { piece: "bracelets", maxHp: 2 },
+  3: { piece: "boots", maxHp: 3 },
+  4: { piece: "shoulderpads", maxHp: 3 },
+  5: { piece: "helm", maxHp: 4 },
+  6: { piece: "breastplate", maxHp: 10 },
+};
+
+/** Table: Weapon (1d6) -- unique per dungeon type (different names/dice), unlike Armor. */
+export interface WeaponEntry {
+  name: string;
+  formula: string;
+  /** Conflicts with holding a torch per the rulebook's "Your Hands" section; not enforced -- this
+   * app has no hand-economy/limb-tracking system, so it's informational only (same treatment as
+   * other consciously-deferred rules -- see the stub list in CLAUDE.md). */
+  twoHanded?: boolean;
+}
+
+/**
+ * The mechanical shape of a Wonder or Magic Item's unique ability. A small, reusable vocabulary --
+ * extend only when a genuinely new shape turns up, not speculatively. `tags` matching against a
+ * monster is done by case-insensitive substring match on `MonsterTemplate.name` (there's no formal
+ * monster-category system in this codebase, and the rulebook itself only ever refers to monster
+ * types by name, e.g. "Deals +2 damage to Angels") -- an array since at least one item (Garlic
+ * necklace: "+1 against Vampire and Ghoul") names more than one.
+ */
+export type ItemEffect =
+  | { kind: "extraHp"; amount: number }
+  | { kind: "weaponDamageBonus"; amount: number }
+  | { kind: "damageBonusVsTag"; tags: string[]; amount: number }
+  | { kind: "damageMultiplierVsTag"; tags: string[]; multiplier: number }
+  | { kind: "ignoresMonsterAbility"; ability: MonsterAbility }
+  | { kind: "trapImmunity" }
+  | { kind: "doubleChestCoins" }
+  | { kind: "combatDamageBonus"; amount: number }
+  | { kind: "grantsTorches"; amount: number }
+  | { kind: "randomSpell" }
+  | { kind: "lifesteal"; amount: number }
+  | { kind: "instantKillOnRoll"; roll: number }
+  | { kind: "flavor" };
+
+export interface WonderEntry {
+  name: string;
+  text: string;
+  /** Set only for Wonders that are themselves a wearable item with its own HP (e.g. "Jester Hat
+   * (2 HP)") -- granted as a `"wonderItem"` ArmorPiece, not rolled on the Armor table. */
+  grantsHp?: number;
+  effect: ItemEffect;
+}
+
+/** Magic Item entries are always "[Armor] of X" or "[Weapon] of X" -- `grants` says which base
+ * table (Armor or the dungeon's own Weapon table) gets rolled for the concrete piece/weapon that
+ * this item's `effect` then layers its bonus on top of. */
+export interface MagicItemEntry {
+  name: string;
+  text: string;
+  grants: "armor" | "weapon";
+  effect: ItemEffect;
+  /** Overrides the base Weapon table roll with this fixed formula, using `name` as the weapon's
+   * own name directly -- for uniquely-named weapons (e.g. "Boatman's Oar (1d6+1 Dmg)") that don't
+   * fit the usual "roll the dungeon's Weapon table, then layer a bonus on top" shape. */
+  fixedFormula?: string;
 }
 
 export interface DungeonTypeTables {
@@ -70,8 +159,14 @@ export interface DungeonTypeTables {
   monsters: Record<number, MonsterTemplate | null>;
   /** Table: Boss (1d6). Rolled once when the Final Room is placed; no Content/Monsters roll alongside it. */
   boss: Record<number, MonsterTemplate>;
-  /** Table: Reward (1d6), "Treasure" column only -- see RewardEffect for why. */
+  /** Table: Reward (1d6), "Treasure" column. */
   treasure: Record<number, RewardOutcome>;
+  /** Table: Weapon (1d6). */
+  weapon: Record<number, WeaponEntry>;
+  /** Table: Reward's "Wonders" column (1d6). */
+  wonders: Record<number, WonderEntry>;
+  /** Table: Reward's "Magic Item" column (1d6). */
+  magicItem: Record<number, MagicItemEntry>;
 }
 
 const ABILITY_LABELS: Record<MonsterAbility, string> = {
@@ -102,6 +197,39 @@ export function formatMonsterTemplate(template: MonsterTemplate): string {
   return `${formatMonsterCount(template.count)} ${template.name} (${stats})`;
 }
 
+/** Renders a Wonder/Magic Item's `ItemEffect` into a short, human-readable line for a hover
+ * tooltip, e.g. "+2 damage" or "Ignores Paralyze" -- `extraHp` and `flavor` return `null` since
+ * they're either already visible as the piece's HP or have no mechanical effect to explain. */
+export function describeItemEffect(effect: ItemEffect): string | null {
+  switch (effect.kind) {
+    case "weaponDamageBonus":
+      return `+${effect.amount} damage`;
+    case "damageBonusVsTag":
+      return `+${effect.amount} damage vs ${effect.tags.join(" and ")}`;
+    case "damageMultiplierVsTag":
+      return `${effect.multiplier}x damage vs ${effect.tags.join(" and ")}`;
+    case "ignoresMonsterAbility":
+      return `Ignores ${ABILITY_LABELS[effect.ability]}`;
+    case "trapImmunity":
+      return "Ignores the next activated trap";
+    case "doubleChestCoins":
+      return "Doubles coins found in chests";
+    case "combatDamageBonus":
+      return `+${effect.amount} damage until the end of the fight`;
+    case "grantsTorches":
+      return `Grants ${effect.amount} torch${effect.amount === 1 ? "" : "es"}`;
+    case "randomSpell":
+      return "Grants a random Spell";
+    case "lifesteal":
+      return `Recovers ${effect.amount} HP with each attack`;
+    case "instantKillOnRoll":
+      return `Kills instantly on a roll of ${effect.roll}`;
+    case "extraHp":
+    case "flavor":
+      return null;
+  }
+}
+
 const BLADE_TRAP: TrapEntry = {
   text: "A blade falls from the ceiling. Roll the dice. On a 2 you lose one of your arms and on a 1 you die.",
 };
@@ -120,15 +248,6 @@ const VALUABLE_JEWEL: RewardOutcome = {
   text: "Valuable jewel (worth 2d6 x 10 Coins in the town).",
   effect: { kind: "heldValueRoll", name: "Valuable jewel", dice: 2, sides: 6, multiplier: 10 },
 };
-const WONDER_UNMODELED: RewardOutcome = {
-  text: "You find a Wonder -- not modeled, no mechanical effect.",
-  effect: { kind: "flavor" },
-};
-const MAGIC_ITEM_UNMODELED: RewardOutcome = {
-  text: "You find a Magic Item -- not modeled, no mechanical effect.",
-  effect: { kind: "flavor" },
-};
-
 export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   palace: {
     trap: {
@@ -178,8 +297,88 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: WONDER_UNMODELED,
-      6: MAGIC_ITEM_UNMODELED,
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Candlestick", formula: "1d6-1" },
+      2: { name: "Sword", formula: "1d6" },
+      3: { name: "Rapier", formula: "1d6+1" },
+      4: { name: "Whip", formula: "1d6+1" },
+      5: { name: "Claw", formula: "1d6+1" },
+      6: { name: "Halberd", formula: "1d6+3", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Jester Hat",
+        text: "Jester Hat (2 HP; Can't Move in Silence).",
+        grantsHp: 2,
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Emperor's Sandals",
+        text: "Emperor's Sandals (2 HP; +1 dmg against cockroaches).",
+        grantsHp: 2,
+        effect: { kind: "damageBonusVsTag", tags: ["cockroach"], amount: 1 },
+      },
+      3: {
+        name: "Amulet of the Dead",
+        text: "Amulet of the Dead (Ignores Undead effect).",
+        effect: { kind: "ignoresMonsterAbility", ability: "undead" },
+      },
+      4: {
+        name: "Potion of Luck",
+        text: "Potion of Luck (Ignores the next activated Trap).",
+        effect: { kind: "trapImmunity" },
+      },
+      5: {
+        name: "Potion of Fury",
+        text: "Potion of Fury (Damage +2 until the end of the fight).",
+        effect: { kind: "combatDamageBonus", amount: 2 },
+      },
+      6: {
+        name: "Lamp",
+        text: "Lamp (No need to use hands to light).",
+        effect: { kind: "flavor" },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "[Armor] of Royalty",
+        text: "[Armor] of Royalty (It is very elegant).",
+        grants: "armor",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Leprechaun's [Armor]",
+        text: "Leprechaun's [Armor] (Earn double coins in chests).",
+        grants: "armor",
+        effect: { kind: "doubleChestCoins" },
+      },
+      3: {
+        name: "Centurion's [Armor]",
+        text: "Centurion's [Armor] (+1 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 1 },
+      },
+      4: {
+        name: "[Weapon] of Destruction",
+        text: "[Weapon] of Destruction (Deals +2 damage).",
+        grants: "weapon",
+        effect: { kind: "weaponDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "[Weapon] of War",
+        text: "[Weapon] of War (Deals +2 damage to Angels).",
+        grants: "weapon",
+        effect: { kind: "damageBonusVsTag", tags: ["angel"], amount: 2 },
+      },
+      6: {
+        name: "[Weapon] of the Dragon Slayer",
+        text: "[Weapon] of the Dragon Slayer (Double damage against Dragons).",
+        grants: "weapon",
+        effect: { kind: "damageMultiplierVsTag", tags: ["dragon"], multiplier: 2 },
+      },
     },
   },
   crypt: {
@@ -233,8 +432,87 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: WONDER_UNMODELED,
-      6: MAGIC_ITEM_UNMODELED,
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Femur", formula: "1d6-1" },
+      2: { name: "Pickaxe", formula: "1d6" },
+      3: { name: "Dagger", formula: "1d6" },
+      4: { name: "Warhammer", formula: "1d6+1" },
+      5: { name: "Sickle", formula: "1d6+1" },
+      6: { name: "Glaive", formula: "1d6+2", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Garlic necklace",
+        text: "Garlic necklace (+1 against Vampire and Ghoul).",
+        effect: { kind: "damageBonusVsTag", tags: ["vampire", "ghoul"], amount: 1 },
+      },
+      2: {
+        name: "Potion of Luck",
+        text: "Potion of Luck (Ignores the next activated Trap).",
+        effect: { kind: "trapImmunity" },
+      },
+      3: {
+        name: "Potion of Fury",
+        text: "Potion of Fury (Damage +2 until the end of the fight).",
+        effect: { kind: "combatDamageBonus", amount: 2 },
+      },
+      4: {
+        name: "Salamander Potion",
+        text: "Salamander Potion (Recovers lost arm).",
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Master key",
+        text: "Master key (Open any door).",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Potion of Luminescence",
+        text: "Potion of Luminescence (Worth like two torches).",
+        effect: { kind: "grantsTorches", amount: 2 },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "[Armor] of the Dead",
+        text: "[Armor] of the Dead (It always stinks).",
+        grants: "armor",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "[Armor] of the Spider Queen",
+        text: "[Armor] of the Spider Queen (ignores the effect Paralyze).",
+        grants: "armor",
+        effect: { kind: "ignoresMonsterAbility", ability: "paralyze" },
+      },
+      3: {
+        name: "Count's [Armor]",
+        text: "Count's [Armor] (+2 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 2 },
+      },
+      4: {
+        name: "[Weapon] of Destruction",
+        text: "[Weapon] of Destruction (Deals +2 damage).",
+        grants: "weapon",
+        effect: { kind: "weaponDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "Vampiric [Weapon]",
+        text: "Vampiric [Weapon] (Recovers 1 HP with each attack).",
+        grants: "weapon",
+        effect: { kind: "lifesteal", amount: 1 },
+      },
+      6: {
+        name: "Boatman's Oar",
+        text: "Boatman's Oar (1d6+1 Dmg; ignores Intangible).",
+        grants: "weapon",
+        fixedFormula: "1d6+1",
+        effect: { kind: "ignoresMonsterAbility", ability: "intangible" },
+      },
     },
   },
   tomb: {
@@ -285,8 +563,86 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: WONDER_UNMODELED,
-      6: MAGIC_ITEM_UNMODELED,
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Shovel", formula: "1d6-1" },
+      2: { name: "Sword", formula: "1d6" },
+      3: { name: "Axe", formula: "1d6+1" },
+      4: { name: "Warhammer", formula: "1d6+1" },
+      5: { name: "Sickle", formula: "1d6+1" },
+      6: { name: "Scythe", formula: "1d6+2", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Crown of the beheaded prince",
+        text: "Crown of the beheaded prince (Does not die in blade traps).",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Potion of Luck",
+        text: "Potion of Luck (Ignores the next activated Trap).",
+        effect: { kind: "trapImmunity" },
+      },
+      3: {
+        name: "Potion of Luck",
+        text: "Potion of Luck (Ignores the next activated Trap).",
+        effect: { kind: "trapImmunity" },
+      },
+      4: {
+        name: "Potion of Fury",
+        text: "Potion of Fury (Damage +2 until the end of the fight).",
+        effect: { kind: "combatDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "Sapphire of Magic",
+        text: "Sapphire of Magic (Learn a random Spell).",
+        effect: { kind: "randomSpell" },
+      },
+      6: {
+        name: "Lamp",
+        text: "Lamp (No need to use hands to light).",
+        effect: { kind: "flavor" },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "Bone [Armor]",
+        text: "Bone [Armor] (-1 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: -1 },
+      },
+      2: {
+        name: "[Armor] of Strength",
+        text: "[Armor] of Strength (+1 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 1 },
+      },
+      3: {
+        name: "[Armor] of the Special Guard",
+        text: "[Armor] of the Special Guard (+1 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 1 },
+      },
+      4: {
+        name: "[Weapon] of Destruction",
+        text: "[Weapon] of Destruction (Deals +2 damage).",
+        grants: "weapon",
+        effect: { kind: "weaponDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "Vampiric [Weapon]",
+        text: "Vampiric [Weapon] (Recovers 1 HP with each attack).",
+        grants: "weapon",
+        effect: { kind: "lifesteal", amount: 1 },
+      },
+      6: {
+        name: "Vorpal [Weapon]",
+        text: "Vorpal [Weapon] (Kills instantly when get '6' on the die).",
+        grants: "weapon",
+        effect: { kind: "instantKillOnRoll", roll: 6 },
+      },
     },
   },
   sanctuary: {
@@ -340,8 +696,89 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: WONDER_UNMODELED,
-      6: MAGIC_ITEM_UNMODELED,
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Pan", formula: "1d6-1" },
+      2: { name: "Machete", formula: "1d6" },
+      3: { name: "Sword", formula: "1d6+1" },
+      4: { name: "Warhammer", formula: "1d6+1" },
+      5: { name: "Mace", formula: "1d6+1" },
+      6: { name: "Scythe", formula: "1d6+3", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Protector Candle",
+        text: "Protector Candle (Discard and next chest will be double).",
+        // Simplified from a one-shot "next chest" consumable to a standing effect while held --
+        // matches Leprechaun's [Armor]'s doubleChestCoins exactly, avoiding a separate one-use
+        // charge-tracking mechanism for a single item.
+        effect: { kind: "doubleChestCoins" },
+      },
+      2: {
+        name: "Blessed Potion",
+        text: "Blessed Potion (Destroy a cursed item).",
+        effect: { kind: "flavor" },
+      },
+      3: {
+        name: "Potion of Luck",
+        text: "Potion of Luck (Ignores the next activated Trap).",
+        effect: { kind: "trapImmunity" },
+      },
+      4: {
+        name: "Potion of Fury",
+        text: "Potion of Fury (Damage +2 until the end of the fight).",
+        effect: { kind: "combatDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "Master key",
+        text: "Master key (Open any door).",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Potion of Luminescence",
+        text: "Potion of Luminescence (Worth like two torches).",
+        effect: { kind: "grantsTorches", amount: 2 },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "Priest's [Armor]",
+        text: "Priest's [Armor] (Covered by religious symbols).",
+        grants: "armor",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "[Armor] of the Gods",
+        text: "[Armor] of the Gods (ignore Deathtouch).",
+        grants: "armor",
+        effect: { kind: "ignoresMonsterAbility", ability: "deathtouch" },
+      },
+      3: {
+        name: "Angelic [Armor]",
+        text: "Angelic [Armor] (+2 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 2 },
+      },
+      4: {
+        name: "[Weapon] of Destruction",
+        text: "[Weapon] of Destruction (Deals +2 damage).",
+        grants: "weapon",
+        effect: { kind: "weaponDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "Vampiric [Weapon]",
+        text: "Vampiric [Weapon] (Recovers 1 HP with each attack).",
+        grants: "weapon",
+        effect: { kind: "lifesteal", amount: 1 },
+      },
+      6: {
+        name: "Vorpal [Weapon]",
+        text: "Vorpal [Weapon] (Kills instantly when get '6' on the die).",
+        grants: "weapon",
+        effect: { kind: "instantKillOnRoll", roll: 6 },
+      },
     },
   },
   temple: {
@@ -395,8 +832,86 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: WONDER_UNMODELED,
-      6: MAGIC_ITEM_UNMODELED,
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Hacksaw", formula: "1d6-1" },
+      2: { name: "Saber", formula: "1d6" },
+      3: { name: "Kukri", formula: "1d6" },
+      4: { name: "Scimitar", formula: "1d6+1" },
+      5: { name: "Mace", formula: "1d6+1" },
+      6: { name: "Sword", formula: "1d6+1" },
+    },
+    wonders: {
+      1: {
+        name: "Potion of the Color That Came from Beyond",
+        text: "Potion of the Color That Came from Beyond (Hair gets a random color).",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Potion of Luck",
+        text: "Potion of Luck (Ignores the next activated Trap).",
+        effect: { kind: "trapImmunity" },
+      },
+      3: {
+        name: "Potion of Fury",
+        text: "Potion of Fury (Damage +2 until the end of the fight).",
+        effect: { kind: "combatDamageBonus", amount: 2 },
+      },
+      4: {
+        name: "Potion of the Helping hand",
+        text: "Potion of the Helping hand (Creates a new arm).",
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Master key",
+        text: "Master key (Open any door).",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Sapphire of Magic",
+        text: "Sapphire of Magic (Learn a random Spell).",
+        effect: { kind: "randomSpell" },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "Cultist's [Armor]",
+        text: "Cultist's [Armor] (Discard to ignore a Trap).",
+        grants: "armor",
+        effect: { kind: "trapImmunity" },
+      },
+      2: {
+        name: "Scaled [Armor]",
+        text: "Scaled [Armor] (+1 Damage against Snakes).",
+        grants: "armor",
+        effect: { kind: "damageBonusVsTag", tags: ["snake"], amount: 1 },
+      },
+      3: {
+        name: "Infernal [Armor]",
+        text: "Infernal [Armor] (+3 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 3 },
+      },
+      4: {
+        name: "[Weapon] of Destruction",
+        text: "[Weapon] of Destruction (Deals +2 damage).",
+        grants: "weapon",
+        effect: { kind: "weaponDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "Cosmic [Weapon]",
+        text: "Cosmic [Weapon] (On a '1' it opens a Portal).",
+        grants: "weapon",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Vorpal [Weapon]",
+        text: "Vorpal [Weapon] (Kills instantly when get '6' on the die).",
+        grants: "weapon",
+        effect: { kind: "instantKillOnRoll", roll: 6 },
+      },
     },
   },
   prison: {
@@ -446,9 +961,87 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       1: HEALTH_POTION,
       2: MAGIC_SCROLL,
       3: VALUABLE_JEWEL,
-      4: { text: "You find a Weapon -- not modeled, no mechanical effect.", effect: { kind: "flavor" } },
-      5: WONDER_UNMODELED,
-      6: MAGIC_ITEM_UNMODELED,
+      4: { text: "Roll on the Weapon table.", effect: { kind: "rerollColumn", column: "weapon" } },
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "BBQ Stick", formula: "1d6-2" },
+      2: { name: "Machete", formula: "1d6" },
+      3: { name: "Spear", formula: "1d6+1" },
+      4: { name: "Spear", formula: "1d6+1" },
+      5: { name: "Lance", formula: "1d6+2", twoHanded: true },
+      6: { name: "Lance", formula: "1d6+2", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Goblin Whistle",
+        text: "Goblin Whistle (Summons a friendly Goblin).",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Potion of Luck",
+        text: "Potion of Luck (Ignores the next activated Trap).",
+        effect: { kind: "trapImmunity" },
+      },
+      3: {
+        name: "Potion of Fury",
+        text: "Potion of Fury (Damage +2 until the end of the fight).",
+        effect: { kind: "combatDamageBonus", amount: 2 },
+      },
+      4: {
+        name: "Salamander Potion",
+        text: "Salamander Potion (Grow a tail).",
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Master key",
+        text: "Master key (Open any door).",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Lamp",
+        text: "Lamp (A lamp that never runs out of oil).",
+        effect: { kind: "flavor" },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "[Armor] of the Goblin Hero",
+        text: "[Armor] of the Goblin Hero (-2 HP, but it's stylish).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: -2 },
+      },
+      2: {
+        name: "[Armor] of Strength",
+        text: "[Armor] of Strength (+1 Damage).",
+        grants: "armor",
+        effect: { kind: "weaponDamageBonus", amount: 1 },
+      },
+      3: {
+        name: "Elven [Armor]",
+        text: "Elven [Armor] (+2 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 2 },
+      },
+      4: {
+        name: "[Weapon] of Destruction",
+        text: "[Weapon] of Destruction (Deals +2 damage).",
+        grants: "weapon",
+        effect: { kind: "weaponDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "[Weapon] of the Dragon",
+        text: "[Weapon] of the Dragon (Immune to Firebreath).",
+        grants: "weapon",
+        effect: { kind: "ignoresMonsterAbility", ability: "firebreath" },
+      },
+      6: {
+        name: "Vorpal [Weapon]",
+        text: "Vorpal [Weapon] (Kills instantly when get '6' on the die).",
+        grants: "weapon",
+        effect: { kind: "instantKillOnRoll", roll: 6 },
+      },
     },
   },
 };
