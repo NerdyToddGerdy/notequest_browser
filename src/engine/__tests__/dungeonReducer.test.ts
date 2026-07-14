@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dungeonReducer } from "../dungeonReducer.ts";
-import { DUNGEON_TABLES } from "../../data/dungeonTables.ts";
+import { DUNGEON_TABLES, type MonsterTemplate } from "../../data/dungeonTables.ts";
 import {
   createInitialDungeonState,
   isDungeonBeaten,
@@ -1980,6 +1980,74 @@ describe("Monster table re-roll on return", () => {
     expect(seg.chestResult).toBe("5 coins, 2 Treasures.");
     expect(seg.secretPassageSearched).toBe(true);
     expect(seg.secretPassageResult).toBe("Nothing here.");
+  });
+});
+
+describe("Resuming a fight abandoned via Teleport", () => {
+  // Teleport (CAST_SPELL spellRoll 3) clears combat outright without marking the segment's
+  // monsters defeated -- unlike a death or a Town retreat mid-fight, there's no persisted
+  // CombatState left behind for anything to eagerly respawn, so nothing previously picked the
+  // fight back up: it just silently vanished forever, boss included.
+
+  it("re-engages a fled fight the moment the player selects that segment again, in the same session", () => {
+    const monster: MonsterTemplate = { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 };
+    const room = makeSegment({ id: 1, type: "room-small", doors: [], monsters: monster });
+    const level = { ...makeLevel(1), segments: [room] };
+    // selectedSegId starts elsewhere so the click below isn't a same-segment no-op.
+    const state = { ...stateWithLevel(level), selectedSegId: null, currentSegId: 1 };
+
+    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 1 });
+    expect(next.combat).not.toBeNull();
+    expect(next.combat!.monsters[0]).toMatchObject({ name: "Orc", hp: 6 });
+    expect(next.log.some((e) => e.message.includes("still waiting"))).toBe(true);
+  });
+
+  it("does not re-trigger for a segment whose monsters were actually defeated", () => {
+    const monster: MonsterTemplate = { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 };
+    const room = makeSegment({ id: 1, type: "room-small", doors: [], monsters: monster, monstersDefeated: true });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), selectedSegId: null, currentSegId: 1 };
+
+    const next = dungeonReducer(state, { type: "SELECT_SEGMENT", segId: 1 });
+    expect(next.combat).toBeNull();
+  });
+
+  it("resumes a fled Boss fight (isBoss) on RETURN_TO_DUNGEON when the Final Room is the level's only segment", () => {
+    const boss: MonsterTemplate = { name: "Orc King", hp: 24, damage: 5, abilities: ["horde"], count: 1 };
+    const finalSeg = makeSegment({ id: 5, type: "final", doors: [], monsters: boss });
+    const finalLevel = { ...makeLevel(3), isFinalRoomLevel: true, segments: [finalSeg] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [finalLevel],
+      activeLevel: 0,
+      combat: null, // fled via Teleport -- nothing left to eagerly respawn here
+    };
+
+    const next = dungeonReducer(createInitialDungeonState(), {
+      type: "RETURN_TO_DUNGEON",
+      dungeon: persisted,
+      torches: 10,
+      hp: 20,
+      maxHp: 20,
+      coins: 0,
+      treasures: 0,
+      keys: 0,
+      heldItems: [],
+      armor: [],
+      weapon: null,
+      weaponFormula: "1d6",
+      spellUses: {},
+      characterName: "Pip",
+      raceName: "",
+      className: "",
+      monsterKills: 0,
+      bossKills: 0,
+    });
+
+    expect(next.combat).not.toBeNull();
+    expect(next.combat!.isBoss).toBe(true);
+    expect(next.combat!.monsters[0]).toMatchObject({ name: "Orc King", hp: 24 }); // full HP
   });
 });
 

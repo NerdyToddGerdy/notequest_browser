@@ -578,18 +578,30 @@ function restoreMapFromPersisted(
 /** Rolls a fresh Monster table entry for a room flagged `needsMonsterReroll` (see
  * `restoreMapFromPersisted`), replacing whatever was there (empty or already-cleared) and
  * starting combat if the roll produced one -- the moment the player actually looks at the room is
- * this app's closest equivalent to the rulebook's "each empty room you enter." */
+ * this app's closest equivalent to the rulebook's "each empty room you enter." Otherwise, if the
+ * room's monsters were never actually defeated and nothing is currently fighting them -- Teleport
+ * (the flee spell) clears `combat` outright without marking `monstersDefeated`, and unlike a
+ * death or a Town retreat mid-fight, there's no persisted `CombatState` for `restoreMapFromPersisted`
+ * to eagerly respawn, so nothing else would ever pick the fight back up -- resumes it right here,
+ * at full HP, same as encountering it for the first time (Final Room segments are always the
+ * Boss, so `seg.type === "final"` doubles as `isBoss` with no separate field to track). */
 function rerollMonstersIfNeeded(draft: Draft<DungeonState>, seg: Draft<SegmentState>, rng: RNG): void {
-  if (!seg.needsMonsterReroll) return;
-  seg.needsMonsterReroll = false;
-  if (!draft.dungeonTypeKey) return;
-  const monsterSum = rollDie(rng) + rollDie(rng);
-  const monsters = DUNGEON_TABLES[draft.dungeonTypeKey].monsters[monsterSum] ?? null;
-  seg.monsters = monsters ?? undefined;
-  seg.monstersDefeated = undefined;
-  if (monsters) {
-    pushLog(draft, `Segment ${seg.id}: fresh monsters have moved in.`);
-    startCombat(draft, seg.id, monsters, false, rng);
+  if (seg.needsMonsterReroll) {
+    seg.needsMonsterReroll = false;
+    if (!draft.dungeonTypeKey) return;
+    const monsterSum = rollDie(rng) + rollDie(rng);
+    const monsters = DUNGEON_TABLES[draft.dungeonTypeKey].monsters[monsterSum] ?? null;
+    seg.monsters = monsters ?? undefined;
+    seg.monstersDefeated = undefined;
+    if (monsters) {
+      pushLog(draft, `Segment ${seg.id}: fresh monsters have moved in.`);
+      startCombat(draft, seg.id, monsters, false, rng);
+    }
+    return;
+  }
+  if (seg.monsters && !seg.monstersDefeated && draft.combat?.segId !== seg.id) {
+    pushLog(draft, `Segment ${seg.id}: the fight you fled from is still waiting.`);
+    startCombat(draft, seg.id, seg.monsters, false, rng, seg.type === "final");
   }
 }
 
