@@ -365,6 +365,8 @@ function handleMonsterDefeat(
   } else {
     if (monster.abilities.includes("loot")) combat.pendingLootRolls += 1;
     combat.monsters = combat.monsters.filter((m) => m.id !== monster.id);
+    draft.monsterKills += 1;
+    if (combat.isBoss) draft.bossKills += 1;
     pushLog(draft, `${monster.name} is defeated!`);
   }
 }
@@ -1268,6 +1270,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           action.maxHp,
           action.armor,
           action.weapon,
+          action.monsterKills,
+          action.bossKills,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

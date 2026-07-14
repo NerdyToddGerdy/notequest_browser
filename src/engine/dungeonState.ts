@@ -179,6 +179,11 @@ export interface DungeonState {
   /** An acquired weapon overriding the character's class weapon; null falls back to it. */
   weapon: EquippedWeapon | null;
   combat: CombatState | null;
+  /** Ordinary monsters and Bosses defeated this run -- character-specific, like torches/hp, not
+   * map/exploration state, so a new adventurer via RESUME_DUNGEON starts back at 0 even though
+   * they're exploring the same map (see CLAUDE.md's Resuming section). Shown on the Graveyard. */
+  monsterKills: number;
+  bossKills: number;
   /** The active character's name -- used only to label remains left behind if they die. */
   characterName: string;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
@@ -237,6 +242,8 @@ export function createInitialDungeonState(
   maxHp: number = startingHp,
   armor: ArmorPiece[] = [],
   weapon: EquippedWeapon | null = null,
+  monsterKills = 0,
+  bossKills = 0,
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -260,6 +267,8 @@ export function createInitialDungeonState(
     armor,
     weapon,
     combat: null,
+    monsterKills,
+    bossKills,
     characterName,
     weaponFormula,
     spellUses,
@@ -319,5 +328,7 @@ export type DungeonAction =
       weaponFormula: string;
       spellUses: Record<number, number>;
       characterName: string;
+      monsterKills: number;
+      bossKills: number;
     }
   | { type: "RESET" };

@@ -1,8 +1,14 @@
-/** One row of the Graveyard play-sheet: "Write down the characters that died... Name, Dungeon, Cause of Death." */
+/** One row of the Graveyard play-sheet: "Write down the characters that died... Name, Dungeon, Cause of Death."
+ * `race`/`cls`/`monsterKills`/`bossKills` are later additions -- optional so entries already sitting in a
+ * player's `localStorage` from before these fields existed still parse and render without them. */
 export interface GraveyardEntry {
   name: string;
   dungeon: string;
   causeOfDeath: "darkness" | "combat";
+  race?: string;
+  cls?: string;
+  monsterKills?: number;
+  bossKills?: number;
 }
 
 const STORAGE_KEY = "notequest:graveyard";

@@ -13,6 +13,8 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     armor: [],
     weapon: null,
     spellUses: { 1: 0 },
+    monsterKills: 0,
+    bossKills: 0,
     ...overrides,
   };
 }

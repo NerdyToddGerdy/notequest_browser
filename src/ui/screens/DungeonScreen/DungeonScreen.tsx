@@ -75,6 +75,8 @@ export function DungeonScreen({
         weaponFormula: character.cls.weaponDamage,
         spellUses: resources.spellUses,
         characterName: character.name,
+        monsterKills: resources.monsterKills,
+        bossKills: resources.bossKills,
       });
     }
     if (resumeDungeon) {
@@ -102,6 +104,8 @@ export function DungeonScreen({
       resources.maxHp,
       resources.armor,
       resources.weapon,
+      resources.monsterKills,
+      resources.bossKills,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -122,6 +126,10 @@ export function DungeonScreen({
       name: character.name,
       dungeon: state.dungeonName ?? "an unknown dungeon",
       causeOfDeath: state.deathCause ?? "darkness",
+      race: character.race.name,
+      cls: character.cls.name,
+      monsterKills: state.monsterKills,
+      bossKills: state.bossKills,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.alive]);

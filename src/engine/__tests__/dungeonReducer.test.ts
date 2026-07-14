@@ -948,6 +948,8 @@ describe("RESUME_DUNGEON", () => {
       deathCause: "darkness",
       hp: 0,
       torches: 0,
+      monsterKills: 12, // the fallen character's own kill count -- should NOT carry over
+      bossKills: 1,
     };
 
     const next = dungeonReducer(createInitialDungeonState(), {
@@ -975,6 +977,9 @@ describe("RESUME_DUNGEON", () => {
     expect(next.alive).toBe(true);
     expect(next.deathCause).toBeNull();
     expect(next.characterName).toBe("New Hero");
+    // a new adventurer starts back at 0 kills, even taking over the fallen one's own map
+    expect(next.monsterKills).toBe(0);
+    expect(next.bossKills).toBe(0);
     // an even earlier fallen adventurer's remains are still there to recover
     expect(next.levels[0]!.segments[0]!.remains).toEqual({
       names: ["An Even Earlier Hero"],
@@ -1132,6 +1137,8 @@ describe("RETURN_TO_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: { 1: 3 },
       characterName: "Pip",
+      monsterKills: 5,
+      bossKills: 1,
     });
 
     expect(next.dungeonName).toBe("The Palace of the Secret Horrors");
@@ -1149,6 +1156,8 @@ describe("RETURN_TO_DUNGEON", () => {
     expect(next.spellUses).toEqual({ 1: 3 });
     expect(next.alive).toBe(true);
     expect(next.characterName).toBe("Pip");
+    expect(next.monsterKills).toBe(5);
+    expect(next.bossKills).toBe(1);
   });
 
   it("preserves maxHp even when returning without full HP (regression: Rest healing to a shrunken max)", () => {
@@ -1176,6 +1185,8 @@ describe("RETURN_TO_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "Pip",
+      monsterKills: 0,
+      bossKills: 0,
     });
 
     expect(next.hp).toBe(12);
@@ -1235,6 +1246,8 @@ describe("RETURN_TO_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "Pip",
+      monsterKills: 0,
+      bossKills: 0,
     });
 
     expect(next.combat).not.toBeNull();
@@ -1270,6 +1283,8 @@ describe("RETURN_TO_DUNGEON", () => {
       weaponFormula: "1d6",
       spellUses: {},
       characterName: "Pip",
+      monsterKills: 0,
+      bossKills: 0,
     });
 
     expect(next.activeLevel).toBe(1);

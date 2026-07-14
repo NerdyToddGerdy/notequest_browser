@@ -23,8 +23,21 @@ export function Graveyard({ entries }: GraveyardProps) {
       <ul className={styles.list}>
         {[...entries].reverse().map((entry, index) => (
           <li key={index} className={styles.row}>
-            <span className={styles.name}>{entry.name}</span>
+            <span className={styles.nameCol}>
+              <span className={styles.name}>{entry.name}</span>
+              {entry.race && entry.cls && (
+                <span className={styles.subtitle}>
+                  The {entry.race} {entry.cls}
+                </span>
+              )}
+            </span>
             <span className={styles.dungeon}>{entry.dungeon}</span>
+            {(entry.monsterKills !== undefined || entry.bossKills !== undefined) && (
+              <span className={styles.kills}>
+                {entry.monsterKills ?? 0} killed
+                {entry.bossKills ? ` · ${entry.bossKills} Boss${entry.bossKills === 1 ? "" : "es"}` : ""}
+              </span>
+            )}
             <span className={styles.cause}>{CAUSE_LABELS[entry.causeOfDeath]}</span>
           </li>
         ))}

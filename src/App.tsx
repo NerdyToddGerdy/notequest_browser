@@ -34,6 +34,8 @@ export default function App() {
       armor: [],
       weapon: null,
       spellUses: computeSpellUses(newCharacter.spells, newCharacter.fixedGrants),
+      monsterKills: 0,
+      bossKills: 0,
     });
     setActiveRunId(null);
     setScreen("town");
@@ -60,6 +62,8 @@ export default function App() {
       armor: dungeon.armor,
       weapon: dungeon.weapon,
       spellUses: dungeon.spellUses,
+      monsterKills: dungeon.monsterKills,
+      bossKills: dungeon.bossKills,
     });
     setActiveRunId(dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null);
     setScreen("town");

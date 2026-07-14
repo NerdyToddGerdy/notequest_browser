@@ -128,6 +128,8 @@ describe("PLAYER_ATTACK", () => {
     expect(next.combat).toBeNull();
     expect(next.coins).toBe(1);
     expect(next.levels[0]!.segments[0]!.monstersDefeated).toBe(true);
+    expect(next.monsterKills).toBe(1);
+    expect(next.bossKills).toBe(0);
   });
 
   it("a Boss kill grants a flat 2d6 Treasures instead of the normal Loot table, even with pendingLootRolls queued", () => {
@@ -143,6 +145,8 @@ describe("PLAYER_ATTACK", () => {
     expect(next.treasures).toBe(9);
     expect(next.log.some((entry) => entry.message.includes("9 Treasures"))).toBe(true);
     expect(next.log.some((entry) => entry.message.includes("conquered the dungeon"))).toBe(true);
+    expect(next.monsterKills).toBe(1);
+    expect(next.bossKills).toBe(1);
   });
 
   it("Loot's Treasures and Keys are credited to state, not just logged", () => {
@@ -223,6 +227,7 @@ describe("PLAYER_ATTACK", () => {
     expect(next.combat).not.toBeNull();
     expect(next.combat!.monsters).toHaveLength(1);
     expect(next.combat!.monsters[0]!.hp).toBe(1);
+    expect(next.monsterKills).toBe(0); // revived, not actually defeated -- doesn't count as a kill yet
   });
 
   it("removes the monster for good when the Undead revival roll fails", () => {
@@ -231,6 +236,7 @@ describe("PLAYER_ATTACK", () => {
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(3));
 
     expect(next.combat).toBeNull();
+    expect(next.monsterKills).toBe(1);
   });
 
   it("Horde adds a fresh Orc to the fight on a roll of 1", () => {

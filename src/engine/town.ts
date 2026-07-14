@@ -13,6 +13,8 @@ export interface AdventurerResources {
   armor: ArmorPiece[];
   weapon: EquippedWeapon | null;
   spellUses: Record<number, number>;
+  monsterKills: number;
+  bossKills: number;
 }
 
 /** "You can carry a maximum of 10 torches at a time." */
