@@ -272,35 +272,43 @@ export function DungeonScreen({
                   onSelectSegment={(segId) => dispatch({ type: "SELECT_SEGMENT", segId })}
                   onSwitchLevel={(levelIndex, segId) => dispatch({ type: "SWITCH_LEVEL", levelIndex, segId })}
                 />
-                <div className={styles.roomInspectorOverlay}>
-                  <RoomInspector
-                    key={state.selectedSegId ?? "none"}
-                    state={state}
-                    onRollSecretPassage={(segId, roll, trapRoll) =>
-                      dispatch({ type: "ROLL_SECRET_PASSAGE", segId, roll, trapRoll })
-                    }
-                    onRollChest={(segId, dice, trapRoll) => dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })}
-                    onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
-                  />
-                </div>
+                {!state.combat && (
+                  <div className={styles.roomInspectorOverlay}>
+                    <RoomInspector
+                      key={state.selectedSegId ?? "none"}
+                      state={state}
+                      onRollSecretPassage={(segId, roll, trapRoll) =>
+                        dispatch({ type: "ROLL_SECRET_PASSAGE", segId, roll, trapRoll })
+                      }
+                      onRollChest={(segId, dice, trapRoll) => dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })}
+                      onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
+                    />
+                  </div>
+                )}
+                {state.combat && (
+                  <div className={styles.combatOverlay}>
+                    <div className={styles.combatOverlayInner}>
+                      <CombatPanel
+                        combat={state.combat}
+                        hp={state.hp}
+                        maxHp={state.maxHp}
+                        weaponName={state.weapon?.name ?? character.cls.weapon}
+                        weaponFormula={state.weapon?.formula ?? character.cls.weaponDamage}
+                        armor={state.armor}
+                        spellUses={state.spellUses}
+                        isRinoceroid={character.race.name === "Rinoceroid"}
+                        isSlimemen={character.race.name === "Slimemen"}
+                        onAttack={(targetId, roll, useHorn) =>
+                          dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })
+                        }
+                        onCastSpell={(spellRoll, targetId) => dispatch({ type: "CAST_SPELL", spellRoll, targetId })}
+                        onResolveDamage={(absorbWith) => dispatch({ type: "RESOLVE_DAMAGE", absorbWith })}
+                        onEngulfBody={() => dispatch({ type: "ENGULF_BODY" })}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-              {state.combat && (
-                <CombatPanel
-                  combat={state.combat}
-                  hp={state.hp}
-                  maxHp={state.maxHp}
-                  weaponName={state.weapon?.name ?? character.cls.weapon}
-                  weaponFormula={state.weapon?.formula ?? character.cls.weaponDamage}
-                  armor={state.armor}
-                  spellUses={state.spellUses}
-                  isRinoceroid={character.race.name === "Rinoceroid"}
-                  isSlimemen={character.race.name === "Slimemen"}
-                  onAttack={(targetId, roll, useHorn) => dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })}
-                  onCastSpell={(spellRoll, targetId) => dispatch({ type: "CAST_SPELL", spellRoll, targetId })}
-                  onResolveDamage={(absorbWith) => dispatch({ type: "RESOLVE_DAMAGE", absorbWith })}
-                  onEngulfBody={() => dispatch({ type: "ENGULF_BODY" })}
-                />
-              )}
               <RollLog entries={state.log} />
             </>
           )}
