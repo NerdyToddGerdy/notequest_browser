@@ -83,14 +83,16 @@ export function Die({ value, rollToken, delayMs = 0, size = 52 }: DieProps) {
       style={{ "--die-size": `${size}px` } as CSSProperties}
       aria-hidden="true"
     >
-      <div className={styles.dieCube} ref={cubeRef}>
-        {[1, 2, 3, 4, 5, 6].map((face) => (
-          <div key={face} className={`${styles.dieFace} ${styles[`face${face}`]}`}>
-            {PIP_LAYOUT[face]!.map((pos) => (
-              <div key={pos} className={`${styles.pip} ${styles[pos]}`} />
-            ))}
-          </div>
-        ))}
+      <div className={styles.stage}>
+        <div className={styles.dieCube} ref={cubeRef}>
+          {[1, 2, 3, 4, 5, 6].map((face) => (
+            <div key={face} className={`${styles.dieFace} ${styles[`face${face}`]}`}>
+              {PIP_LAYOUT[face]!.map((pos) => (
+                <div key={pos} className={`${styles.pip} ${styles[pos]}`} />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

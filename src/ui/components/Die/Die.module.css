@@ -1,8 +1,16 @@
 .die {
   width: var(--die-size);
   height: var(--die-size);
-  perspective: 320px;
   flex: 0 0 auto;
+}
+
+/* Perspective lives on its own element, never one that's also animated (.rolling, below) --
+   Firefox intermittently fails to repaint a preserve-3d child's rotation when its perspective-
+   establishing ancestor has its own `transform` animated at the same time; Chrome tolerates it. */
+.stage {
+  width: 100%;
+  height: 100%;
+  perspective: 320px;
 }
 
 .dieCube {
