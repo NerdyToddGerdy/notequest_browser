@@ -534,12 +534,24 @@ function restoreMapFromPersisted(
   draft.log = persisted.log;
   pushLog(draft, logMessage, "descend");
 
+  if (resetToEntrance) {
+    draft.activeLevel = 0;
+    draft.selectedSegId = draft.levels[0]?.segments[0]?.id ?? null;
+    draft.currentSegId = draft.selectedSegId;
+  }
+
   // Per the rulebook: returning to a dungeon means any room still holding monsters has them
   // recover to full health. There's at most one such room -- wherever the previous session's
   // fight was interrupted, since every other room's combat had already resolved (won) before
-  // its doors could be opened further.
+  // its doors could be opened further. RETURN_TO_DUNGEON (the same character) drops right back
+  // into it, matching where they actually stood. RESUME_DUNGEON (a new character, reset to the
+  // entrance above) must instead walk there like anywhere else -- eagerly starting combat here
+  // regardless would leave `combat` set on a segment the player isn't even positioned at anymore,
+  // dropping them straight into the Boss fight instead of the entrance. The segment's monsters
+  // stay at their full-HP template and `monstersDefeated` stays false, so rerollMonstersIfNeeded's
+  // fallback below picks the fight back up the moment the new character actually arrives.
   const oldCombat = persisted.combat;
-  if (oldCombat) {
+  if (oldCombat && !resetToEntrance) {
     const level = draft.levels[draft.activeLevel];
     const seg = level?.segments.find((s) => s.id === oldCombat.segId);
     if (seg?.monsters) {
@@ -547,12 +559,6 @@ function restoreMapFromPersisted(
       draft.currentSegId = seg.id;
       startCombat(draft, seg.id, seg.monsters, false, rng, oldCombat.isBoss);
     }
-  }
-
-  if (resetToEntrance) {
-    draft.activeLevel = 0;
-    draft.selectedSegId = draft.levels[0]?.segments[0]?.id ?? null;
-    draft.currentSegId = draft.selectedSegId;
   }
 
   // Per the rulebook, this also applies: "you must roll on the Monster table for each empty

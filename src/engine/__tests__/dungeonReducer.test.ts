@@ -1600,6 +1600,83 @@ describe("RESUME_DUNGEON", () => {
     expect(next.activeLevel).toBe(0);
     expect(next.selectedSegId).toBe(1);
   });
+
+  it("does not drop the new character straight into the old character's interrupted Boss fight", () => {
+    const entrance = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const entranceLevel = { ...makeLevel(1), segments: [entrance] };
+    const boss = makeSegment({
+      id: 7,
+      type: "final",
+      doors: [],
+      monsters: { name: "Orc King", hp: 24, damage: 5, abilities: ["horde"], count: 1 },
+    });
+    const bossLevel = { ...makeLevel(3), isFinalRoomLevel: true, segments: [boss] };
+    const combat: CombatState = {
+      segId: 7,
+      monsters: [
+        {
+          id: 1,
+          name: "Orc King",
+          hp: 6,
+          maxHp: 24,
+          damage: 5,
+          abilities: ["horde"],
+          bonusDamage: 0,
+          deathtouchPending: false,
+          paralyzePending: 0,
+          skipNextAttack: false,
+        },
+      ],
+      paralyzedTurns: 0,
+      pendingLootRolls: 0,
+      isBoss: true,
+      outcome: "ongoing",
+      pendingDamage: null,
+      playerDamageBonus: 0,
+      engulfableBodies: 0,
+    };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [entranceLevel, entranceLevel, bossLevel], // depth-3 Boss level at index 2
+      activeLevel: 2,
+      selectedSegId: 7,
+      combat,
+      alive: false,
+      deathCause: "combat",
+    };
+
+    const next = dungeonReducer(
+      createInitialDungeonState(),
+      {
+        type: "RESUME_DUNGEON",
+        dungeon: persisted,
+        torches: 10,
+        hp: 20,
+        maxHp: 20,
+        weaponFormula: "1d6",
+        spellUses: {},
+        characterName: "New Hero",
+        raceName: "",
+        className: "",
+      },
+      // the entrance is itself an empty room, so restoring flags it for its own Monster
+      // re-roll (see #18) -- monster sum 3+4=7 -> null, keeping this test focused on the
+      // Boss-room bug rather than an incidental fresh encounter at the entrance.
+      sequenceDie([3, 4]),
+    );
+
+    // lands at the entrance, not the Boss room -- and critically, isn't thrown into combat.
+    expect(next.activeLevel).toBe(0);
+    expect(next.selectedSegId).toBe(1);
+    expect(next.combat).toBeNull();
+
+    // the Boss is still there, full HP, waiting -- just not fought until the new character
+    // actually walks there (see "Resuming a fight abandoned via Teleport" for that mechanism).
+    const bossSeg = next.levels[2]!.segments[0]!;
+    expect(bossSeg.monsters).toMatchObject({ name: "Orc King", hp: 24 });
+    expect(bossSeg.monstersDefeated).toBeFalsy();
+  });
 });
 
 describe("RETURN_TO_DUNGEON", () => {
