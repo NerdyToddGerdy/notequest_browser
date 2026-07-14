@@ -1,6 +1,8 @@
 .panel {
   padding: 16px 18px;
-  background: var(--parchment-2);
+  /* A little translucent -- the map stays faintly visible behind the card, not just around it. */
+  background: rgba(221, 204, 162, 0.93);
+  backdrop-filter: blur(2px);
   border-radius: 4px;
   border: 1px solid var(--danger);
   box-shadow:

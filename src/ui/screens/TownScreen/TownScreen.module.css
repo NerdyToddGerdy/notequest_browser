@@ -364,6 +364,11 @@
   gap: 18px;
   position: sticky;
   top: 20px;
+  /* Its own scroll region once the stacked cards outgrow the viewport, instead of the whole
+     page having to scroll along with it just to reach the bottom card. */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .credit {

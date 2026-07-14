@@ -101,13 +101,24 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: radial-gradient(ellipse at center, rgba(30, 8, 8, 0.72), rgba(10, 4, 4, 0.88));
+  background: radial-gradient(ellipse at center, rgba(30, 8, 8, 0.4), rgba(10, 4, 4, 0.55));
+  transition: background 0.15s ease;
   animation: combatOverlayIn 0.2s ease both;
+}
+/* Held down outside the combat card (see DungeonScreen.tsx's handlePeekStart) -- the map beneath
+   shows through almost entirely, letting the player check on things mid-fight without leaving it. */
+.combatOverlay.peeking {
+  background: rgba(10, 4, 4, 0.06);
 }
 .combatOverlayInner {
   width: min(480px, 100%);
   max-height: 100%;
   overflow-y: auto;
+  transition: opacity 0.15s ease;
+}
+.peeking .combatOverlayInner {
+  opacity: 0.08;
+  pointer-events: none;
 }
 @keyframes combatOverlayIn {
   from {
@@ -471,6 +482,11 @@
   gap: 18px;
   position: sticky;
   top: 20px;
+  /* Its own scroll region once the stacked cards outgrow the viewport, instead of the whole
+     page (map included) having to scroll along with it just to reach the bottom card. */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .statsCard {
   position: relative;

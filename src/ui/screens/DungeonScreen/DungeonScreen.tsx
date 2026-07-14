@@ -126,6 +126,25 @@ export function DungeonScreen({
    * TrapToast stays unmounted until the first one. */
   const [trapToastToken, setTrapToastToken] = useState(0);
   const triggerTrapToast = () => setTrapToastToken((t) => t + 1);
+  /** True while the player is holding a pointer down outside the combat card itself (see
+   * handlePeekStart) -- fades the card and backdrop out so the map beneath is fully visible
+   * without actually leaving or pausing the fight. */
+  const [peeking, setPeeking] = useState(false);
+
+  function handlePeekStart(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return; // pointerdown landed on the card, not the backdrop
+    setPeeking(true);
+  }
+  useEffect(() => {
+    if (!peeking) return;
+    const stop = () => setPeeking(false);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+    return () => {
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+  }, [peeking]);
 
   const hasDungeon = state.levels.length > 0;
   const bossDefeated = isDungeonBeaten(state);
@@ -295,7 +314,11 @@ export function DungeonScreen({
                   </div>
                 )}
                 {state.combat && (
-                  <div className={styles.combatOverlay}>
+                  <div
+                    className={`${styles.combatOverlay} ${peeking ? styles.peeking : ""}`}
+                    onPointerDown={handlePeekStart}
+                    title="Hold to peek at the map"
+                  >
                     <div className={styles.combatOverlayInner}>
                       <CombatPanel
                         combat={state.combat}
