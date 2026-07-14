@@ -4,7 +4,12 @@ import type { LevelState } from "../../../engine/dungeonState.ts";
 const PAD = 44;
 const MARKER_OFFSET = 22;
 const MARKER_HALF = 14;
-const MIN_SIZE = 320;
+/** Floor for the canvas's width/height so a single starting segment (up to the Final Room's
+ * 180x140, the largest) still gets some comfortable breathing room -- deliberately not much
+ * bigger than that, since dungeons branch unpredictably in any direction and a large fixed
+ * minimum (previously 320) left a lot of dead space around anything smaller/narrower than a
+ * perfect square. */
+const MIN_SIZE = 240;
 
 export interface MapLayout {
   originX: number;
