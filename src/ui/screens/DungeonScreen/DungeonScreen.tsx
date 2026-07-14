@@ -197,7 +197,7 @@ export function DungeonScreen({
 
       <div className={styles.layout}>
         <div className={styles.mainCol}>
-          {(!hasDungeon || !state.alive || bossDefeated) && (
+          {(!hasDungeon || bossDefeated) && (
             <main className={styles.sheet}>
               <div className={styles.sheetInner}>
                 <span className={styles.sheetLabel}>Dungeon Log</span>
@@ -230,29 +230,6 @@ export function DungeonScreen({
                   </section>
                 )}
 
-                {!state.alive && state.deathCause === "combat" && (
-                  <div className={styles.deathPanel}>
-                    <p className={styles.deathTitle}>{character.name} Has Fallen</p>
-                    <p>Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.</p>
-                    <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
-                    <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
-                      Roll a New Adventurer
-                    </button>
-                  </div>
-                )}
-                {!state.alive && state.deathCause !== "combat" && (
-                  <div className={styles.deathPanel}>
-                    <p className={styles.deathTitle}>The Darkness Devours You</p>
-                    <p>
-                      {character.name}&apos;s torch has burned out with no way to relight it. The dungeon keeps
-                      what it took.
-                    </p>
-                    <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
-                    <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
-                      Roll a New Adventurer
-                    </button>
-                  </div>
-                )}
                 {state.alive && bossDefeated && (
                   <div className={styles.victoryPanel}>
                     <p className={styles.victoryTitle}>The Dungeon Boss Falls</p>
@@ -347,17 +324,43 @@ export function DungeonScreen({
             </div>
           )}
 
-          <CharacterSheet
-            character={character}
-            torches={state.torches}
-            hp={state.hp}
-            coins={state.coins}
-            treasures={state.treasures}
-            keys={state.keys}
-            spellUses={state.spellUses}
-            canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
-            onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}
-          />
+          <div className={styles.adventurerArea}>
+            <CharacterSheet
+              character={character}
+              torches={state.torches}
+              hp={state.hp}
+              coins={state.coins}
+              treasures={state.treasures}
+              keys={state.keys}
+              spellUses={state.spellUses}
+              canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
+              onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}
+            />
+
+            {!state.alive && state.deathCause === "combat" && (
+              <div className={styles.deathOverlay}>
+                <p className={styles.deathTitle}>{character.name} Has Fallen</p>
+                <p>Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.</p>
+                <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+                <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+                  Roll a New Adventurer
+                </button>
+              </div>
+            )}
+            {!state.alive && state.deathCause !== "combat" && (
+              <div className={styles.deathOverlay}>
+                <p className={styles.deathTitle}>The Darkness Devours You</p>
+                <p>
+                  {character.name}&apos;s torch has burned out with no way to relight it. The dungeon keeps what
+                  it took.
+                </p>
+                <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+                <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+                  Roll a New Adventurer
+                </button>
+              </div>
+            )}
+          </div>
 
           {state.treasures > 0 && state.alive && (
             <div className={styles.statsCard}>

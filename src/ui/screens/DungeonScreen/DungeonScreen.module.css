@@ -316,13 +316,22 @@
   gap: 10px;
 }
 
-.deathPanel {
-  margin-top: 20px;
-  padding: 16px 18px;
+.adventurerArea {
+  position: relative;
+}
+
+.deathOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 18px 20px;
   background: #3a2018;
   border: 1px solid var(--ember);
-  border-radius: 4px;
-  box-shadow: 0 0 24px rgba(184, 72, 31, 0.35);
+  border-radius: 3px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
 }
 .deathTitle {
   font-family: var(--font-display);
@@ -330,14 +339,14 @@
   color: #e8b088;
   margin: 0 0 6px;
 }
-.deathPanel p {
+.deathOverlay p {
   font-family: var(--font-body);
   font-style: italic;
   font-size: 0.88rem;
   color: #d9b89e;
   margin: 0;
 }
-.deathPanel .deathNote {
+.deathOverlay .deathNote {
   margin-top: 10px;
   font-size: 0.76rem;
   color: #b89478;
