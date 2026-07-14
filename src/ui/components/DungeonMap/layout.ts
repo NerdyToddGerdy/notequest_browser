@@ -12,10 +12,13 @@ const MARKER_HALF = 14;
 const MIN_SIZE = 240;
 /** Extra slack added only to width/height (not originX/originY), so there's always room to pan
  * a segment or door marker out from under `RoomInspectorOverlay`'s fixed bottom-right corner
- * (up to ~340x320px, see DungeonScreen.module.css) -- without this, a tightly-fit canvas that
- * already fits the viewport has nowhere to scroll to, permanently hiding whatever renders behind
- * the overlay. */
-const OVERLAY_CLEARANCE = 360;
+ * (up to 28px offset + 340px wide / 320px tall, see DungeonScreen.module.css) and fully into the
+ * clear. It's not enough to just out-scroll the overlay's own footprint (368x348) -- a segment
+ * sitting right at the tight content edge needs to clear the overlay by its own full width/height
+ * too (up to 180x140 for the largest, the Final Room), so this needs both, plus margin: without
+ * it, a tightly-fit canvas that already fits the viewport has nowhere to scroll to, permanently
+ * hiding whatever renders behind the overlay. */
+const OVERLAY_CLEARANCE = 600;
 
 export interface MapLayout {
   originX: number;
