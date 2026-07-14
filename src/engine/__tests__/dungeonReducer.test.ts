@@ -49,6 +49,10 @@ describe("ROLL_DUNGEON", () => {
     expect(state.stats.doorsRemaining).toBe(1);
     expect(state.torches).toBe(9); // started at 10, entering the dungeon costs 1
     expect(state.alive).toBe(true);
+    // Stepping into the dungeon is standing in the entrance -- both position and the
+    // RoomInspector's selection should already point there, not require an extra click.
+    expect(state.currentSegId).toBe(entrance.id);
+    expect(state.selectedSegId).toBe(entrance.id);
   });
 
   it("opening a staircase entrance's door continues level 1 instead of descending to level 2", () => {
@@ -124,7 +128,7 @@ describe("OPEN_DOOR: normal room resolution", () => {
 });
 
 describe("Positional movement", () => {
-  it("currentSegId auto-advances to a newly-built segment when a door opens", () => {
+  it("currentSegId and selectedSegId both auto-advance to a newly-built segment when a door opens", () => {
     const entrance = makeSegment({
       id: 1,
       type: "corridor",
@@ -138,8 +142,11 @@ describe("Positional movement", () => {
     const rng = sequenceDie([1, 1, 3, 4]); // content row 2 (no reward), monster sum 7 (null)
     const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 1, wasNoisy: false }, rng);
 
+    // Opening the door is moving through it -- the RoomInspector should already be showing the
+    // new room (selectedSegId), not still prompting "click a room to inspect it".
     const child = next.levels[0]!.segments[1]!;
     expect(next.currentSegId).toBe(child.id);
+    expect(next.selectedSegId).toBe(child.id);
   });
 
   it("OPEN_DOOR is a no-op on a segment the player isn't currently standing in", () => {

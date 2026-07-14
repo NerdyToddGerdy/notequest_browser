@@ -766,6 +766,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         level.segments.push(entrance);
         level.doorsRemaining += dtype.doors;
         draft.currentSegId = entrance.id;
+        draft.selectedSegId = entrance.id;
         bumpStatsForNewSegment(draft.stats, dtype.entranceType, dtype.doors);
         finishRoomSegment(draft, entrance, false, rng);
       });
@@ -968,8 +969,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               "descend",
             );
             draft.activeLevel = classification.targetLevel;
-            draft.selectedSegId = null;
             draft.currentSegId = finalSeg.id;
+            draft.selectedSegId = finalSeg.id;
             break;
           }
 
@@ -996,8 +997,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               "descend",
             );
             draft.activeLevel = classification.targetLevel;
-            draft.selectedSegId = null;
             draft.currentSegId = island.id;
+            draft.selectedSegId = island.id;
             finishRoomSegment(draft, island, false, rng);
             break;
           }
@@ -1039,8 +1040,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               "descend",
             );
             draft.activeLevel = targetIndex;
-            draft.selectedSegId = null;
             draft.currentSegId = finalId;
+            draft.selectedSegId = finalId;
             startCombatIfMonsters(draft, finalSeg, false, rng, true);
             break;
           }
@@ -1077,6 +1078,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               "descend",
             );
             draft.currentSegId = finalId;
+            draft.selectedSegId = finalId;
             startCombatIfMonsters(draft, finalSeg, false, rng, true);
             break;
           }
@@ -1108,8 +1110,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               "descend",
             );
             draft.activeLevel = targetIndex;
-            draft.selectedSegId = null;
             draft.currentSegId = rootSeg.id;
+            draft.selectedSegId = rootSeg.id;
             finishRoomSegment(draft, rootSeg, false, rng);
             break;
           }
@@ -1132,6 +1134,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
 
             pushLog(draft, `Segment ${seg.id} → ${TYPE_LABELS[row.type]} (Segment ${childSeg.id})`);
             draft.currentSegId = childSeg.id;
+            draft.selectedSegId = childSeg.id;
             finishRoomSegment(draft, childSeg, action.wasNoisy, rng);
             break;
           }
