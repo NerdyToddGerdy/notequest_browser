@@ -176,6 +176,8 @@ export function TownScreen({
             coins={resources.coins}
             treasures={resources.treasures}
             keys={resources.keys}
+            weaponName={resources.weapon?.name}
+            weaponFormula={resources.weapon?.formula}
             spellUses={resources.spellUses}
           />
           <Equipment

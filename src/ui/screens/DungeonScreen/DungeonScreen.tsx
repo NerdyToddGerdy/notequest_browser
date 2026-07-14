@@ -381,6 +381,8 @@ export function DungeonScreen({
               coins={state.coins}
               treasures={state.treasures}
               keys={state.keys}
+              weaponName={state.weapon?.name}
+              weaponFormula={state.weapon?.formula}
               spellUses={state.spellUses}
               canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
               onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}

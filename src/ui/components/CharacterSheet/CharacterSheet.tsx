@@ -15,6 +15,11 @@ export interface CharacterSheetProps {
   treasures?: number;
   /** Live Key count in the current run; 0 outside a dungeon (Keys are only ever found there). */
   keys?: number;
+  /** An acquired weapon's name, overriding the character's class weapon; falls back to it outside
+   * a dungeon or if none has been found yet. */
+  weaponName?: string;
+  /** The acquired weapon's damage formula, paired with `weaponName` above. */
+  weaponFormula?: string;
   /** Remaining uses per spell in the current run; falls back to the character's starting uses outside a dungeon. */
   spellUses?: Record<number, number>;
   /** Whether Heal/Light can be cast right now (in a dungeon, alive, not mid-fight). */
@@ -32,6 +37,8 @@ export function CharacterSheet({
   coins,
   treasures,
   keys,
+  weaponName,
+  weaponFormula,
   spellUses,
   canCastOutOfCombat,
   onCastSpell,
@@ -47,6 +54,8 @@ export function CharacterSheet({
   const coinCount = coins ?? character.coins;
   const treasureCount = treasures ?? 0;
   const keyCount = keys ?? 0;
+  const displayWeaponName = weaponName ?? character.cls.weapon;
+  const displayWeaponFormula = weaponFormula ?? character.cls.weaponDamage;
 
   return (
     <div className={styles.card}>
@@ -66,7 +75,7 @@ export function CharacterSheet({
         <div className={styles.stat}>
           <span className={styles.statLabel}>Weapon</span>
           <span className={styles.statValue}>
-            {character.cls.weapon} ({character.cls.weaponDamage})
+            {displayWeaponName} ({displayWeaponFormula})
           </span>
         </div>
         <div className={styles.stat}>
