@@ -29,6 +29,7 @@ export interface TownScreenProps {
   onContinueActive: () => void;
   onResumeDungeon: (pending: PendingDungeon) => void;
   onRollNew: () => void;
+  onEnterWorld: () => void;
 }
 
 /** Most-recently-touched first (mirroring the Graveyard's own `.reverse()`), with beaten dungeons
@@ -49,6 +50,7 @@ export function TownScreen({
   onContinueActive,
   onResumeDungeon,
   onRollNew,
+  onEnterWorld,
 }: TownScreenProps) {
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const sortedHistory = sortDungeonHistory(dungeonHistory);
@@ -159,6 +161,13 @@ export function TownScreen({
                   <p className={styles.gateCopy}>Or set out for an entirely new dungeon.</p>
                   <button className={styles.ghostBtn} type="button" onClick={onRollNew}>
                     Roll for a New Dungeon
+                  </button>
+                </div>
+
+                <div className={styles.rollNewSection}>
+                  <p className={styles.gateCopy}>Or leave the city behind and see what's out there.</p>
+                  <button className={styles.ghostBtn} type="button" onClick={onEnterWorld}>
+                    Venture into the World
                   </button>
                 </div>
               </section>

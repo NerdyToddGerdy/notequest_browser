@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
 import { CharacterCreationScreen } from "./ui/screens/CharacterCreationScreen/CharacterCreationScreen.tsx";
 import { TownScreen } from "./ui/screens/TownScreen/TownScreen.tsx";
+import { WorldScreen } from "./ui/screens/WorldScreen/WorldScreen.tsx";
 import { DungeonScreen } from "./ui/screens/DungeonScreen/DungeonScreen.tsx";
 import type { CreatedCharacter } from "./data/types.ts";
 import { computeSpellUses } from "./engine/character.ts";
 import { isDungeonBeaten, type DungeonState, type PendingDungeon } from "./engine/dungeonState.ts";
 import type { AdventurerResources } from "./engine/town.ts";
+import { createInitialWorldState, type WorldState } from "./engine/hexState.ts";
 import { loadSession, saveSession } from "./engine/session.ts";
 
-type Screen = "town" | "dungeon";
+type Screen = "town" | "world" | "dungeon";
 
 export default function App() {
-  // Loaded once, on mount -- the four pieces below seed themselves from it and then live as
-  // their own independent state, same as before persistence existed. `screen`/`selectedRunId`
-  // deliberately aren't part of this: they're transient navigation state, not worth remembering.
+  // Loaded once, on mount -- the pieces below seed themselves from it and then live as their own
+  // independent state, same as before persistence existed. `screen`/`selectedRunId`/`returnScreen`
+  // deliberately aren't part of this: they're transient navigation state, not worth remembering
+  // (a reload always lands back on Town, same as today).
   const [initialSession] = useState(() => loadSession());
   const [character, setCharacter] = useState<CreatedCharacter | null>(initialSession.character);
   const [resources, setResources] = useState<AdventurerResources | null>(initialSession.resources);
@@ -24,13 +27,20 @@ export default function App() {
    * picked up, or null for a fresh roll. Read once when DungeonScreen mounts. */
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [dungeonHistory, setDungeonHistory] = useState<PendingDungeon[]>(initialSession.dungeonHistory);
+  /** The World map -- shared across every character, not reset by `handleNewAdventurer`, same as
+   * `dungeonHistory`. Created lazily the first time "Venture into the World" is pressed. */
+  const [world, setWorld] = useState<WorldState | null>(initialSession.world);
+  /** Which screen a dungeon trip should return to once it ends -- Town's "Roll for a New Dungeon"
+   * and World's "Enter Dungeon" both lead to the same DungeonScreen, so this is set right before
+   * switching to `"dungeon"` and consulted by `handleReturnToTown` instead of hardcoding `"town"`. */
+  const [returnScreen, setReturnScreen] = useState<"town" | "world">("town");
 
   // Persists the whole session in one blob whenever any piece of it changes -- mirrors
   // addGraveyardEntry's "mutate then persist immediately" behavior, just via an effect instead
   // of inline at each call site, since several setters above would otherwise each need their own.
   useEffect(() => {
-    saveSession({ character, resources, dungeonHistory, activeRunId });
-  }, [character, resources, dungeonHistory, activeRunId]);
+    saveSession({ character, resources, dungeonHistory, activeRunId, world });
+  }, [character, resources, dungeonHistory, activeRunId, world]);
 
   // A freshly created character always arrives in Town first, never straight into a dungeon.
   function handleCharacterCreated(newCharacter: CreatedCharacter) {
@@ -48,6 +58,7 @@ export default function App() {
       spellUses: computeSpellUses(newCharacter.spells, newCharacter.fixedGrants),
       monsterKills: 0,
       bossKills: 0,
+      provisions: 20,
     });
     setActiveRunId(null);
     setScreen("town");
@@ -62,8 +73,9 @@ export default function App() {
 
   // A voluntary, alive retreat -- captures the run's current resources so Town's City Actions
   // can act on them, and remembers the runId so "Continue" can jump straight back in later.
+  // Lands back on whichever of Town/World the dungeon trip started from.
   function handleReturnToTown(runId: string, dungeon: DungeonState) {
-    setResources({
+    setResources((prev) => ({
       torches: dungeon.torches,
       hp: dungeon.hp,
       maxHp: dungeon.maxHp,
@@ -76,9 +88,12 @@ export default function App() {
       spellUses: dungeon.spellUses,
       monsterKills: dungeon.monsterKills,
       bossKills: dungeon.bossKills,
-    });
+      // Provisions aren't tracked on DungeonState at all (irrelevant inside a dungeon) -- carried
+      // over untouched from whatever it was before this trip started.
+      provisions: prev?.provisions ?? 20,
+    }));
     setActiveRunId(dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null);
-    setScreen("town");
+    setScreen(returnScreen);
   }
 
   // Called whenever a dungeon run ends (death, a voluntary retreat, "Start a New Dungeon", or
@@ -110,14 +125,39 @@ export default function App() {
         onUpdateResources={setResources}
         onContinueActive={() => {
           setSelectedRunId(activeRunId);
+          setReturnScreen("town");
           setScreen("dungeon");
         }}
         onResumeDungeon={(pending) => {
           setSelectedRunId(pending.id);
+          setReturnScreen("town");
           setScreen("dungeon");
         }}
         onRollNew={() => {
           setSelectedRunId(null);
+          setReturnScreen("town");
+          setScreen("dungeon");
+        }}
+        onEnterWorld={() => {
+          setWorld((prev) => prev ?? createInitialWorldState());
+          setScreen("world");
+        }}
+      />
+    );
+  }
+
+  if (screen === "world") {
+    return (
+      <WorldScreen
+        character={character}
+        resources={resources}
+        world={world ?? createInitialWorldState()}
+        onUpdateResources={setResources}
+        onUpdateWorld={setWorld}
+        onReturnToTown={() => setScreen("town")}
+        onEnterDungeon={() => {
+          setSelectedRunId(null);
+          setReturnScreen("world");
           setScreen("dungeon");
         }}
       />

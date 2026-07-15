@@ -15,10 +15,17 @@ export interface AdventurerResources {
   spellUses: Record<number, number>;
   monsterKills: number;
   bossKills: number;
+  /** Spent while exploring the World map, same as `torches` is spent while exploring a dungeon --
+   * neither resource is touched by the other activity, but both persist across every screen as
+   * part of this same object. */
+  provisions: number;
 }
 
 /** "You can carry a maximum of 10 torches at a time." */
 export const MAX_TORCHES = 10;
+
+/** "No one can carry more than 20 provisions." */
+export const MAX_PROVISIONS = 20;
 
 export function canRest(resources: AdventurerResources): boolean {
   return resources.coins >= 1;
@@ -67,5 +74,30 @@ export function fixArmor(resources: AdventurerResources, index: number, isBlacks
     coins: isBlacksmith ? resources.coins : resources.coins - 1,
     torches: isBlacksmith ? resources.torches - 1 : resources.torches,
     armor: resources.armor.map((p, i) => (i === index ? { ...p, hp: p.maxHp } : p)),
+  };
+}
+
+export function canBuyProvision(resources: AdventurerResources): boolean {
+  return resources.coins >= 1 && resources.provisions < MAX_PROVISIONS;
+}
+
+/** "[Buy] more in any city by paying 1 coin per Provision, up to a maximum of 20." */
+export function buyProvision(resources: AdventurerResources): AdventurerResources {
+  return { ...resources, coins: resources.coins - 1, provisions: Math.min(resources.provisions + 1, MAX_PROVISIONS) };
+}
+
+/** "Every day of travel consumes 1 Provision ... If you run out of provisions and have to move,
+ * lose 1 HP for each provision needed [that you don't have]." Spends whatever provisions are
+ * available first, converts any shortfall 1:1 to HP -- floored at 1, a deliberate v1
+ * simplification: the rulebook's actual lethal hex hazards (Glacier's Cracked Ice, Thin Ice, a
+ * failed Reef check) live in the deferred Events on Travel/Location-effects layer, not here, so
+ * running out of provisions alone can hurt but not kill. */
+export function payTravelCost(resources: AdventurerResources, cost: number): AdventurerResources {
+  const spend = Math.min(resources.provisions, cost);
+  const shortfall = cost - spend;
+  return {
+    ...resources,
+    provisions: resources.provisions - spend,
+    hp: Math.max(1, resources.hp - shortfall),
   };
 }
