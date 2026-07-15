@@ -9,8 +9,22 @@ import {
 } from "../../../data/hexTables.ts";
 import { hexKey, hexNeighbors, type HexCoord, type HexTile, type WorldState } from "../../../engine/hexState.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
-import { buyProvision, canBuyProvision, payTravelCost, type AdventurerResources } from "../../../engine/town.ts";
+import { computeSpellUses } from "../../../engine/character.ts";
+import {
+  buyProvision,
+  buyTorch,
+  canBuyProvision,
+  canBuyTorch,
+  canRest,
+  fixArmor,
+  payTravelCost,
+  rest,
+  sellItem,
+  type AdventurerResources,
+} from "../../../engine/town.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
+import { Equipment } from "../../components/Equipment/Equipment.tsx";
+import { Pack } from "../../components/Pack/Pack.tsx";
 import styles from "./WorldScreen.module.css";
 
 export interface WorldScreenProps {
@@ -88,7 +102,10 @@ export function WorldScreen({
   const currentTile: HexTile | undefined = world.tiles[hexKey(world.player)];
   const neighborCoords = hexNeighbors(world.player);
   const canEnterDungeon = !!currentTile && locationHasDungeon(currentTile.location);
-  const canBuyHere = !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
+  const inCityOrFortress = !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
+  const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
+  const isCatPerson = character.race.name === "Cat-Person";
+  const isBlacksmith = character.cls.name === "Blacksmith";
 
   function handleTravel(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
@@ -184,17 +201,59 @@ export function WorldScreen({
             spellUses={resources.spellUses}
           />
 
-          {canBuyHere && (
-            <div className={styles.buyCard}>
-              <button
-                className={styles.ghostBtn}
-                type="button"
-                disabled={!canBuyProvision(resources)}
-                onClick={() => onUpdateResources(buyProvision(resources))}
-              >
-                Buy Provisions (1 coin)
-              </button>
-            </div>
+          {inCityOrFortress && (
+            <>
+              <div className={styles.actionCard}>
+                <h2 className={styles.trackTitle}>City Actions</h2>
+                <div className={styles.actionGrid}>
+                  <button
+                    className={styles.actionBtn}
+                    type="button"
+                    disabled={!canRest(resources)}
+                    onClick={() => onUpdateResources(rest(resources, maxSpellUses))}
+                  >
+                    <span className={styles.actionName}>Rest</span>
+                    <span className={styles.actionCost}>1 coin</span>
+                    <span className={styles.actionDesc}>Recover your HP and spent spells.</span>
+                  </button>
+                  <button
+                    className={styles.actionBtn}
+                    type="button"
+                    disabled={!canBuyTorch(resources)}
+                    onClick={() => onUpdateResources(buyTorch(resources))}
+                  >
+                    <span className={styles.actionName}>Buy Torches</span>
+                    <span className={styles.actionCost}>1 coin</span>
+                    <span className={styles.actionDesc}>+1 torch, up to a maximum of 10 carried.</span>
+                  </button>
+                  <button
+                    className={styles.actionBtn}
+                    type="button"
+                    disabled={!canBuyProvision(resources)}
+                    onClick={() => onUpdateResources(buyProvision(resources))}
+                  >
+                    <span className={styles.actionName}>Buy Provisions</span>
+                    <span className={styles.actionCost}>1 coin</span>
+                    <span className={styles.actionDesc}>+1 provision, up to a maximum of 20 carried.</span>
+                  </button>
+                </div>
+                <p className={styles.sellNote}>
+                  Sell items from your Pack for their listed worth in coins
+                  {isCatPerson ? " (doubled, Cat-Person)" : ""}, or fix a damaged armor piece from your
+                  Equipment, for {isBlacksmith ? "1 torch (Blacksmith)" : "1 coin"}.
+                </p>
+              </div>
+              <Equipment
+                armor={resources.armor}
+                weapon={resources.weapon}
+                onFixArmor={(index) => onUpdateResources(fixArmor(resources, index, isBlacksmith))}
+                isBlacksmith={isBlacksmith}
+              />
+              <Pack
+                items={resources.heldItems}
+                onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson))}
+              />
+            </>
           )}
         </aside>
       </div>

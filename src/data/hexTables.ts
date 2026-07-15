@@ -147,3 +147,26 @@ export function travelCost(terrain: Terrain): number {
   if (terrain === "mountain") return 3;
   return 2;
 }
+
+/** "Table: Dungeon Type (1d6, by terrain)" (`docs/game-rules-reference.md` lines 990-999) -- values
+ * are `DUNGEON_TYPES` roll numbers (`src/data/dungeonTypes.ts`), i.e. what a `ROLL_DUNGEON` action's
+ * `typeRoll` would be, not a parallel table of its own. The rulebook's real table references 8
+ * dungeon types this app hasn't built yet (Citadel, Mine, Cave, Laboratory, Pyramid, Ziggurat,
+ * Necropolis, plus a Fortress's optional Sewers) -- tracked separately as issue #30 ("Deadly
+ * Dungeons"). Each is substituted here with the closest thematic match among the 6 that exist,
+ * same "documented, deliberate simplification" precedent as `bladeTrap`'s roll-of-2 flavor-only
+ * outcome or `WeaponEntry.twoHanded`: Citadel/Mine/Cave (fortified or tunneled strongholds) -> Prison
+ * (6), Laboratory -> Palace (1), Pyramid/Ziggurat -> Tomb (3), Necropolis -> Crypt (2). `water` and
+ * `glacier` rows are unreachable in practice today (no City/Fortress/Ruins ever rolls on water per
+ * `LOCATION_TABLE`; `glacier` only exists in the still-unused `COLD_TERRAIN_TABLE`) but are filled in
+ * for `Record<Terrain, ...>`'s type completeness rather than left to throw. */
+export const DUNGEON_TYPE_BY_TERRAIN: Record<Terrain, Record<number, number>> = {
+  plain: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 }, // Palace, Crypt, Tomb, Sanctuary, Temple, Prison
+  mountain: { 1: 2, 2: 4, 3: 6, 4: 6, 5: 6, 6: 6 }, // Crypt, Sanctuary, Prison, Citadel->Prison, Mine->Prison, Cave->Prison
+  forest: { 1: 3, 2: 5, 3: 1, 4: 5, 5: 1, 6: 6 }, // Tomb, Temple, Palace, Temple, Laboratory->Palace, Cave->Prison
+  swamp: { 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 2 }, // Crypt, Tomb, Sanctuary, Temple, Prison, Necropolis->Crypt
+  desert: { 1: 6, 2: 1, 3: 4, 4: 5, 5: 3, 6: 3 }, // Prison, Palace, Sanctuary, Temple, Pyramid->Tomb, Pyramid->Tomb
+  tundra: { 1: 6, 2: 1, 3: 2, 4: 3, 5: 3, 6: 3 }, // Prison, Palace, Crypt, Tomb, Ziggurat->Tomb, Ziggurat->Tomb
+  water: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 }, // unreachable -- no dungeon-bearing location ever rolls on water
+  glacier: { 1: 6, 2: 1, 3: 2, 4: 3, 5: 3, 6: 3 }, // unreachable while climate is hardcoded "hot" -- mirrors tundra's row
+};

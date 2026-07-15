@@ -7,7 +7,9 @@ import type { CreatedCharacter } from "./data/types.ts";
 import { computeSpellUses } from "./engine/character.ts";
 import { isDungeonBeaten, type DungeonState, type PendingDungeon } from "./engine/dungeonState.ts";
 import type { AdventurerResources } from "./engine/town.ts";
-import { createInitialWorldState, type WorldState } from "./engine/hexState.ts";
+import { createInitialWorldState, hexKey, type WorldState } from "./engine/hexState.ts";
+import { DUNGEON_TYPE_BY_TERRAIN } from "./data/hexTables.ts";
+import { rollDie } from "./engine/dice.ts";
 import { loadSession, saveSession } from "./engine/session.ts";
 
 type Screen = "town" | "world" | "dungeon";
@@ -34,6 +36,10 @@ export default function App() {
    * and World's "Enter Dungeon" both lead to the same DungeonScreen, so this is set right before
    * switching to `"dungeon"` and consulted by `handleReturnToTown` instead of hardcoding `"town"`. */
   const [returnScreen, setReturnScreen] = useState<"town" | "world">("town");
+  /** Set right before switching to "dungeon" from World's "Enter Dungeon" -- the current hex's
+   * terrain fates the dungeon type ("Table: Dungeon Type, by terrain"), passed through to
+   * DungeonScreen as `forcedTypeRoll`. Null for every Town-sourced entry, where the roll stays free. */
+  const [forcedTypeRoll, setForcedTypeRoll] = useState<number | null>(null);
 
   // Persists the whole session in one blob whenever any piece of it changes -- mirrors
   // addGraveyardEntry's "mutate then persist immediately" behavior, just via an effect instead
@@ -147,15 +153,21 @@ export default function App() {
   }
 
   if (screen === "world") {
+    const resolvedWorld = world ?? createInitialWorldState();
     return (
       <WorldScreen
         character={character}
         resources={resources}
-        world={world ?? createInitialWorldState()}
+        world={resolvedWorld}
         onUpdateResources={setResources}
         onUpdateWorld={setWorld}
         onReturnToTown={() => setScreen("town")}
         onEnterDungeon={() => {
+          // "The dungeon you find depends on the terrain" -- fates just the type-roll die;
+          // DungeonScreen still animates its own "Roll for Dungeon" ritual for it.
+          const tile = resolvedWorld.tiles[hexKey(resolvedWorld.player)];
+          const terrain = tile?.terrain ?? "plain";
+          setForcedTypeRoll(DUNGEON_TYPE_BY_TERRAIN[terrain][rollDie()]!);
           setSelectedRunId(null);
           setReturnScreen("world");
           setScreen("dungeon");
@@ -176,6 +188,10 @@ export default function App() {
       resources={resources}
       activeDungeon={isOwnRun ? activeDungeon : null}
       resumeDungeon={resumeDungeon}
+      // Scoped to a World-sourced trip via returnScreen (set alongside forcedTypeRoll, right
+      // before switching to "dungeon") rather than a separate reset, so a later Town-sourced
+      // "Roll for a New Dungeon" can never accidentally inherit a stale forced roll.
+      forcedTypeRoll={returnScreen === "world" ? (forcedTypeRoll ?? undefined) : undefined}
       onNewAdventurer={handleNewAdventurer}
       onReturnToTown={handleReturnToTown}
       onLeaveDungeon={handleLeaveDungeon}

@@ -42,6 +42,11 @@ export interface DungeonScreenProps {
   activeDungeon: PendingDungeon | null;
   /** A dead adventurer's abandoned dungeon the player picked up in Town, if any. */
   resumeDungeon: PendingDungeon | null;
+  /** World only: the dungeon type the current hex's terrain fates ("Table: Dungeon Type", by
+   * terrain) -- overrides just the first of "Roll for Dungeon"'s 3 dice, so the type is determined
+   * by where the player found it rather than free chance; the other two (name flavor) still roll
+   * normally. Undefined for a Town-sourced entry, where every roll stays free. */
+  forcedTypeRoll?: number;
   /** Sends the player back to Character Creation to roll a new adventurer -- this one is permadead. */
   onNewAdventurer: () => void;
   /** A voluntary retreat, alive -- back to Town with this run's current resources and map saved. */
@@ -55,6 +60,7 @@ export function DungeonScreen({
   resources,
   activeDungeon,
   resumeDungeon,
+  forcedTypeRoll,
   onNewAdventurer,
   onReturnToTown,
   onLeaveDungeon,
@@ -202,7 +208,9 @@ export function DungeonScreen({
 
   function handleRollDungeon() {
     if (rollingDungeon) return;
-    const rolls = [rollDie(), rollDie(), rollDie()];
+    // The type die still animates like any other roll -- it's just fated by the hex's terrain
+    // instead of free chance when arriving from World (forcedTypeRoll), same ritual either way.
+    const rolls = [forcedTypeRoll ?? rollDie(), rollDie(), rollDie()];
     setDiceValues(rolls);
     setDiceRollToken((t) => t + 1);
     setRollingDungeon(true);
