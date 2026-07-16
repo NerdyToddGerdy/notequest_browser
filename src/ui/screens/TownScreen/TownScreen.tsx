@@ -29,8 +29,12 @@ export interface TownScreenProps {
    * distinguishes the three cases in the copy shown alongside the button. */
   hasDungeon: boolean;
   dungeonGateCopy: string;
+  /** Set only when the character has their own active run tied to a *different* hex than this one
+   * -- `hasDungeon`/`onEnterDungeon` above are hex-scoped and can't reach it otherwise. */
+  activeDungeonElsewhere: { name: string; level: number } | null;
   onUpdateResources: (resources: AdventurerResources) => void;
   onEnterDungeon: () => void;
+  onContinueActive: () => void;
   /** Toggles WorldScreen's map view back on -- this screen renders in its place while standing on
    * a City/Fortress hex, so "leaving" just means looking at the map again, not switching screens. */
   onExploreWorld: () => void;
@@ -41,8 +45,10 @@ export function TownScreen({
   resources,
   hasDungeon,
   dungeonGateCopy,
+  activeDungeonElsewhere,
   onUpdateResources,
   onEnterDungeon,
+  onContinueActive,
   onExploreWorld,
 }: TownScreenProps) {
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
@@ -111,6 +117,18 @@ export function TownScreen({
                     <p className={styles.gateCopy}>{dungeonGateCopy}</p>
                     <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
                       Enter Dungeon
+                    </button>
+                  </div>
+                )}
+
+                {activeDungeonElsewhere && (
+                  <div className={styles.activeDungeonCard}>
+                    <p className={styles.gateCopy}>
+                      {activeDungeonElsewhere.name} awaits elsewhere — you left off on Level{" "}
+                      {activeDungeonElsewhere.level}.
+                    </p>
+                    <button className={styles.rollBtn} type="button" onClick={onContinueActive}>
+                      Continue the Dungeon
                     </button>
                   </div>
                 )}

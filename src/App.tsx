@@ -137,6 +137,8 @@ export default function App() {
         resources={resources}
         world={resolvedWorld}
         dungeonHistory={dungeonHistory}
+        activeDungeon={activeDungeon}
+        activeRunId={activeRunId}
         onUpdateResources={setResources}
         onUpdateWorld={setWorld}
         onEnterDungeon={() => {
@@ -162,6 +164,23 @@ export default function App() {
             setWorld(withDungeonRunId(resolvedWorld, resolvedWorld.player, newRunId));
             setSelectedRunId(null);
           }
+          setScreen("dungeon");
+        }}
+        onContinueActive={() => {
+          // The character's own active run, tied to some hex other than wherever they currently
+          // are (onEnterDungeon is hex-scoped and can't reach it) -- warp world.player to that
+          // hex first, so a later retreat lands back at the right city instead of wherever this
+          // was clicked from.
+          if (!activeRunId) return;
+          const entry = Object.entries(resolvedWorld.tiles).find(([, t]) => t.dungeonRunId === activeRunId);
+          if (entry) {
+            const [key] = entry;
+            const [q, r] = key.split(",").map(Number);
+            setWorld({ ...resolvedWorld, player: { q: q!, r: r! } });
+          }
+          setForcedTypeRoll(null);
+          setWorldFreshRunId(null);
+          setSelectedRunId(activeRunId);
           setScreen("dungeon");
         }}
       />
