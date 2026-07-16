@@ -26,6 +26,7 @@ import {
   buildConnector,
   classifyDoorOpen,
   assignDirections,
+  isTeleportDestination,
   placeChild,
   placeIslandRoot,
   reachableSegIds,
@@ -1421,6 +1422,11 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
       const combatOnly = action.spellRoll === 4 || action.spellRoll === 5 || action.spellRoll === 6;
       if ((combatOnly || action.spellRoll === 3) && !state.combat) return state;
       if ((action.spellRoll === 4 || action.spellRoll === 5) && action.targetId == null) return state;
+      if (action.spellRoll === 3) {
+        const destLevel = action.destLevel != null ? state.levels[action.destLevel] : undefined;
+        const destSeg = destLevel?.segments.find((s) => s.id === action.destSegId);
+        if (!destSeg || !isTeleportDestination(destSeg, state.combat!.segId)) return state;
+      }
 
       return produce(state, (draft) => {
         draft.spellUses[action.spellRoll] = remaining - 1;
@@ -1457,8 +1463,18 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
 
           case 3: {
             if (!combat) break;
-            pushLog(draft, "You cast Teleport and vanish from the fight, reappearing in an empty room.", "descend");
+            const destLevelIndex = action.destLevel!;
+            const destSeg = draft.levels[destLevelIndex]!.segments.find((s) => s.id === action.destSegId)!;
+            pushLog(
+              draft,
+              `You cast Teleport and vanish from the fight, reappearing in ${TYPE_LABELS[destSeg.type]} (Segment ${destSeg.id}, Level ${destLevelIndex + 1}).`,
+              "descend",
+            );
             draft.combat = null;
+            draft.activeLevel = destLevelIndex;
+            draft.currentSegId = destSeg.id;
+            draft.selectedSegId = destSeg.id;
+            rerollMonstersIfNeeded(draft, destSeg, rng);
             return; // fled -- no monster counter-turn
           }
 

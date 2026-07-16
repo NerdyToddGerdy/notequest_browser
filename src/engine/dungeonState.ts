@@ -345,7 +345,9 @@ export type DungeonAction =
    * `CombatState.engulfableBodies` (set by `handleMonsterDefeat` whenever a monster is actually
    * removed, not revived) and heals to full, same as a full round (the monsters still counter-attack). */
   | { type: "ENGULF_BODY" }
-  | { type: "CAST_SPELL"; spellRoll: number; targetId?: number }
+  /** `destLevel`/`destSegId`: required for Teleport (spellRoll 3) -- the already-discovered, empty
+   * room the player chose to reappear in (see `isTeleportDestination`). Unused by every other spell. */
+  | { type: "CAST_SPELL"; spellRoll: number; targetId?: number; destLevel?: number; destSegId?: number }
   /** Resolves a CombatState.pendingDamage from a monster counter-attack: onto the player's HP, or
    * onto one of `armor`'s indices ("your call" per the rulebook). */
   | { type: "RESOLVE_DAMAGE"; absorbWith: "hp" | number }

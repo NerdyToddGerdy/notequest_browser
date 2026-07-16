@@ -1264,7 +1264,8 @@ describe("CAST_SPELL guards", () => {
   it("allows Teleport mid-fight after choosing Attack First (regression: hasPendingRoomEntry must not block an already-active fight)", () => {
     const monster: MonsterTemplate = { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 };
     const room = makeSegment({ id: 1, type: "room-small", doors: [], monsters: monster });
-    const level = { ...makeLevel(1), segments: [room] };
+    const dest = makeSegment({ id: 2, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room, dest] };
     const combat: CombatState = {
       segId: 1,
       monsters: [
@@ -1296,9 +1297,10 @@ describe("CAST_SPELL guards", () => {
       spellUses: { 3: 1 },
     };
 
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3 });
+    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 2 });
     expect(next.combat).toBeNull();
     expect(next.spellUses[3]).toBe(0);
+    expect(next.currentSegId).toBe(2);
   });
 });
 

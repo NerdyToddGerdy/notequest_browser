@@ -1,0 +1,88 @@
+.panel {
+  padding: 16px 18px;
+  background: rgba(221, 204, 162, 0.93);
+  backdrop-filter: blur(2px);
+  border-radius: 4px;
+  border: 1px solid var(--gold);
+  box-shadow:
+    0 0 0 3px rgba(184, 134, 47, 0.12),
+    0 24px 60px rgba(0, 0, 0, 0.6);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 10px;
+}
+
+.copy {
+  font-size: 0.85rem;
+  color: var(--ink);
+  line-height: 1.4;
+  margin: 0 0 14px;
+}
+
+.destList {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.destBtn {
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--ink);
+  background: rgba(42, 32, 22, 0.05);
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.destBtn:hover {
+  background: rgba(184, 134, 47, 0.15);
+}
+.destBtn:active {
+  transform: translateY(1px);
+}
+.destBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.cancelBtn {
+  align-self: flex-start;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--parchment-3);
+  border-radius: 3px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.cancelBtn:hover {
+  background: rgba(42, 32, 22, 0.06);
+  color: var(--ink);
+}
+.cancelBtn:active {
+  transform: translateY(1px);
+}
+.cancelBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
