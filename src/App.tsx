@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { CharacterCreationScreen } from "./ui/screens/CharacterCreationScreen/CharacterCreationScreen.tsx";
-import { TownScreen } from "./ui/screens/TownScreen/TownScreen.tsx";
 import { WorldScreen } from "./ui/screens/WorldScreen/WorldScreen.tsx";
 import { DungeonScreen } from "./ui/screens/DungeonScreen/DungeonScreen.tsx";
 import type { CreatedCharacter } from "./data/types.ts";
@@ -12,30 +11,28 @@ import { DUNGEON_TYPE_BY_TERRAIN } from "./data/hexTables.ts";
 import { rollDie } from "./engine/dice.ts";
 import { loadSession, saveSession } from "./engine/session.ts";
 
-type Screen = "town" | "world" | "dungeon";
+// Home is just another hex, rendered by WorldScreen like any other City -- there's no separate
+// "town" screen anymore (see per-hex dungeon persistence / Town-Square unification in CLAUDE.md).
+type Screen = "world" | "dungeon";
 
 export default function App() {
   // Loaded once, on mount -- the pieces below seed themselves from it and then live as their own
-  // independent state, same as before persistence existed. `screen`/`selectedRunId`/`returnScreen`
-  // deliberately aren't part of this: they're transient navigation state, not worth remembering
-  // (a reload always lands back on Town, same as today).
+  // independent state, same as before persistence existed. `screen`/`selectedRunId` deliberately
+  // aren't part of this: they're transient navigation state, not worth remembering (a reload just
+  // resumes wherever world.player physically was, since that itself is persisted).
   const [initialSession] = useState(() => loadSession());
   const [character, setCharacter] = useState<CreatedCharacter | null>(initialSession.character);
   const [resources, setResources] = useState<AdventurerResources | null>(initialSession.resources);
-  const [screen, setScreen] = useState<Screen>("town");
+  const [screen, setScreen] = useState<Screen>("world");
   /** This character's own paused dungeon, if any -- looked up in pendingDungeons below. */
   const [activeRunId, setActiveRunId] = useState<string | null>(initialSession.activeRunId);
-  /** Which dungeon Town sent the player into -- their own active one, an abandoned one they
-   * picked up, or null for a fresh roll. Read once when DungeonScreen mounts. */
+  /** Which dungeon World's "Enter Dungeon" sent the player into -- their own active one, an
+   * abandoned one they picked up, or null for a fresh roll. Read once when DungeonScreen mounts. */
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [dungeonHistory, setDungeonHistory] = useState<PendingDungeon[]>(initialSession.dungeonHistory);
-  /** The World map -- shared across every character, not reset by `handleNewAdventurer`, same as
-   * `dungeonHistory`. Created lazily the first time "Venture into the World" is pressed. */
+  /** The World map -- shared across every character, not reset by `handleNewAdventurer` (only the
+   * player's own position is, in handleCharacterCreated). Created lazily on first use. */
   const [world, setWorld] = useState<WorldState | null>(initialSession.world);
-  /** Which screen a dungeon trip should return to once it ends -- Town's "Roll for a New Dungeon"
-   * and World's "Enter Dungeon" both lead to the same DungeonScreen, so this is set right before
-   * switching to `"dungeon"` and consulted by `handleReturnToTown` instead of hardcoding `"town"`. */
-  const [returnScreen, setReturnScreen] = useState<"town" | "world">("town");
   /** Set right before switching to "dungeon" from World's "Enter Dungeon" -- the current hex's
    * terrain fates the dungeon type ("Table: Dungeon Type, by terrain"), passed through to
    * DungeonScreen as `forcedTypeRoll`. Null for every Town-sourced entry, where the roll stays free. */
@@ -53,7 +50,10 @@ export default function App() {
     saveSession({ character, resources, dungeonHistory, activeRunId, world });
   }, [character, resources, dungeonHistory, activeRunId, world]);
 
-  // A freshly created character always arrives in Town first, never straight into a dungeon.
+  // A freshly created character always arrives in town first, never straight into a dungeon --
+  // that's just World's home hex now, so this resets world.player back to home (world terrain,
+  // discovery, and hex dungeon-ties all persist across characters; only the marker resets, so a
+  // new adventurer starts fresh at the city rather than wherever the last one's body was left).
   function handleCharacterCreated(newCharacter: CreatedCharacter) {
     setCharacter(newCharacter);
     setResources({
@@ -72,19 +72,22 @@ export default function App() {
       provisions: 20,
     });
     setActiveRunId(null);
-    setScreen("town");
+    setWorld((prev) => {
+      const w = prev ?? createInitialWorldState();
+      return { ...w, player: w.home };
+    });
+    setScreen("world");
   }
 
   function handleNewAdventurer() {
     setCharacter(null);
     setResources(null);
     setActiveRunId(null);
-    setScreen("town");
+    setScreen("world");
   }
 
-  // A voluntary, alive retreat -- captures the run's current resources so Town's City Actions
-  // can act on them, and remembers the runId so "Continue" can jump straight back in later.
-  // Lands back on whichever of Town/World the dungeon trip started from.
+  // A voluntary, alive retreat -- captures the run's current resources so City Actions can act on
+  // them, and remembers the runId so re-entering that hex's dungeon jumps straight back in later.
   function handleReturnToTown(runId: string, dungeon: DungeonState) {
     setResources((prev) => ({
       torches: dungeon.torches,
@@ -104,7 +107,7 @@ export default function App() {
       provisions: prev?.provisions ?? 20,
     }));
     setActiveRunId(dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null);
-    setScreen(returnScreen);
+    setScreen("world");
   }
 
   // Called whenever a dungeon run ends (death, a voluntary retreat, "Start a New Dungeon", or
@@ -126,29 +129,6 @@ export default function App() {
 
   const activeDungeon = dungeonHistory.find((pd) => pd.id === activeRunId) ?? null;
 
-  if (screen === "town") {
-    // Town no longer offers its own dungeon-finding -- the only way to find or resume one (other
-    // than this character's own currently-active run) is by traveling to a hex in World. See
-    // per-hex dungeon persistence in CLAUDE.md.
-    return (
-      <TownScreen
-        character={character}
-        resources={resources}
-        activeDungeon={activeDungeon}
-        onUpdateResources={setResources}
-        onContinueActive={() => {
-          setSelectedRunId(activeRunId);
-          setReturnScreen("town");
-          setScreen("dungeon");
-        }}
-        onEnterWorld={() => {
-          setWorld((prev) => prev ?? createInitialWorldState());
-          setScreen("world");
-        }}
-      />
-    );
-  }
-
   if (screen === "world") {
     const resolvedWorld = world ?? createInitialWorldState();
     return (
@@ -159,7 +139,6 @@ export default function App() {
         dungeonHistory={dungeonHistory}
         onUpdateResources={setResources}
         onUpdateWorld={setWorld}
-        onReturnToTown={() => setScreen("town")}
         onEnterDungeon={() => {
           const key = hexKey(resolvedWorld.player);
           const tile = resolvedWorld.tiles[key];
@@ -167,8 +146,7 @@ export default function App() {
           if (tile.dungeonRunId) {
             // Found here before -- resume the exact same dungeon. Which of RETURN_TO_DUNGEON
             // (still this character's own paused run) vs. RESUME_DUNGEON (someone else's abandoned
-            // one) applies is entirely decided below by whether this equals activeRunId, same as
-            // Town's own "Continue"/"Dungeon History" resume paths.
+            // one) applies is entirely decided below by whether this equals activeRunId.
             setForcedTypeRoll(null);
             setWorldFreshRunId(null);
             setSelectedRunId(tile.dungeonRunId);
@@ -184,7 +162,6 @@ export default function App() {
             setWorld(withDungeonRunId(resolvedWorld, resolvedWorld.player, newRunId));
             setSelectedRunId(null);
           }
-          setReturnScreen("world");
           setScreen("dungeon");
         }}
       />
@@ -203,11 +180,8 @@ export default function App() {
       resources={resources}
       activeDungeon={isOwnRun ? activeDungeon : null}
       resumeDungeon={resumeDungeon}
-      // Scoped to a World-sourced trip via returnScreen (set alongside forcedTypeRoll, right
-      // before switching to "dungeon") rather than a separate reset, so a later Town-sourced
-      // "Roll for a New Dungeon" can never accidentally inherit a stale forced roll.
-      forcedTypeRoll={returnScreen === "world" ? (forcedTypeRoll ?? undefined) : undefined}
-      externalRunId={returnScreen === "world" ? (worldFreshRunId ?? undefined) : undefined}
+      forcedTypeRoll={forcedTypeRoll ?? undefined}
+      externalRunId={worldFreshRunId ?? undefined}
       onNewAdventurer={handleNewAdventurer}
       onReturnToTown={handleReturnToTown}
       onLeaveDungeon={handleLeaveDungeon}
@@ -216,7 +190,7 @@ export default function App() {
         // (that prop is only consulted once, at mount) -- re-tie the hex the player is standing on
         // to it, same as a first-ever "Enter Dungeon" does, so the abandoned dungeon doesn't stay
         // the one "on the map" once a different one gets explored (and beaten) in its place.
-        if (returnScreen !== "world" || !world) return;
+        if (!world) return;
         setWorld(withDungeonRunId(world, world.player, newRunId));
       }}
     />

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
-import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
 import {
+  buyProvision,
   buyTorch,
+  canBuyProvision,
   canBuyTorch,
   canRest,
   fixArmor,
@@ -21,20 +22,28 @@ import styles from "./TownScreen.module.css";
 export interface TownScreenProps {
   character: CreatedCharacter;
   resources: AdventurerResources;
-  /** This character's own paused dungeon, if they've retreated from one and it isn't beaten. */
-  activeDungeon: PendingDungeon | null;
+  /** True whenever the current hex (home or any other City/Fortress/Ruins) can offer a dungeon at
+   * all -- WorldScreen's own canEnterDungeon check. Covers both a fresh roll (never entered here
+   * before) and resuming a known one (own active run or someone else's abandoned one, resolved
+   * identically either way by App.tsx's isOwnRun derivation) -- dungeonGateCopy is what actually
+   * distinguishes the three cases in the copy shown alongside the button. */
+  hasDungeon: boolean;
+  dungeonGateCopy: string;
   onUpdateResources: (resources: AdventurerResources) => void;
-  onContinueActive: () => void;
-  onEnterWorld: () => void;
+  onEnterDungeon: () => void;
+  /** Toggles WorldScreen's map view back on -- this screen renders in its place while standing on
+   * a City/Fortress hex, so "leaving" just means looking at the map again, not switching screens. */
+  onExploreWorld: () => void;
 }
 
 export function TownScreen({
   character,
   resources,
-  activeDungeon,
+  hasDungeon,
+  dungeonGateCopy,
   onUpdateResources,
-  onContinueActive,
-  onEnterWorld,
+  onEnterDungeon,
+  onExploreWorld,
 }: TownScreenProps) {
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const isCatPerson = character.race.name === "Cat-Person";
@@ -77,6 +86,16 @@ export function TownScreen({
                     <span className={styles.actionCost}>1 coin</span>
                     <span className={styles.actionDesc}>+1 torch, up to a maximum of 10 carried.</span>
                   </button>
+                  <button
+                    className={styles.actionBtn}
+                    type="button"
+                    disabled={!canBuyProvision(resources)}
+                    onClick={() => onUpdateResources(buyProvision(resources))}
+                  >
+                    <span className={styles.actionName}>Buy Provisions</span>
+                    <span className={styles.actionCost}>1 coin</span>
+                    <span className={styles.actionDesc}>+1 provision, up to a maximum of 20 carried.</span>
+                  </button>
                 </div>
                 <p className={styles.sellNote}>
                   Sell items from your Pack for their listed worth in coins{isCatPerson ? " (doubled, Cat-Person)" : ""}, or
@@ -87,22 +106,19 @@ export function TownScreen({
               <section className={styles.adventureSection}>
                 <h2 className={styles.trackTitle}>Adventure</h2>
 
-                {activeDungeon && (
+                {hasDungeon && (
                   <div className={styles.activeDungeonCard}>
-                    <p className={styles.gateCopy}>
-                      {activeDungeon.dungeon.dungeonName ?? "Your dungeon"} awaits — you left off on Level{" "}
-                      {activeDungeon.dungeon.activeLevel + 1}.
-                    </p>
-                    <button className={styles.rollBtn} type="button" onClick={onContinueActive}>
-                      Continue the Dungeon
+                    <p className={styles.gateCopy}>{dungeonGateCopy}</p>
+                    <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
+                      Enter Dungeon
                     </button>
                   </div>
                 )}
 
                 <div className={styles.rollNewSection}>
                   <p className={styles.gateCopy}>Leave the city behind and see what's out there.</p>
-                  <button className={styles.ghostBtn} type="button" onClick={onEnterWorld}>
-                    Venture into the World
+                  <button className={styles.ghostBtn} type="button" onClick={onExploreWorld}>
+                    Explore the World
                   </button>
                 </div>
               </section>
@@ -120,6 +136,7 @@ export function TownScreen({
             coins={resources.coins}
             treasures={resources.treasures}
             keys={resources.keys}
+            provisions={resources.provisions}
             weaponName={resources.weapon?.name}
             weaponFormula={resources.weapon?.formula}
             spellUses={resources.spellUses}

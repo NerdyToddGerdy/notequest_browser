@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import {
   CITY_OR_FORTRESS,
@@ -9,23 +10,10 @@ import {
 } from "../../../data/hexTables.ts";
 import { hexKey, hexNeighbors, type HexCoord, type HexTile, type WorldState } from "../../../engine/hexState.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
-import { computeSpellUses } from "../../../engine/character.ts";
 import { hasUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
-import {
-  buyProvision,
-  buyTorch,
-  canBuyProvision,
-  canBuyTorch,
-  canRest,
-  fixArmor,
-  payTravelCost,
-  rest,
-  sellItem,
-  type AdventurerResources,
-} from "../../../engine/town.ts";
+import { payTravelCost, type AdventurerResources } from "../../../engine/town.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
-import { Equipment } from "../../components/Equipment/Equipment.tsx";
-import { Pack } from "../../components/Pack/Pack.tsx";
+import { TownScreen } from "../TownScreen/TownScreen.tsx";
 import styles from "./WorldScreen.module.css";
 
 export interface WorldScreenProps {
@@ -38,7 +26,6 @@ export interface WorldScreenProps {
   dungeonHistory: PendingDungeon[];
   onUpdateResources: (resources: AdventurerResources) => void;
   onUpdateWorld: (world: WorldState) => void;
-  onReturnToTown: () => void;
   onEnterDungeon: () => void;
 }
 
@@ -102,9 +89,12 @@ export function WorldScreen({
   dungeonHistory,
   onUpdateResources,
   onUpdateWorld,
-  onReturnToTown,
   onEnterDungeon,
 }: WorldScreenProps) {
+  /** True while voluntarily looking at the map from within a City/Fortress hex (via TownScreen's
+   * "Explore the World") -- reset to false on every arrival, so landing anywhere shows "the
+   * appropriate thing" (the city screen if it's a City/Fortress, the map otherwise) by default. */
+  const [showMap, setShowMap] = useState(false);
   const currentTile: HexTile | undefined = world.tiles[hexKey(world.player)];
   const neighborCoords = hexNeighbors(world.player);
   const canEnterDungeon = !!currentTile && locationHasDungeon(currentTile.location);
@@ -130,16 +120,29 @@ export function WorldScreen({
       : currentDungeonStatus === "unfinished"
         ? "your unfinished dungeon is still here."
         : "a dungeon awaits here.";
-  const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
-  const isCatPerson = character.race.name === "Cat-Person";
-  const isBlacksmith = character.cls.name === "Blacksmith";
 
   function handleTravel(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
     if (!tile || isImpassable(tile.terrain, tile.location)) return;
     onUpdateResources(payTravelCost(resources, travelCost(tile.terrain)));
     onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord }));
-    if (coord.q === world.home.q && coord.r === world.home.r) onReturnToTown();
+    setShowMap(false);
+  }
+
+  if (inCityOrFortress && !showMap) {
+    return (
+      <TownScreen
+        character={character}
+        resources={resources}
+        // canEnterDungeon, not "already has a known dungeonRunId" -- a hex the player has never
+        // entered a dungeon on yet still offers a fresh roll, same as the old Ruins card always did.
+        hasDungeon={canEnterDungeon}
+        dungeonGateCopy={dungeonGateCopy}
+        onUpdateResources={onUpdateResources}
+        onEnterDungeon={onEnterDungeon}
+        onExploreWorld={() => setShowMap(true)}
+      />
+    );
   }
 
   const knownCoords: HexCoord[] = Object.keys(world.tiles).map((key) => {
@@ -217,13 +220,25 @@ export function WorldScreen({
             </svg>
           </div>
 
-          {canEnterDungeon && currentTile?.location && (
+          {/* City/Fortress hexes handle their own "Enter Dungeon" via TownScreen -- this card is
+           * only for a dungeon-bearing hex reached without a city on it (Ruins) or while
+           * voluntarily viewing the map from inside a city (see "Return to the City" below). */}
+          {canEnterDungeon && !inCityOrFortress && currentTile?.location && (
             <div className={styles.actionCard}>
               <p className={styles.gateCopy}>
                 {LOCATION_LABEL[currentTile.location]}: {dungeonGateCopy}
               </p>
               <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
                 Enter Dungeon
+              </button>
+            </div>
+          )}
+
+          {inCityOrFortress && (
+            <div className={styles.actionCard}>
+              <p className={styles.gateCopy}>You're viewing the map from within the city.</p>
+              <button className={styles.rollBtn} type="button" onClick={() => setShowMap(false)}>
+                Return to the City
               </button>
             </div>
           )}
@@ -247,61 +262,6 @@ export function WorldScreen({
             weaponFormula={resources.weapon?.formula}
             spellUses={resources.spellUses}
           />
-
-          {inCityOrFortress && (
-            <>
-              <div className={styles.actionCard}>
-                <h2 className={styles.trackTitle}>City Actions</h2>
-                <div className={styles.actionGrid}>
-                  <button
-                    className={styles.actionBtn}
-                    type="button"
-                    disabled={!canRest(resources)}
-                    onClick={() => onUpdateResources(rest(resources, maxSpellUses))}
-                  >
-                    <span className={styles.actionName}>Rest</span>
-                    <span className={styles.actionCost}>1 coin</span>
-                    <span className={styles.actionDesc}>Recover your HP and spent spells.</span>
-                  </button>
-                  <button
-                    className={styles.actionBtn}
-                    type="button"
-                    disabled={!canBuyTorch(resources)}
-                    onClick={() => onUpdateResources(buyTorch(resources))}
-                  >
-                    <span className={styles.actionName}>Buy Torches</span>
-                    <span className={styles.actionCost}>1 coin</span>
-                    <span className={styles.actionDesc}>+1 torch, up to a maximum of 10 carried.</span>
-                  </button>
-                  <button
-                    className={styles.actionBtn}
-                    type="button"
-                    disabled={!canBuyProvision(resources)}
-                    onClick={() => onUpdateResources(buyProvision(resources))}
-                  >
-                    <span className={styles.actionName}>Buy Provisions</span>
-                    <span className={styles.actionCost}>1 coin</span>
-                    <span className={styles.actionDesc}>+1 provision, up to a maximum of 20 carried.</span>
-                  </button>
-                </div>
-                <p className={styles.sellNote}>
-                  Sell items from your Pack for their listed worth in coins
-                  {isCatPerson ? " (doubled, Cat-Person)" : ""}, or fix a damaged armor piece from your
-                  Equipment, for {isBlacksmith ? "1 torch (Blacksmith)" : "1 coin"}.
-                </p>
-              </div>
-              <Equipment
-                armor={resources.armor}
-                weapon={resources.weapon}
-                onFixArmor={(index) => onUpdateResources(fixArmor(resources, index, isBlacksmith))}
-                isBlacksmith={isBlacksmith}
-              />
-              <Pack
-                items={resources.heldItems}
-                onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson))}
-              />
-            </>
-          )}
         </aside>
       </div>
     </div>
