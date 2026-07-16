@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
-import { isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
+import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
 import {
@@ -23,37 +23,20 @@ export interface TownScreenProps {
   resources: AdventurerResources;
   /** This character's own paused dungeon, if they've retreated from one and it isn't beaten. */
   activeDungeon: PendingDungeon | null;
-  /** Every other dungeon any character has ever touched, unbeaten (resumable) or beaten (a record). */
-  dungeonHistory: PendingDungeon[];
   onUpdateResources: (resources: AdventurerResources) => void;
   onContinueActive: () => void;
-  onResumeDungeon: (pending: PendingDungeon) => void;
-  onRollNew: () => void;
   onEnterWorld: () => void;
-}
-
-/** Most-recently-touched first (mirroring the Graveyard's own `.reverse()`), with beaten dungeons
- * grouped after every unbeaten one -- Array.prototype.sort is stable, so reversing first preserves
- * recency order within each group. */
-function sortDungeonHistory(history: PendingDungeon[]): PendingDungeon[] {
-  return [...history]
-    .reverse()
-    .sort((a, b) => Number(isDungeonBeaten(a.dungeon)) - Number(isDungeonBeaten(b.dungeon)));
 }
 
 export function TownScreen({
   character,
   resources,
   activeDungeon,
-  dungeonHistory,
   onUpdateResources,
   onContinueActive,
-  onResumeDungeon,
-  onRollNew,
   onEnterWorld,
 }: TownScreenProps) {
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
-  const sortedHistory = sortDungeonHistory(dungeonHistory);
   const isCatPerson = character.race.name === "Cat-Person";
   const isBlacksmith = character.cls.name === "Blacksmith";
   const [graveyard] = useState(() => loadGraveyard());
@@ -116,56 +99,8 @@ export function TownScreen({
                   </div>
                 )}
 
-                {sortedHistory.length > 0 && (
-                  <section className={styles.historyPanel}>
-                    <h3 className={styles.historyTitle}>Dungeon History</h3>
-                    <p className={styles.historyNote}>
-                      {sortedHistory.length} dungeon{sortedHistory.length === 1 ? "" : "s"} touched by adventurers
-                      before you.
-                    </p>
-                    <ul className={styles.historyList}>
-                      {sortedHistory.map((pd) => {
-                        const beaten = isDungeonBeaten(pd.dungeon);
-                        const name = pd.dungeon.dungeonName ?? "An unnamed dungeon";
-                        return (
-                          <li key={pd.id}>
-                            {beaten ? (
-                              <div className={styles.historyRow}>
-                                <span className={styles.historyName}>{name}</span>
-                                <span className={styles.historyMeta}>beaten by {pd.lastCharacterName}</span>
-                                <span className={`${styles.historyStatus} ${styles.historyStatusDone}`}>
-                                  Completed
-                                </span>
-                              </div>
-                            ) : (
-                              <button
-                                className={`${styles.historyRow} ${styles.historyBtn}`}
-                                type="button"
-                                onClick={() => onResumeDungeon(pd)}
-                              >
-                                <span className={styles.historyName}>
-                                  {name} — Level {pd.dungeon.activeLevel + 1}
-                                </span>
-                                <span className={styles.historyMeta}>last explored by {pd.lastCharacterName}</span>
-                                <span className={styles.historyStatus}>Take up →</span>
-                              </button>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                )}
-
                 <div className={styles.rollNewSection}>
-                  <p className={styles.gateCopy}>Or set out for an entirely new dungeon.</p>
-                  <button className={styles.ghostBtn} type="button" onClick={onRollNew}>
-                    Roll for a New Dungeon
-                  </button>
-                </div>
-
-                <div className={styles.rollNewSection}>
-                  <p className={styles.gateCopy}>Or leave the city behind and see what's out there.</p>
+                  <p className={styles.gateCopy}>Leave the city behind and see what's out there.</p>
                   <button className={styles.ghostBtn} type="button" onClick={onEnterWorld}>
                     Venture into the World
                   </button>
