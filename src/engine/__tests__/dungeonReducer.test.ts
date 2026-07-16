@@ -645,6 +645,46 @@ describe("ROLL_SECRET_PASSAGE", () => {
     expect(next.alive).toBe(true);
     expect(next.hp).toBe(next.maxHp - 1);
   });
+
+  it("a roll of 6 builds a real, descendable Staircase segment off the room", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 6, trapRoll: null });
+
+    const seg = next.levels[0]!.segments.find((s) => s.id === 1)!;
+    expect(seg.secretPassageResult).toBe("A secret door to a Staircase.");
+    expect(next.levels[0]!.segments).toHaveLength(2);
+    expect(next.levels[0]!.hasStaircase).toBe(true);
+
+    const newDoor = seg.doors.find((d) => d.childId != null)!;
+    expect(newDoor.opened).toBe(true);
+    const stairSeg = next.levels[0]!.segments.find((s) => s.id === newDoor.childId)!;
+    expect(stairSeg.type).toBe("staircase");
+    expect(stairSeg.doors).toHaveLength(1); // "the door in the end" -- the actual way down
+    expect(next.log[0]!.message).toContain("Staircase");
+  });
+
+  it("a roll of 6 is a graceful no-op (flavor text only) when all 4 directions are already doored", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [
+        { dir: "N", opened: false, childId: null, leadsToLevel: null },
+        { dir: "E", opened: false, childId: null, leadsToLevel: null },
+        { dir: "S", opened: false, childId: null, leadsToLevel: null },
+        { dir: "W", opened: false, childId: null, leadsToLevel: null },
+      ],
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 6, trapRoll: null });
+
+    expect(next.levels[0]!.segments).toHaveLength(1); // no new segment could be placed
+    expect(next.levels[0]!.segments[0]!.secretPassageResult).toBe("A secret door to a Staircase.");
+  });
 });
 
 describe("ROLL_CHEST", () => {

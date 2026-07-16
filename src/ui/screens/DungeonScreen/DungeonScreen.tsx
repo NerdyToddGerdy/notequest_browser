@@ -59,6 +59,10 @@ export interface DungeonScreenProps {
   onReturnToTown: (runId: string, dungeon: DungeonState) => void;
   /** Fires whenever this run ends (death, retreat, or "Start a New Dungeon") so it can be resumed later if unbeaten. */
   onLeaveDungeon: (runId: string, dungeon: DungeonState, characterName: string) => void;
+  /** Fires whenever "Start a New Dungeon" mints a fresh runId mid-screen -- externalRunId only
+   * covers the id DungeonScreen is seeded with at mount, so World needs this separate signal to
+   * re-tie its hex to whichever dungeon is actually being explored now. No-op for a Town entry. */
+  onRunIdChanged?: (newRunId: string) => void;
 }
 
 export function DungeonScreen({
@@ -71,6 +75,7 @@ export function DungeonScreen({
   onNewAdventurer,
   onReturnToTown,
   onLeaveDungeon,
+  onRunIdChanged,
 }: DungeonScreenProps) {
   const [runId, setRunId] = useState(
     () => activeDungeon?.id ?? resumeDungeon?.id ?? externalRunId ?? crypto.randomUUID(),
@@ -215,7 +220,9 @@ export function DungeonScreen({
     if (hasDungeon) {
       onLeaveDungeon(runId, state, character.name);
     }
-    setRunId(crypto.randomUUID());
+    const newRunId = crypto.randomUUID();
+    setRunId(newRunId);
+    onRunIdChanged?.(newRunId);
     dispatch({ type: "RESET" });
   }
 

@@ -53,9 +53,11 @@ import {
   makeLevel,
   type CombatMonsterState,
   type CombatState,
+  type Direction,
   type DungeonAction,
   type DungeonState,
   type DungeonStats,
+  type LevelState,
   type SegmentState,
 } from "./dungeonState.ts";
 import type { RNG } from "./rng.ts";
@@ -769,6 +771,41 @@ function finishRoomSegment(
   }
 }
 
+/** "A secret door to a Staircase" (Secret Passage roll of 6) -- builds a real, descendable
+ * staircase segment off the room, exactly like an ordinary door resolving to the Segments
+ * table's "staircase" outcome (1 door, "the door in the end"), except the door itself is brand
+ * new (not one of the room's already-rolled doors) and already open, since finding it via a
+ * search *is* the reveal -- no separate OPEN_DOOR click needed. Placed in whichever cardinal
+ * direction the room doesn't already have a door facing; a non-entrance room always has at least
+ * one free direction (assignDirections caps a non-entrance room's own door count at 3 of 4), so
+ * this only ever silently no-ops (the flavor text alone still stands) for a fully 4-doored
+ * entrance, the one segment type that can actually use all four. Doesn't touch
+ * `stats.doorsRemaining` the way a normal door resolution does beyond `bumpStatsForNewSegment`'s
+ * own `+= doors` -- this door was never a previously-counted pending slot to "consume," it's a
+ * wholly new one the search just added. */
+function buildSecretPassageStaircase(
+  draft: Draft<DungeonState>,
+  level: Draft<LevelState>,
+  seg: Draft<SegmentState>,
+  rng: RNG,
+): void {
+  const usedDirs = new Set(seg.doors.map((d) => d.dir));
+  const freeDir = (["N", "E", "S", "W"] satisfies Direction[]).find((d) => !usedDirs.has(d));
+  if (!freeDir) return;
+
+  const box = placeChild(seg, freeDir, "staircase", level.segments);
+  const stairSeg = buildSegment(draft, "staircase", box, freeDir, 1, null, rng);
+  level.segments.push(stairSeg);
+  level.connectors.push(buildConnector(seg, freeDir, box));
+  seg.doors.push({ dir: freeDir, opened: true, childId: stairSeg.id, leadsToLevel: null });
+  level.hasStaircase = true;
+
+  bumpStatsForNewSegment(draft.stats, "staircase", 1);
+
+  pushLog(draft, `Segment ${seg.id}: a secret door reveals a Staircase (Segment ${stairSeg.id})!`);
+  finishRoomSegment(draft, stairSeg, false, rng);
+}
+
 export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: RNG = Math.random): DungeonState {
   switch (action.type) {
     case "ROLL_DUNGEON": {
@@ -872,6 +909,9 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             resolveTrapOutcome(draft, trap, seg.id, rng);
             wakeSneakedPastMonsters(draft, seg, rng);
           }
+        }
+        if (action.roll === 6) {
+          buildSecretPassageStaircase(draft, level!, seg, rng);
         }
       });
     }

@@ -93,6 +93,20 @@
   fill: var(--gold-bright);
 }
 
+.dungeonBadgeUnfinished,
+.dungeonBadgeCleared {
+  font-size: 13px;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 2.5px;
+}
+.dungeonBadgeUnfinished {
+  fill: var(--danger);
+}
+.dungeonBadgeCleared {
+  fill: #6fae6f;
+}
+
 .actionCard {
   background: var(--parchment);
   border-radius: 3px;

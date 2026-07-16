@@ -7,7 +7,7 @@ import type { CreatedCharacter } from "./data/types.ts";
 import { computeSpellUses } from "./engine/character.ts";
 import { isDungeonBeaten, type DungeonState, type PendingDungeon } from "./engine/dungeonState.ts";
 import type { AdventurerResources } from "./engine/town.ts";
-import { createInitialWorldState, hexKey, type WorldState } from "./engine/hexState.ts";
+import { createInitialWorldState, hexKey, withDungeonRunId, type WorldState } from "./engine/hexState.ts";
 import { DUNGEON_TYPE_BY_TERRAIN } from "./data/hexTables.ts";
 import { rollDie } from "./engine/dice.ts";
 import { loadSession, saveSession } from "./engine/session.ts";
@@ -189,7 +189,7 @@ export default function App() {
             setForcedTypeRoll(DUNGEON_TYPE_BY_TERRAIN[tile.terrain][rollDie()]!);
             const newRunId = crypto.randomUUID();
             setWorldFreshRunId(newRunId);
-            setWorld({ ...resolvedWorld, tiles: { ...resolvedWorld.tiles, [key]: { ...tile, dungeonRunId: newRunId } } });
+            setWorld(withDungeonRunId(resolvedWorld, resolvedWorld.player, newRunId));
             setSelectedRunId(null);
           }
           setReturnScreen("world");
@@ -219,6 +219,14 @@ export default function App() {
       onNewAdventurer={handleNewAdventurer}
       onReturnToTown={handleReturnToTown}
       onLeaveDungeon={handleLeaveDungeon}
+      onRunIdChanged={(newRunId) => {
+        // "Start a New Dungeon" mid-run mints its own fresh id, bypassing externalRunId entirely
+        // (that prop is only consulted once, at mount) -- re-tie the hex the player is standing on
+        // to it, same as a first-ever "Enter Dungeon" does, so the abandoned dungeon doesn't stay
+        // the one "on the map" once a different one gets explored (and beaten) in its place.
+        if (returnScreen !== "world" || !world) return;
+        setWorld(withDungeonRunId(world, world.player, newRunId));
+      }}
     />
   );
 }

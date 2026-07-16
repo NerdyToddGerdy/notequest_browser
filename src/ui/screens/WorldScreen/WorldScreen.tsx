@@ -109,14 +109,19 @@ export function WorldScreen({
   const neighborCoords = hexNeighbors(world.player);
   const canEnterDungeon = !!currentTile && locationHasDungeon(currentTile.location);
   const inCityOrFortress = !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
-  const foundDungeon = currentTile?.dungeonRunId
-    ? (dungeonHistory.find((pd) => pd.id === currentTile.dungeonRunId) ?? null)
-    : null;
-  const dungeonGateCopy = foundDungeon
-    ? isDungeonBeaten(foundDungeon.dungeon)
+  function dungeonStatusFor(tile: HexTile | undefined): "none" | "unfinished" | "beaten" {
+    if (!tile?.dungeonRunId) return "none";
+    const pending = dungeonHistory.find((pd) => pd.id === tile.dungeonRunId);
+    if (!pending) return "none";
+    return isDungeonBeaten(pending.dungeon) ? "beaten" : "unfinished";
+  }
+  const currentDungeonStatus = dungeonStatusFor(currentTile);
+  const dungeonGateCopy =
+    currentDungeonStatus === "beaten"
       ? "the dungeon here has already been cleared."
-      : "your unfinished dungeon is still here."
-    : "a dungeon awaits here.";
+      : currentDungeonStatus === "unfinished"
+        ? "your unfinished dungeon is still here."
+        : "a dungeon awaits here.";
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const isCatPerson = character.race.name === "Cat-Person";
   const isBlacksmith = character.cls.name === "Blacksmith";
@@ -158,6 +163,7 @@ export function WorldScreen({
                 const passable = !isImpassable(tile.terrain, tile.location);
                 const clickable = isNeighbor && passable;
                 const label = tile.location ? LOCATION_LABEL[tile.location] : "";
+                const dungeonStatus = dungeonStatusFor(tile);
                 return (
                   <g
                     key={hexKey(coord)}
@@ -173,6 +179,17 @@ export function WorldScreen({
                     {label && (
                       <text x={pixel.x} y={pixel.y + 4} textAnchor="middle" className={styles.hexLabel}>
                         {label}
+                      </text>
+                    )}
+                    {dungeonStatus !== "none" && (
+                      <text
+                        x={pixel.x + 17}
+                        y={pixel.y - 18}
+                        textAnchor="middle"
+                        className={dungeonStatus === "beaten" ? styles.dungeonBadgeCleared : styles.dungeonBadgeUnfinished}
+                      >
+                        <title>{dungeonStatus === "beaten" ? "Dungeon cleared" : "Unfinished dungeon"}</title>
+                        {dungeonStatus === "beaten" ? "✓" : "⚔"}
                       </text>
                     )}
                     {isPlayer && (

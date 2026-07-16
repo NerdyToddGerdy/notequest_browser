@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createInitialWorldState, revealNeighborsInPlace, type HexTile } from "../hexState.ts";
+import {
+  createInitialWorldState,
+  revealNeighborsInPlace,
+  withDungeonRunId,
+  type HexTile,
+  type WorldState,
+} from "../hexState.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
 
 // HOT_TERRAIN_TABLE's "plain" column: 1->water, 2->mountain, 3->forest, 4/5/6->plain.
@@ -54,5 +60,30 @@ describe("revealNeighborsInPlace", () => {
     // { terrain: "water", location: null } -- a different value than what's already there.
     revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([1, 2, 1, 2, 1, 2, 1, 2, 1, 2]));
     expect(tiles["1,0"]).toBe(existing);
+  });
+});
+
+describe("withDungeonRunId", () => {
+  it("stamps the id onto the tile at the given coord, immutably", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: "humanCity" } },
+    };
+    const next = withDungeonRunId(world, { q: 0, r: 0 }, "run-1");
+    expect(next.tiles["0,0"]).toEqual({ terrain: "plain", location: "humanCity", dungeonRunId: "run-1" });
+    expect(world.tiles["0,0"]).toEqual({ terrain: "plain", location: "humanCity" }); // original untouched
+  });
+
+  it("is a no-op if the coord isn't a known tile", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: "humanCity" } },
+    };
+    const next = withDungeonRunId(world, { q: 5, r: 5 }, "run-1");
+    expect(next).toBe(world);
   });
 });

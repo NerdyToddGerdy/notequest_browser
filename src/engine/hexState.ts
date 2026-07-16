@@ -91,6 +91,17 @@ export function revealNeighborsInPlace(
   }
 }
 
+/** Immutably ties a `PendingDungeon` to the hex at `coord` -- App.tsx's two call sites are a hex's
+ * first-ever "Enter Dungeon" and "Start a New Dungeon" re-tying the hex to whatever gets rolled
+ * next (see CLAUDE.md's per-hex dungeon persistence note). A no-op if the hex isn't known yet,
+ * which shouldn't happen in practice -- both call sites only ever run while standing on one. */
+export function withDungeonRunId(world: WorldState, coord: HexCoord, runId: string): WorldState {
+  const key = hexKey(coord);
+  const tile = world.tiles[key];
+  if (!tile) return world;
+  return { ...world, tiles: { ...world.tiles, [key]: { ...tile, dungeonRunId: runId } } };
+}
+
 /** The player starts on a human city on a plain (fixed, not rolled -- "Choose a hex to start with
  * ... it will be a human city on a plain"), with its 6 neighbors already revealed so there's
  * somewhere to go without a wasted first move. */
