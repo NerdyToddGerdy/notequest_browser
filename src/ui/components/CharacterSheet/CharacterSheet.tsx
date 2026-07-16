@@ -15,6 +15,9 @@ export interface CharacterSheetProps {
   treasures?: number;
   /** Live Key count in the current run; 0 outside a dungeon (Keys are only ever found there). */
   keys?: number;
+  /** Live Provisions count while exploring the World map; omitted entirely (not shown) anywhere
+   * else, since provisions have no meaning in Town or a dungeon. */
+  provisions?: number;
   /** An acquired weapon's name, overriding the character's class weapon; falls back to it outside
    * a dungeon or if none has been found yet. */
   weaponName?: string;
@@ -37,6 +40,7 @@ export function CharacterSheet({
   coins,
   treasures,
   keys,
+  provisions,
   weaponName,
   weaponFormula,
   spellUses,
@@ -94,6 +98,12 @@ export function CharacterSheet({
           <span className={styles.statLabel}>Keys</span>
           <span className={styles.statValue}>{keyCount}</span>
         </div>
+        {provisions != null && (
+          <div className={styles.stat}>
+            <span className={styles.statLabel}>Provisions</span>
+            <span className={`${styles.statValue} ${provisions <= 2 ? styles.warn : ""}`}>{provisions}</span>
+          </div>
+        )}
       </div>
 
       <ul className={styles.abilities}>

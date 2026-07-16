@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { loadSession, saveSession, type SessionState } from "../session.ts";
 import { createInitialDungeonState } from "../dungeonState.ts";
+import { createInitialWorldState, type WorldState } from "../hexState.ts";
 import type { CreatedCharacter } from "../../data/types.ts";
 import type { AdventurerResources } from "../town.ts";
+import { fixedDie } from "../../test/mulberry32.ts";
 
 /** A minimal in-memory Storage so these tests don't need a DOM environment. */
 function makeFakeStorage(initial: Record<string, string> = {}): Storage {
@@ -47,13 +49,17 @@ const RESOURCES: AdventurerResources = {
   spellUses: {},
   monsterKills: 2,
   bossKills: 0,
+  provisions: 17,
 };
+
+const WORLD: WorldState = createInitialWorldState(fixedDie(3));
 
 const FULL_SESSION: SessionState = {
   character: CHARACTER,
   resources: RESOURCES,
   dungeonHistory: [{ id: "run-1", dungeon: createInitialDungeonState(), lastCharacterName: "Pip" }],
   activeRunId: "run-1",
+  world: WORLD,
 };
 
 describe("loadSession", () => {
@@ -63,6 +69,7 @@ describe("loadSession", () => {
       resources: null,
       dungeonHistory: [],
       activeRunId: null,
+      world: null,
     });
   });
 
@@ -78,6 +85,7 @@ describe("loadSession", () => {
       resources: null,
       dungeonHistory: [],
       activeRunId: null,
+      world: null,
     });
   });
 
@@ -88,6 +96,7 @@ describe("loadSession", () => {
       resources: null,
       dungeonHistory: [],
       activeRunId: null,
+      world: null,
     });
   });
 
@@ -98,6 +107,7 @@ describe("loadSession", () => {
       resources: null,
       dungeonHistory: [],
       activeRunId: null,
+      world: null,
     });
   });
 });
@@ -111,7 +121,13 @@ describe("saveSession", () => {
 
   it("overwrites whatever was there before, not merges", () => {
     const storage = makeFakeStorage({ "notequest:session": JSON.stringify(FULL_SESSION) });
-    const cleared: SessionState = { character: null, resources: null, dungeonHistory: FULL_SESSION.dungeonHistory, activeRunId: null };
+    const cleared: SessionState = {
+      character: null,
+      resources: null,
+      dungeonHistory: FULL_SESSION.dungeonHistory,
+      activeRunId: null,
+      world: null,
+    };
     saveSession(cleared, storage);
     expect(loadSession(storage)).toEqual(cleared);
   });

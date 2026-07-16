@@ -1,17 +1,22 @@
 import type { CreatedCharacter } from "../data/types.ts";
 import type { PendingDungeon } from "./dungeonState.ts";
 import type { AdventurerResources } from "./town.ts";
+import type { WorldState } from "./hexState.ts";
 
 /** Everything App.tsx needs to resume exactly where the player left off after a reload --
- * `screen`/`selectedRunId` deliberately aren't included, since they're transient navigation
- * state, not something worth remembering (a reload always lands back on Town, or Character
- * Creation if there's no character, same as today). */
+ * `screen`/`selectedRunId`/`returnScreen` deliberately aren't included, since they're transient
+ * navigation state, not something worth remembering (a reload always lands back on Town, or
+ * Character Creation if there's no character, same as today -- re-entering World shows the same
+ * map/position, just requires clicking "Venture into the World" again). */
 export interface SessionState {
   character: CreatedCharacter | null;
   resources: AdventurerResources | null;
   dungeonHistory: PendingDungeon[];
   /** Which entry in `dungeonHistory` (if any) is the current character's own paused run. */
   activeRunId: string | null;
+  /** The World map -- shared across every character, same as `dungeonHistory`, not reset by a
+   * new adventurer. Null until "Venture into the World" is pressed for the first time. */
+  world: WorldState | null;
 }
 
 const STORAGE_KEY = "notequest:session";
@@ -21,6 +26,7 @@ const EMPTY_SESSION: SessionState = {
   resources: null,
   dungeonHistory: [],
   activeRunId: null,
+  world: null,
 };
 
 /**
@@ -39,6 +45,7 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
       resources: p.resources ?? null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],
       activeRunId: p.activeRunId ?? null,
+      world: p.world ?? null,
     };
   } catch {
     return EMPTY_SESSION;

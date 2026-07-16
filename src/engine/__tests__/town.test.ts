@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { buyTorch, canBuyTorch, canFixArmor, canRest, fixArmor, rest, sellItem, type AdventurerResources } from "../town.ts";
+import {
+  buyProvision,
+  buyTorch,
+  canBuyProvision,
+  canBuyTorch,
+  canFixArmor,
+  canRest,
+  fixArmor,
+  payTravelCost,
+  rest,
+  sellItem,
+  type AdventurerResources,
+} from "../town.ts";
 
 function makeResources(overrides: Partial<AdventurerResources> = {}): AdventurerResources {
   return {
@@ -15,6 +27,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     spellUses: { 1: 0 },
     monsterKills: 0,
     bossKills: 0,
+    provisions: 10,
     ...overrides,
   };
 }
@@ -118,5 +131,42 @@ describe("canFixArmor / fixArmor", () => {
     expect(next.torches).toBe(2);
     expect(next.coins).toBe(5); // untouched
     expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3 }]);
+  });
+});
+
+describe("canBuyProvision / buyProvision", () => {
+  it("requires at least 1 coin and fewer than 20 provisions", () => {
+    expect(canBuyProvision(makeResources({ coins: 0, provisions: 10 }))).toBe(false);
+    expect(canBuyProvision(makeResources({ coins: 1, provisions: 20 }))).toBe(false);
+    expect(canBuyProvision(makeResources({ coins: 1, provisions: 19 }))).toBe(true);
+  });
+
+  it("spends 1 coin and adds 1 provision, capped at 20", () => {
+    const next = buyProvision(makeResources({ coins: 2, provisions: 10 }));
+    expect(next.coins).toBe(1);
+    expect(next.provisions).toBe(11);
+
+    const capped = buyProvision(makeResources({ coins: 2, provisions: 20 }));
+    expect(capped.provisions).toBe(20);
+  });
+});
+
+describe("payTravelCost", () => {
+  it("just spends provisions when there are enough", () => {
+    const next = payTravelCost(makeResources({ provisions: 10, hp: 15 }), 3);
+    expect(next.provisions).toBe(7);
+    expect(next.hp).toBe(15);
+  });
+
+  it("converts any shortfall to HP, 1 for 1", () => {
+    const next = payTravelCost(makeResources({ provisions: 2, hp: 15 }), 3);
+    expect(next.provisions).toBe(0);
+    expect(next.hp).toBe(14); // 1 provision short -> 1 HP lost
+  });
+
+  it("running out entirely still floors HP at 1, never killing the character", () => {
+    const next = payTravelCost(makeResources({ provisions: 0, hp: 2 }), 3);
+    expect(next.provisions).toBe(0);
+    expect(next.hp).toBe(1);
   });
 });

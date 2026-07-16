@@ -160,6 +160,12 @@ export function CombatPanel({
         </span>
       </div>
 
+      {rolling && (
+        <div className={styles.dieRow}>
+          <Die value={dieValue} rollToken={rollToken} size={40} />
+        </div>
+      )}
+
       <ul className={styles.monsterList}>
         {combat.monsters.map((monster) => (
           <li key={monster.id} className={styles.monster}>
@@ -277,11 +283,6 @@ export function CombatPanel({
         </div>
       )}
 
-      {rolling && (
-        <div className={styles.dieRow}>
-          <Die value={dieValue} rollToken={rollToken} size={40} />
-        </div>
-      )}
     </div>
   );
 }

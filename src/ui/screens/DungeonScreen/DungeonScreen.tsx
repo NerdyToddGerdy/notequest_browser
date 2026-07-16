@@ -43,12 +43,26 @@ export interface DungeonScreenProps {
   activeDungeon: PendingDungeon | null;
   /** A dead adventurer's abandoned dungeon the player picked up in Town, if any. */
   resumeDungeon: PendingDungeon | null;
+  /** World only: the dungeon type the current hex's terrain fates ("Table: Dungeon Type", by
+   * terrain) -- overrides just the first of "Roll for Dungeon"'s 3 dice, so the type is determined
+   * by where the player found it rather than free chance; the other two (name flavor) still roll
+   * normally. Undefined for a Town-sourced entry, where every roll stays free. */
+  forcedTypeRoll?: number;
+  /** World only: an id App.tsx minted and already stamped onto the current hex's tile, so a fresh
+   * roll's run can be found again later without DungeonScreen self-minting one it can't report back
+   * before mount. Ignored whenever activeDungeon/resumeDungeon is set (those already carry their own
+   * id). Undefined for a Town-sourced entry. */
+  externalRunId?: string;
   /** Sends the player back to Character Creation to roll a new adventurer -- this one is permadead. */
   onNewAdventurer: () => void;
   /** A voluntary retreat, alive -- back to Town with this run's current resources and map saved. */
   onReturnToTown: (runId: string, dungeon: DungeonState) => void;
   /** Fires whenever this run ends (death, retreat, or "Start a New Dungeon") so it can be resumed later if unbeaten. */
   onLeaveDungeon: (runId: string, dungeon: DungeonState, characterName: string) => void;
+  /** Fires whenever "Start a New Dungeon" mints a fresh runId mid-screen -- externalRunId only
+   * covers the id DungeonScreen is seeded with at mount, so World needs this separate signal to
+   * re-tie its hex to whichever dungeon is actually being explored now. No-op for a Town entry. */
+  onRunIdChanged?: (newRunId: string) => void;
 }
 
 export function DungeonScreen({
@@ -56,11 +70,16 @@ export function DungeonScreen({
   resources,
   activeDungeon,
   resumeDungeon,
+  forcedTypeRoll,
+  externalRunId,
   onNewAdventurer,
   onReturnToTown,
   onLeaveDungeon,
+  onRunIdChanged,
 }: DungeonScreenProps) {
-  const [runId, setRunId] = useState(() => activeDungeon?.id ?? resumeDungeon?.id ?? crypto.randomUUID());
+  const [runId, setRunId] = useState(
+    () => activeDungeon?.id ?? resumeDungeon?.id ?? externalRunId ?? crypto.randomUUID(),
+  );
   const [state, dispatch] = useReducer(reduceDungeon, undefined, () => {
     if (activeDungeon) {
       return dungeonReducer(createInitialDungeonState(), {
@@ -201,13 +220,17 @@ export function DungeonScreen({
     if (hasDungeon) {
       onLeaveDungeon(runId, state, character.name);
     }
-    setRunId(crypto.randomUUID());
+    const newRunId = crypto.randomUUID();
+    setRunId(newRunId);
+    onRunIdChanged?.(newRunId);
     dispatch({ type: "RESET" });
   }
 
   function handleRollDungeon() {
     if (rollingDungeon) return;
-    const rolls = [rollDie(), rollDie(), rollDie()];
+    // The type die still animates like any other roll -- it's just fated by the hex's terrain
+    // instead of free chance when arriving from World (forcedTypeRoll), same ritual either way.
+    const rolls = [forcedTypeRoll ?? rollDie(), rollDie(), rollDie()];
     setDiceValues(rolls);
     setDiceRollToken((t) => t + 1);
     setRollingDungeon(true);

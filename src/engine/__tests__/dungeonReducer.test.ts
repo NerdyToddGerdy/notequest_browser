@@ -3,6 +3,7 @@ import { dungeonReducer } from "../dungeonReducer.ts";
 import { DUNGEON_TABLES, type MonsterTemplate } from "../../data/dungeonTables.ts";
 import {
   createInitialDungeonState,
+  hasUnlootedRemains,
   isDungeonBeaten,
   makeLevel,
   type CombatState,
@@ -644,6 +645,46 @@ describe("ROLL_SECRET_PASSAGE", () => {
     const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 1, trapRoll: 4 }); // dart, 1 dmg
     expect(next.alive).toBe(true);
     expect(next.hp).toBe(next.maxHp - 1);
+  });
+
+  it("a roll of 6 builds a real, descendable Staircase segment off the room", () => {
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 6, trapRoll: null });
+
+    const seg = next.levels[0]!.segments.find((s) => s.id === 1)!;
+    expect(seg.secretPassageResult).toBe("A secret door to a Staircase.");
+    expect(next.levels[0]!.segments).toHaveLength(2);
+    expect(next.levels[0]!.hasStaircase).toBe(true);
+
+    const newDoor = seg.doors.find((d) => d.childId != null)!;
+    expect(newDoor.opened).toBe(true);
+    const stairSeg = next.levels[0]!.segments.find((s) => s.id === newDoor.childId)!;
+    expect(stairSeg.type).toBe("staircase");
+    expect(stairSeg.doors).toHaveLength(1); // "the door in the end" -- the actual way down
+    expect(next.log[0]!.message).toContain("Staircase");
+  });
+
+  it("a roll of 6 is a graceful no-op (flavor text only) when all 4 directions are already doored", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [
+        { dir: "N", opened: false, childId: null, leadsToLevel: null },
+        { dir: "E", opened: false, childId: null, leadsToLevel: null },
+        { dir: "S", opened: false, childId: null, leadsToLevel: null },
+        { dir: "W", opened: false, childId: null, leadsToLevel: null },
+      ],
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 6, trapRoll: null });
+
+    expect(next.levels[0]!.segments).toHaveLength(1); // no new segment could be placed
+    expect(next.levels[0]!.segments[0]!.secretPassageResult).toBe("A secret door to a Staircase.");
   });
 });
 
@@ -2200,6 +2241,40 @@ describe("isDungeonBeaten", () => {
     const level = { ...makeLevel(3), isFinalRoomLevel: true, segments: [finalSeg] };
     const state: DungeonState = { ...createInitialDungeonState(), levels: [level] };
     expect(isDungeonBeaten(state)).toBe(true);
+  });
+});
+
+describe("hasUnlootedRemains", () => {
+  it("is false with no levels, or no deaths", () => {
+    expect(hasUnlootedRemains(createInitialDungeonState())).toBe(false);
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    expect(hasUnlootedRemains({ ...createInitialDungeonState(), levels: [level] })).toBe(false);
+  });
+
+  it("is true once a segment holds a fallen adventurer's remains", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    expect(hasUnlootedRemains({ ...createInitialDungeonState(), levels: [level] })).toBe(true);
+  });
+
+  it("is false again once COLLECT_REMAINS clears the segment", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(hasUnlootedRemains(next)).toBe(false);
   });
 });
 
