@@ -25,6 +25,7 @@ import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.t
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
 import { CombatPanel } from "../../components/CombatPanel/CombatPanel.tsx";
+import { TeleportPicker } from "../../components/TeleportPicker/TeleportPicker.tsx";
 import { RoomEntryPrompt } from "../../components/RoomEntryPrompt/RoomEntryPrompt.tsx";
 import { DungeonMap } from "../../components/DungeonMap/DungeonMap.tsx";
 import { LevelTabs } from "../../components/LevelTabs/LevelTabs.tsx";
@@ -131,6 +132,10 @@ export function DungeonScreen({
    * handlePeekStart) -- fades the card and backdrop out so the map beneath is fully visible
    * without actually leaving or pausing the fight. */
   const [peeking, setPeeking] = useState(false);
+  /** True once Flee is clicked, before a destination room is chosen -- swaps the Combat panel for
+   * TeleportPicker in the same overlay slot. Purely local UI sequencing (CAST_SPELL isn't
+   * dispatched, and no spell use is spent, until an actual destination is picked). */
+  const [pickingTeleport, setPickingTeleport] = useState(false);
 
   function handlePeekStart(e: React.PointerEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return; // pointerdown landed on the card, not the backdrop
@@ -338,23 +343,36 @@ export function DungeonScreen({
                     title="Hold to peek at the map"
                   >
                     <div className={styles.combatOverlayInner}>
-                      <CombatPanel
-                        combat={state.combat}
-                        hp={state.hp}
-                        maxHp={state.maxHp}
-                        weaponName={state.weapon?.name ?? character.cls.weapon}
-                        weaponFormula={state.weapon?.formula ?? character.cls.weaponDamage}
-                        armor={state.armor}
-                        spellUses={state.spellUses}
-                        isRinoceroid={character.race.name === "Rinoceroid"}
-                        isSlimemen={character.race.name === "Slimemen"}
-                        onAttack={(targetId, roll, useHorn) =>
-                          dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })
-                        }
-                        onCastSpell={(spellRoll, targetId) => dispatch({ type: "CAST_SPELL", spellRoll, targetId })}
-                        onResolveDamage={(absorbWith) => dispatch({ type: "RESOLVE_DAMAGE", absorbWith })}
-                        onEngulfBody={() => dispatch({ type: "ENGULF_BODY" })}
-                      />
+                      {pickingTeleport ? (
+                        <TeleportPicker
+                          levels={state.levels}
+                          excludeSegId={state.combat.segId}
+                          onSelect={(levelIndex, segId) => {
+                            dispatch({ type: "CAST_SPELL", spellRoll: 3, destLevel: levelIndex, destSegId: segId });
+                            setPickingTeleport(false);
+                          }}
+                          onCancel={() => setPickingTeleport(false)}
+                        />
+                      ) : (
+                        <CombatPanel
+                          combat={state.combat}
+                          hp={state.hp}
+                          maxHp={state.maxHp}
+                          weaponName={state.weapon?.name ?? character.cls.weapon}
+                          weaponFormula={state.weapon?.formula ?? character.cls.weaponDamage}
+                          armor={state.armor}
+                          spellUses={state.spellUses}
+                          isRinoceroid={character.race.name === "Rinoceroid"}
+                          isSlimemen={character.race.name === "Slimemen"}
+                          onAttack={(targetId, roll, useHorn) =>
+                            dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })
+                          }
+                          onCastSpell={(spellRoll, targetId) => dispatch({ type: "CAST_SPELL", spellRoll, targetId })}
+                          onFlee={() => setPickingTeleport(true)}
+                          onResolveDamage={(absorbWith) => dispatch({ type: "RESOLVE_DAMAGE", absorbWith })}
+                          onEngulfBody={() => dispatch({ type: "ENGULF_BODY" })}
+                        />
+                      )}
                     </div>
                   </div>
                 )}

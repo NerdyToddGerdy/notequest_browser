@@ -467,12 +467,27 @@ describe("CAST_SPELL in combat", () => {
   it("Teleport flees combat without a monster counter-attack, and doesn't mark the room cleared", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
     const state = stateWithCombat({ spellUses: { 3: 1 } }, [monster]);
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3 });
+    const dest = makeSegment({ id: 2, type: "room-small", doors: [] });
+    state.levels[0]!.segments.push(dest);
+
+    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 2 });
 
     expect(next.combat).toBeNull();
     expect(next.hp).toBe(next.maxHp);
     expect(next.spellUses[3]).toBe(0);
     expect(next.levels[0]!.segments[0]!.monstersDefeated).toBeUndefined();
+    expect(next.currentSegId).toBe(2);
+    expect(next.selectedSegId).toBe(2);
+  });
+
+  it("Teleport is a no-op without a valid destination room", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ spellUses: { 3: 1 } }, [monster]);
+
+    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3 })).toBe(state);
+    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 999 })).toBe(state);
+    // Segment 1 is the room the fight is happening in -- not a valid destination for itself.
+    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 1 })).toBe(state);
   });
 
   it("casting while paralyzed consumes the paralyzed turn instead of the spell's effect, but still spends a use", () => {

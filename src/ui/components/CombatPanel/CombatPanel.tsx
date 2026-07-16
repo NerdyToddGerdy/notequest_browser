@@ -22,6 +22,9 @@ export interface CombatPanelProps {
   isSlimemen?: boolean;
   onAttack: (targetId: number, roll: number, useHorn?: boolean) => void;
   onCastSpell: (spellRoll: number, targetId?: number) => void;
+  /** Teleport (spellRoll 3) needs a destination room first -- the parent screen owns that picker,
+   * so this just signals "the player wants to flee" instead of dispatching CAST_SPELL directly. */
+  onFlee: () => void;
   onResolveDamage: (absorbWith: "hp" | number) => void;
   onEngulfBody: () => void;
 }
@@ -88,6 +91,7 @@ export function CombatPanel({
   isSlimemen = false,
   onAttack,
   onCastSpell,
+  onFlee,
   onResolveDamage,
   onEngulfBody,
 }: CombatPanelProps) {
@@ -220,7 +224,7 @@ export function CombatPanel({
               className={spellRoll === 3 ? styles.fleeBtn : styles.spellBtn}
               disabled={!canAct}
               title={SPELL_TABLE[spellRoll]!.effect}
-              onClick={() => (spellRoll === 1 ? castHeal() : onCastSpell(spellRoll))}
+              onClick={() => (spellRoll === 1 ? castHeal() : spellRoll === 3 ? onFlee() : onCastSpell(spellRoll))}
             >
               {spellRoll === 3 ? "Flee — " : ""}
               {SPELL_TABLE[spellRoll]!.name} ({spellUses[spellRoll]})
