@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-16
+
+### Fixed
+
+- Casting a spell (Flee included) or opening a Treasure mid-combat silently
+  did nothing for the rest of a fight once "Attack First" had been chosen --
+  `hasPendingRoomEntry()` never cleared once combat started, so it kept
+  blocking those two actions for the whole encounter instead of just the
+  moment before the fight began.
+- Teleport now actually moves the character to a real, already-discovered,
+  monster-free room instead of just clearing combat in place -- picking a
+  destination from the Combat panel's Flee button reopens the same room's
+  "Monsters Ahead" prompt otherwise, since nothing had moved.
+
 ## [1.0.0] - 2026-07-14
 
 The full Core Book rule set is now implemented end to end -- this is the first
@@ -53,6 +67,7 @@ character creation through death (or victory).
 - Weapon attacks blocked by Stoneskin or Intangible now say why, instead of a
   generic "fails to harm" message.
 
-[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/NerdyToddGerdy/notequest_browser/releases/tag/v0.1.0
