@@ -38,6 +38,10 @@ export function hexNeighbors(c: HexCoord): HexCoord[] {
 export interface HexTile {
   terrain: Terrain;
   location: LocationKind | null;
+  /** The PendingDungeon.id found here, once "Enter Dungeon" has been used on this hex -- lets a
+   * later visit (same character returning, or a new one taking over) resume the same dungeon
+   * instead of rolling fresh. Set once, on first entry; never cleared, even once beaten. */
+  dungeonRunId?: string;
 }
 
 export interface WorldState {

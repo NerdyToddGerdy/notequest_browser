@@ -10,6 +10,7 @@ import {
 import { hexKey, hexNeighbors, type HexCoord, type HexTile, type WorldState } from "../../../engine/hexState.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
+import { isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
 import {
   buyProvision,
   buyTorch,
@@ -31,6 +32,10 @@ export interface WorldScreenProps {
   character: CreatedCharacter;
   resources: AdventurerResources;
   world: WorldState;
+  /** Every touched run, including the current character's own active one -- unlike Town's own prop,
+   * this is used for a lookup (is the current hex's dungeon beaten?), not rendered as a list, so it
+   * deliberately isn't filtered down. */
+  dungeonHistory: PendingDungeon[];
   onUpdateResources: (resources: AdventurerResources) => void;
   onUpdateWorld: (world: WorldState) => void;
   onReturnToTown: () => void;
@@ -94,6 +99,7 @@ export function WorldScreen({
   character,
   resources,
   world,
+  dungeonHistory,
   onUpdateResources,
   onUpdateWorld,
   onReturnToTown,
@@ -103,6 +109,14 @@ export function WorldScreen({
   const neighborCoords = hexNeighbors(world.player);
   const canEnterDungeon = !!currentTile && locationHasDungeon(currentTile.location);
   const inCityOrFortress = !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
+  const foundDungeon = currentTile?.dungeonRunId
+    ? (dungeonHistory.find((pd) => pd.id === currentTile.dungeonRunId) ?? null)
+    : null;
+  const dungeonGateCopy = foundDungeon
+    ? isDungeonBeaten(foundDungeon.dungeon)
+      ? "the dungeon here has already been cleared."
+      : "your unfinished dungeon is still here."
+    : "a dungeon awaits here.";
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const isCatPerson = character.race.name === "Cat-Person";
   const isBlacksmith = character.cls.name === "Blacksmith";
@@ -174,7 +188,9 @@ export function WorldScreen({
 
           {canEnterDungeon && currentTile?.location && (
             <div className={styles.actionCard}>
-              <p className={styles.gateCopy}>{LOCATION_LABEL[currentTile.location]}: a dungeon awaits here.</p>
+              <p className={styles.gateCopy}>
+                {LOCATION_LABEL[currentTile.location]}: {dungeonGateCopy}
+              </p>
               <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
                 Enter Dungeon
               </button>

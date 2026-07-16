@@ -48,6 +48,11 @@ export interface DungeonScreenProps {
    * by where the player found it rather than free chance; the other two (name flavor) still roll
    * normally. Undefined for a Town-sourced entry, where every roll stays free. */
   forcedTypeRoll?: number;
+  /** World only: an id App.tsx minted and already stamped onto the current hex's tile, so a fresh
+   * roll's run can be found again later without DungeonScreen self-minting one it can't report back
+   * before mount. Ignored whenever activeDungeon/resumeDungeon is set (those already carry their own
+   * id). Undefined for a Town-sourced entry. */
+  externalRunId?: string;
   /** Sends the player back to Character Creation to roll a new adventurer -- this one is permadead. */
   onNewAdventurer: () => void;
   /** A voluntary retreat, alive -- back to Town with this run's current resources and map saved. */
@@ -62,11 +67,14 @@ export function DungeonScreen({
   activeDungeon,
   resumeDungeon,
   forcedTypeRoll,
+  externalRunId,
   onNewAdventurer,
   onReturnToTown,
   onLeaveDungeon,
 }: DungeonScreenProps) {
-  const [runId, setRunId] = useState(() => activeDungeon?.id ?? resumeDungeon?.id ?? crypto.randomUUID());
+  const [runId, setRunId] = useState(
+    () => activeDungeon?.id ?? resumeDungeon?.id ?? externalRunId ?? crypto.randomUUID(),
+  );
   const [state, dispatch] = useReducer(reduceDungeon, undefined, () => {
     if (activeDungeon) {
       return dungeonReducer(createInitialDungeonState(), {

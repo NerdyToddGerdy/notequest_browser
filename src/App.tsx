@@ -40,6 +40,11 @@ export default function App() {
    * terrain fates the dungeon type ("Table: Dungeon Type, by terrain"), passed through to
    * DungeonScreen as `forcedTypeRoll`. Null for every Town-sourced entry, where the roll stays free. */
   const [forcedTypeRoll, setForcedTypeRoll] = useState<number | null>(null);
+  /** Set right before switching to "dungeon" from World's "Enter Dungeon", only on a hex with no
+   * dungeon found yet -- DungeonScreen can't report its self-minted runId back before mount, so
+   * this id is minted here instead and stamped onto the hex immediately (see onEnterDungeon), then
+   * passed down as `externalRunId` so DungeonScreen uses this one instead of self-minting. */
+  const [worldFreshRunId, setWorldFreshRunId] = useState<string | null>(null);
 
   // Persists the whole session in one blob whenever any piece of it changes -- mirrors
   // addGraveyardEntry's "mutate then persist immediately" behavior, just via an effect instead
@@ -159,16 +164,34 @@ export default function App() {
         character={character}
         resources={resources}
         world={resolvedWorld}
+        dungeonHistory={dungeonHistory}
         onUpdateResources={setResources}
         onUpdateWorld={setWorld}
         onReturnToTown={() => setScreen("town")}
         onEnterDungeon={() => {
-          // "The dungeon you find depends on the terrain" -- fates just the type-roll die;
-          // DungeonScreen still animates its own "Roll for Dungeon" ritual for it.
-          const tile = resolvedWorld.tiles[hexKey(resolvedWorld.player)];
-          const terrain = tile?.terrain ?? "plain";
-          setForcedTypeRoll(DUNGEON_TYPE_BY_TERRAIN[terrain][rollDie()]!);
-          setSelectedRunId(null);
+          const key = hexKey(resolvedWorld.player);
+          const tile = resolvedWorld.tiles[key];
+          if (!tile) return; // the Enter Dungeon button only ever shows on a known, dungeon-bearing tile
+          if (tile.dungeonRunId) {
+            // Found here before -- resume the exact same dungeon. Which of RETURN_TO_DUNGEON
+            // (still this character's own paused run) vs. RESUME_DUNGEON (someone else's abandoned
+            // one) applies is entirely decided below by whether this equals activeRunId, same as
+            // Town's own "Continue"/"Dungeon History" resume paths.
+            setForcedTypeRoll(null);
+            setWorldFreshRunId(null);
+            setSelectedRunId(tile.dungeonRunId);
+          } else {
+            // First time finding a dungeon here. "The dungeon you find depends on the terrain" --
+            // fates just the type-roll die; DungeonScreen still animates its own "Roll for Dungeon"
+            // ritual for it. Mint this run's id now (DungeonScreen would otherwise self-mint one on
+            // mount, too late for World to learn it) and stamp it onto the hex right away -- always
+            // safe, since there's no way to leave DungeonScreen before a dungeon actually exists.
+            setForcedTypeRoll(DUNGEON_TYPE_BY_TERRAIN[tile.terrain][rollDie()]!);
+            const newRunId = crypto.randomUUID();
+            setWorldFreshRunId(newRunId);
+            setWorld({ ...resolvedWorld, tiles: { ...resolvedWorld.tiles, [key]: { ...tile, dungeonRunId: newRunId } } });
+            setSelectedRunId(null);
+          }
           setReturnScreen("world");
           setScreen("dungeon");
         }}
@@ -192,6 +215,7 @@ export default function App() {
       // before switching to "dungeon") rather than a separate reset, so a later Town-sourced
       // "Roll for a New Dungeon" can never accidentally inherit a stale forced roll.
       forcedTypeRoll={returnScreen === "world" ? (forcedTypeRoll ?? undefined) : undefined}
+      externalRunId={returnScreen === "world" ? (worldFreshRunId ?? undefined) : undefined}
       onNewAdventurer={handleNewAdventurer}
       onReturnToTown={handleReturnToTown}
       onLeaveDungeon={handleLeaveDungeon}
