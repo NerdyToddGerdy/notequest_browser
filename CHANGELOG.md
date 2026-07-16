@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-07-16
+
+Hexploring the World: the Expanded World's hex-travel system is now the
+primary way to find and resume dungeons, replacing Town's own dedicated
+dungeon-rolling entirely. Major version bump for the resulting break in the
+established Town/dungeon flow.
+
+### Added
+
+- A hex-by-hex world map, explored one ring at a time from a starting city,
+  with Provisions as a new, dungeon-independent travel resource.
+- The dungeon you find is fated by the hex's own terrain (Table: Dungeon
+  Type, by terrain) instead of a free roll.
+- Per-hex dungeon persistence: a dungeon stays tied to the hex it was found
+  on -- "drawing it on the map" -- and is only resumable by physically
+  traveling back there, whether it's your own paused run or a previous
+  adventurer's abandoned one. Unfinished and cleared dungeons, plus any
+  still-unrecovered remains, show as map badges.
+- Every City/Fortress hex, home included, now opens the same unified "Town
+  Square" screen (City Actions, Adventure, your character) instead of home
+  having its own separate screen and every other city getting a smaller
+  card next to the map.
+- Secret passages can now reveal a real, descendable staircase instead of
+  just flavor text.
+
+### Fixed
+
+- Casting a spell (Flee included) or opening a Treasure mid-combat silently
+  did nothing for the rest of a fight once "Attack First" had been chosen.
+- Teleport now actually moves the character to a real, already-discovered,
+  monster-free room instead of just clearing combat in place.
+- The Combat panel's dice roll now shows right under your HP, instead of
+  getting pushed out of view at the bottom of the panel with several
+  monsters in a fight.
+
+## [1.0.1] - 2026-07-16
+
+### Fixed
+
+- Casting a spell (Flee included) or opening a Treasure mid-combat silently
+  did nothing for the rest of a fight once "Attack First" had been chosen --
+  `hasPendingRoomEntry()` never cleared once combat started, so it kept
+  blocking those two actions for the whole encounter instead of just the
+  moment before the fight began.
+- Teleport now actually moves the character to a real, already-discovered,
+  monster-free room instead of just clearing combat in place -- picking a
+  destination from the Combat panel's Flee button reopens the same room's
+  "Monsters Ahead" prompt otherwise, since nothing had moved.
+
 ## [1.0.0] - 2026-07-14
 
 The full Core Book rule set is now implemented end to end -- this is the first
@@ -53,6 +102,8 @@ character creation through death (or victory).
 - Weapon attacks blocked by Stoneskin or Intangible now say why, instead of a
   generic "fails to harm" message.
 
-[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.1...v2.0.0
+[1.0.1]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/NerdyToddGerdy/notequest_browser/releases/tag/v0.1.0
