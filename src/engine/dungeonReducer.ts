@@ -236,6 +236,11 @@ function startCombatIfMonsters(
  * active CombatState does, per "if you enter a segment with monsters, you must face them before
  * anything else." Boss rooms never reach this state (they start combat immediately, unconditionally). */
 function hasPendingRoomEntry(state: DungeonState): boolean {
+  // Once combat is active, entry has already been resolved (Attack First, or a wake-up after a
+  // successful sneak) -- without this, every mid-combat action gated by this helper (CAST_SPELL,
+  // OPEN_TREASURE) would silently no-op for the rest of the fight, since `seg.monsters` stays set
+  // and `monstersDefeated`/`sneakedPast` stay false for the fight's entire duration.
+  if (state.combat) return false;
   const level = state.levels[state.activeLevel];
   const seg = level?.segments.find((s) => s.id === state.currentSegId);
   return !!seg?.monsters && !seg.monstersDefeated && !seg.sneakedPast;

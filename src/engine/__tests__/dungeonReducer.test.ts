@@ -1260,6 +1260,46 @@ describe("CAST_SPELL guards", () => {
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: 1 })).toBe(state);
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 6 })).toBe(state);
   });
+
+  it("allows Teleport mid-fight after choosing Attack First (regression: hasPendingRoomEntry must not block an already-active fight)", () => {
+    const monster: MonsterTemplate = { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 };
+    const room = makeSegment({ id: 1, type: "room-small", doors: [], monsters: monster });
+    const level = { ...makeLevel(1), segments: [room] };
+    const combat: CombatState = {
+      segId: 1,
+      monsters: [
+        {
+          id: 1,
+          name: "Orc",
+          hp: 6,
+          maxHp: 6,
+          damage: 3,
+          abilities: [],
+          bonusDamage: 0,
+          deathtouchPending: false,
+          paralyzePending: 0,
+          skipNextAttack: false,
+        },
+      ],
+      paralyzedTurns: 0,
+      pendingLootRolls: 0,
+      isBoss: false,
+      outcome: "ongoing",
+      pendingDamage: null,
+      playerDamageBonus: 0,
+      engulfableBodies: 0,
+    };
+    const state: DungeonState = {
+      ...stateWithLevel(level),
+      currentSegId: 1,
+      combat,
+      spellUses: { 3: 1 },
+    };
+
+    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3 });
+    expect(next.combat).toBeNull();
+    expect(next.spellUses[3]).toBe(0);
+  });
 });
 
 describe("OPEN_TREASURE", () => {
