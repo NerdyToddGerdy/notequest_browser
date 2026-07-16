@@ -127,12 +127,22 @@ export default function App() {
   const activeDungeon = dungeonHistory.find((pd) => pd.id === activeRunId) ?? null;
 
   if (screen === "town") {
+    // A dungeon tied to a specific hex (see per-hex dungeon persistence) is only resumable by
+    // physically traveling back to that hex in World -- excluded here so a fresh character can't
+    // jump straight into a predecessor's hex-found dungeon from Town's list, same as they'd have
+    // to actually find it the first time. Doesn't affect activeDungeon/"Continue the Dungeon",
+    // which is the same still-living character picking up their own run, hex or not.
+    const worldTiedRunIds = new Set(
+      Object.values(world?.tiles ?? {})
+        .map((t) => t.dungeonRunId)
+        .filter((id): id is string => id != null),
+    );
     return (
       <TownScreen
         character={character}
         resources={resources}
         activeDungeon={activeDungeon}
-        dungeonHistory={dungeonHistory.filter((pd) => pd.id !== activeRunId)}
+        dungeonHistory={dungeonHistory.filter((pd) => pd.id !== activeRunId && !worldTiedRunIds.has(pd.id))}
         onUpdateResources={setResources}
         onContinueActive={() => {
           setSelectedRunId(activeRunId);

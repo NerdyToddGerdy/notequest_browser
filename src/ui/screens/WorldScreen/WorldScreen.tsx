@@ -10,7 +10,7 @@ import {
 import { hexKey, hexNeighbors, type HexCoord, type HexTile, type WorldState } from "../../../engine/hexState.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
-import { isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
+import { hasUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
 import {
   buyProvision,
   buyTorch,
@@ -109,13 +109,21 @@ export function WorldScreen({
   const neighborCoords = hexNeighbors(world.player);
   const canEnterDungeon = !!currentTile && locationHasDungeon(currentTile.location);
   const inCityOrFortress = !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
-  function dungeonStatusFor(tile: HexTile | undefined): "none" | "unfinished" | "beaten" {
-    if (!tile?.dungeonRunId) return "none";
+  /** "none" hexes never had a dungeonRunId stamped; otherwise a shared lookup for both the gate
+   * copy (current hex only) and the per-hex map badges (every known hex) below. */
+  function dungeonInfoFor(tile: HexTile | undefined): {
+    status: "none" | "unfinished" | "beaten";
+    hasRemains: boolean;
+  } {
+    if (!tile?.dungeonRunId) return { status: "none", hasRemains: false };
     const pending = dungeonHistory.find((pd) => pd.id === tile.dungeonRunId);
-    if (!pending) return "none";
-    return isDungeonBeaten(pending.dungeon) ? "beaten" : "unfinished";
+    if (!pending) return { status: "none", hasRemains: false };
+    return {
+      status: isDungeonBeaten(pending.dungeon) ? "beaten" : "unfinished",
+      hasRemains: hasUnlootedRemains(pending.dungeon),
+    };
   }
-  const currentDungeonStatus = dungeonStatusFor(currentTile);
+  const currentDungeonStatus = dungeonInfoFor(currentTile).status;
   const dungeonGateCopy =
     currentDungeonStatus === "beaten"
       ? "the dungeon here has already been cleared."
@@ -163,7 +171,7 @@ export function WorldScreen({
                 const passable = !isImpassable(tile.terrain, tile.location);
                 const clickable = isNeighbor && passable;
                 const label = tile.location ? LOCATION_LABEL[tile.location] : "";
-                const dungeonStatus = dungeonStatusFor(tile);
+                const { status: dungeonStatus, hasRemains } = dungeonInfoFor(tile);
                 return (
                   <g
                     key={hexKey(coord)}
@@ -190,6 +198,12 @@ export function WorldScreen({
                       >
                         <title>{dungeonStatus === "beaten" ? "Dungeon cleared" : "Unfinished dungeon"}</title>
                         {dungeonStatus === "beaten" ? "✓" : "⚔"}
+                      </text>
+                    )}
+                    {hasRemains && (
+                      <text x={pixel.x - 17} y={pixel.y - 18} textAnchor="middle" className={styles.remainsBadge}>
+                        <title>A fallen adventurer&apos;s remains are still here, unrecovered</title>
+                        💀
                       </text>
                     )}
                     {isPlayer && (

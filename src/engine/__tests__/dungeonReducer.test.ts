@@ -3,6 +3,7 @@ import { dungeonReducer } from "../dungeonReducer.ts";
 import { DUNGEON_TABLES, type MonsterTemplate } from "../../data/dungeonTables.ts";
 import {
   createInitialDungeonState,
+  hasUnlootedRemains,
   isDungeonBeaten,
   makeLevel,
   type CombatState,
@@ -2240,6 +2241,40 @@ describe("isDungeonBeaten", () => {
     const level = { ...makeLevel(3), isFinalRoomLevel: true, segments: [finalSeg] };
     const state: DungeonState = { ...createInitialDungeonState(), levels: [level] };
     expect(isDungeonBeaten(state)).toBe(true);
+  });
+});
+
+describe("hasUnlootedRemains", () => {
+  it("is false with no levels, or no deaths", () => {
+    expect(hasUnlootedRemains(createInitialDungeonState())).toBe(false);
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    expect(hasUnlootedRemains({ ...createInitialDungeonState(), levels: [level] })).toBe(false);
+  });
+
+  it("is true once a segment holds a fallen adventurer's remains", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    expect(hasUnlootedRemains({ ...createInitialDungeonState(), levels: [level] })).toBe(true);
+  });
+
+  it("is false again once COLLECT_REMAINS clears the segment", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(hasUnlootedRemains(next)).toBe(false);
   });
 });
 

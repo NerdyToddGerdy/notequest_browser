@@ -238,6 +238,13 @@ export function isDungeonBeaten(state: DungeonState): boolean {
   );
 }
 
+/** True while any segment still holds a fallen adventurer's coins/Treasures/Keys/items --
+ * `leaveRemains()` sets this at every death site, `COLLECT_REMAINS` clears it back to null, so
+ * this is a simple always-accurate scan rather than a separately-tracked flag. */
+export function hasUnlootedRemains(state: DungeonState): boolean {
+  return state.levels.some((lvl) => lvl.segments.some((seg) => seg.remains != null));
+}
+
 export function makeLevel(depth: number): LevelState {
   return {
     depth,
