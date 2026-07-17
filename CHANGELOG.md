@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-07-17
+
+### Fixed
+
+- Clicking a passable, in-range hex on the world map travels there immediately
+  again, matching the behavior from before the Hex Inspector existed -- it had
+  started requiring an extra "Travel Here" click instead. Clicking any other
+  known hex still falls back to selecting it for inspection.
+- The Scholar class's name was misspelled "Schoolar" throughout.
+
 ## [2.1.0] - 2026-07-17
 
 ### Added
@@ -112,7 +122,8 @@ character creation through death (or victory).
 - Weapon attacks blocked by Stoneskin or Intangible now say why, instead of a
   generic "fails to harm" message.
 
-[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.1...v2.0.0
 [1.0.1]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.0...v1.0.1
