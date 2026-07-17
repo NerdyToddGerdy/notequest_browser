@@ -54,6 +54,7 @@
 }
 
 .mapCard {
+  position: relative;
   background: var(--parchment);
   border-radius: 3px;
   border: 1px solid rgba(42, 32, 22, 0.35);
@@ -64,10 +65,52 @@
   padding: 16px;
 }
 
+.hexInspectorOverlay {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  width: min(300px, calc(100% - 56px));
+  max-height: min(320px, calc(100% - 56px));
+  overflow-y: auto;
+  z-index: 10;
+  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.55));
+}
+
 .mapSvg {
   width: 100%;
   height: min(70vh, 560px);
   display: block;
+  cursor: grab;
+  touch-action: none;
+}
+.mapSvg:active {
+  cursor: grabbing;
+}
+
+.resetViewBtn {
+  position: absolute;
+  right: 24px;
+  top: 24px;
+  z-index: 15;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  color: var(--parchment);
+  background: linear-gradient(180deg, #3a2c1c, #241a10);
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  padding: 6px 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.resetViewBtn:hover {
+  background: linear-gradient(180deg, #4a3822, #2c2013);
+}
+.resetViewBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .clickableHex {
