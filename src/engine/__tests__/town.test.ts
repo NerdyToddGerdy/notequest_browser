@@ -27,6 +27,8 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     spellUses: { 1: 0 },
     monsterKills: 0,
     bossKills: 0,
+    killsByName: {},
+    killsByAbility: {},
     provisions: 10,
     ...overrides,
   };
@@ -174,14 +176,20 @@ describe("payTravelCost", () => {
     expect(next.hp).toBe(15);
   });
 
-  it("converts any shortfall to HP, 1 for 1", () => {
+  it("any shortfall costs a flat 1 HP, however small", () => {
     const next = payTravelCost(makeResources({ provisions: 2, hp: 15 }), 3);
     expect(next.provisions).toBe(0);
     expect(next.hp).toBe(14); // 1 provision short -> 1 HP lost
   });
 
+  it("a bigger shortfall still costs only 1 HP, not scaled to the terrain's cost", () => {
+    const next = payTravelCost(makeResources({ provisions: 0, hp: 15 }), 3); // e.g. a Mountain move
+    expect(next.provisions).toBe(0);
+    expect(next.hp).toBe(14); // flat 1 HP, not 3
+  });
+
   it("running out entirely still floors HP at 1, never killing the character", () => {
-    const next = payTravelCost(makeResources({ provisions: 0, hp: 2 }), 3);
+    const next = payTravelCost(makeResources({ provisions: 0, hp: 1 }), 3);
     expect(next.provisions).toBe(0);
     expect(next.hp).toBe(1);
   });

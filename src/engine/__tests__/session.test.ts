@@ -49,6 +49,8 @@ const RESOURCES: AdventurerResources = {
   spellUses: {},
   monsterKills: 2,
   bossKills: 0,
+  killsByName: {},
+  killsByAbility: {},
   provisions: 17,
 };
 

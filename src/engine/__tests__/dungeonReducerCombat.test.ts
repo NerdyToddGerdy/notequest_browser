@@ -233,6 +233,36 @@ describe("PLAYER_ATTACK", () => {
     expect(next.levels[0]!.segments[0]!.monstersDefeated).toBe(true);
     expect(next.monsterKills).toBe(1);
     expect(next.bossKills).toBe(0);
+    expect(next.killsByName).toEqual({ orc: 1 }); // makeMonster()'s default name, lowercased
+    expect(next.killsByAbility).toEqual({ loot: 1 });
+  });
+
+  it("tallies kills by name (lowercased) and by every ability the monster has", () => {
+    const monster = makeMonster({ name: "Vampire", hp: 3, abilities: ["undead", "poison"] });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(3)); // fails the Undead revival roll
+
+    expect(next.killsByName).toEqual({ vampire: 1 });
+    expect(next.killsByAbility).toEqual({ undead: 1, poison: 1 });
+  });
+
+  it("accumulates across multiple kills of the same name/ability", () => {
+    const first = makeMonster({ id: 1, name: "Imp", hp: 1, abilities: [] });
+    const second = makeMonster({ id: 2, name: "Imp", hp: 1, abilities: [] });
+    const state = stateWithCombat({}, [first, second]);
+    const afterFirst = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: first.id, roll: 6 });
+    const afterSecond = dungeonReducer(afterFirst, { type: "PLAYER_ATTACK", targetId: second.id, roll: 6 });
+
+    expect(afterSecond.killsByName).toEqual({ imp: 2 });
+  });
+
+  it("doesn't tally a revived Undead monster as a kill yet", () => {
+    const monster = makeMonster({ name: "Skeleton", hp: 2, abilities: ["undead"] });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(1)); // revival roll succeeds
+
+    expect(next.killsByName).toEqual({});
+    expect(next.killsByAbility).toEqual({});
   });
 
   it("a Boss kill grants a flat 2d6 Treasures instead of the normal Loot table, even with pendingLootRolls queued", () => {
@@ -282,6 +312,18 @@ describe("PLAYER_ATTACK", () => {
 
     expect(next.alive).toBe(false);
     expect(next.deathCause).toBe("combat");
+    expect(next.combat).toBeNull(); // no fight lingers behind the death panel
+  });
+
+  it("kills the player outright on a pending Deathtouch, bypassing armor entirely", () => {
+    const monster = makeMonster({ hp: 10, damage: 0, deathtouchPending: true });
+    const state = stateWithCombat({ hp: 5, armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+
+    expect(next.alive).toBe(false);
+    expect(next.deathCause).toBe("combat");
+    expect(next.hp).toBe(0);
+    expect(next.combat).toBeNull();
   });
 
   it("leaves the dying character's coins/Treasures/Keys behind in the fight's segment", () => {
@@ -320,6 +362,7 @@ describe("PLAYER_ATTACK", () => {
 
     expect(next.alive).toBe(false);
     expect(next.deathCause).toBe("combat");
+    expect(next.combat).toBeNull(); // no fight lingers behind the death panel
   });
 
   it("revives an Undead monster at 1 HP instead of removing it, on a roll of 1", () => {
@@ -696,7 +739,7 @@ describe("Armor: damage-absorption choice", () => {
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: poisoner.id, roll: 3 });
 
     expect(next.alive).toBe(false);
-    expect(next.combat!.pendingDamage).toBeNull(); // no lingering absorption prompt for a dead character
+    expect(next.combat).toBeNull(); // no lingering absorption prompt (or fight at all) for a dead character
   });
 });
 

@@ -203,6 +203,8 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     combat: null,
     monsterKills: 0,
     bossKills: 0,
+    killsByName: {},
+    killsByAbility: {},
     characterName: "Test Adventurer",
     raceName: "",
     className: "",

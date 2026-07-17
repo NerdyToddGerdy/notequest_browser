@@ -106,7 +106,11 @@ export function CombatPanel({
 
   const paralyzed = combat.paralyzedTurns > 0;
   const awaitingDamageChoice = combat.pendingDamage !== null;
-  const canAct = !rolling && !paralyzed && !awaitingDamageChoice;
+  // hp > 0 is a second line of defense against a dead player still being able to act -- the
+  // reducer already clears `combat` to null on every death (see dungeonReducer.ts), which is what
+  // actually stops this panel from rendering at all, but this guards the actions directly too in
+  // case a future death path forgets to clear it.
+  const canAct = !rolling && !paralyzed && !awaitingDamageChoice && hp > 0;
   const knownSpellRolls = Object.entries(spellUses)
     .filter(([, uses]) => uses > 0)
     .map(([roll]) => Number(roll))
