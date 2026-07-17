@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-07-17
+
+### Added
+
+- A spare weapons inventory: finding a new weapon no longer silently
+  discards whatever's equipped -- it's held as a spare instead, with a
+  "Wield" action to swap it in explicitly (both in the dungeon sidebar and
+  in Town). (#48)
+- In Town Square, the Graveyard/Dungeons history now rides beside the
+  Adventure section as a second column instead of its own separate card
+  below it, and shows entries in two side-by-side columns.
+
+### Fixed
+
+- A dungeon beaten by defeating its Boss could become re-enterable again
+  if you reloaded the page (or just closed the tab) from the victory
+  screen without clicking "Return to Town" first -- the win is now saved
+  the instant the Boss falls, not only once you leave the dungeon screen.
+
 ## [2.1.1] - 2026-07-17
 
 ### Fixed
