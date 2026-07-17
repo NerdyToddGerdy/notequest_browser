@@ -6,7 +6,12 @@ import type { CreatedCharacter } from "./data/types.ts";
 import { computeSpellUses } from "./engine/character.ts";
 import { isDungeonBeaten, type DungeonState, type PendingDungeon } from "./engine/dungeonState.ts";
 import type { AdventurerResources } from "./engine/town.ts";
-import { createInitialWorldState, hexKey, withDungeonRunId, type WorldState } from "./engine/hexState.ts";
+import {
+  createInitialWorldState,
+  hexKey,
+  withDungeonRunId,
+  type WorldState,
+} from "./engine/hexState.ts";
 import { DUNGEON_TYPE_BY_TERRAIN } from "./data/hexTables.ts";
 import { rollDie } from "./engine/dice.ts";
 import { loadSession, saveSession } from "./engine/session.ts";
@@ -29,7 +34,9 @@ export default function App() {
   /** Which dungeon World's "Enter Dungeon" sent the player into -- their own active one, an
    * abandoned one they picked up, or null for a fresh roll. Read once when DungeonScreen mounts. */
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [dungeonHistory, setDungeonHistory] = useState<PendingDungeon[]>(initialSession.dungeonHistory);
+  const [dungeonHistory, setDungeonHistory] = useState<PendingDungeon[]>(
+    initialSession.dungeonHistory,
+  );
   /** The World map -- shared across every character, not reset by `handleNewAdventurer` (only the
    * player's own position is, in handleCharacterCreated). Created lazily on first use. */
   const [world, setWorld] = useState<WorldState | null>(initialSession.world);
@@ -66,6 +73,7 @@ export default function App() {
       heldItems: [],
       armor: [],
       weapon: null,
+      spareWeapons: [],
       spellUses: computeSpellUses(newCharacter.spells, newCharacter.fixedGrants),
       monsterKills: 0,
       bossKills: 0,
@@ -101,6 +109,7 @@ export default function App() {
       heldItems: dungeon.heldItems,
       armor: dungeon.armor,
       weapon: dungeon.weapon,
+      spareWeapons: dungeon.spareWeapons,
       spellUses: dungeon.spellUses,
       monsterKills: dungeon.monsterKills,
       bossKills: dungeon.bossKills,
@@ -110,7 +119,9 @@ export default function App() {
       // over untouched from whatever it was before this trip started.
       provisions: prev?.provisions ?? 20,
     }));
-    setActiveRunId(dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null);
+    setActiveRunId(
+      dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,
+    );
     setScreen("world");
   }
 
@@ -128,7 +139,12 @@ export default function App() {
   }
 
   if (!character || !resources) {
-    return <CharacterCreationScreen onCharacterCreated={handleCharacterCreated} dungeonHistory={dungeonHistory} />;
+    return (
+      <CharacterCreationScreen
+        onCharacterCreated={handleCharacterCreated}
+        dungeonHistory={dungeonHistory}
+      />
+    );
   }
 
   const activeDungeon = dungeonHistory.find((pd) => pd.id === activeRunId) ?? null;
@@ -176,7 +192,9 @@ export default function App() {
   // is set to decide between RETURN_TO_DUNGEON (own run, exact resources) and RESUME_DUNGEON
   // (an abandoned run, fresh resources) -- see the two very different resume paths in CLAUDE.md.
   const isOwnRun = selectedRunId !== null && selectedRunId === activeRunId;
-  const resumeDungeon = isOwnRun ? null : (dungeonHistory.find((pd) => pd.id === selectedRunId) ?? null);
+  const resumeDungeon = isOwnRun
+    ? null
+    : (dungeonHistory.find((pd) => pd.id === selectedRunId) ?? null);
 
   return (
     <DungeonScreen

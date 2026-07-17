@@ -1,5 +1,11 @@
 import type { DungeonTypeKey, SegmentType } from "../data/dungeonTypes.ts";
-import type { ArmorPieceKind, ItemEffect, MonsterAbility, MonsterTemplate, RoomContentEntry } from "../data/dungeonTables.ts";
+import type {
+  ArmorPieceKind,
+  ItemEffect,
+  MonsterAbility,
+  MonsterTemplate,
+  RoomContentEntry,
+} from "../data/dungeonTables.ts";
 
 export type Direction = "N" | "E" | "S" | "W";
 
@@ -58,6 +64,8 @@ export interface FallenAdventurer {
   heldItems: HeldItem[];
   armor: ArmorPiece[];
   weapon: EquippedWeapon | null;
+  /** Unwielded weapons the fallen character was carrying -- see DungeonState.spareWeapons. */
+  weapons: EquippedWeapon[];
 }
 
 /** A worn armor piece -- either one of the 5 named pieces (rolled on the Armor table) or a
@@ -197,6 +205,10 @@ export interface DungeonState {
   armor: ArmorPiece[];
   /** An acquired weapon overriding the character's class weapon; null falls back to it. */
   weapon: EquippedWeapon | null;
+  /** Found weapons not currently wielded -- every weapon-grant site pushes here rather than
+   * overwriting `weapon` directly, so finding a new one never silently discards whatever was
+   * equipped. WIELD_WEAPON swaps a chosen entry here with whatever's currently equipped. */
+  spareWeapons: EquippedWeapon[];
   combat: CombatState | null;
   /** Ordinary monsters and Bosses defeated this run -- character-specific, like torches/hp, not
    * map/exploration state, so a new adventurer via RESUME_DUNGEON starts back at 0 even though
@@ -242,7 +254,10 @@ export interface PendingDungeon {
 /** True once the Final Room's Boss has been defeated -- the dungeon is complete, nothing left to resume. */
 export function isDungeonBeaten(state: DungeonState): boolean {
   return state.levels.some(
-    (lvl) => lvl.isFinalRoomLevel && lvl.segments[0]?.type === "final" && lvl.segments[0]?.monstersDefeated === true,
+    (lvl) =>
+      lvl.isFinalRoomLevel &&
+      lvl.segments[0]?.type === "final" &&
+      lvl.segments[0]?.monstersDefeated === true,
   );
 }
 
@@ -303,6 +318,7 @@ export function createInitialDungeonState(
   className = "",
   killsByName: Record<string, number> = {},
   killsByAbility: Partial<Record<MonsterAbility, number>> = {},
+  spareWeapons: EquippedWeapon[] = [],
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -326,6 +342,7 @@ export function createInitialDungeonState(
     heldItems,
     armor,
     weapon,
+    spareWeapons,
     combat: null,
     monsterKills,
     bossKills,
@@ -370,6 +387,9 @@ export type DungeonAction =
   | { type: "ROLL_SECRET_PASSAGE"; segId: number; roll: number; trapRoll: number | null }
   | { type: "ROLL_CHEST"; segId: number; dice: [number, number]; trapRoll: number | null }
   | { type: "COLLECT_REMAINS"; segId: number }
+  /** Swaps a found-but-unwielded weapon into the equipped slot, pushing whatever was equipped (if
+   * anything) back into spareWeapons -- out-of-combat only, see CLAUDE.md's Armor & Weapons note. */
+  | { type: "WIELD_WEAPON"; index: number }
   | { type: "OPEN_TREASURE"; roll: number; maxSpellUses: Record<number, number> }
   /** `useHorn`: Rinoceroid's "You can attack with your horn (Damage 1d6)" -- a flat 1d6, no
    * weapon modifier, ignoring whatever's equipped, for this one attack. */
@@ -380,7 +400,13 @@ export type DungeonAction =
   | { type: "ENGULF_BODY" }
   /** `destLevel`/`destSegId`: required for Teleport (spellRoll 3) -- the already-discovered, empty
    * room the player chose to reappear in (see `isTeleportDestination`). Unused by every other spell. */
-  | { type: "CAST_SPELL"; spellRoll: number; targetId?: number; destLevel?: number; destSegId?: number }
+  | {
+      type: "CAST_SPELL";
+      spellRoll: number;
+      targetId?: number;
+      destLevel?: number;
+      destSegId?: number;
+    }
   /** Resolves a CombatState.pendingDamage from a monster counter-attack: onto the player's HP, or
    * onto one of `armor`'s indices ("your call" per the rulebook). */
   | { type: "RESOLVE_DAMAGE"; absorbWith: "hp" | number }
@@ -410,6 +436,7 @@ export type DungeonAction =
       heldItems: HeldItem[];
       armor: ArmorPiece[];
       weapon: EquippedWeapon | null;
+      spareWeapons: EquippedWeapon[];
       weaponFormula: string;
       spellUses: Record<number, number>;
       characterName: string;

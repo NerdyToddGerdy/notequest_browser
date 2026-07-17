@@ -10,8 +10,21 @@ import {
 } from "../dungeonState.ts";
 import { fixedDie, sequenceDie } from "../../test/mulberry32.ts";
 
-function makeSegment(overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">): SegmentState {
-  return { x: 0, y: 0, w: 80, h: 80, cx: 0, cy: 0, cameFromDir: null, flavor: null, isEntrance: false, ...overrides };
+function makeSegment(
+  overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">,
+): SegmentState {
+  return {
+    x: 0,
+    y: 0,
+    w: 80,
+    h: 80,
+    cx: 0,
+    cy: 0,
+    cameFromDir: null,
+    flavor: null,
+    isEntrance: false,
+    ...overrides,
+  };
 }
 
 function makeMonster(overrides: Partial<CombatMonsterState> = {}): CombatMonsterState {
@@ -31,7 +44,10 @@ function makeMonster(overrides: Partial<CombatMonsterState> = {}): CombatMonster
 }
 
 /** A state with combat already underway in a lone room on level 1. */
-function stateWithCombat(overrides: Partial<DungeonState> = {}, monsters: CombatMonsterState[] = [makeMonster()]): DungeonState {
+function stateWithCombat(
+  overrides: Partial<DungeonState> = {},
+  monsters: CombatMonsterState[] = [makeMonster()],
+): DungeonState {
   const room = makeSegment({ id: 1, type: "room-small", doors: [] });
   const level = { ...makeLevel(1), segments: [room] };
   const combat: CombatState = {
@@ -65,7 +81,13 @@ describe("combat auto-start on OPEN_DOOR", () => {
       ],
     });
     const level = { ...makeLevel(1), segments: [entrance], doorsRemaining: 2 };
-    return { ...createInitialDungeonState(), dungeonTypeKey: "palace", levels: [level], nextSegmentId: 100, currentSegId: entrance.id };
+    return {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+      nextSegmentId: 100,
+      currentSegId: entrance.id,
+    };
   }
 
   it("a quiet door with monsters waits for RESOLVE_ROOM_ENTRY instead of starting combat immediately", () => {
@@ -85,10 +107,19 @@ describe("combat auto-start on OPEN_DOOR", () => {
     expect(next.hp).toBe(next.maxHp);
 
     // Choosing "Attack First" still gets the player the first attack, same as before this action existed.
-    const afterChoice = dungeonReducer(next, { type: "RESOLVE_ROOM_ENTRY", segId: revealedSeg.id, choice: "attack" });
+    const afterChoice = dungeonReducer(next, {
+      type: "RESOLVE_ROOM_ENTRY",
+      segId: revealedSeg.id,
+      choice: "attack",
+    });
     expect(afterChoice.combat).not.toBeNull();
     expect(afterChoice.combat!.monsters).toHaveLength(1);
-    expect(afterChoice.combat!.monsters[0]).toMatchObject({ name: "Orc", hp: 6, maxHp: 6, damage: 3 });
+    expect(afterChoice.combat!.monsters[0]).toMatchObject({
+      name: "Orc",
+      hp: 6,
+      maxHp: 6,
+      damage: 3,
+    });
     expect(afterChoice.hp).toBe(afterChoice.maxHp);
   });
 
@@ -197,7 +228,9 @@ describe("RESOLVE_ROOM_ENTRY: Move Silently", () => {
 
   it("blocks other dungeon actions until the player chooses Attack First or Move Silently", () => {
     const pending = statePendingRoomEntry();
-    expect(dungeonReducer(pending, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 6, trapRoll: null })).toBe(pending);
+    expect(
+      dungeonReducer(pending, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 6, trapRoll: null }),
+    ).toBe(pending);
     expect(dungeonReducer(pending, { type: "SWITCH_LEVEL", levelIndex: 0 })).toBe(pending);
   });
 
@@ -219,7 +252,9 @@ describe("RESOLVE_ROOM_ENTRY: Move Silently", () => {
     });
     expect(afterBreak.levels[0]!.segments[0]!.sneakedPast).toBe(false);
     expect(afterBreak.combat).not.toBeNull();
-    expect(afterBreak.log.some((entry) => entry.message.includes("noise gives you away"))).toBe(true);
+    expect(afterBreak.log.some((entry) => entry.message.includes("noise gives you away"))).toBe(
+      true,
+    );
   });
 });
 
@@ -228,7 +263,11 @@ describe("PLAYER_ATTACK", () => {
     const monster = makeMonster({ hp: 3, abilities: ["loot"] });
     const state = stateWithCombat({}, [monster]);
     const rng = sequenceDie([4]); // only consumed by the post-victory Loot roll -> a coin
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, rng);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      rng,
+    );
 
     expect(next.combat).toBeNull();
     expect(next.coins).toBe(1);
@@ -242,7 +281,11 @@ describe("PLAYER_ATTACK", () => {
   it("tallies kills by name (lowercased) and by every ability the monster has", () => {
     const monster = makeMonster({ name: "Vampire", hp: 3, abilities: ["undead", "poison"] });
     const state = stateWithCombat({}, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(3)); // fails the Undead revival roll
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      fixedDie(3),
+    ); // fails the Undead revival roll
 
     expect(next.killsByName).toEqual({ vampire: 1 });
     expect(next.killsByAbility).toEqual({ undead: 1, poison: 1 });
@@ -252,8 +295,16 @@ describe("PLAYER_ATTACK", () => {
     const first = makeMonster({ id: 1, name: "Imp", hp: 1, abilities: [] });
     const second = makeMonster({ id: 2, name: "Imp", hp: 1, abilities: [] });
     const state = stateWithCombat({}, [first, second]);
-    const afterFirst = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: first.id, roll: 6 });
-    const afterSecond = dungeonReducer(afterFirst, { type: "PLAYER_ATTACK", targetId: second.id, roll: 6 });
+    const afterFirst = dungeonReducer(state, {
+      type: "PLAYER_ATTACK",
+      targetId: first.id,
+      roll: 6,
+    });
+    const afterSecond = dungeonReducer(afterFirst, {
+      type: "PLAYER_ATTACK",
+      targetId: second.id,
+      roll: 6,
+    });
 
     expect(afterSecond.killsByName).toEqual({ imp: 2 });
   });
@@ -261,7 +312,11 @@ describe("PLAYER_ATTACK", () => {
   it("doesn't tally a revived Undead monster as a kill yet", () => {
     const monster = makeMonster({ name: "Skeleton", hp: 2, abilities: ["undead"] });
     const state = stateWithCombat({}, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(1)); // revival roll succeeds
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      fixedDie(1),
+    ); // revival roll succeeds
 
     expect(next.killsByName).toEqual({});
     expect(next.killsByAbility).toEqual({});
@@ -288,7 +343,11 @@ describe("PLAYER_ATTACK", () => {
     const monster = makeMonster({ hp: 3, abilities: ["loot"] });
     const state = stateWithCombat({}, [monster]);
     const rng = sequenceDie([6]); // Loot roll of 6 -> a Treasure
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, rng);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      rng,
+    );
 
     expect(next.treasures).toBe(1);
     expect(next.keys).toBe(0);
@@ -301,7 +360,11 @@ describe("PLAYER_ATTACK", () => {
     const rng = () => {
       throw new Error("no rng call expected for a plain, surviving, non-ability monster");
     };
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 }, rng);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 },
+      rng,
+    );
 
     expect(next.combat!.monsters[0]!.hp).toBe(7); // took 3 damage, still alive
     expect(next.hp).toBe(next.maxHp - 4); // the Orc's counter-attack landed
@@ -319,7 +382,9 @@ describe("PLAYER_ATTACK", () => {
 
   it("kills the player outright on a pending Deathtouch, bypassing armor entirely", () => {
     const monster = makeMonster({ hp: 10, damage: 0, deathtouchPending: true });
-    const state = stateWithCombat({ hp: 5, armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [monster]);
+    const state = stateWithCombat({ hp: 5, armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [
+      monster,
+    ]);
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
 
     expect(next.alive).toBe(false);
@@ -343,8 +408,9 @@ describe("PLAYER_ATTACK", () => {
       treasures: 1,
       keys: 2,
       heldItems: [],
-    armor: [],
-    weapon: null,
+      armor: [],
+      weapon: null,
+      weapons: [],
     });
   });
 
@@ -370,7 +436,11 @@ describe("PLAYER_ATTACK", () => {
   it("revives an Undead monster at 1 HP instead of removing it, on a roll of 1", () => {
     const monster = makeMonster({ hp: 2, abilities: ["undead"] });
     const state = stateWithCombat({}, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(1));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      fixedDie(1),
+    );
 
     expect(next.combat).not.toBeNull();
     expect(next.combat!.monsters).toHaveLength(1);
@@ -381,7 +451,11 @@ describe("PLAYER_ATTACK", () => {
   it("removes the monster for good when the Undead revival roll fails", () => {
     const monster = makeMonster({ hp: 2, abilities: ["undead"] });
     const state = stateWithCombat({}, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(3));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      fixedDie(3),
+    );
 
     expect(next.combat).toBeNull();
     expect(next.monsterKills).toBe(1);
@@ -393,7 +467,12 @@ describe("PLAYER_ATTACK", () => {
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
 
     expect(next.combat!.monsters).toHaveLength(2);
-    expect(next.combat!.monsters[1]).toMatchObject({ name: "Orc", hp: 6, damage: 3, abilities: [] });
+    expect(next.combat!.monsters[1]).toMatchObject({
+      name: "Orc",
+      hp: 6,
+      damage: 3,
+      abilities: [],
+    });
   });
 
   it("Necromancy adds an Undead Skeleton to the fight on a roll of 1", () => {
@@ -402,13 +481,22 @@ describe("PLAYER_ATTACK", () => {
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
 
     expect(next.combat!.monsters).toHaveLength(2);
-    expect(next.combat!.monsters[1]).toMatchObject({ name: "Skeleton", hp: 4, damage: 1, abilities: ["undead"] });
+    expect(next.combat!.monsters[1]).toMatchObject({
+      name: "Skeleton",
+      hp: 4,
+      damage: 1,
+      abilities: ["undead"],
+    });
   });
 
   it("Paralyze queues a paralysis effect that lands on the monster's own next counter-attack", () => {
     const monster = makeMonster({ hp: 20, damage: 2, abilities: ["paralyze"] });
     const state = stateWithCombat({}, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 }, fixedDie(4));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 },
+      fixedDie(4),
+    );
 
     expect(next.combat!.paralyzedTurns).toBe(4);
     expect(next.combat!.monsters[0]!.paralyzePending).toBe(0); // already consumed this round
@@ -491,7 +579,10 @@ describe("CAST_SPELL in combat", () => {
   });
 
   it("Fireball hits every monster in the room", () => {
-    const monsters = [makeMonster({ id: 1, hp: 20, damage: 0 }), makeMonster({ id: 2, hp: 3, damage: 0 })];
+    const monsters = [
+      makeMonster({ id: 1, hp: 20, damage: 0 }),
+      makeMonster({ id: 2, hp: 3, damage: 0 }),
+    ];
     const state = stateWithCombat({ spellUses: { 6: 1 } }, monsters);
     const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 6 });
 
@@ -503,7 +594,11 @@ describe("CAST_SPELL in combat", () => {
     const monster = makeMonster({ hp: 6, abilities: ["loot"] });
     const state = stateWithCombat({ spellUses: { 5: 1 } }, [monster]);
     const rng = sequenceDie([4]); // Loot roll -> a coin
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: monster.id }, rng);
+    const next = dungeonReducer(
+      state,
+      { type: "CAST_SPELL", spellRoll: 5, targetId: monster.id },
+      rng,
+    );
 
     expect(next.combat).toBeNull();
     expect(next.coins).toBe(1);
@@ -515,7 +610,12 @@ describe("CAST_SPELL in combat", () => {
     const dest = makeSegment({ id: 2, type: "room-small", doors: [] });
     state.levels[0]!.segments.push(dest);
 
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 2 });
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      spellRoll: 3,
+      destLevel: 0,
+      destSegId: 2,
+    });
 
     expect(next.combat).toBeNull();
     expect(next.hp).toBe(next.maxHp);
@@ -530,9 +630,13 @@ describe("CAST_SPELL in combat", () => {
     const state = stateWithCombat({ spellUses: { 3: 1 } }, [monster]);
 
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3 })).toBe(state);
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 999 })).toBe(state);
+    expect(
+      dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 999 }),
+    ).toBe(state);
     // Segment 1 is the room the fight is happening in -- not a valid destination for itself.
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 1 })).toBe(state);
+    expect(
+      dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 1 }),
+    ).toBe(state);
   });
 
   it("casting while paralyzed consumes the paralyzed turn instead of the spell's effect, but still spends a use", () => {
@@ -560,14 +664,20 @@ describe("CAST_SPELL in combat", () => {
 describe("CAST_SPELL guards in combat", () => {
   it("is a no-op with no uses remaining", () => {
     const state = stateWithCombat({ spellUses: { 5: 0 } });
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: state.combat!.monsters[0]!.id });
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      spellRoll: 5,
+      targetId: state.combat!.monsters[0]!.id,
+    });
     expect(next).toBe(state);
   });
 
   it("Cold Ray / Lightning are no-ops without a valid targetId", () => {
     const state = stateWithCombat({ spellUses: { 4: 1, 5: 1 } });
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 4 })).toBe(state);
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: 999 })).not.toBe(state); // consumes a use, but hits nothing
+    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: 999 })).not.toBe(
+      state,
+    ); // consumes a use, but hits nothing
   });
 });
 
@@ -605,7 +715,13 @@ describe("combat blocks other dungeon actions", () => {
     });
     const level = { ...makeLevel(1), segments: [seg], doorsRemaining: 1 };
     const state = stateWithCombat({ levels: [level] });
-    const next = dungeonReducer(state, { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 1, wasNoisy: false });
+    const next = dungeonReducer(state, {
+      type: "OPEN_DOOR",
+      segId: 1,
+      doorIdx: 0,
+      roll: 1,
+      wasNoisy: false,
+    });
     expect(next).toBe(state);
   });
 
@@ -637,7 +753,12 @@ describe("combat blocks other dungeon actions", () => {
     });
     const level = { ...makeLevel(1), segments: [room] };
     const state = stateWithCombat({ levels: [level] });
-    const next = dungeonReducer(state, { type: "ROLL_SECRET_PASSAGE", segId: 1, roll: 4, trapRoll: null });
+    const next = dungeonReducer(state, {
+      type: "ROLL_SECRET_PASSAGE",
+      segId: 1,
+      roll: 4,
+      trapRoll: null,
+    });
     expect(next).toBe(state);
   });
 
@@ -675,7 +796,13 @@ describe("Armor: damage-absorption choice", () => {
     });
     state.combat!.pendingDamage = 4;
 
-    expect(dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: state.combat!.monsters[0]!.id, roll: 3 })).toBe(state);
+    expect(
+      dungeonReducer(state, {
+        type: "PLAYER_ATTACK",
+        targetId: state.combat!.monsters[0]!.id,
+        roll: 3,
+      }),
+    ).toBe(state);
     expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 1 })).toBe(state);
     expect(dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} })).toBe(state);
   });
@@ -713,7 +840,11 @@ describe("Armor: damage-absorption choice", () => {
       { hp: 3, armor: [{ piece: "boots", hp: 1, maxHp: 3 }], characterName: "Doomed Dara" },
       [monster],
     );
-    const afterAttack = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    const afterAttack = dungeonReducer(state, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 3,
+    });
     expect(afterAttack.combat!.pendingDamage).toBe(4);
 
     const next = dungeonReducer(afterAttack, { type: "RESOLVE_DAMAGE", absorbWith: 0 });
@@ -725,7 +856,10 @@ describe("Armor: damage-absorption choice", () => {
   it("Poison damage always hits HP directly, even with usable armor equipped -- only non-poison damage is offered as a choice", () => {
     const poisoner = makeMonster({ id: 1, hp: 10, damage: 2, abilities: ["poison"] });
     const brute = makeMonster({ id: 2, hp: 10, damage: 5, abilities: [] });
-    const state = stateWithCombat({ armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [poisoner, brute]);
+    const state = stateWithCombat({ armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [
+      poisoner,
+      brute,
+    ]);
 
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: poisoner.id, roll: 3 });
 
@@ -736,7 +870,10 @@ describe("Armor: damage-absorption choice", () => {
   it("a fatal Poison tick doesn't leave a moot absorption choice pending for the rest of the round's damage", () => {
     const poisoner = makeMonster({ id: 1, hp: 10, damage: 20, abilities: ["poison"] });
     const brute = makeMonster({ id: 2, hp: 10, damage: 5, abilities: [] });
-    const state = stateWithCombat({ hp: 5, armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [poisoner, brute]);
+    const state = stateWithCombat({ hp: 5, armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [
+      poisoner,
+      brute,
+    ]);
 
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: poisoner.id, roll: 3 });
 
@@ -749,11 +886,25 @@ describe("Armor: ignoresMonsterAbility", () => {
   it("skips the Undead revival roll when the player has an item that ignores it", () => {
     const monster = makeMonster({ hp: 3, abilities: ["undead"] });
     const state = stateWithCombat(
-      { armor: [{ piece: "wonderItem", hp: 0, maxHp: 0, itemName: "Amulet of the Dead", effect: { kind: "ignoresMonsterAbility", ability: "undead" } }] },
+      {
+        armor: [
+          {
+            piece: "wonderItem",
+            hp: 0,
+            maxHp: 0,
+            itemName: "Amulet of the Dead",
+            effect: { kind: "ignoresMonsterAbility", ability: "undead" },
+          },
+        ],
+      },
       [monster],
     );
     // roll of 1 would normally revive the Undead monster -- ignored here, so it just dies.
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(1));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      fixedDie(1),
+    );
     expect(next.combat).toBeNull(); // fight over -- the monster was removed, not revived
   });
 
@@ -766,7 +917,11 @@ describe("Armor: ignoresMonsterAbility", () => {
     };
     const state = stateWithCombat({ weapon }, [monster]);
     // roll of 1 would normally arm a +10 Firebreath counterattack -- ignored here.
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 }, fixedDie(3));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 },
+      fixedDie(3),
+    );
     expect(next.combat!.monsters[0]!.bonusDamage).toBe(0);
     expect(next.hp).toBe(next.maxHp - 3); // only the monster's plain damage lands
   });
@@ -788,7 +943,11 @@ describe("Armor: ignoresMonsterAbility", () => {
 describe("Weapon bonus effects: Phase 2", () => {
   it("lifesteal heals the player on a successful hit, capped at maxHp", () => {
     const monster = makeMonster({ hp: 20, damage: 0 });
-    const weapon = { name: "Vampiric Sword", formula: "1d6", bonusEffect: { kind: "lifesteal" as const, amount: 1 } };
+    const weapon = {
+      name: "Vampiric Sword",
+      formula: "1d6",
+      bonusEffect: { kind: "lifesteal" as const, amount: 1 },
+    };
     const state = stateWithCombat({ weapon, hp: 15, maxHp: 20 }, [monster]);
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
     expect(next.combat!.monsters[0]!.hp).toBe(17); // 3 damage dealt
@@ -797,7 +956,11 @@ describe("Weapon bonus effects: Phase 2", () => {
 
   it("lifesteal doesn't overheal past maxHp", () => {
     const monster = makeMonster({ hp: 20, damage: 0 });
-    const weapon = { name: "Vampiric Sword", formula: "1d6", bonusEffect: { kind: "lifesteal" as const, amount: 1 } };
+    const weapon = {
+      name: "Vampiric Sword",
+      formula: "1d6",
+      bonusEffect: { kind: "lifesteal" as const, amount: 1 },
+    };
     const state = stateWithCombat({ weapon, hp: 20, maxHp: 20 }, [monster]);
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
     expect(next.hp).toBe(20);
@@ -805,17 +968,29 @@ describe("Weapon bonus effects: Phase 2", () => {
 
   it("instantKillOnRoll short-circuits normal damage math and defeats the monster outright", () => {
     const monster = makeMonster({ hp: 100, damage: 0, abilities: ["loot"] });
-    const weapon = { name: "Vorpal Sword", formula: "1d6-3", bonusEffect: { kind: "instantKillOnRoll" as const, roll: 6 } };
+    const weapon = {
+      name: "Vorpal Sword",
+      formula: "1d6-3",
+      bonusEffect: { kind: "instantKillOnRoll" as const, roll: 6 },
+    };
     const state = stateWithCombat({ weapon }, [monster]);
     const rng = sequenceDie([4]); // only consumed by the post-victory Loot roll
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, rng);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      rng,
+    );
     expect(next.combat).toBeNull(); // the 100 HP monster is gone despite the weapon's weak formula
     expect(next.coins).toBe(1);
   });
 
   it("instantKillOnRoll does nothing on a non-matching roll -- normal damage applies", () => {
     const monster = makeMonster({ hp: 100, damage: 0 });
-    const weapon = { name: "Vorpal Sword", formula: "1d6", bonusEffect: { kind: "instantKillOnRoll" as const, roll: 6 } };
+    const weapon = {
+      name: "Vorpal Sword",
+      formula: "1d6",
+      bonusEffect: { kind: "instantKillOnRoll" as const, roll: 6 },
+    };
     const state = stateWithCombat({ weapon }, [monster]);
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
     expect(next.combat!.monsters[0]!.hp).toBe(97);
@@ -826,7 +1001,13 @@ describe("Weapon bonus effects", () => {
   it("weaponDamageBonus adds flat damage to every attack", () => {
     const monster = makeMonster({ hp: 20, damage: 0 });
     const state = stateWithCombat(
-      { weapon: { name: "Sword", formula: "1d6", bonusEffect: { kind: "weaponDamageBonus", amount: 2 } } },
+      {
+        weapon: {
+          name: "Sword",
+          formula: "1d6",
+          bonusEffect: { kind: "weaponDamageBonus", amount: 2 },
+        },
+      },
       [monster],
     );
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
@@ -836,7 +1017,11 @@ describe("Weapon bonus effects", () => {
   it("damageBonusVsTag only applies when the monster's name matches", () => {
     const angel = makeMonster({ hp: 20, damage: 0, name: "Warrior Angel" });
     const orc = makeMonster({ hp: 20, damage: 0, name: "Orc" });
-    const weapon = { name: "Spear", formula: "1d6", bonusEffect: { kind: "damageBonusVsTag" as const, tags: ["angel"], amount: 2 } };
+    const weapon = {
+      name: "Spear",
+      formula: "1d6",
+      bonusEffect: { kind: "damageBonusVsTag" as const, tags: ["angel"], amount: 2 },
+    };
 
     const vsAngel = dungeonReducer(stateWithCombat({ weapon }, [angel]), {
       type: "PLAYER_ATTACK",
@@ -901,7 +1086,11 @@ describe("Cook: +1 coin per kill (except Undead)", () => {
   it("gains 1 coin when a non-Undead monster is killed", () => {
     const monster = makeMonster({ hp: 3, abilities: [] });
     const state = stateWithCombat({ className: "Cook" }, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, sequenceDie([1]));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      sequenceDie([1]),
+    );
     expect(next.coins).toBe(1);
     expect(next.log.some((e) => e.message.includes("Cook's instincts"))).toBe(true);
   });
@@ -910,14 +1099,22 @@ describe("Cook: +1 coin per kill (except Undead)", () => {
     const monster = makeMonster({ hp: 3, abilities: ["undead"] });
     const state = stateWithCombat({ className: "Cook" }, [monster]);
     // roll of 1 on the Undead-revival check -> stays dead; no further rng needed
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, fixedDie(6));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      fixedDie(6),
+    );
     expect(next.coins).toBe(0);
   });
 
   it("a non-Cook gets no coin from a kill", () => {
     const monster = makeMonster({ hp: 3, abilities: [] });
     const state = stateWithCombat({}, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 }, sequenceDie([1]));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 6 },
+      sequenceDie([1]),
+    );
     expect(next.coins).toBe(0);
   });
 });
@@ -927,14 +1124,24 @@ describe("Rinoceroid: horn attack", () => {
     const monster = makeMonster({ hp: 20, damage: 0 });
     const weapon = { name: "Halberd", formula: "1d6+3", twoHanded: true };
     const state = stateWithCombat({ raceName: "Rinoceroid", weapon }, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 4, useHorn: true });
+    const next = dungeonReducer(state, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 4,
+      useHorn: true,
+    });
     expect(next.combat!.monsters[0]!.hp).toBe(16); // just the raw roll, no +3 weapon modifier
   });
 
   it("useHorn is ignored for a non-Rinoceroid, falling back to the equipped weapon", () => {
     const monster = makeMonster({ hp: 20, damage: 0 });
     const state = stateWithCombat({ weaponFormula: "1d6+3" }, [monster]);
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 4, useHorn: true });
+    const next = dungeonReducer(state, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 4,
+      useHorn: true,
+    });
     expect(next.combat!.monsters[0]!.hp).toBe(13); // 4 + 3 modifier applied
   });
 });

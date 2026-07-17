@@ -62,7 +62,11 @@ import {
 } from "./dungeonState.ts";
 import type { RNG } from "./rng.ts";
 
-function bumpStatsForNewSegment(stats: Draft<DungeonStats>, type: SegmentType, doors: number): void {
+function bumpStatsForNewSegment(
+  stats: Draft<DungeonStats>,
+  type: SegmentType,
+  doors: number,
+): void {
   stats.segments += 1;
   if (type === "corridor") stats.corridors += 1;
   else if (type === "staircase") stats.staircases += 1;
@@ -70,7 +74,11 @@ function bumpStatsForNewSegment(stats: Draft<DungeonStats>, type: SegmentType, d
   stats.doorsRemaining += doors;
 }
 
-function pushLog(draft: Draft<DungeonState>, message: string, variant: "normal" | "descend" = "normal"): void {
+function pushLog(
+  draft: Draft<DungeonState>,
+  message: string,
+  variant: "normal" | "descend" = "normal",
+): void {
   draft.log.unshift({ id: draft.nextLogId, message, variant });
   draft.nextLogId += 1;
 }
@@ -91,12 +99,14 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
     draft.keys === 0 &&
     draft.heldItems.length === 0 &&
     draft.armor.length === 0 &&
-    !draft.weapon
+    !draft.weapon &&
+    draft.spareWeapons.length === 0
   ) {
     return;
   }
   const level = draft.levels[draft.activeLevel];
-  const seg = level?.segments.find((s) => s.id === segId) ?? level?.segments.find((s) => s.isEntrance);
+  const seg =
+    level?.segments.find((s) => s.id === segId) ?? level?.segments.find((s) => s.isEntrance);
   if (!seg) return;
   if (seg.remains) {
     seg.remains.names.push(draft.characterName);
@@ -106,6 +116,7 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
     seg.remains.heldItems.push(...draft.heldItems);
     seg.remains.armor.push(...draft.armor);
     if (!seg.remains.weapon) seg.remains.weapon = draft.weapon;
+    seg.remains.weapons.push(...draft.spareWeapons);
   } else {
     seg.remains = {
       names: [draft.characterName],
@@ -115,18 +126,27 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
       heldItems: [...draft.heldItems],
       armor: [...draft.armor],
       weapon: draft.weapon,
+      weapons: [...draft.spareWeapons],
     };
   }
 }
 
 /** Spends `cost` torches, logging `message`; if there aren't enough, the Darkness kills the character instead. */
-function spendTorches(draft: Draft<DungeonState>, cost: number, message: string, segId: number | null = null): boolean {
+function spendTorches(
+  draft: Draft<DungeonState>,
+  cost: number,
+  message: string,
+  segId: number | null = null,
+): boolean {
   if (draft.torches < cost) {
     if (draft.className === "Miner") {
       // "If you run out of torches, you can leave the dungeon" -- the Darkness spares a Miner
       // outright rather than killing them; the action they were attempting still fails (they're
       // still out of torches), but they're free to use the existing Retreat to Town button.
-      pushLog(draft, "You're out of torches, but a lifetime underground taught you the way out. Retreat to Town before the Darkness finds you.");
+      pushLog(
+        draft,
+        "You're out of torches, but a lifetime underground taught you the way out. Retreat to Town before the Darkness finds you.",
+      );
       return false;
     }
     draft.alive = false;
@@ -158,7 +178,9 @@ function buildSegment(
     childId: null,
     leadsToLevel: null,
   }));
-  const extras = draft.dungeonTypeKey ? resolveRoomExtras(type, draft.dungeonTypeKey, rng, isEntrance) : undefined;
+  const extras = draft.dungeonTypeKey
+    ? resolveRoomExtras(type, draft.dungeonTypeKey, rng, isEntrance)
+    : undefined;
   return {
     id,
     type,
@@ -252,7 +274,11 @@ function hasPendingRoomEntry(state: DungeonState): boolean {
 /** If a room the player previously moved silently through hears a noisy action (a door breaking,
  * a trap firing) while they're still there, its monsters wake up and attack first -- "If while
  * hiding you set off a trap or make a noise, monsters attack." */
-function wakeSneakedPastMonsters(draft: Draft<DungeonState>, seg: Draft<SegmentState>, rng: RNG): void {
+function wakeSneakedPastMonsters(
+  draft: Draft<DungeonState>,
+  seg: Draft<SegmentState>,
+  rng: RNG,
+): void {
   const monsters = seg.monsters;
   if (!seg.sneakedPast || !monsters) return;
   seg.sneakedPast = false;
@@ -274,7 +300,12 @@ function wakeSneakedPastMonsters(draft: Draft<DungeonState>, seg: Draft<SegmentS
  * and DungeonScreen's death messaging only ever branch on "darkness" vs. everything else, and
  * "not the Darkness" is the only distinction that actually matters there today.
  */
-function applyTrapEffect(draft: Draft<DungeonState>, trap: TrapEntry, segId: number, rng: RNG): void {
+function applyTrapEffect(
+  draft: Draft<DungeonState>,
+  trap: TrapEntry,
+  segId: number,
+  rng: RNG,
+): void {
   if (!draft.alive) return; // a torchCost Darkness death already ended the run this same dispatch
 
   if (trap.bladeTrap) {
@@ -315,16 +346,29 @@ function applyTrapEffect(draft: Draft<DungeonState>, trap: TrapEntry, segId: num
  * `dungeonTables.ts` is a Wonder or `grants: "armor"` Magic Item, so only `draft.armor` needs
  * checking, never the weapon. Otherwise applies `torchCost` (if any) then `applyTrapEffect()`.
  */
-function resolveTrapOutcome(draft: Draft<DungeonState>, trap: TrapEntry, segId: number, rng: RNG): void {
+function resolveTrapOutcome(
+  draft: Draft<DungeonState>,
+  trap: TrapEntry,
+  segId: number,
+  rng: RNG,
+): void {
   const immunityIndex = draft.armor.findIndex((piece) => piece.effect?.kind === "trapImmunity");
   if (immunityIndex !== -1) {
     const item = draft.armor[immunityIndex]!;
     draft.armor.splice(immunityIndex, 1);
-    pushLog(draft, `Your ${item.itemName ?? "trinket"} shields you from the trap and crumbles to dust.`);
+    pushLog(
+      draft,
+      `Your ${item.itemName ?? "trinket"} shields you from the trap and crumbles to dust.`,
+    );
     return;
   }
   if (trap.torchCost) {
-    spendTorches(draft, trap.torchCost, `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`, segId);
+    spendTorches(
+      draft,
+      trap.torchCost,
+      `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
+      segId,
+    );
   }
   applyTrapEffect(draft, trap, segId, rng);
 }
@@ -356,7 +400,11 @@ function matchesTags(monster: Draft<CombatMonsterState>, tags: string[]): boolea
 
 /** `isHorn`: Rinoceroid's horn attack bypasses the equipped weapon entirely, so it skips any
  * weapon-specific bonus effect -- general combat buffs (Potion of Fury, Grave Digger) still apply. */
-function attackBonus(draft: Draft<DungeonState>, monster: Draft<CombatMonsterState>, isHorn = false): number {
+function attackBonus(
+  draft: Draft<DungeonState>,
+  monster: Draft<CombatMonsterState>,
+  isHorn = false,
+): number {
   let bonus = draft.combat?.playerDamageBonus ?? 0;
   if (draft.className === "Grave Digger" && monster.abilities.includes("undead")) {
     bonus += 2;
@@ -374,7 +422,11 @@ function attackBonus(draft: Draft<DungeonState>, monster: Draft<CombatMonsterSta
 
 /** Multiplier applied to just the weapon's own roll (e.g. "[Weapon] of the Dragon Slayer: Double
  * damage against Dragons"), before `attackBonus` is added. */
-function attackMultiplier(draft: Draft<DungeonState>, monster: Draft<CombatMonsterState>, isHorn = false): number {
+function attackMultiplier(
+  draft: Draft<DungeonState>,
+  monster: Draft<CombatMonsterState>,
+  isHorn = false,
+): number {
   let multiplier = 1;
   if (isHorn) return multiplier;
   for (const effect of equippedEffects(draft)) {
@@ -387,14 +439,19 @@ function attackMultiplier(draft: Draft<DungeonState>, monster: Draft<CombatMonst
 
 /** True if any equipped item (weapon or armor) ignores this specific monster ability. */
 function ignoresAbility(draft: Draft<DungeonState>, ability: MonsterAbility): boolean {
-  return equippedEffects(draft).some((effect) => effect.kind === "ignoresMonsterAbility" && effect.ability === ability);
+  return equippedEffects(draft).some(
+    (effect) => effect.kind === "ignoresMonsterAbility" && effect.ability === ability,
+  );
 }
 
 /** Every monster ability ignored by an equipped item, e.g. Boatman's Oar bypassing Intangible's
  * damage-parity block -- fed into `resolvePlayerAttack`'s defensive-ability filter. */
 function ignoredAbilities(draft: Draft<DungeonState>): MonsterAbility[] {
   return equippedEffects(draft)
-    .filter((effect): effect is Extract<ItemEffect, { kind: "ignoresMonsterAbility" }> => effect.kind === "ignoresMonsterAbility")
+    .filter(
+      (effect): effect is Extract<ItemEffect, { kind: "ignoresMonsterAbility" }> =>
+        effect.kind === "ignoresMonsterAbility",
+    )
     .map((effect) => effect.ability);
 }
 
@@ -455,7 +512,10 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     // usable armor equipped, defer to RESOLVE_DAMAGE instead of subtracting HP immediately.
     if (hasUsableArmor(draft)) {
       combat.pendingDamage = absorbableDamage;
-      pushLog(draft, `The monsters strike for ${absorbableDamage} damage -- choose what absorbs it.`);
+      pushLog(
+        draft,
+        `The monsters strike for ${absorbableDamage} damage -- choose what absorbs it.`,
+      );
       return;
     }
     draft.hp = Math.max(0, draft.hp - absorbableDamage);
@@ -503,7 +563,11 @@ function handleMonsterDefeat(
 }
 
 /** If every monster is gone, resolves Loot (or the Boss's flat 2d6 Treasures), marks the room cleared, and closes out combat. */
-function finishIfVictorious(draft: Draft<DungeonState>, combat: Draft<CombatState>, rng: RNG): void {
+function finishIfVictorious(
+  draft: Draft<DungeonState>,
+  combat: Draft<CombatState>,
+  rng: RNG,
+): void {
   if (combat.monsters.length > 0) return;
   const level = draft.levels[draft.activeLevel];
   const seg = level?.segments.find((s) => s.id === combat.segId);
@@ -613,7 +677,9 @@ function restoreMapFromPersisted(
       seg.needsMonsterReroll = true;
     }
   }
-  const current = draft.levels[draft.activeLevel]?.segments.find((s) => s.id === draft.currentSegId);
+  const current = draft.levels[draft.activeLevel]?.segments.find(
+    (s) => s.id === draft.currentSegId,
+  );
   if (current) rerollMonstersIfNeeded(draft, current, rng);
 }
 
@@ -627,7 +693,11 @@ function restoreMapFromPersisted(
  * to eagerly respawn, so nothing else would ever pick the fight back up -- resumes it right here,
  * at full HP, same as encountering it for the first time (Final Room segments are always the
  * Boss, so `seg.type === "final"` doubles as `isBoss` with no separate field to track). */
-function rerollMonstersIfNeeded(draft: Draft<DungeonState>, seg: Draft<SegmentState>, rng: RNG): void {
+function rerollMonstersIfNeeded(
+  draft: Draft<DungeonState>,
+  seg: Draft<SegmentState>,
+  rng: RNG,
+): void {
   if (seg.needsMonsterReroll) {
     seg.needsMonsterReroll = false;
     if (!draft.dungeonTypeKey) return;
@@ -655,7 +725,13 @@ function rerollMonstersIfNeeded(draft: Draft<DungeonState>, seg: Draft<SegmentSt
  * respectively) rather than lingering as an item. */
 function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG): void {
   if (entry.grantsHp !== undefined) {
-    draft.armor.push({ piece: "wonderItem", hp: entry.grantsHp, maxHp: entry.grantsHp, itemName: entry.name, effect: entry.effect });
+    draft.armor.push({
+      piece: "wonderItem",
+      hp: entry.grantsHp,
+      maxHp: entry.grantsHp,
+      itemName: entry.name,
+      effect: entry.effect,
+    });
   } else if (entry.effect.kind === "combatDamageBonus") {
     if (draft.combat) draft.combat.playerDamageBonus += entry.effect.amount;
   } else if (entry.effect.kind === "grantsTorches") {
@@ -668,7 +744,13 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
     pushLog(draft, `Treasure: ${entry.text} — learned ${spellName}!`);
     return;
   } else if (entry.effect.kind !== "flavor") {
-    draft.armor.push({ piece: "wonderItem", hp: 0, maxHp: 0, itemName: entry.name, effect: entry.effect });
+    draft.armor.push({
+      piece: "wonderItem",
+      hp: 0,
+      maxHp: 0,
+      itemName: entry.name,
+      effect: entry.effect,
+    });
   }
   pushLog(draft, `Treasure: ${entry.text}`);
 }
@@ -692,21 +774,21 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
     });
     pushLog(draft, `Treasure: ${entry.text} (${ARMOR_PIECE_LABELS[base.piece]}, ${maxHp} HP)`);
   } else if (entry.fixedFormula) {
-    draft.weapon = {
+    draft.spareWeapons.push({
       name: entry.name,
       formula: entry.fixedFormula,
       bonusEffect: entry.effect.kind !== "flavor" ? entry.effect : undefined,
-    };
+    });
     pushLog(draft, `Treasure: ${entry.text} (${entry.fixedFormula} damage)`);
   } else {
     const roll = rollDie(rng);
     const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
-    draft.weapon = {
+    draft.spareWeapons.push({
       name: base.name,
       formula: base.formula,
       twoHanded: base.twoHanded,
       bonusEffect: entry.effect.kind !== "flavor" ? entry.effect : undefined,
-    };
+    });
     pushLog(draft, `Treasure: ${entry.text} (${base.name}, ${base.formula} damage)`);
   }
 }
@@ -720,7 +802,11 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
  * prefix is a little off for an Armory's own contents, but the base-table-roll/bonus-layering
  * logic it reuses is exactly right, so that's an acceptable trade).
  */
-function applyRoomContentReward(draft: Draft<DungeonState>, reward: RoomContentReward, rng: RNG): void {
+function applyRoomContentReward(
+  draft: Draft<DungeonState>,
+  reward: RoomContentReward,
+  rng: RNG,
+): void {
   const count = resolveMonsterCount(reward.count, rng);
   if (count <= 0) return;
 
@@ -743,7 +829,10 @@ function applyRoomContentReward(draft: Draft<DungeonState>, reward: RoomContentR
         draft.spellUses[spellRoll] = (draft.spellUses[spellRoll] ?? 0) + 1;
         spellNames.push(SPELL_TABLE[spellRoll]?.name ?? "a spell");
       }
-      pushLog(draft, `You find ${count} Magic Scroll${count === 1 ? "" : "s"}, learning ${spellNames.join(", ")}.`);
+      pushLog(
+        draft,
+        `You find ${count} Magic Scroll${count === 1 ? "" : "s"}, learning ${spellNames.join(", ")}.`,
+      );
       break;
     }
     case "magicItems": {
@@ -813,7 +902,11 @@ function buildSecretPassageStaircase(
   finishRoomSegment(draft, stairSeg, false, rng);
 }
 
-export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: RNG = Math.random): DungeonState {
+export function dungeonReducer(
+  state: DungeonState,
+  action: DungeonAction,
+  rng: RNG = Math.random,
+): DungeonState {
   switch (action.type) {
     case "ROLL_DUNGEON": {
       const dtype = DUNGEON_TYPES[action.typeRoll];
@@ -831,13 +924,29 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         draft.nextLogId = 1;
         draft.selectedSegId = null;
         draft.log = [];
-        draft.stats = { segments: 0, corridors: 0, rooms: 0, staircases: 0, doorsRemaining: 0, finalRooms: 0 };
+        draft.stats = {
+          segments: 0,
+          corridors: 0,
+          rooms: 0,
+          staircases: 0,
+          doorsRemaining: 0,
+          finalRooms: 0,
+        };
         draft.torches -= 1;
         pushLog(draft, "Entering the dungeon costs 1 torch to light the way.");
 
         const level = draft.levels[0]!;
         const box = boxFromCenter(0, 0, sizeFor(dtype.entranceType, null));
-        const entrance = buildSegment(draft, dtype.entranceType, box, null, dtype.doors, null, rng, true);
+        const entrance = buildSegment(
+          draft,
+          dtype.entranceType,
+          box,
+          null,
+          dtype.doors,
+          null,
+          rng,
+          true,
+        );
         level.segments.push(entrance);
         level.doorsRemaining += dtype.doors;
         draft.currentSegId = entrance.id;
@@ -902,7 +1011,12 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         if (!seg || seg.secretPassageSearched) return;
 
         if (
-          !spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch searching for a secret passage.`, seg.id)
+          !spendTorches(
+            draft,
+            1,
+            `Segment ${seg.id}: spent 1 torch searching for a secret passage.`,
+            seg.id,
+          )
         ) {
           return;
         }
@@ -930,7 +1044,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (!seg || seg.chestOpened) return;
         const chestAvailable =
-          !!seg.roomContent?.hasChest || seg.secretPassageResult === "You have found a hidden Chest!";
+          !!seg.roomContent?.hasChest ||
+          seg.secretPassageResult === "You have found a hidden Chest!";
         if (!chestAvailable) return;
 
         seg.chestOpened = true;
@@ -951,7 +1066,9 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           return;
         }
 
-        const hasDoubleChestCoins = draft.armor.some((piece) => piece.effect?.kind === "doubleChestCoins");
+        const hasDoubleChestCoins = draft.armor.some(
+          (piece) => piece.effect?.kind === "doubleChestCoins",
+        );
         const coins = Math.max(a, b) * (hasDoubleChestCoins ? 2 : 1);
         const treasures = Math.min(a, b);
         draft.coins += coins;
@@ -970,14 +1087,16 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (!seg?.remains) return;
-        const { names, coins, treasures, keys, heldItems, armor, weapon } = seg.remains;
+        const { names, coins, treasures, keys, heldItems, armor, weapon, weapons } = seg.remains;
         draft.coins += coins;
         draft.treasures += treasures;
         draft.keys += keys;
         draft.heldItems.push(...heldItems);
         draft.armor.push(...armor);
-        if (weapon) draft.weapon = weapon;
-        const itemsPart = heldItems.length > 0 ? `, and ${heldItems.map((item) => item.name).join(", ")}` : "";
+        if (weapon) draft.spareWeapons.push(weapon);
+        draft.spareWeapons.push(...weapons);
+        const itemsPart =
+          heldItems.length > 0 ? `, and ${heldItems.map((item) => item.name).join(", ")}` : "";
         pushLog(
           draft,
           `Segment ${seg.id}: recovered ${coins} coin${coins === 1 ? "" : "s"}, ${treasures} Treasure${treasures === 1 ? "" : "s"}, and ${keys} Key${keys === 1 ? "" : "s"}${itemsPart} from the remains of ${names.join(", ")}.`,
@@ -986,8 +1105,25 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
       });
     }
 
+    case "WIELD_WEAPON": {
+      if (!state.alive || state.combat || hasPendingRoomEntry(state)) return state;
+      return produce(state, (draft) => {
+        const chosen = draft.spareWeapons[action.index];
+        if (!chosen) return;
+        draft.spareWeapons.splice(action.index, 1);
+        if (draft.weapon) draft.spareWeapons.push(draft.weapon);
+        draft.weapon = chosen;
+        pushLog(draft, `You wield the ${chosen.name}.`);
+      });
+    }
+
     case "RESOLVE_DOOR_LOCK": {
-      if (!state.alive || state.combat || hasPendingRoomEntry(state) || action.segId !== state.currentSegId) {
+      if (
+        !state.alive ||
+        state.combat ||
+        hasPendingRoomEntry(state) ||
+        action.segId !== state.currentSegId
+      ) {
         return state;
       }
       return produce(state, (draft) => {
@@ -1030,7 +1166,12 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "OPEN_DOOR": {
-      if (!state.alive || state.combat || hasPendingRoomEntry(state) || action.segId !== state.currentSegId) {
+      if (
+        !state.alive ||
+        state.combat ||
+        hasPendingRoomEntry(state) ||
+        action.segId !== state.currentSegId
+      ) {
         return state;
       }
       const classification = classifyDoorOpen(state, action.segId, action.doorIdx);
@@ -1065,7 +1206,15 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             const row = rollSegment(seg.type, action.roll);
             const targetLevel = draft.levels[classification.targetLevel]!;
             const box = placeIslandRoot(targetLevel.segments, row.type);
-            const island = buildSegment(draft, row.type, box, null, row.doors, row.flavor ?? null, rng);
+            const island = buildSegment(
+              draft,
+              row.type,
+              box,
+              null,
+              row.doors,
+              row.flavor ?? null,
+              rng,
+            );
             targetLevel.segments.push(island);
             targetLevel.doorsRemaining += row.doors;
             if (row.type === "staircase") targetLevel.hasStaircase = true;
@@ -1174,7 +1323,15 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             const row = rollSegment(seg.type, action.roll);
             const newLevel = makeLevel(level.depth + 1);
             const box = boxFromCenter(0, 0, sizeFor(row.type, null));
-            const rootSeg = buildSegment(draft, row.type, box, null, row.doors, row.flavor ?? null, rng);
+            const rootSeg = buildSegment(
+              draft,
+              row.type,
+              box,
+              null,
+              row.doors,
+              row.flavor ?? null,
+              rng,
+            );
             newLevel.segments.push(rootSeg);
             newLevel.doorsRemaining += row.doors;
             if (row.type === "staircase") newLevel.hasStaircase = true;
@@ -1206,7 +1363,15 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             if (action.roll == null) throw new Error("normal requires a roll");
             const row = rollSegment(seg.type, action.roll);
             const box = placeChild(seg, door.dir, row.type, level.segments);
-            const childSeg = buildSegment(draft, row.type, box, door.dir, row.doors, row.flavor ?? null, rng);
+            const childSeg = buildSegment(
+              draft,
+              row.type,
+              box,
+              door.dir,
+              row.doors,
+              row.flavor ?? null,
+              rng,
+            );
             level.segments.push(childSeg);
             level.connectors.push(buildConnector(seg, door.dir, box));
 
@@ -1245,7 +1410,14 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         // die results in a 1, the monsters see you and attack first." The room's monster count can
         // itself be a dice roll (e.g. "1d6 Goblins"), so it's resolved here rather than passed in
         // from the client, same as any other hidden roll (a fresh room's monster count included).
-        if (!spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch trying to move silently.`, seg.id)) {
+        if (
+          !spendTorches(
+            draft,
+            1,
+            `Segment ${seg.id}: spent 1 torch trying to move silently.`,
+            seg.id,
+          )
+        ) {
           return;
         }
         const monsterCount = resolveMonsterCount(monsters.count, rng);
@@ -1268,7 +1440,12 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "PLAYER_ATTACK": {
-      if (!state.alive || !state.combat || state.combat.outcome !== "ongoing" || state.combat.pendingDamage !== null) {
+      if (
+        !state.alive ||
+        !state.combat ||
+        state.combat.outcome !== "ongoing" ||
+        state.combat.pendingDamage !== null
+      ) {
         return state;
       }
       return produce(state, (draft) => {
@@ -1288,7 +1465,10 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
         const useHorn = action.useHorn === true && draft.raceName === "Rinoceroid";
         const weaponBonus = useHorn ? undefined : draft.weapon?.bonusEffect;
         if (weaponBonus?.kind === "instantKillOnRoll" && action.roll === weaponBonus.roll) {
-          pushLog(draft, `Your ${draft.weapon!.name} strikes true, killing ${monster.name} instantly!`);
+          pushLog(
+            draft,
+            `Your ${draft.weapon!.name} strikes true, killing ${monster.name} instantly!`,
+          );
           monster.hp = 0;
           handleMonsterDefeat(draft, combat, monster, rng);
         } else {
@@ -1297,16 +1477,28 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             : parseWeaponFormula(draft.weapon?.formula ?? draft.weaponFormula);
           const baseTotal = Math.max(0, action.roll + modifier);
           const weaponTotal =
-            baseTotal * attackMultiplier(draft, monster, useHorn) + attackBonus(draft, monster, useHorn);
-          const result = resolvePlayerAttack(monster, action.roll, weaponTotal, rng, useHorn ? [] : ignoredAbilities(draft));
+            baseTotal * attackMultiplier(draft, monster, useHorn) +
+            attackBonus(draft, monster, useHorn);
+          const result = resolvePlayerAttack(
+            monster,
+            action.roll,
+            weaponTotal,
+            rng,
+            useHorn ? [] : ignoredAbilities(draft),
+          );
 
           if (result.selfDestructDamageToPlayer > 0) {
-            pushLog(draft, `${monster.name} explodes, dealing ${result.selfDestructDamageToPlayer} damage to you!`);
+            pushLog(
+              draft,
+              `${monster.name} explodes, dealing ${result.selfDestructDamageToPlayer} damage to you!`,
+            );
             draft.hp = Math.max(0, draft.hp - result.selfDestructDamageToPlayer);
           } else if (result.damageDealt > 0) {
             pushLog(draft, `You hit ${monster.name} for ${result.damageDealt} damage.`);
           } else {
-            const blockedBy = result.events.find((e) => e.kind === "stoneskin" || e.kind === "intangible");
+            const blockedBy = result.events.find(
+              (e) => e.kind === "stoneskin" || e.kind === "intangible",
+            );
             pushLog(
               draft,
               blockedBy
@@ -1356,17 +1548,29 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             for (const event of result.events) {
               if (event.kind === "firebreath") {
                 if (ignoresAbility(draft, "firebreath")) {
-                  pushLog(draft, `${monster.name} breathes fire, but your weapon shields you from the flames.`);
+                  pushLog(
+                    draft,
+                    `${monster.name} breathes fire, but your weapon shields you from the flames.`,
+                  );
                 } else {
                   monster.bonusDamage += 10;
-                  pushLog(draft, `${monster.name} breathes fire, readying a scorching counterattack!`);
+                  pushLog(
+                    draft,
+                    `${monster.name} breathes fire, readying a scorching counterattack!`,
+                  );
                 }
               } else if (event.kind === "sorcery") {
                 monster.bonusDamage += event.bonus;
-                pushLog(draft, `${monster.name} casts a spell, empowering its next attack by ${event.bonus}!`);
+                pushLog(
+                  draft,
+                  `${monster.name} casts a spell, empowering its next attack by ${event.bonus}!`,
+                );
               } else if (event.kind === "deathtouch") {
                 if (ignoresAbility(draft, "deathtouch")) {
-                  pushLog(draft, `${monster.name}'s touch turns deathly cold, but your ward protects you.`);
+                  pushLog(
+                    draft,
+                    `${monster.name}'s touch turns deathly cold, but your ward protects you.`,
+                  );
                 } else {
                   monster.deathtouchPending = true;
                   pushLog(draft, `${monster.name}'s touch turns deathly cold...`);
@@ -1376,7 +1580,10 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
                 pushLog(draft, `${monster.name} regenerates ${event.amount} HP.`);
               } else if (event.kind === "paralyze") {
                 if (ignoresAbility(draft, "paralyze")) {
-                  pushLog(draft, `${monster.name} prepares a paralyzing strike, but your ward protects you.`);
+                  pushLog(
+                    draft,
+                    `${monster.name} prepares a paralyzing strike, but your ward protects you.`,
+                  );
                 } else {
                   monster.paralyzePending = event.turns;
                   pushLog(draft, `${monster.name} prepares a paralyzing strike!`);
@@ -1462,7 +1669,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
     }
 
     case "CAST_SPELL": {
-      if (!state.alive || state.combat?.pendingDamage != null || hasPendingRoomEntry(state)) return state;
+      if (!state.alive || state.combat?.pendingDamage != null || hasPendingRoomEntry(state))
+        return state;
       const spell = SPELL_TABLE[action.spellRoll];
       const remaining = state.spellUses[action.spellRoll] ?? 0;
       if (!spell || remaining <= 0) return state;
@@ -1470,7 +1678,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
       // spells, plus Teleport's flee effect, only mean anything mid-fight.
       const combatOnly = action.spellRoll === 4 || action.spellRoll === 5 || action.spellRoll === 6;
       if ((combatOnly || action.spellRoll === 3) && !state.combat) return state;
-      if ((action.spellRoll === 4 || action.spellRoll === 5) && action.targetId == null) return state;
+      if ((action.spellRoll === 4 || action.spellRoll === 5) && action.targetId == null)
+        return state;
       if (action.spellRoll === 3) {
         const destLevel = action.destLevel != null ? state.levels[action.destLevel] : undefined;
         const destSeg = destLevel?.segments.find((s) => s.id === action.destSegId);
@@ -1513,7 +1722,9 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           case 3: {
             if (!combat) break;
             const destLevelIndex = action.destLevel!;
-            const destSeg = draft.levels[destLevelIndex]!.segments.find((s) => s.id === action.destSegId)!;
+            const destSeg = draft.levels[destLevelIndex]!.segments.find(
+              (s) => s.id === action.destSegId,
+            )!;
             pushLog(
               draft,
               `You cast Teleport and vanish from the fight, reappearing in ${TYPE_LABELS[destSeg.type]} (Segment ${destSeg.id}, Level ${destLevelIndex + 1}).`,
@@ -1655,7 +1866,11 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
               resolveMagicItem(draft, DUNGEON_TABLES[draft.dungeonTypeKey!].magicItem[roll]!, rng);
             } else {
               const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
-              draft.weapon = { name: base.name, formula: base.formula, twoHanded: base.twoHanded };
+              draft.spareWeapons.push({
+                name: base.name,
+                formula: base.formula,
+                twoHanded: base.twoHanded,
+              });
               pushLog(draft, `Treasure: You find a ${base.name} (${base.formula} damage).`);
             }
             break;
@@ -1696,7 +1911,13 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           {},
         ),
         (draft) => {
-          restoreMapFromPersisted(draft, persisted, rng, "A new adventurer takes up the fallen's path.", true);
+          restoreMapFromPersisted(
+            draft,
+            persisted,
+            rng,
+            "A new adventurer takes up the fallen's path.",
+            true,
+          );
         },
       );
     }
@@ -1724,6 +1945,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           action.className,
           action.killsByName,
           action.killsByAbility,
+          action.spareWeapons,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);
