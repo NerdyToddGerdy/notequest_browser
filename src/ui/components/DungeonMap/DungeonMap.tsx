@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DungeonState } from "../../../engine/dungeonState.ts";
 import { classifyDoorOpen, DIR_VEC, edgePoint, reachableSegIds } from "../../../engine/dungeon.ts";
 import { rollDie } from "../../../engine/dice.ts";
@@ -8,9 +8,15 @@ import { Die } from "../Die/Die.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import { computeMapLayout } from "./layout.ts";
 import { DescentIcon, DoorIcon, EntranceIcon, MonsterIcon, SecretIcon, SegmentIcon } from "./icons.tsx";
+import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
 import styles from "./DungeonMap.module.css";
 
 const AUTOMATIC_KINDS = new Set(["descend-final", "dead-end-final", "reuse-final"]);
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 2.5;
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 const TYPE_CLASS: Partial<Record<SegmentType, string>> = {
   corridor: styles.typeCorridor,
@@ -77,6 +83,34 @@ export function DungeonMap({
    * the capturing click handler below so a drag-to-pan gesture doesn't also select whatever room or
    * door the pointer happened to release over. */
   const didDrag = useRef(false);
+
+  // Zoom (wheel + pinch, see useZoomGesture) -- applied as a CSS transform on .canvas rather than
+  // changing layout.width/height, since modern browsers already grow/shrink .scroll's scrollable
+  // region to match transformed content. `pendingFocalPoint` is set synchronously in the zoom
+  // callback and consumed by the layout effect below, which runs (and corrects scrollLeft/scrollTop)
+  // before the next paint -- avoids needing flushSync just to read the DOM mid-handler.
+  const [scale, setScale] = useState(1);
+  const pendingFocalPoint = useRef<{ clientX: number; clientY: number } | null>(null);
+  const prevScale = useRef(1);
+  useZoomGesture(scrollRef, ({ factor, clientX, clientY }) => {
+    pendingFocalPoint.current = { clientX, clientY };
+    setScale((s) => clamp(s * factor, MIN_SCALE, MAX_SCALE));
+  });
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const focal = pendingFocalPoint.current;
+    if (el && focal) {
+      const rect = el.getBoundingClientRect();
+      const viewportX = focal.clientX - rect.left;
+      const viewportY = focal.clientY - rect.top;
+      const contentX = (el.scrollLeft + viewportX) / prevScale.current;
+      const contentY = (el.scrollTop + viewportY) / prevScale.current;
+      el.scrollLeft = contentX * scale - viewportX;
+      el.scrollTop = contentY * scale - viewportY;
+    }
+    prevScale.current = scale;
+    pendingFocalPoint.current = null;
+  }, [scale]);
 
   if (!level) return null;
 
@@ -198,7 +232,10 @@ export function DungeonMap({
         onPointerCancel={handlePointerUp}
         onClickCapture={handleClickCapture}
       >
-        <div className={styles.canvas} style={{ width: layout.width, height: layout.height }}>
+        <div
+          className={styles.canvas}
+          style={{ width: layout.width, height: layout.height, transform: `scale(${scale})`, transformOrigin: "0 0" }}
+        >
           {level.connectors.map((connector, index) => (
             <div
               key={index}
@@ -326,6 +363,11 @@ export function DungeonMap({
           )}
         </div>
       </div>
+      {scale !== 1 && (
+        <button type="button" className={styles.resetZoomBtn} onClick={() => setScale(1)}>
+          Reset Zoom
+        </button>
+      )}
     </div>
   );
 }
