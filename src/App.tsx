@@ -69,6 +69,8 @@ export default function App() {
       spellUses: computeSpellUses(newCharacter.spells, newCharacter.fixedGrants),
       monsterKills: 0,
       bossKills: 0,
+      killsByName: {},
+      killsByAbility: {},
       provisions: 20,
     });
     setActiveRunId(null);
@@ -102,6 +104,8 @@ export default function App() {
       spellUses: dungeon.spellUses,
       monsterKills: dungeon.monsterKills,
       bossKills: dungeon.bossKills,
+      killsByName: dungeon.killsByName,
+      killsByAbility: dungeon.killsByAbility,
       // Provisions aren't tracked on DungeonState at all (irrelevant inside a dungeon) -- carried
       // over untouched from whatever it was before this trip started.
       provisions: prev?.provisions ?? 20,

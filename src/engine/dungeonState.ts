@@ -203,6 +203,14 @@ export interface DungeonState {
    * they're exploring the same map (see CLAUDE.md's Resuming section). Shown on the Graveyard. */
   monsterKills: number;
   bossKills: number;
+  /** Per-monster-name and per-ability kill tallies, alongside the above any/Boss split -- keyed by
+   * the defeated monster's own lowercased `name` (or ability), the same "no formal taxonomy, just
+   * match the string" precedent Armor & Weapons' tag-matching already established. Powers Advanced
+   * Class kill-count requirements (#23) like Ruthless's "10 Imps" or Ghostbuster's "10 intangible
+   * beings" -- neither is answerable from monsterKills/bossKills alone. A monster with multiple
+   * abilities increments each one; not mutually exclusive with killsByName. */
+  killsByName: Record<string, number>;
+  killsByAbility: Partial<Record<MonsterAbility, number>>;
   /** The active character's name -- used only to label remains left behind if they die. */
   characterName: string;
   /** The active character's race/class names (e.g. "Dwarf", "Grave Digger") -- matched by exact
@@ -279,6 +287,8 @@ export function createInitialDungeonState(
   bossKills = 0,
   raceName = "",
   className = "",
+  killsByName: Record<string, number> = {},
+  killsByAbility: Partial<Record<MonsterAbility, number>> = {},
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -305,6 +315,8 @@ export function createInitialDungeonState(
     combat: null,
     monsterKills,
     bossKills,
+    killsByName,
+    killsByAbility,
     characterName,
     raceName,
     className,
@@ -391,5 +403,7 @@ export type DungeonAction =
       className: string;
       monsterKills: number;
       bossKills: number;
+      killsByName: Record<string, number>;
+      killsByAbility: Partial<Record<MonsterAbility, number>>;
     }
   | { type: "RESET" };

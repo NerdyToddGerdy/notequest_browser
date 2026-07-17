@@ -1518,6 +1518,8 @@ describe("RESUME_DUNGEON", () => {
       torches: 0,
       monsterKills: 12, // the fallen character's own kill count -- should NOT carry over
       bossKills: 1,
+      killsByName: { orc: 10, goblin: 2 },
+      killsByAbility: { loot: 5 },
     };
 
     const next = dungeonReducer(createInitialDungeonState(), {
@@ -1550,6 +1552,8 @@ describe("RESUME_DUNGEON", () => {
     // a new adventurer starts back at 0 kills, even taking over the fallen one's own map
     expect(next.monsterKills).toBe(0);
     expect(next.bossKills).toBe(0);
+    expect(next.killsByName).toEqual({});
+    expect(next.killsByAbility).toEqual({});
     // an even earlier fallen adventurer's remains are still there to recover
     expect(next.levels[0]!.segments[0]!.remains).toEqual({
       names: ["An Even Earlier Hero"],
@@ -1801,6 +1805,8 @@ describe("RETURN_TO_DUNGEON", () => {
       className: "",
       monsterKills: 5,
       bossKills: 1,
+      killsByName: { orc: 4, goblin: 1 },
+      killsByAbility: { loot: 2 },
     });
 
     expect(next.dungeonName).toBe("The Palace of the Secret Horrors");
@@ -1820,6 +1826,8 @@ describe("RETURN_TO_DUNGEON", () => {
     expect(next.characterName).toBe("Pip");
     expect(next.monsterKills).toBe(5);
     expect(next.bossKills).toBe(1);
+    expect(next.killsByName).toEqual({ orc: 4, goblin: 1 });
+    expect(next.killsByAbility).toEqual({ loot: 2 });
   });
 
   it("preserves maxHp even when returning without full HP (regression: Rest healing to a shrunken max)", () => {
@@ -1851,6 +1859,8 @@ describe("RETURN_TO_DUNGEON", () => {
       className: "",
       monsterKills: 0,
       bossKills: 0,
+      killsByName: {},
+      killsByAbility: {},
     });
 
     expect(next.hp).toBe(12);
@@ -1915,6 +1925,8 @@ describe("RETURN_TO_DUNGEON", () => {
       className: "",
       monsterKills: 0,
       bossKills: 0,
+      killsByName: {},
+      killsByAbility: {},
     });
 
     expect(next.combat).not.toBeNull();
@@ -1958,6 +1970,8 @@ describe("RETURN_TO_DUNGEON", () => {
       className: "",
       monsterKills: 0,
       bossKills: 0,
+      killsByName: {},
+      killsByAbility: {},
     });
 
     // still on Level 2 (unlike RESUME_DUNGEON, which always resets activeLevel to 0)...
@@ -2010,6 +2024,8 @@ describe("Monster table re-roll on return", () => {
         className: "",
         monsterKills: 0,
         bossKills: 0,
+        killsByName: {},
+        killsByAbility: {},
       },
       rng,
     );
@@ -2069,6 +2085,8 @@ describe("Monster table re-roll on return", () => {
       className: "",
       monsterKills: 0,
       bossKills: 0,
+      killsByName: {},
+      killsByAbility: {},
     });
 
     expect(next.levels[0]!.segments[0]!.needsMonsterReroll).toBeFalsy();
@@ -2210,6 +2228,8 @@ describe("Resuming a fight abandoned via Teleport", () => {
       className: "",
       monsterKills: 0,
       bossKills: 0,
+      killsByName: {},
+      killsByAbility: {},
     });
 
     expect(next.combat).not.toBeNull();

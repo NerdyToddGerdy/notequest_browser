@@ -102,6 +102,8 @@ export function DungeonScreen({
         className: character.cls.name,
         monsterKills: resources.monsterKills,
         bossKills: resources.bossKills,
+        killsByName: resources.killsByName,
+        killsByAbility: resources.killsByAbility,
       });
     }
     if (resumeDungeon) {
@@ -135,6 +137,8 @@ export function DungeonScreen({
       resources.bossKills,
       character.race.name,
       character.cls.name,
+      resources.killsByName,
+      resources.killsByAbility,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);

@@ -434,6 +434,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     draft.deathCause = "combat";
     pushLog(draft, "A deathly touch stops your heart instantly.", "descend");
     leaveRemains(draft, combat.segId);
+    draft.combat = null;
     return;
   }
 
@@ -465,6 +466,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     draft.deathCause = "combat";
     pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
     leaveRemains(draft, combat.segId);
+    draft.combat = null;
   }
 }
 
@@ -485,6 +487,11 @@ function handleMonsterDefeat(
     combat.monsters = combat.monsters.filter((m) => m.id !== monster.id);
     draft.monsterKills += 1;
     if (combat.isBoss) draft.bossKills += 1;
+    const nameKey = monster.name.toLowerCase();
+    draft.killsByName[nameKey] = (draft.killsByName[nameKey] ?? 0) + 1;
+    for (const ability of monster.abilities) {
+      draft.killsByAbility[ability] = (draft.killsByAbility[ability] ?? 0) + 1;
+    }
     pushLog(draft, `${monster.name} is defeated!`);
 
     combat.engulfableBodies += 1; // Slimemen's engulf-for-full-HP -- no Undead exception in the rulebook
@@ -1339,6 +1346,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
             draft.deathCause = "combat";
             pushLog(draft, "The explosion kills you instantly.", "descend");
             leaveRemains(draft, combat.segId);
+            draft.combat = null;
             return;
           }
 
@@ -1448,6 +1456,7 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           draft.deathCause = "combat";
           pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
           leaveRemains(draft, combat.segId);
+          draft.combat = null;
         }
       });
     }
@@ -1683,6 +1692,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           0,
           action.raceName,
           action.className,
+          {},
+          {},
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "A new adventurer takes up the fallen's path.", true);
@@ -1711,6 +1722,8 @@ export function dungeonReducer(state: DungeonState, action: DungeonAction, rng: 
           action.bossKills,
           action.raceName,
           action.className,
+          action.killsByName,
+          action.killsByAbility,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

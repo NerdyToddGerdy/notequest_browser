@@ -1,3 +1,4 @@
+import type { MonsterAbility } from "../data/dungeonTables.ts";
 import type { ArmorPiece, EquippedWeapon, HeldItem } from "./dungeonState.ts";
 
 /** A living character's current stats, carried between the dungeon and the town -- unlike
@@ -15,6 +16,10 @@ export interface AdventurerResources {
   spellUses: Record<number, number>;
   monsterKills: number;
   bossKills: number;
+  /** Per-monster-name/-ability kill tallies, mirroring `DungeonState`'s own fields of the same
+   * name -- see there for why these exist. */
+  killsByName: Record<string, number>;
+  killsByAbility: Partial<Record<MonsterAbility, number>>;
   /** Spent while exploring the World map, same as `torches` is spent while exploring a dungeon --
    * neither resource is touched by the other activity, but both persist across every screen as
    * part of this same object. */
@@ -92,16 +97,18 @@ export function buyProvision(resources: AdventurerResources): AdventurerResource
 
 /** "Every day of travel consumes 1 Provision ... If you run out of provisions and have to move,
  * lose 1 HP for each provision needed [that you don't have]." Spends whatever provisions are
- * available first, converts any shortfall 1:1 to HP -- floored at 1, a deliberate v1
- * simplification: the rulebook's actual lethal hex hazards (Glacier's Cracked Ice, Thin Ice, a
- * failed Reef check) live in the deferred Events on Travel/Location-effects layer, not here, so
- * running out of provisions alone can hurt but not kill. */
+ * available first; any shortfall at all costs a flat 1 HP for the move -- not scaled to how many
+ * provisions were actually short (a Mountain move at 0 provisions costs the same 1 HP as a Plains
+ * move at 0 provisions, not 3x as much just because Mountains normally cost more) -- floored at 1,
+ * a deliberate v1 simplification: the rulebook's actual lethal hex hazards (Glacier's Cracked Ice,
+ * Thin Ice, a failed Reef check) live in the deferred Events on Travel/Location-effects layer, not
+ * here, so running out of provisions alone can hurt but not kill. */
 export function payTravelCost(resources: AdventurerResources, cost: number): AdventurerResources {
   const spend = Math.min(resources.provisions, cost);
   const shortfall = cost - spend;
   return {
     ...resources,
     provisions: resources.provisions - spend,
-    hp: Math.max(1, resources.hp - shortfall),
+    hp: Math.max(1, resources.hp - (shortfall > 0 ? 1 : 0)),
   };
 }
