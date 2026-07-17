@@ -12,6 +12,7 @@ import {
   fixArmor,
   rest,
   sellItem,
+  wieldWeapon,
   type AdventurerResources,
 } from "../../../engine/town.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
@@ -88,7 +89,9 @@ export function TownScreen({
                   >
                     <span className={styles.actionName}>Buy Torches</span>
                     <span className={styles.actionCost}>1 coin</span>
-                    <span className={styles.actionDesc}>+1 torch, up to a maximum of 10 carried.</span>
+                    <span className={styles.actionDesc}>
+                      +1 torch, up to a maximum of 10 carried.
+                    </span>
                   </button>
                   <button
                     className={styles.actionBtn}
@@ -98,12 +101,15 @@ export function TownScreen({
                   >
                     <span className={styles.actionName}>Buy Provisions</span>
                     <span className={styles.actionCost}>1 coin</span>
-                    <span className={styles.actionDesc}>+1 provision, up to a maximum of 20 carried.</span>
+                    <span className={styles.actionDesc}>
+                      +1 provision, up to a maximum of 20 carried.
+                    </span>
                   </button>
                 </div>
                 <p className={styles.sellNote}>
-                  Sell items from your Pack for their listed worth in coins{isCatPerson ? " (doubled, Cat-Person)" : ""}, or
-                  fix a damaged armor piece from your Equipment, for {isBlacksmith ? "1 torch (Blacksmith)" : "1 coin"}.
+                  Sell items from your Pack for their listed worth in coins
+                  {isCatPerson ? " (doubled, Cat-Person)" : ""}, or fix a damaged armor piece from
+                  your Equipment, for {isBlacksmith ? "1 torch (Blacksmith)" : "1 coin"}.
                 </p>
               </section>
 
@@ -150,6 +156,8 @@ export function TownScreen({
           <Equipment
             armor={resources.armor}
             weapon={resources.weapon}
+            spareWeapons={resources.spareWeapons}
+            onWield={(index) => onUpdateResources(wieldWeapon(resources, index))}
             onFixArmor={(index) => onUpdateResources(fixArmor(resources, index, isBlacksmith))}
             isBlacksmith={isBlacksmith}
           />
@@ -163,8 +171,8 @@ export function TownScreen({
       <footer className={styles.credit}>
         <p>NOTEQUEST · THE TOWN</p>
         <p className={styles.creditSub}>
-          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support the
-          original on{" "}
+          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support
+          the original on{" "}
           <a
             className={styles.creditLink}
             href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"

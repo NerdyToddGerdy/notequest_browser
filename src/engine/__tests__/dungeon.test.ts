@@ -158,7 +158,9 @@ describe("resolveBoss", () => {
   });
 });
 
-function makeSegment(overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">): SegmentState {
+function makeSegment(
+  overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">,
+): SegmentState {
   return {
     x: 0,
     y: 0,
@@ -209,6 +211,7 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     heldItems: [],
     armor: [],
     weapon: null,
+    spareWeapons: [],
     combat: null,
     monsterKills: 0,
     bossKills: 0,
@@ -280,7 +283,12 @@ describe("classifyDoorOpen", () => {
       type: "staircase",
       doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
     });
-    const level = makeLevel({ depth: 1, segments: [seg], hasStaircase: true, stairwayTarget: null });
+    const level = makeLevel({
+      depth: 1,
+      segments: [seg],
+      hasStaircase: true,
+      stairwayTarget: null,
+    });
     const state = makeState([level]);
     expect(classifyDoorOpen(state, 1, 0)).toEqual({ kind: "descend-normal" });
   });
@@ -291,7 +299,12 @@ describe("classifyDoorOpen", () => {
       type: "staircase",
       doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
     });
-    const level = makeLevel({ depth: 2, segments: [seg], hasStaircase: true, stairwayTarget: null });
+    const level = makeLevel({
+      depth: 2,
+      segments: [seg],
+      hasStaircase: true,
+      stairwayTarget: null,
+    });
     const state = makeState([level]);
     expect(classifyDoorOpen(state, 1, 0)).toEqual({ kind: "descend-final" });
   });

@@ -95,6 +95,7 @@ export function DungeonScreen({
         heldItems: resources.heldItems,
         armor: resources.armor,
         weapon: resources.weapon,
+        spareWeapons: resources.spareWeapons,
         weaponFormula: character.cls.weaponDamage,
         spellUses: resources.spellUses,
         characterName: character.name,
@@ -139,6 +140,7 @@ export function DungeonScreen({
       character.cls.name,
       resources.killsByName,
       resources.killsByAbility,
+      resources.spareWeapons,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -183,7 +185,8 @@ export function DungeonScreen({
 
   const hasDungeon = state.levels.length > 0;
   const bossDefeated = isDungeonBeaten(state);
-  const currentSeg = state.levels[state.activeLevel]?.segments.find((s) => s.id === state.currentSegId) ?? null;
+  const currentSeg =
+    state.levels[state.activeLevel]?.segments.find((s) => s.id === state.currentSegId) ?? null;
   // Mirrors the reducer's hasPendingRoomEntry: a quiet arrival revealed monsters, but the player
   // hasn't yet chosen Attack First vs. Move Silently (RESOLVE_ROOM_ENTRY). `state.alive` matters
   // here specifically because dying to that same room's monsters (a lost fight never marks
@@ -191,7 +194,10 @@ export function DungeonScreen({
   // alongside the death panel -- the reducer's own RESOLVE_ROOM_ENTRY handler already no-ops once
   // dead, so this was purely a decorative render bug, not a way to act after death.
   const pendingRoomEntry =
-    state.alive && !!currentSeg?.monsters && !currentSeg.monstersDefeated && !currentSeg.sneakedPast;
+    state.alive &&
+    !!currentSeg?.monsters &&
+    !currentSeg.monstersDefeated &&
+    !currentSeg.sneakedPast;
 
   // Records the character in the Graveyard exactly once per death (the effect only re-runs
   // when `alive` actually flips, not on every render while the death panel stays up).
@@ -251,7 +257,12 @@ export function DungeonScreen({
     setRollingDungeon(true);
     window.setTimeout(() => {
       setRollingDungeon(false);
-      dispatch({ type: "ROLL_DUNGEON", typeRoll: rolls[0]!, secondRoll: rolls[1]!, thirdRoll: rolls[2]! });
+      dispatch({
+        type: "ROLL_DUNGEON",
+        typeRoll: rolls[0]!,
+        secondRoll: rolls[1]!,
+        thirdRoll: rolls[2]!,
+      });
     }, revealDelay(3));
   }
 
@@ -263,7 +274,11 @@ export function DungeonScreen({
     setOpeningTreasure(true);
     window.setTimeout(() => {
       setOpeningTreasure(false);
-      dispatch({ type: "OPEN_TREASURE", roll, maxSpellUses: computeSpellUses(character.spells, character.fixedGrants) });
+      dispatch({
+        type: "OPEN_TREASURE",
+        roll,
+        maxSpellUses: computeSpellUses(character.spells, character.fixedGrants),
+      });
     }, revealDelay(1));
   }
 
@@ -287,14 +302,19 @@ export function DungeonScreen({
                       <span className={styles.dieBadge}>3d6</span>Roll for Dungeon
                     </h2>
                     <p className={styles.gateCopy}>
-                      One die picks the dungeon&apos;s type, two more shape its name. The dungeon is built as
-                      you explore it — door by door, from here on out.
+                      One die picks the dungeon&apos;s type, two more shape its name. The dungeon is
+                      built as you explore it — door by door, from here on out.
                     </p>
                     <div className={styles.diceRow}>
                       <DicePool values={diceValues} rollToken={diceRollToken} />
                     </div>
                     <div className={styles.headerActions}>
-                      <button className={styles.rollBtn} type="button" disabled={rollingDungeon} onClick={handleRollDungeon}>
+                      <button
+                        className={styles.rollBtn}
+                        type="button"
+                        disabled={rollingDungeon}
+                        onClick={handleRollDungeon}
+                      >
                         Roll for Dungeon
                       </button>
                       <button
@@ -312,7 +332,10 @@ export function DungeonScreen({
                 {state.alive && bossDefeated && (
                   <div className={styles.victoryPanel}>
                     <p className={styles.victoryTitle}>The Dungeon Boss Falls</p>
-                    <p>{character.name} stands victorious over the dungeon&apos;s master. The depths grow quiet.</p>
+                    <p>
+                      {character.name} stands victorious over the dungeon&apos;s master. The depths
+                      grow quiet.
+                    </p>
                     <button
                       className={styles.deathBtn}
                       type="button"
@@ -340,10 +363,19 @@ export function DungeonScreen({
                     dispatch({ type: "OPEN_DOOR", segId, doorIdx, roll, wasNoisy })
                   }
                   onResolveLock={(segId, doorIdx, doorRoll, trapRoll, lockChoice) =>
-                    dispatch({ type: "RESOLVE_DOOR_LOCK", segId, doorIdx, doorRoll, trapRoll, lockChoice })
+                    dispatch({
+                      type: "RESOLVE_DOOR_LOCK",
+                      segId,
+                      doorIdx,
+                      doorRoll,
+                      trapRoll,
+                      lockChoice,
+                    })
                   }
                   onSelectSegment={(segId) => dispatch({ type: "SELECT_SEGMENT", segId })}
-                  onSwitchLevel={(levelIndex, segId) => dispatch({ type: "SWITCH_LEVEL", levelIndex, segId })}
+                  onSwitchLevel={(levelIndex, segId) =>
+                    dispatch({ type: "SWITCH_LEVEL", levelIndex, segId })
+                  }
                   onTrapTriggered={triggerTrapToast}
                 />
                 <TrapToast token={trapToastToken} />
@@ -355,7 +387,9 @@ export function DungeonScreen({
                       onRollSecretPassage={(segId, roll, trapRoll) =>
                         dispatch({ type: "ROLL_SECRET_PASSAGE", segId, roll, trapRoll })
                       }
-                      onRollChest={(segId, dice, trapRoll) => dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })}
+                      onRollChest={(segId, dice, trapRoll) =>
+                        dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })
+                      }
                       onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
                       onTrapTriggered={triggerTrapToast}
                     />
@@ -366,9 +400,19 @@ export function DungeonScreen({
                     <div className={styles.combatOverlayInner}>
                       <RoomEntryPrompt
                         torches={state.torches}
-                        onAttack={() => dispatch({ type: "RESOLVE_ROOM_ENTRY", segId: currentSeg.id, choice: "attack" })}
+                        onAttack={() =>
+                          dispatch({
+                            type: "RESOLVE_ROOM_ENTRY",
+                            segId: currentSeg.id,
+                            choice: "attack",
+                          })
+                        }
                         onMoveSilently={() =>
-                          dispatch({ type: "RESOLVE_ROOM_ENTRY", segId: currentSeg.id, choice: "moveSilently" })
+                          dispatch({
+                            type: "RESOLVE_ROOM_ENTRY",
+                            segId: currentSeg.id,
+                            choice: "moveSilently",
+                          })
                         }
                       />
                     </div>
@@ -386,7 +430,12 @@ export function DungeonScreen({
                           levels={state.levels}
                           excludeSegId={state.combat.segId}
                           onSelect={(levelIndex, segId) => {
-                            dispatch({ type: "CAST_SPELL", spellRoll: 3, destLevel: levelIndex, destSegId: segId });
+                            dispatch({
+                              type: "CAST_SPELL",
+                              spellRoll: 3,
+                              destLevel: levelIndex,
+                              destSegId: segId,
+                            });
                             setPickingTeleport(false);
                           }}
                           onCancel={() => setPickingTeleport(false)}
@@ -405,9 +454,13 @@ export function DungeonScreen({
                           onAttack={(targetId, roll, useHorn) =>
                             dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })
                           }
-                          onCastSpell={(spellRoll, targetId) => dispatch({ type: "CAST_SPELL", spellRoll, targetId })}
+                          onCastSpell={(spellRoll, targetId) =>
+                            dispatch({ type: "CAST_SPELL", spellRoll, targetId })
+                          }
                           onFlee={() => setPickingTeleport(true)}
-                          onResolveDamage={(absorbWith) => dispatch({ type: "RESOLVE_DAMAGE", absorbWith })}
+                          onResolveDamage={(absorbWith) =>
+                            dispatch({ type: "RESOLVE_DAMAGE", absorbWith })
+                          }
                           onEngulfBody={() => dispatch({ type: "ENGULF_BODY" })}
                         />
                       )}
@@ -420,7 +473,8 @@ export function DungeonScreen({
           )}
 
           <p className={styles.scopeNote}>
-            Breaking a door or setting off a trap alerts monsters beyond it, letting them strike first.
+            Breaking a door or setting off a trap alerts monsters beyond it, letting them strike
+            first.
           </p>
         </div>
 
@@ -434,11 +488,19 @@ export function DungeonScreen({
                 {state.alive && (
                   <div className={styles.headerActions}>
                     {!state.combat && (
-                      <button className={styles.ghostBtn} type="button" onClick={() => setConfirmingRetreat(true)}>
+                      <button
+                        className={styles.ghostBtn}
+                        type="button"
+                        onClick={() => setConfirmingRetreat(true)}
+                      >
                         Retreat to Town
                       </button>
                     )}
-                    <button className={styles.ghostBtn} type="button" onClick={handleStartNewDungeon}>
+                    <button
+                      className={styles.ghostBtn}
+                      type="button"
+                      onClick={handleStartNewDungeon}
+                    >
                       Start a New Dungeon
                     </button>
                   </div>
@@ -467,8 +529,12 @@ export function DungeonScreen({
             {!state.alive && state.deathCause === "combat" && (
               <div className={styles.deathOverlay}>
                 <p className={styles.deathTitle}>{character.name} Has Fallen</p>
-                <p>Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.</p>
-                <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+                <p>
+                  Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.
+                </p>
+                <p className={styles.deathNote}>
+                  {character.name} is laid to rest in the Graveyard.
+                </p>
                 <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
                   Roll a New Adventurer
                 </button>
@@ -478,10 +544,12 @@ export function DungeonScreen({
               <div className={styles.deathOverlay}>
                 <p className={styles.deathTitle}>The Darkness Devours You</p>
                 <p>
-                  {character.name}&apos;s torch has burned out with no way to relight it. The dungeon keeps what
-                  it took.
+                  {character.name}&apos;s torch has burned out with no way to relight it. The
+                  dungeon keeps what it took.
                 </p>
-                <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+                <p className={styles.deathNote}>
+                  {character.name} is laid to rest in the Graveyard.
+                </p>
                 <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
                   Roll a New Adventurer
                 </button>
@@ -506,7 +574,12 @@ export function DungeonScreen({
             </div>
           )}
 
-          <Equipment armor={state.armor} weapon={state.weapon} />
+          <Equipment
+            armor={state.armor}
+            weapon={state.weapon}
+            spareWeapons={state.spareWeapons}
+            onWield={(index) => dispatch({ type: "WIELD_WEAPON", index })}
+          />
 
           <Pack items={state.heldItems} />
 
@@ -537,8 +610,8 @@ export function DungeonScreen({
       <footer className={styles.credit}>
         <p>NOTEQUEST · THE DUNGEON</p>
         <p className={styles.creditSub}>
-          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support the
-          original on{" "}
+          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support
+          the original on{" "}
           <a
             className={styles.creditLink}
             href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"

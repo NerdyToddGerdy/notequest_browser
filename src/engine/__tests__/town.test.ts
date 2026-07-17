@@ -10,6 +10,7 @@ import {
   payTravelCost,
   rest,
   sellItem,
+  wieldWeapon,
   type AdventurerResources,
 } from "../town.ts";
 
@@ -24,6 +25,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     heldItems: [],
     armor: [],
     weapon: null,
+    spareWeapons: [],
     spellUses: { 1: 0 },
     monsterKills: 0,
     bossKills: 0,
@@ -41,19 +43,27 @@ describe("canRest / rest", () => {
   });
 
   it("stays true below max HP regardless of spell uses", () => {
-    expect(canRest(makeResources({ coins: 1, hp: 10, maxHp: 20, spellUses: { 1: 3 } }), { 1: 3 })).toBe(true);
+    expect(
+      canRest(makeResources({ coins: 1, hp: 10, maxHp: 20, spellUses: { 1: 3 } }), { 1: 3 }),
+    ).toBe(true);
   });
 
   it("is false at full HP with every spell already at max uses", () => {
-    expect(canRest(makeResources({ coins: 1, hp: 20, maxHp: 20, spellUses: { 1: 3, 2: 2 } }), { 1: 3, 2: 2 })).toBe(
-      false,
-    );
+    expect(
+      canRest(makeResources({ coins: 1, hp: 20, maxHp: 20, spellUses: { 1: 3, 2: 2 } }), {
+        1: 3,
+        2: 2,
+      }),
+    ).toBe(false);
   });
 
   it("is true at full HP if any spell still has used-up uses to recover", () => {
-    expect(canRest(makeResources({ coins: 1, hp: 20, maxHp: 20, spellUses: { 1: 1, 2: 2 } }), { 1: 3, 2: 2 })).toBe(
-      true,
-    );
+    expect(
+      canRest(makeResources({ coins: 1, hp: 20, maxHp: 20, spellUses: { 1: 1, 2: 2 } }), {
+        1: 3,
+        2: 2,
+      }),
+    ).toBe(true);
   });
 
   it("spends 1 coin, heals to max, and restores every spell to its max uses", () => {
@@ -141,14 +151,52 @@ describe("canFixArmor / fixArmor", () => {
 
   it("Blacksmith: costs 1 torch instead of 1 coin", () => {
     const piece = { piece: "boots" as const, hp: 1, maxHp: 3 };
-    expect(canFixArmor(makeResources({ coins: 0, torches: 0, armor: [piece] }), 0, true)).toBe(false);
-    expect(canFixArmor(makeResources({ coins: 0, torches: 1, armor: [piece] }), 0, true)).toBe(true);
+    expect(canFixArmor(makeResources({ coins: 0, torches: 0, armor: [piece] }), 0, true)).toBe(
+      false,
+    );
+    expect(canFixArmor(makeResources({ coins: 0, torches: 1, armor: [piece] }), 0, true)).toBe(
+      true,
+    );
 
     const resources = makeResources({ coins: 5, torches: 3, armor: [piece] });
     const next = fixArmor(resources, 0, true);
     expect(next.torches).toBe(2);
     expect(next.coins).toBe(5); // untouched
     expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3 }]);
+  });
+});
+
+describe("wieldWeapon", () => {
+  it("equips the chosen spare, pushing the previously-equipped weapon back into spareWeapons", () => {
+    const resources = makeResources({
+      weapon: { name: "Sword", formula: "1d6" },
+      spareWeapons: [
+        { name: "Dagger", formula: "1d6-1" },
+        { name: "Halberd", formula: "1d6+3", twoHanded: true },
+      ],
+    });
+    const next = wieldWeapon(resources, 1);
+    expect(next.weapon).toEqual({ name: "Halberd", formula: "1d6+3", twoHanded: true });
+    expect(next.spareWeapons).toEqual([
+      { name: "Dagger", formula: "1d6-1" },
+      { name: "Sword", formula: "1d6" },
+    ]);
+  });
+
+  it("equips a spare with nothing previously equipped", () => {
+    const resources = makeResources({
+      weapon: null,
+      spareWeapons: [{ name: "Dagger", formula: "1d6-1" }],
+    });
+    const next = wieldWeapon(resources, 0);
+    expect(next.weapon).toEqual({ name: "Dagger", formula: "1d6-1" });
+    expect(next.spareWeapons).toEqual([]);
+  });
+
+  it("is a no-op for an out-of-range index", () => {
+    const resources = makeResources({ spareWeapons: [{ name: "Dagger", formula: "1d6-1" }] });
+    const next = wieldWeapon(resources, 5);
+    expect(next).toEqual(resources);
   });
 });
 

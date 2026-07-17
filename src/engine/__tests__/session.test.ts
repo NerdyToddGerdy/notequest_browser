@@ -28,7 +28,14 @@ function makeFakeStorage(initial: Record<string, string> = {}): Storage {
 const CHARACTER: CreatedCharacter = {
   name: "Pip",
   race: { roll: 7, name: "Human", hp: 12, ability: "None." },
-  cls: { roll: 7, name: "Fighter", hpBonus: 4, ability: "None.", weapon: "Sword", weaponDamage: "1d6+1" },
+  cls: {
+    roll: 7,
+    name: "Fighter",
+    hpBonus: 4,
+    ability: "None.",
+    weapon: "Sword",
+    weaponDamage: "1d6+1",
+  },
   totalHp: 16,
   spells: [],
   fixedGrants: [],
@@ -46,6 +53,7 @@ const RESOURCES: AdventurerResources = {
   heldItems: [],
   armor: [],
   weapon: null,
+  spareWeapons: [],
   spellUses: {},
   monsterKills: 2,
   bossKills: 0,
@@ -103,7 +111,9 @@ describe("loadSession", () => {
   });
 
   it("tolerates a partial/older blob missing fields added later", () => {
-    const storage = makeFakeStorage({ "notequest:session": JSON.stringify({ character: CHARACTER }) });
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ character: CHARACTER }),
+    });
     expect(loadSession(storage)).toEqual({
       character: CHARACTER,
       resources: null,
