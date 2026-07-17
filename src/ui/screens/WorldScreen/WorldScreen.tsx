@@ -125,7 +125,6 @@ export function WorldScreen({
   const didDrag = useRef(false);
   const currentTile: HexTile | undefined = world.tiles[hexKey(world.player)];
   const neighborCoords = hexNeighbors(world.player);
-  const canEnterDungeon = !!currentTile && locationHasDungeon(currentTile.location);
   const inCityOrFortress = !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
   /** "none" hexes never had a dungeonRunId stamped; otherwise a shared lookup for both the gate
    * copy (current hex only) and the per-hex map badges (every known hex) below. */
@@ -142,6 +141,10 @@ export function WorldScreen({
     };
   }
   const currentDungeonStatus = dungeonInfoFor(currentTile).status;
+  // Nothing left to do in an already-beaten dungeon -- RETURN_TO_DUNGEON/RESUME_DUNGEON would just
+  // redisplay the existing victory panel, not let the Boss be re-fought or re-looted.
+  const canEnterDungeon =
+    !!currentTile && locationHasDungeon(currentTile.location) && currentDungeonStatus !== "beaten";
   const dungeonGateCopy =
     currentDungeonStatus === "beaten"
       ? "the dungeon here has already been cleared."
@@ -286,6 +289,7 @@ export function WorldScreen({
         // entered a dungeon on yet still offers a fresh roll, same as the old Ruins card always did.
         hasDungeon={canEnterDungeon}
         dungeonGateCopy={dungeonGateCopy}
+        dungeonHistory={dungeonHistory}
         onUpdateResources={onUpdateResources}
         onEnterDungeon={onEnterDungeon}
         onExploreWorld={() => setShowMap(true)}
@@ -422,6 +426,8 @@ export function WorldScreen({
             weaponName={resources.weapon?.name}
             weaponFormula={resources.weapon?.formula}
             spellUses={resources.spellUses}
+            monsterKills={resources.monsterKills}
+            killsByName={resources.killsByName}
           />
         </aside>
       </div>

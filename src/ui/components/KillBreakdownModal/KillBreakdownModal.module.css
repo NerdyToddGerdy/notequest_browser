@@ -1,0 +1,116 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 8, 7, 0.65);
+  animation: backdropIn 0.15s ease both;
+}
+
+.dialog {
+  width: min(360px, 100%);
+  max-height: min(70vh, 520px);
+  display: flex;
+  flex-direction: column;
+  background: var(--parchment);
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  padding: 22px 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin: 0 0 14px;
+}
+
+.empty {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  margin: 0 0 14px;
+}
+
+.list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(42, 32, 22, 0.12);
+}
+.row:last-child {
+  border-bottom: none;
+}
+
+.name {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--gold);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.closeBtn {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--parchment-3);
+  border-radius: 3px;
+  padding: 9px 16px;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    transform 0.08s ease;
+}
+.closeBtn:hover {
+  background: rgba(42, 32, 22, 0.06);
+  color: var(--ink);
+}
+.closeBtn:active {
+  transform: translateY(1px);
+}
+.closeBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .backdrop {
+    animation: none;
+  }
+}

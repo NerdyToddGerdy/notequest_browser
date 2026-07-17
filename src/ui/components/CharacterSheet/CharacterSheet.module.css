@@ -65,6 +65,26 @@
   color: var(--danger);
 }
 
+.statClickable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.statClickable:hover .statValue {
+  color: var(--gold);
+}
+.statClickable:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .abilities {
   margin: 0 0 12px;
   padding: 0;

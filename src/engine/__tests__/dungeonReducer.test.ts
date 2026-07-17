@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dungeonReducer } from "../dungeonReducer.ts";
 import { DUNGEON_TABLES, type MonsterTemplate } from "../../data/dungeonTables.ts";
 import {
+  countUnlootedRemains,
   createInitialDungeonState,
   hasUnlootedRemains,
   isDungeonBeaten,
@@ -2296,6 +2297,61 @@ describe("hasUnlootedRemains", () => {
 
     const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
     expect(hasUnlootedRemains(next)).toBe(false);
+  });
+});
+
+describe("countUnlootedRemains", () => {
+  it("is 0 with no levels, or no deaths", () => {
+    expect(countUnlootedRemains(createInitialDungeonState())).toBe(0);
+    const room = makeSegment({ id: 1, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [room] };
+    expect(countUnlootedRemains({ ...createInitialDungeonState(), levels: [level] })).toBe(0);
+  });
+
+  it("sums names across every segment's remains, not just counting segments", () => {
+    const roomA = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      // Two different characters died in the same room -- leaveRemains() merges into one entry.
+      remains: {
+        names: ["Doomed Dara", "Unlucky Umar"],
+        coins: 5,
+        treasures: 0,
+        keys: 0,
+        heldItems: [],
+        armor: [],
+        weapon: null,
+      },
+    });
+    const roomB = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Fallen Finn"], coins: 1, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
+    });
+    const level = { ...makeLevel(1), segments: [roomA, roomB] };
+    expect(countUnlootedRemains({ ...createInitialDungeonState(), levels: [level] })).toBe(3);
+  });
+
+  it("drops back to 0 for a specific room once COLLECT_REMAINS clears it, keeping others intact", () => {
+    const roomA = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Doomed Dara"], coins: 5, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
+    });
+    const roomB = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [],
+      remains: { names: ["Fallen Finn"], coins: 1, treasures: 0, keys: 0, heldItems: [], armor: [], weapon: null },
+    });
+    const level = { ...makeLevel(1), segments: [roomA, roomB] };
+    const state = stateWithLevel(level);
+
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(countUnlootedRemains(next)).toBe(1);
   });
 });
 

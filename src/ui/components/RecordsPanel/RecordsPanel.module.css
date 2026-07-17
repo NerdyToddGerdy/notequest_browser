@@ -1,0 +1,51 @@
+.wrap {
+  width: min(760px, 100%);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 28px;
+}
+
+.tab,
+.tabActive {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  padding: 8px 16px;
+  border: 1px solid rgba(42, 32, 22, 0.35);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.tab {
+  color: var(--ink-soft);
+  background: rgba(42, 32, 22, 0.04);
+}
+.tab:hover {
+  background: rgba(42, 32, 22, 0.09);
+  color: var(--ink);
+}
+
+.tabActive {
+  color: var(--ink);
+  background: var(--parchment-2);
+  border-color: var(--gold);
+  position: relative;
+  top: 1px;
+}
+
+.tab:focus-visible,
+.tabActive:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tabs + :global(section) {
+  margin-top: 0;
+}
