@@ -33,20 +33,13 @@ export interface WorldScreenProps {
   character: CreatedCharacter;
   resources: AdventurerResources;
   world: WorldState;
-  /** Every touched run, including the current character's own active one -- unlike Town's own prop,
-   * this is used for a lookup (is the current hex's dungeon beaten?), not rendered as a list, so it
-   * deliberately isn't filtered down. */
+  /** Every touched run, including the current character's own active one -- used for a lookup (is
+   * the current hex's dungeon beaten?), not rendered as a list, so it deliberately isn't filtered
+   * down. */
   dungeonHistory: PendingDungeon[];
-  /** This character's own paused dungeon, if any -- may be tied to a hex other than the one the
-   * player is currently standing on, in which case `onEnterDungeon` (hex-scoped) can't reach it. */
-  activeDungeon: PendingDungeon | null;
-  activeRunId: string | null;
   onUpdateResources: (resources: AdventurerResources) => void;
   onUpdateWorld: (world: WorldState) => void;
   onEnterDungeon: () => void;
-  /** Jumps straight back into `activeDungeon` regardless of which hex the player is currently on
-   * (warping `world.player` to match, so a later retreat lands back at the right city). */
-  onContinueActive: () => void;
 }
 
 const HEX_SIZE = 44;
@@ -107,12 +100,9 @@ export function WorldScreen({
   resources,
   world,
   dungeonHistory,
-  activeDungeon,
-  activeRunId,
   onUpdateResources,
   onUpdateWorld,
   onEnterDungeon,
-  onContinueActive,
 }: WorldScreenProps) {
   /** True while voluntarily looking at the map from within a City/Fortress hex (via TownScreen's
    * "Explore the World") -- reset to false on every arrival, so landing anywhere shows "the
@@ -151,14 +141,6 @@ export function WorldScreen({
       hasRemains: hasUnlootedRemains(pending.dungeon),
     };
   }
-  // If the character's own active run is tied to this exact hex, onEnterDungeon already resumes
-  // it correctly (isOwnRun in App.tsx) -- only worth a separate affordance when it's tied
-  // somewhere else, since that's otherwise completely unreachable without manually re-tracing the
-  // way there (or remembering which hex it was on at all).
-  const activeDungeonElsewhere =
-    activeDungeon && activeRunId && currentTile?.dungeonRunId !== activeRunId
-      ? { name: activeDungeon.dungeon.dungeonName ?? "Your dungeon", level: activeDungeon.dungeon.activeLevel + 1 }
-      : null;
   const currentDungeonStatus = dungeonInfoFor(currentTile).status;
   const dungeonGateCopy =
     currentDungeonStatus === "beaten"
@@ -304,10 +286,8 @@ export function WorldScreen({
         // entered a dungeon on yet still offers a fresh roll, same as the old Ruins card always did.
         hasDungeon={canEnterDungeon}
         dungeonGateCopy={dungeonGateCopy}
-        activeDungeonElsewhere={activeDungeonElsewhere}
         onUpdateResources={onUpdateResources}
         onEnterDungeon={onEnterDungeon}
-        onContinueActive={onContinueActive}
         onExploreWorld={() => setShowMap(true)}
       />
     );
@@ -420,18 +400,6 @@ export function WorldScreen({
               <p className={styles.gateCopy}>You're viewing the map from within the city.</p>
               <button className={styles.rollBtn} type="button" onClick={() => setShowMap(false)}>
                 Return to the City
-              </button>
-            </div>
-          )}
-
-          {activeDungeonElsewhere && (
-            <div className={styles.actionCard}>
-              <p className={styles.gateCopy}>
-                {activeDungeonElsewhere.name} awaits elsewhere — you left off on Level{" "}
-                {activeDungeonElsewhere.level}.
-              </p>
-              <button className={styles.rollBtn} type="button" onClick={onContinueActive}>
-                Continue the Dungeon
               </button>
             </div>
           )}

@@ -116,9 +116,9 @@ describe("combat auto-start on OPEN_DOOR", () => {
   });
 });
 
-describe("a room-type dungeon entrance with monsters waits for RESOLVE_ROOM_ENTRY", () => {
-  it("Palace's entrance (room-large) waits, then starts combat once Attack First is chosen", () => {
-    const rng = sequenceDie([1, 1, 2, 2]); // content sum 2, monster sum 4 -> single Orc
+describe("a room-type dungeon entrance never rolls Monsters (#43)", () => {
+  it("Palace's entrance (room-large) has no monsters and never triggers RESOLVE_ROOM_ENTRY, even on a roll that would normally spawn one", () => {
+    const rng = sequenceDie([1, 1, 2, 2]); // content sum 2, monster sum 4 -> a single Orc on a non-entrance room
     const next = dungeonReducer(
       createInitialDungeonState(),
       { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
@@ -126,15 +126,17 @@ describe("a room-type dungeon entrance with monsters waits for RESOLVE_ROOM_ENTR
     );
     expect(next.combat).toBeNull();
     const entranceSeg = next.levels[0]!.segments[0]!;
-    expect(entranceSeg.monsters).toMatchObject({ name: "Orc", hp: 6 });
+    expect(entranceSeg.type).toBe("room-large");
+    expect(entranceSeg.monsters).toBeUndefined();
 
+    // Confirms the whole "waits for Attack First/Move Silently" flow never engages for the
+    // entrance: RESOLVE_ROOM_ENTRY is a no-op with nothing to resolve.
     const afterChoice = dungeonReducer(next, {
       type: "RESOLVE_ROOM_ENTRY",
       segId: entranceSeg.id,
       choice: "attack",
     });
-    expect(afterChoice.combat).not.toBeNull();
-    expect(afterChoice.combat!.monsters[0]).toMatchObject({ name: "Orc", hp: 6 });
+    expect(afterChoice.combat).toBeNull();
   });
 });
 

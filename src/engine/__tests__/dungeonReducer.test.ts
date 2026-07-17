@@ -76,8 +76,9 @@ describe("ROLL_DUNGEON", () => {
     expect(child.isEntrance).toBe(false);
   });
 
-  it("rolls Room Content/Monsters for a room-type entrance (Palace)", () => {
-    // content sum 4, monster sum 6
+  it("rolls Room Content for a room-type entrance (Palace), but never Monsters", () => {
+    // content sum 4, monster sum 6 -- row 6 would normally spawn a monster (see the equivalent
+    // OPEN_DOOR test for a non-entrance room using this exact roll), but the entrance is exempt.
     const rng = sequenceDie([2, 2, 3, 3]);
     const state = dungeonReducer(
       createInitialDungeonState(),
@@ -87,7 +88,7 @@ describe("ROLL_DUNGEON", () => {
     const entrance = state.levels[0]!.segments[0]!;
     expect(entrance.type).toBe("room-large");
     expect(entrance.roomContent).toBeDefined();
-    expect(entrance.monsters).toBeDefined();
+    expect(entrance.monsters).toBeUndefined();
   });
 });
 

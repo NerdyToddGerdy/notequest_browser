@@ -140,6 +140,15 @@ describe("resolveRoomExtras", () => {
     const rngEight = sequenceDie([2, 2, 4, 4]); // monster sum 8
     expect(resolveRoomExtras("room-small", "palace", rngEight)!.monsters).toBeNull();
   });
+
+  it("isEntrance forces null monsters even on a roll that would normally spawn some, but still rolls Room Content normally", () => {
+    // content roll 2+2=4, monster roll 3+3=6 -- same roll as the "rolls content and monsters"
+    // test above, which confirms row 6 normally spawns a monster.
+    const rng = sequenceDie([2, 2, 3, 3]);
+    const extras = resolveRoomExtras("room-small", "palace", rng, true);
+    expect(extras!.roomContent).toEqual(DUNGEON_TABLES.palace.roomContent[4]);
+    expect(extras!.monsters).toBeNull();
+  });
 });
 
 describe("resolveBoss", () => {

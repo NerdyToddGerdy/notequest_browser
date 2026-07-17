@@ -151,11 +151,17 @@ export function rollSegment(fromType: SegmentType, roll: number) {
   return row[columnFor(fromType)];
 }
 
-/** Rolls Room Content + Monsters for a newly-created Room segment; no-op (undefined) for non-room types. */
+/** Rolls Room Content + Monsters for a newly-created Room segment; no-op (undefined) for non-room types.
+ * `isEntrance`: a deliberate design/balance call (not from the rulebook, which says nothing about the
+ * entrance specifically) -- the very first room the player steps into, before any doors have been
+ * opened or choices made, shouldn't be able to ambush them. Still rolls the Monsters dice (keeping
+ * this call's RNG consumption identical to every other room, so it doesn't shift the roll sequence
+ * for whatever's built next) but discards the result. Room Content still applies normally. */
 export function resolveRoomExtras(
   type: SegmentType,
   dungeonKey: DungeonTypeKey,
   rng: RNG = Math.random,
+  isEntrance = false,
 ): { roomContent: RoomContentEntry; monsters: MonsterTemplate | null } | undefined {
   if (!type.startsWith("room-")) return undefined;
   const tables = DUNGEON_TABLES[dungeonKey];
@@ -165,7 +171,7 @@ export function resolveRoomExtras(
   if (!roomContent) {
     throw new Error(`Missing Room Content entry for ${dungeonKey} sum=${contentSum}`);
   }
-  const monsters = tables.monsters[monsterSum] ?? null;
+  const monsters = isEntrance ? null : (tables.monsters[monsterSum] ?? null);
   return { roomContent, monsters };
 }
 
