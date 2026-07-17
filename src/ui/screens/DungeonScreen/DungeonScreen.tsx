@@ -32,6 +32,7 @@ import { LevelTabs } from "../../components/LevelTabs/LevelTabs.tsx";
 import { RoomInspector } from "../../components/RoomInspector/RoomInspector.tsx";
 import { RollLog } from "../../components/RollLog/RollLog.tsx";
 import { TrapToast } from "../../components/TrapToast/TrapToast.tsx";
+import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import styles from "./DungeonScreen.module.css";
 
@@ -155,6 +156,11 @@ export function DungeonScreen({
    * TeleportPicker in the same overlay slot. Purely local UI sequencing (CAST_SPELL isn't
    * dispatched, and no spell use is spent, until an actual destination is picked). */
   const [pickingTeleport, setPickingTeleport] = useState(false);
+  /** True while the mid-run "Retreat to Town" confirmation is up -- only that button (see #36)
+   * routes through here; the pre-roll "Back to Town" gate and the post-Boss victory panel's
+   * "Return to Town" call `onReturnToTown` directly, since neither has already-cleared rooms that
+   * could re-populate by the time the player comes back. */
+  const [confirmingRetreat, setConfirmingRetreat] = useState(false);
 
   function handlePeekStart(e: React.PointerEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return; // pointerdown landed on the card, not the backdrop
@@ -419,7 +425,7 @@ export function DungeonScreen({
                 {state.alive && (
                   <div className={styles.headerActions}>
                     {!state.combat && (
-                      <button className={styles.ghostBtn} type="button" onClick={() => onReturnToTown(runId, state)}>
+                      <button className={styles.ghostBtn} type="button" onClick={() => setConfirmingRetreat(true)}>
                         Retreat to Town
                       </button>
                     )}
@@ -534,6 +540,19 @@ export function DungeonScreen({
         </p>
         <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
       </footer>
+
+      {confirmingRetreat && (
+        <ConfirmDialog
+          title="Retreat to Town?"
+          message="Leaving may let monsters move back into rooms you've already cleared. Retreat anyway?"
+          confirmLabel="Retreat"
+          onConfirm={() => {
+            setConfirmingRetreat(false);
+            onReturnToTown(runId, state);
+          }}
+          onCancel={() => setConfirmingRetreat(false)}
+        />
+      )}
     </div>
   );
 }

@@ -27,8 +27,12 @@ export const MAX_TORCHES = 10;
 /** "No one can carry more than 20 provisions." */
 export const MAX_PROVISIONS = 20;
 
-export function canRest(resources: AdventurerResources): boolean {
-  return resources.coins >= 1;
+/** Resting only helps if it would actually recover something -- full HP and every spell already
+ * at its max uses means the coin buys nothing. */
+export function canRest(resources: AdventurerResources, maxSpellUses: Record<number, number>): boolean {
+  if (resources.coins < 1) return false;
+  if (resources.hp < resources.maxHp) return true;
+  return Object.entries(maxSpellUses).some(([roll, max]) => (resources.spellUses[Number(roll)] ?? 0) < max);
 }
 
 /** "Rest: Spend 1 coin and recover your HP and spells consumed." */
