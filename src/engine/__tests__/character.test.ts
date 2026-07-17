@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { RACE_TABLE } from "../../data/races.ts";
 import { CLASS_TABLE } from "../../data/classes.ts";
 import { SPELL_TABLE } from "../../data/spells.ts";
+import { FIRST_NAME_TABLE, LAST_NAME_TABLE } from "../../data/names.ts";
 import {
   computeSpellRequirements,
   computeSpellUses,
   computeTotalHp,
   rollClass,
+  rollName,
   rollRace,
   rollSpell,
 } from "../character.ts";
@@ -30,6 +32,16 @@ describe("table completeness", () => {
       expect(SPELL_TABLE[roll], `missing spell for roll ${roll}`).toBeDefined();
     }
   });
+
+  it("defines a full 1d6 first/last name table for every race, plus the default fallback", () => {
+    const raceNames = Object.values(RACE_TABLE).map((r) => r.name);
+    for (const key of [...raceNames, "default"]) {
+      for (let roll = 1; roll <= 6; roll++) {
+        expect(FIRST_NAME_TABLE[key]?.[roll], `missing first name for ${key} roll ${roll}`).toBeDefined();
+        expect(LAST_NAME_TABLE[key]?.[roll], `missing last name for ${key} roll ${roll}`).toBeDefined();
+      }
+    }
+  });
 });
 
 describe("rollRace / rollClass / rollSpell", () => {
@@ -47,6 +59,19 @@ describe("rollRace / rollClass / rollSpell", () => {
   it("resolves a spell from a single die", () => {
     const result = rollSpell(sequenceDie([6]));
     expect(result.entry.name).toBe("Fireball");
+  });
+});
+
+describe("rollName", () => {
+  it("resolves a first and last name from a race's own table", () => {
+    const result = rollName("Dwarf", sequenceDie([1, 2]));
+    expect(result.dice).toEqual([1, 2]);
+    expect(result.entry).toBe("Thrain Stonefist");
+  });
+
+  it("falls back to the default table for a race with no table of its own", () => {
+    const result = rollName("Some Future Race", sequenceDie([3, 4]));
+    expect(result.entry).toBe("Sage Nightroad");
   });
 });
 

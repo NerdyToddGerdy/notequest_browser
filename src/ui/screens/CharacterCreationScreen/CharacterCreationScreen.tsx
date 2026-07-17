@@ -5,6 +5,7 @@ import {
   computeSpellRequirements,
   computeTotalHp,
   rollClass,
+  rollName,
   rollRace,
   rollSpell,
 } from "../../../engine/character.ts";
@@ -94,6 +95,15 @@ export function CharacterCreationScreen({ onCharacterCreated, dungeonHistory }: 
     }, revealDelay(dice.length));
   }
 
+  // Not a rulebook mechanic (issue #40) -- rolls into the name field directly, still freely
+  // editable afterward like typing one in by hand. Uses the rolled race's own name table once one
+  // exists, so re-rolling after Race changes gives an on-theme result; "default" beforehand.
+  function handleRollName() {
+    if (sealed) return;
+    const { entry } = rollName(race.entry?.name ?? "default");
+    setName(entry);
+  }
+
   function handleRollSpells() {
     if (spells.revealing || spells.entries !== null || sealed || spellRequirements.randomSlots === 0) return;
     const rolls = Array.from({ length: spellRequirements.randomSlots }, () => rollSpell());
@@ -178,6 +188,15 @@ export function CharacterCreationScreen({ onCharacterCreated, dungeonHistory }: 
                 disabled={sealed}
                 onChange={(event) => setName(event.target.value)}
               />
+              <button
+                type="button"
+                className={styles.nameRollBtn}
+                data-testid="name-roll-btn"
+                disabled={sealed}
+                onClick={handleRollName}
+              >
+                Random Name
+              </button>
             </span>
           </div>
 

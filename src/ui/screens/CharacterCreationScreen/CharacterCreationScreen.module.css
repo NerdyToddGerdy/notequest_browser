@@ -123,6 +123,35 @@
   color: #9c8c72;
 }
 
+.nameRollBtn {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: transparent;
+  border: 1px solid var(--parchment-3);
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.nameRollBtn:hover:not(:disabled) {
+  background: rgba(42, 32, 22, 0.06);
+  color: var(--ink);
+}
+.nameRollBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.nameRollBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .tracks {
   display: grid;
   grid-template-columns: 1fr 1fr;
