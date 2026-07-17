@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-17
+
+### Added
+
+- A `RoomInspector`-style Hex Inspector on the world map: click any known hex
+  to see its terrain, location, and dungeon status, with a "Travel Here"
+  button to actually move there.
+- Wheel and two-finger pinch zoom on both the dungeon map and the hex map,
+  plus click-drag panning on the hex map (the dungeon map already had it).
+
 ## [2.0.0] - 2026-07-16
 
 Hexploring the World: the Expanded World's hex-travel system is now the
@@ -102,7 +112,8 @@ character creation through death (or victory).
 - Weapon attacks blocked by Stoneskin or Intangible now say why, instead of a
   generic "fails to harm" message.
 
-[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.1...v2.0.0
 [1.0.1]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/NerdyToddGerdy/notequest_browser/compare/v0.1.0...v1.0.0
