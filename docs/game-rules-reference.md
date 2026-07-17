@@ -63,7 +63,7 @@ table for each spell.
 | 2 | Hobo | +4 | None. | Wood Stick (1d6-2 damage) |
 | 3 | Grave Digger | +2 | Deal +2 damage to Undead. | Shovel (1d6-1 damage) |
 | 4 | Noble | +0 | You start with 1 random Basic Spell. | Rapier (1d6+1 damage) |
-| 5 | Schoolar | +0 | You start with 3 random Basic Spells. | Dagger (1d6-1 damage) |
+| 5 | Scholar | +0 | You start with 3 random Basic Spells. | Dagger (1d6-1 damage) |
 | 6 | Blacksmith | +4 | You can repair an armor by spending 1 Torch. | Hammer (1d6 damage) |
 | 7 | Guard | +4 | None. | Short Sword (1d6 damage) |
 | 8 | Cook | +2 | Gain 1 coin for every monster killed (except Undead). | Cleaver (1d6 damage) |
@@ -1480,7 +1480,7 @@ you like, but cannot acquire the same class more than once.
 | Dragonslayer | 50 | have slain a dragon | +3 | None. |
 | Guard | 50 | Have killed at least 3 monsters. | +1 | None. |
 | Helsing | 50 | have killed 2 vampires | +0 | +1 damage against Vampires and Ghouls. |
-| Schoolar | 70 | Have used a spell or scroll. | +0 | Earn 3 random Basic Spells. |
+| Scholar | 70 | Have used a spell or scroll. | +0 | Earn 3 random Basic Spells. |
 | Lumberjack | 70 | Having traveled through two forests. | +1 | None. |
 | Ghostbuster | 80 | Have killed 10 intangible beings | +0 | Can ignore Intangible on first turn. |
 | Cook | 100 | Have spent 20 provisions on the road. | +0 | Gain 1 Provision per defeated monster. |

@@ -29,7 +29,7 @@ export const CLASS_TABLE: Record<number, ClassDef> = {
   },
   5: {
     roll: 5,
-    name: "Schoolar",
+    name: "Scholar",
     hpBonus: 0,
     ability: "You start with 3 random Basic Spells.",
     weapon: "Dagger",

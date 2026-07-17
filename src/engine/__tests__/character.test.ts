@@ -40,8 +40,8 @@ describe("rollRace / rollClass / rollSpell", () => {
   });
 
   it("resolves a class from its dice sum", () => {
-    const result = rollClass(sequenceDie([3, 2])); // sum 5 -> Schoolar
-    expect(result.entry.name).toBe("Schoolar");
+    const result = rollClass(sequenceDie([3, 2])); // sum 5 -> Scholar
+    expect(result.entry.name).toBe("Scholar");
   });
 
   it("resolves a spell from a single die", () => {
@@ -58,7 +58,7 @@ describe("computeSpellRequirements", () => {
   });
 
   it("sums random slots from both race and class", () => {
-    const req = computeSpellRequirements(RACE_TABLE[4]!, CLASS_TABLE[5]!); // Pixie (5) + Schoolar (3)
+    const req = computeSpellRequirements(RACE_TABLE[4]!, CLASS_TABLE[5]!); // Pixie (5) + Scholar (3)
     expect(req.randomSlots).toBe(8);
     expect(req.fixedGrants).toEqual([]);
   });
