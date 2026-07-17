@@ -211,6 +211,31 @@
   max-width: 60ch;
 }
 
+/* Adventure's own copy is already capped at 60ch (see .gateCopy), well short of the card's full
+   width -- rather than leave that width empty, Records (the Graveyard/Dungeons history, otherwise
+   its own full-width card below this one) rides along as a second column in the same row, adding
+   no extra height on any screen wide enough for it. Only applied when there's something to show
+   there (TownScreen's hasRecords) -- with nothing to show, Adventure stays plain full width. */
+.adventureRow {
+  display: grid;
+  grid-template-columns: minmax(0, 60ch) minmax(240px, 1fr);
+  gap: clamp(20px, 3vw, 28px);
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .adventureRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recordsCol {
+  border: 1px solid rgba(42, 32, 22, 0.22);
+  border-radius: 3px;
+  padding: 14px 16px 16px;
+  background: rgba(42, 32, 22, 0.035);
+  min-width: 0;
+}
+
 .activeDungeonCard {
   margin-bottom: clamp(18px, 3vw, 24px);
   padding-bottom: clamp(18px, 3vw, 24px);

@@ -8,6 +8,16 @@
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
 }
 
+.panelCompact {
+  width: 100%;
+  margin-top: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .title {
   font-family: var(--font-display);
   font-weight: 400;
@@ -17,6 +27,10 @@
   margin: 0 0 4px;
   border-bottom: 1px solid var(--ink);
   padding-bottom: 8px;
+}
+.titleCompact {
+  composes: title;
+  font-size: 0.9rem;
 }
 
 .note {
@@ -52,6 +66,13 @@
     gap: 2px;
     padding: 8px 0;
   }
+}
+/* Same collapse as the @media rule above, applied unconditionally -- a narrow *column* on a
+   wide viewport never triggers a viewport media query, so compact mode needs its own class. */
+.rowCompact {
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 8px 0;
 }
 
 .nameCol {
