@@ -8,9 +8,6 @@ export interface HexInspectorProps {
   dungeonStatus: "none" | "unfinished" | "beaten";
   hasRemains: boolean;
   isCurrentTile: boolean;
-  /** True only for a passable, travel-reachable neighbor -- gates the "Travel Here" button. */
-  canTravelHere: boolean;
-  onTravelHere: () => void;
 }
 
 const TERRAIN_LABEL: Record<Terrain, string> = {
@@ -32,16 +29,10 @@ const DUNGEON_STATUS_COPY: Record<HexInspectorProps["dungeonStatus"], string> = 
 
 /** Bottom-right overlay describing whichever hex is currently selected on the map, mirroring
  * RoomInspector's role/positioning for the dungeon map. Purely presentational -- WorldScreen
- * resolves all of this from its own currentTile/dungeonInfoFor() logic. */
-export function HexInspector({
-  terrain,
-  locationLabel,
-  dungeonStatus,
-  hasRemains,
-  isCurrentTile,
-  canTravelHere,
-  onTravelHere,
-}: HexInspectorProps) {
+ * resolves all of this from its own currentTile/dungeonInfoFor() logic. Read-only: clicking a
+ * passable neighbor hex on the map travels there directly, so there's no separate travel action
+ * here to gate. */
+export function HexInspector({ terrain, locationLabel, dungeonStatus, hasRemains, isCurrentTile }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
       <p className={styles.title}>{locationLabel || TERRAIN_LABEL[terrain]}</p>
@@ -68,14 +59,6 @@ export function HexInspector({
         <div className={styles.row}>
           <span className={styles.label}>Remains</span>
           <p>A fallen adventurer&apos;s belongings are still here, unrecovered.</p>
-        </div>
-      )}
-
-      {canTravelHere && !isCurrentTile && (
-        <div className={styles.dieRow}>
-          <button className={styles.rollBtn} type="button" onClick={onTravelHere}>
-            Travel Here
-          </button>
         </div>
       )}
     </div>

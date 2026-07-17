@@ -119,9 +119,10 @@ export function WorldScreen({
    * appropriate thing" (the city screen if it's a City/Fortress, the map otherwise) by default. */
   const [showMap, setShowMap] = useState(false);
   /** Which known hex HexInspector describes -- null falls back to wherever the player is standing.
-   * Distinct from travel: clicking any known hex selects it for inspection; a separate "Travel
-   * Here" button (shown only for a passable, in-range neighbor) inside HexInspector actually moves
-   * the player, mirroring RoomInspector/state.selectedSegId's own selected-vs-current split. */
+   * Clicking a passable, in-range neighbor travels there directly (unchanged from before
+   * HexInspector existed); clicking any other known hex -- out of range, impassable, or the
+   * player's own tile -- just selects it for inspection instead, mirroring RoomInspector/
+   * state.selectedSegId's own selected-vs-current split. */
   const [selectedHex, setSelectedHex] = useState<HexCoord | null>(null);
   /** Null = today's auto-fit-everything behavior; set the instant the player zooms or drag-pans,
    * same "override until Reset View" shape DungeonMap's own `scale` state uses. */
@@ -178,9 +179,18 @@ export function WorldScreen({
   const inspectedCoord = selectedHex ?? world.player;
   const inspectedTile: HexTile | undefined = world.tiles[hexKey(inspectedCoord)];
   const isInspectingCurrentTile = inspectedCoord.q === world.player.q && inspectedCoord.r === world.player.r;
-  const inspectedIsNeighbor = neighborCoords.some((n) => n.q === inspectedCoord.q && n.r === inspectedCoord.r);
-  const inspectedCanTravel =
-    !!inspectedTile && inspectedIsNeighbor && !isImpassable(inspectedTile.terrain, inspectedTile.location);
+
+  /** Clicking a passable, in-range neighbor travels immediately; anything else (out of range,
+   * impassable, or the player's own tile) just selects it for HexInspector to describe. */
+  function handleHexClick(coord: HexCoord) {
+    const tile = world.tiles[hexKey(coord)];
+    const isNeighbor = neighborCoords.some((n) => n.q === coord.q && n.r === coord.r);
+    if (tile && isNeighbor && !isImpassable(tile.terrain, tile.location)) {
+      handleTravel(coord);
+    } else {
+      setSelectedHex(coord);
+    }
+  }
 
   // Computed unconditionally (mirroring DungeonMap's own useMemo-before-early-return shape) since
   // useZoomGesture below is a hook and must run every render, including while showMap is false and
@@ -333,11 +343,7 @@ export function WorldScreen({
                 const label = tile.location ? LOCATION_LABEL[tile.location] : "";
                 const { status: dungeonStatus, hasRemains } = dungeonInfoFor(tile);
                 return (
-                  <g
-                    key={hexKey(coord)}
-                    className={styles.clickableHex}
-                    onClick={() => setSelectedHex(coord)}
-                  >
+                  <g key={hexKey(coord)} className={styles.clickableHex} onClick={() => handleHexClick(coord)}>
                     <polygon
                       points={hexPolygonPoints(pixel, HEX_SIZE - 2)}
                       fill={TERRAIN_FILL[tile.terrain]}
@@ -390,8 +396,6 @@ export function WorldScreen({
                   dungeonStatus={dungeonInfoFor(inspectedTile).status}
                   hasRemains={dungeonInfoFor(inspectedTile).hasRemains}
                   isCurrentTile={isInspectingCurrentTile}
-                  canTravelHere={inspectedCanTravel}
-                  onTravelHere={() => handleTravel(inspectedCoord)}
                 />
               </div>
             )}
@@ -433,8 +437,8 @@ export function WorldScreen({
           )}
 
           <p className={styles.scopeNote}>
-            Click any known hex to inspect it, then Travel Here if it's a neighbor. Water and Rocks
-            can't be crossed yet -- boats are a City action for another day.
+            Click a neighboring hex to travel there. Click any other known hex to inspect it. Water
+            and Rocks can't be crossed yet -- boats are a City action for another day.
           </p>
         </div>
 
