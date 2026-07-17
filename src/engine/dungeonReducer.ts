@@ -158,7 +158,7 @@ function buildSegment(
     childId: null,
     leadsToLevel: null,
   }));
-  const extras = draft.dungeonTypeKey ? resolveRoomExtras(type, draft.dungeonTypeKey, rng) : undefined;
+  const extras = draft.dungeonTypeKey ? resolveRoomExtras(type, draft.dungeonTypeKey, rng, isEntrance) : undefined;
   return {
     id,
     type,

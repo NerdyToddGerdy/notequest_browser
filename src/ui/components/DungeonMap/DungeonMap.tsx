@@ -70,8 +70,12 @@ export function DungeonMap({
   const reachable = useMemo(() => (level ? reachableSegIds(level, state.currentSegId) : new Set<number>()), [level, state.currentSegId]);
   // Mirrors the reducer's hasPendingRoomEntry: a quiet arrival revealed monsters the player hasn't
   // yet chosen to Attack First or Move Silently past -- no further doors open until they decide.
+  // `state.alive` guards against a lost fight in this same room (never marks monstersDefeated)
+  // leaving this true forever post-death -- every use site here already ORs in its own `!state.alive`
+  // check too, so this is defense-in-depth, not the only thing guarding door interaction.
   const currentSeg = level?.segments.find((s) => s.id === state.currentSegId);
-  const pendingRoomEntry = !!currentSeg?.monsters && !currentSeg.monstersDefeated && !currentSeg.sneakedPast;
+  const pendingRoomEntry =
+    state.alive && !!currentSeg?.monsters && !currentSeg.monstersDefeated && !currentSeg.sneakedPast;
 
   const [doorFlow, setDoorFlow] = useState<DoorFlow | null>(null);
   const [dieValue, setDieValue] = useState(1);

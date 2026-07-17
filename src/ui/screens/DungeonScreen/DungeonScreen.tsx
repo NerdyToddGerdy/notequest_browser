@@ -185,8 +185,13 @@ export function DungeonScreen({
   const bossDefeated = isDungeonBeaten(state);
   const currentSeg = state.levels[state.activeLevel]?.segments.find((s) => s.id === state.currentSegId) ?? null;
   // Mirrors the reducer's hasPendingRoomEntry: a quiet arrival revealed monsters, but the player
-  // hasn't yet chosen Attack First vs. Move Silently (RESOLVE_ROOM_ENTRY).
-  const pendingRoomEntry = !!currentSeg?.monsters && !currentSeg.monstersDefeated && !currentSeg.sneakedPast;
+  // hasn't yet chosen Attack First vs. Move Silently (RESOLVE_ROOM_ENTRY). `state.alive` matters
+  // here specifically because dying to that same room's monsters (a lost fight never marks
+  // monstersDefeated) would otherwise leave this true forever, showing "Monsters Ahead" right
+  // alongside the death panel -- the reducer's own RESOLVE_ROOM_ENTRY handler already no-ops once
+  // dead, so this was purely a decorative render bug, not a way to act after death.
+  const pendingRoomEntry =
+    state.alive && !!currentSeg?.monsters && !currentSeg.monstersDefeated && !currentSeg.sneakedPast;
 
   // Records the character in the Graveyard exactly once per death (the effect only re-runs
   // when `alive` actually flips, not on every render while the death panel stays up).
