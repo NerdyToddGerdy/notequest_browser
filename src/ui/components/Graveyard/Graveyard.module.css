@@ -48,6 +48,11 @@
   max-height: 220px;
   overflow-y: auto;
 }
+/* The Records column has real vertical room to spare beside Adventure -- 220px (tuned for the
+   standalone card) was only showing 2 of 36 real entries at a time. */
+.listCompact {
+  max-height: 480px;
+}
 
 .row {
   display: grid;

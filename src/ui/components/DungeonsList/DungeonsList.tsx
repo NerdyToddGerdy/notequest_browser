@@ -21,7 +21,7 @@ export function DungeonsList({ dungeons, compact = false }: DungeonsListProps) {
       <p className={styles.note}>
         {dungeons.length} dungeon{dungeons.length === 1 ? "" : "s"} found across these lands.
       </p>
-      <ul className={styles.list}>
+      <ul className={compact ? `${styles.list} ${styles.listCompact}` : styles.list}>
         {[...dungeons].reverse().map((pd) => {
           const beaten = isDungeonBeaten(pd.dungeon);
           const remains = countUnlootedRemains(pd.dungeon);

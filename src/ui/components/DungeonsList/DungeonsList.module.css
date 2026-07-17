@@ -48,6 +48,11 @@
   max-height: 220px;
   overflow-y: auto;
 }
+/* See Graveyard.module.css's own .listCompact -- same reasoning, same value, kept identical so
+   the two tabs don't visibly resize the Records column when switched between. */
+.listCompact {
+  max-height: 480px;
+}
 
 .row {
   display: grid;

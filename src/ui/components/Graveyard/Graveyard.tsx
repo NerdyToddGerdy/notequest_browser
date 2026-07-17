@@ -25,7 +25,7 @@ export function Graveyard({ entries, compact = false }: GraveyardProps) {
       <p className={styles.note}>
         {entries.length} adventurer{entries.length === 1 ? "" : "s"} lost to these dungeons.
       </p>
-      <ul className={styles.list}>
+      <ul className={compact ? `${styles.list} ${styles.listCompact}` : styles.list}>
         {[...entries].reverse().map((entry, index) => (
           <li key={index} className={compact ? `${styles.row} ${styles.rowCompact}` : styles.row}>
             <span className={styles.nameCol}>
