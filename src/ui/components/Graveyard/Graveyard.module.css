@@ -49,9 +49,12 @@
   overflow-y: auto;
 }
 /* The Records column has real vertical room to spare beside Adventure -- 220px (tuned for the
-   standalone card) was only showing 2 of 36 real entries at a time. */
+   standalone card) was only showing 2 of 36 real entries at a time. Two newspaper-style columns
+   (fill the left top-to-bottom, then the right) use that width to show even more at once. */
 .listCompact {
   max-height: 480px;
+  column-count: 2;
+  column-gap: 24px;
 }
 
 .row {
@@ -78,6 +81,7 @@
   grid-template-columns: 1fr;
   gap: 2px;
   padding: 8px 0;
+  break-inside: avoid;
 }
 
 .nameCol {

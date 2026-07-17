@@ -7,30 +7,31 @@
   padding: clamp(28px, 6vw, 64px) 20px 64px;
 }
 
+/* Sits inside .sheetInner's parchment now, not the dark page background it was designed for
+   when this was a page-level header -- ink/gold in place of the old gold-bright-on-dark glow
+   treatment, and sized to read as an in-card masthead above .sheetLabel rather than a page hero. */
 .wordmark {
   position: relative;
   text-align: center;
-  margin-bottom: clamp(20px, 4vw, 34px);
-  color: var(--parchment);
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--ink-soft);
 }
 .wordmark h1 {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: clamp(2.1rem, 6vw, 3.2rem);
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
   letter-spacing: 0.04em;
   margin: 0;
-  color: var(--gold-bright);
-  text-shadow:
-    0 0 28px rgba(217, 121, 31, 0.55),
-    0 2px 0 rgba(0, 0, 0, 0.4);
+  color: var(--gold);
   text-wrap: balance;
 }
 .tagline {
   font-family: var(--font-body);
   font-style: italic;
-  font-size: 0.92rem;
-  color: #cabb9c;
-  margin: 8px 0 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  margin: 6px 0 0;
 }
 
 .layout {
@@ -62,9 +63,10 @@
   }
   .wordmark {
     margin-bottom: 10px;
+    padding-bottom: 10px;
   }
   .wordmark h1 {
-    font-size: 1.6rem;
+    font-size: 1.3rem;
   }
   .tagline {
     display: none;
@@ -218,7 +220,7 @@
    there (TownScreen's hasRecords) -- with nothing to show, Adventure stays plain full width. */
 .adventureRow {
   display: grid;
-  grid-template-columns: minmax(0, 60ch) minmax(240px, 1fr);
+  grid-template-columns: 25% 75%;
   gap: clamp(20px, 3vw, 28px);
   align-items: start;
 }

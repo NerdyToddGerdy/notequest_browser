@@ -57,15 +57,15 @@ export function TownScreen({
 
   return (
     <div className={styles.page}>
-      <header className={styles.wordmark}>
-        <h1>NoteQuest</h1>
-        <p className={styles.tagline}>The town, between one dungeon and the next.</p>
-      </header>
-
       <div className={styles.layout}>
         <div className={styles.mainCol}>
           <main className={styles.sheet}>
             <div className={styles.sheetInner}>
+              <header className={styles.wordmark}>
+                <h1>NoteQuest</h1>
+                <p className={styles.tagline}>The town, between one dungeon and the next.</p>
+              </header>
+
               <span className={styles.sheetLabel}>Town Square</span>
 
               <section className={styles.actions}>
@@ -109,10 +109,10 @@ export function TownScreen({
               </section>
 
               <section className={styles.adventureSection}>
-                <h2 className={styles.trackTitle}>Adventure</h2>
-
                 <div className={hasRecords ? styles.adventureRow : undefined}>
                   <div>
+                    <h2 className={styles.trackTitle}>Adventure</h2>
+
                     {hasDungeon && (
                       <div className={styles.activeDungeonCard}>
                         <p className={styles.gateCopy}>{dungeonGateCopy}</p>

@@ -52,6 +52,8 @@
    the two tabs don't visibly resize the Records column when switched between. */
 .listCompact {
   max-height: 480px;
+  column-count: 2;
+  column-gap: 24px;
 }
 
 .row {
@@ -78,6 +80,7 @@
   grid-template-columns: 1fr;
   gap: 2px;
   padding: 8px 0;
+  break-inside: avoid;
 }
 
 .nameCol {
