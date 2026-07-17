@@ -54,18 +54,19 @@ export function TownScreen({
   const isCatPerson = character.race.name === "Cat-Person";
   const isBlacksmith = character.cls.name === "Blacksmith";
   const [graveyard] = useState(() => loadGraveyard());
+  const hasRecords = graveyard.length > 0 || dungeonHistory.length > 0;
 
   return (
     <div className={styles.page}>
-      <header className={styles.wordmark}>
-        <h1>NoteQuest</h1>
-        <p className={styles.tagline}>The town, between one dungeon and the next.</p>
-      </header>
-
       <div className={styles.layout}>
         <div className={styles.mainCol}>
           <main className={styles.sheet}>
             <div className={styles.sheetInner}>
+              <header className={styles.wordmark}>
+                <h1>NoteQuest</h1>
+                <p className={styles.tagline}>The town, between one dungeon and the next.</p>
+              </header>
+
               <span className={styles.sheetLabel}>Town Square</span>
 
               <section className={styles.actions}>
@@ -114,28 +115,38 @@ export function TownScreen({
               </section>
 
               <section className={styles.adventureSection}>
-                <h2 className={styles.trackTitle}>Adventure</h2>
+                <div className={hasRecords ? styles.adventureRow : undefined}>
+                  <div>
+                    <h2 className={styles.trackTitle}>Adventure</h2>
 
-                {hasDungeon && (
-                  <div className={styles.activeDungeonCard}>
-                    <p className={styles.gateCopy}>{dungeonGateCopy}</p>
-                    <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
-                      Enter Dungeon
-                    </button>
+                    {hasDungeon && (
+                      <div className={styles.activeDungeonCard}>
+                        <p className={styles.gateCopy}>{dungeonGateCopy}</p>
+                        <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
+                          Enter Dungeon
+                        </button>
+                      </div>
+                    )}
+
+                    <div className={styles.rollNewSection}>
+                      <p className={styles.gateCopy}>
+                        Leave the city behind and see what's out there.
+                      </p>
+                      <button className={styles.ghostBtn} type="button" onClick={onExploreWorld}>
+                        Explore the World
+                      </button>
+                    </div>
                   </div>
-                )}
 
-                <div className={styles.rollNewSection}>
-                  <p className={styles.gateCopy}>Leave the city behind and see what's out there.</p>
-                  <button className={styles.ghostBtn} type="button" onClick={onExploreWorld}>
-                    Explore the World
-                  </button>
+                  {hasRecords && (
+                    <div className={styles.recordsCol}>
+                      <RecordsPanel graveyardEntries={graveyard} dungeons={dungeonHistory} compact />
+                    </div>
+                  )}
                 </div>
               </section>
             </div>
           </main>
-
-          <RecordsPanel graveyardEntries={graveyard} dungeons={dungeonHistory} />
         </div>
 
         <aside className={styles.side}>

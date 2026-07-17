@@ -8,6 +8,16 @@
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
 }
 
+.panelCompact {
+  width: 100%;
+  margin-top: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .title {
   font-family: var(--font-display);
   font-weight: 400;
@@ -17,6 +27,10 @@
   margin: 0 0 4px;
   border-bottom: 1px solid var(--ink);
   padding-bottom: 8px;
+}
+.titleCompact {
+  composes: title;
+  font-size: 0.9rem;
 }
 
 .note {
@@ -33,6 +47,13 @@
   padding: 0;
   max-height: 220px;
   overflow-y: auto;
+}
+/* See Graveyard.module.css's own .listCompact -- same reasoning, same value, kept identical so
+   the two tabs don't visibly resize the Records column when switched between. */
+.listCompact {
+  max-height: 480px;
+  column-count: 2;
+  column-gap: 24px;
 }
 
 .row {
@@ -52,6 +73,14 @@
     gap: 2px;
     padding: 8px 0;
   }
+}
+/* Same collapse as the @media rule above, applied unconditionally -- see Graveyard.module.css's
+   own .rowCompact for why a viewport query alone isn't enough here. */
+.rowCompact {
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 8px 0;
+  break-inside: avoid;
 }
 
 .nameCol {

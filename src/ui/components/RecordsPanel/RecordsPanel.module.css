@@ -1,11 +1,17 @@
 .wrap {
   width: min(760px, 100%);
 }
+.wrapCompact {
+  width: 100%;
+}
 
 .tabs {
   display: flex;
   gap: 4px;
   margin-top: 28px;
+}
+.tabsCompact {
+  margin-top: 0;
 }
 
 .tab,

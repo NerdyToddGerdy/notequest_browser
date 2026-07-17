@@ -3,6 +3,11 @@ import styles from "./Graveyard.module.css";
 
 export interface GraveyardProps {
   entries: GraveyardEntry[];
+  /** True when rendered in Town Square's narrow Records column -- drops the standalone panel's
+   * own border/shadow/padding (the column itself already supplies a frame) and forces the same
+   * single-column row layout the panel would otherwise only reach for under a narrow *viewport*,
+   * since a column can be narrow on a wide screen the `@media` query below never sees. */
+  compact?: boolean;
 }
 
 const CAUSE_LABELS: Record<GraveyardEntry["causeOfDeath"], string> = {
@@ -11,18 +16,18 @@ const CAUSE_LABELS: Record<GraveyardEntry["causeOfDeath"], string> = {
 };
 
 /** The Graveyard play-sheet -- a running record of every character who died exploring these dungeons. */
-export function Graveyard({ entries }: GraveyardProps) {
+export function Graveyard({ entries, compact = false }: GraveyardProps) {
   if (entries.length === 0) return null;
 
   return (
-    <section className={styles.panel}>
-      <h2 className={styles.title}>The Graveyard</h2>
+    <section className={compact ? styles.panelCompact : styles.panel}>
+      <h2 className={compact ? styles.titleCompact : styles.title}>The Graveyard</h2>
       <p className={styles.note}>
         {entries.length} adventurer{entries.length === 1 ? "" : "s"} lost to these dungeons.
       </p>
-      <ul className={styles.list}>
+      <ul className={compact ? `${styles.list} ${styles.listCompact}` : styles.list}>
         {[...entries].reverse().map((entry, index) => (
-          <li key={index} className={styles.row}>
+          <li key={index} className={compact ? `${styles.row} ${styles.rowCompact}` : styles.row}>
             <span className={styles.nameCol}>
               <span className={styles.name}>{entry.name}</span>
               {entry.race && entry.cls && (

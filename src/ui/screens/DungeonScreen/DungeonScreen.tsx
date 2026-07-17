@@ -215,6 +215,18 @@ export function DungeonScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.alive]);
 
+  // Persists the beaten dungeon to dungeonHistory the moment the boss actually falls, not just
+  // on unmount below -- a reload (or just closing the tab) from the victory screen, before ever
+  // clicking "Return to Town", would otherwise lose the win entirely: dungeonHistory would still
+  // hold the pre-victory snapshot, so World's own beaten-check would wrongly let the player back
+  // in to resume the old fight. Only re-runs when `bossDefeated` actually flips, same as the
+  // Graveyard effect above.
+  useEffect(() => {
+    if (!bossDefeated) return;
+    onLeaveDungeon(runId, state, character.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bossDefeated]);
+
   // Saves this run's current progress (if it's gone anywhere and isn't beaten) the moment this
   // screen unmounts, whatever the reason -- death, a voluntary retreat, or a brand new character
   // navigating away. Refs (kept fresh via their own effects, since writing to a ref during
