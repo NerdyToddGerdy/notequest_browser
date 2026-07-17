@@ -75,7 +75,7 @@ export function TownScreen({
                   <button
                     className={styles.actionBtn}
                     type="button"
-                    disabled={!canRest(resources)}
+                    disabled={!canRest(resources, maxSpellUses)}
                     onClick={() => onUpdateResources(rest(resources, maxSpellUses))}
                   >
                     <span className={styles.actionName}>Rest</span>

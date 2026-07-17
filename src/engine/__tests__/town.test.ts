@@ -34,8 +34,24 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
 
 describe("canRest / rest", () => {
   it("requires at least 1 coin", () => {
-    expect(canRest(makeResources({ coins: 0 }))).toBe(false);
-    expect(canRest(makeResources({ coins: 1 }))).toBe(true);
+    expect(canRest(makeResources({ coins: 0, hp: 10, maxHp: 20 }), { 1: 3 })).toBe(false);
+    expect(canRest(makeResources({ coins: 1, hp: 10, maxHp: 20 }), { 1: 3 })).toBe(true);
+  });
+
+  it("stays true below max HP regardless of spell uses", () => {
+    expect(canRest(makeResources({ coins: 1, hp: 10, maxHp: 20, spellUses: { 1: 3 } }), { 1: 3 })).toBe(true);
+  });
+
+  it("is false at full HP with every spell already at max uses", () => {
+    expect(canRest(makeResources({ coins: 1, hp: 20, maxHp: 20, spellUses: { 1: 3, 2: 2 } }), { 1: 3, 2: 2 })).toBe(
+      false,
+    );
+  });
+
+  it("is true at full HP if any spell still has used-up uses to recover", () => {
+    expect(canRest(makeResources({ coins: 1, hp: 20, maxHp: 20, spellUses: { 1: 1, 2: 2 } }), { 1: 3, 2: 2 })).toBe(
+      true,
+    );
   });
 
   it("spends 1 coin, heals to max, and restores every spell to its max uses", () => {
