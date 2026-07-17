@@ -1,17 +1,33 @@
 import { describe, expect, it } from "vitest";
 import {
+  buyElvenBoots,
+  buyLamp,
+  buyOrcGladio,
   buyProvision,
   buyTorch,
+  canBuyElvenBoots,
+  canBuyLamp,
+  canBuyOrcGladio,
   canBuyProvision,
   canBuyTorch,
+  canDrinkVerdosaPotion,
   canFixArmor,
+  canHireBoat,
+  canLearnRandomSpell,
+  canRemoveCurse,
   canRest,
+  drinkVerdosaPotion,
   fixArmor,
+  hasElvenBoots,
+  hireBoat,
+  learnRandomSpell,
   payTravelCost,
+  removeCurse,
   rest,
   sellItem,
   type AdventurerResources,
 } from "../town.ts";
+import { sequenceDie } from "../../test/mulberry32.ts";
 
 function makeResources(overrides: Partial<AdventurerResources> = {}): AdventurerResources {
   return {
@@ -192,5 +208,91 @@ describe("payTravelCost", () => {
     const next = payTravelCost(makeResources({ provisions: 0, hp: 1 }), 3);
     expect(next.provisions).toBe(0);
     expect(next.hp).toBe(1);
+  });
+});
+
+describe("Different Cultures: Human -- Remove Curse", () => {
+  it("requires 200 coins and spends them, flavor-only otherwise", () => {
+    expect(canRemoveCurse(makeResources({ coins: 199 }))).toBe(false);
+    expect(canRemoveCurse(makeResources({ coins: 200 }))).toBe(true);
+    const next = removeCurse(makeResources({ coins: 250 }));
+    expect(next.coins).toBe(50);
+  });
+});
+
+describe("Different Cultures: Dwarf -- Buy Lamp", () => {
+  it("requires 40 coins and adds a flavor keepsake to the Pack", () => {
+    expect(canBuyLamp(makeResources({ coins: 39 }))).toBe(false);
+    const next = buyLamp(makeResources({ coins: 40 }));
+    expect(next.coins).toBe(0);
+    expect(next.heldItems).toEqual([{ name: "Dwarven Lamp", worth: 5 }]);
+  });
+});
+
+describe("Different Cultures: Elf -- Buy Elven Boots / hasElvenBoots", () => {
+  it("requires 60 coins and equips a real 2 HP boots piece", () => {
+    expect(canBuyElvenBoots(makeResources({ coins: 59 }))).toBe(false);
+    const next = buyElvenBoots(makeResources({ coins: 60 }));
+    expect(next.coins).toBe(0);
+    expect(next.armor).toEqual([{ piece: "boots", hp: 2, maxHp: 2, itemName: "Elven Boots" }]);
+  });
+
+  it("hasElvenBoots matches case-insensitively by itemName, same as monster-tag matching", () => {
+    expect(hasElvenBoots(makeResources({ armor: [] }))).toBe(false);
+    expect(hasElvenBoots(makeResources({ armor: [{ piece: "boots", hp: 2, maxHp: 2, itemName: "elven BOOTS" }] }))).toBe(
+      true,
+    );
+    expect(hasElvenBoots(makeResources({ armor: [{ piece: "helm", hp: 4, maxHp: 4 }] }))).toBe(false);
+  });
+});
+
+describe("Different Cultures: Gnome -- Learn a Spell", () => {
+  it("requires 80 coins and grants 1 use of a rolled spell", () => {
+    expect(canLearnRandomSpell(makeResources({ coins: 79 }))).toBe(false);
+    const next = learnRandomSpell(makeResources({ coins: 80, spellUses: {} }), sequenceDie([6])); // roll 6 -> Fireball, roll 6
+    expect(next.coins).toBe(0);
+    expect(next.spellUses).toEqual({ 6: 1 });
+  });
+
+  it("stacks onto an existing use of the same spell", () => {
+    const next = learnRandomSpell(makeResources({ coins: 80, spellUses: { 6: 2 } }), sequenceDie([6]));
+    expect(next.spellUses).toEqual({ 6: 3 });
+  });
+});
+
+describe("Different Cultures: Goblin -- Verdosa Potion", () => {
+  it("requires 30 coins, always spent regardless of outcome", () => {
+    expect(canDrinkVerdosaPotion(makeResources({ coins: 29 }))).toBe(false);
+    const { resources } = drinkVerdosaPotion(makeResources({ coins: 30, hp: 5, maxHp: 20 }), sequenceDie([2]));
+    expect(resources.coins).toBe(0);
+  });
+
+  it("heals to max HP on a roll of 3 or more", () => {
+    const { resources, healed } = drinkVerdosaPotion(makeResources({ coins: 30, hp: 5, maxHp: 20 }), sequenceDie([3]));
+    expect(healed).toBe(true);
+    expect(resources.hp).toBe(20);
+  });
+
+  it("leaves HP untouched (just itchy, flavor-only) on a roll below 3", () => {
+    const { resources, healed } = drinkVerdosaPotion(makeResources({ coins: 30, hp: 5, maxHp: 20 }), sequenceDie([2]));
+    expect(healed).toBe(false);
+    expect(resources.hp).toBe(5);
+  });
+});
+
+describe("Different Cultures: Orc -- Buy Orc Gladio", () => {
+  it("requires 70 coins and overwrites the equipped weapon", () => {
+    expect(canBuyOrcGladio(makeResources({ coins: 69 }))).toBe(false);
+    const next = buyOrcGladio(makeResources({ coins: 70, weapon: { name: "Rusty Sword", formula: "1d6-1" } }));
+    expect(next.coins).toBe(0);
+    expect(next.weapon).toEqual({ name: "Orc Gladio", formula: "1d6+1" });
+  });
+});
+
+describe("canHireBoat / hireBoat", () => {
+  it("requires 1 coin and spends it", () => {
+    expect(canHireBoat(makeResources({ coins: 0 }))).toBe(false);
+    const next = hireBoat(makeResources({ coins: 3 }));
+    expect(next.coins).toBe(2);
   });
 });

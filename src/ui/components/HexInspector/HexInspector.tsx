@@ -8,6 +8,9 @@ export interface HexInspectorProps {
   dungeonStatus: "none" | "unfinished" | "beaten";
   hasRemains: boolean;
   isCurrentTile: boolean;
+  /** True when this is a City/Fortress hex the player's race has no Affinity for -- explains why a
+   * neighboring hex like this can't be traveled to (see `hasAffinity()`, `data/affinity.ts`). */
+  noAffinity: boolean;
 }
 
 const TERRAIN_LABEL: Record<Terrain, string> = {
@@ -32,7 +35,14 @@ const DUNGEON_STATUS_COPY: Record<HexInspectorProps["dungeonStatus"], string> = 
  * resolves all of this from its own currentTile/dungeonInfoFor() logic. Read-only: clicking a
  * passable neighbor hex on the map travels there directly, so there's no separate travel action
  * here to gate. */
-export function HexInspector({ terrain, locationLabel, dungeonStatus, hasRemains, isCurrentTile }: HexInspectorProps) {
+export function HexInspector({
+  terrain,
+  locationLabel,
+  dungeonStatus,
+  hasRemains,
+  isCurrentTile,
+  noAffinity,
+}: HexInspectorProps) {
   return (
     <div className={styles.panel}>
       <p className={styles.title}>{locationLabel || TERRAIN_LABEL[terrain]}</p>
@@ -47,6 +57,13 @@ export function HexInspector({ terrain, locationLabel, dungeonStatus, hasRemains
         <div className={styles.row}>
           <span className={styles.label}>Location</span>
           <p>{locationLabel}</p>
+        </div>
+      )}
+
+      {noAffinity && (
+        <div className={styles.row}>
+          <span className={styles.label}>Affinity</span>
+          <p>You are not welcome here.</p>
         </div>
       )}
 

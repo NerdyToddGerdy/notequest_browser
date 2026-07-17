@@ -1,5 +1,8 @@
 import type { MonsterAbility } from "../data/dungeonTables.ts";
 import type { ArmorPiece, EquippedWeapon, HeldItem } from "./dungeonState.ts";
+import { rollSpell } from "./character.ts";
+import { rollDie } from "./dice.ts";
+import type { RNG } from "./rng.ts";
 
 /** A living character's current stats, carried between the dungeon and the town -- unlike
  * `CreatedCharacter`, which only ever holds the starting values rolled at creation. */
@@ -111,4 +114,119 @@ export function payTravelCost(resources: AdventurerResources, cost: number): Adv
     provisions: resources.provisions - spend,
     hp: Math.max(1, resources.hp - (shortfall > 0 ? 1 : 0)),
   };
+}
+
+// -- "Different Cultures" (docs/game-rules-reference.md lines 941-952): one bonus City Action per
+// culture, on top of the base Rest/Buy/Sell/Fix set above. Several of these reference systems this
+// codebase doesn't have (Curses, hand-economy, day-passage) -- per the project's own established
+// precedent (`bladeTrap`'s flavor-only roll-of-2, `WeaponEntry.twoHanded` unenforced), those parts
+// resolve as flavor-only rather than triggering new engine work; see each function's own comment.
+
+const HUMAN_CURSE_REMOVAL_COST = 200;
+export function canRemoveCurse(resources: AdventurerResources): boolean {
+  return resources.coins >= HUMAN_CURSE_REMOVAL_COST;
+}
+/** Human: "Can eliminate a Curse or Cursed Item for 200 coins." No curse system exists anywhere in
+ * this codebase (nothing carries a "cursed" flag) -- a pure, flavor-only coin sink. */
+export function removeCurse(resources: AdventurerResources): AdventurerResources {
+  return { ...resources, coins: resources.coins - HUMAN_CURSE_REMOVAL_COST };
+}
+
+const DWARF_LAMP_COST = 40;
+export function canBuyLamp(resources: AdventurerResources): boolean {
+  return resources.coins >= DWARF_LAMP_COST;
+}
+/** Dwarf: "Buy a Lamp for 40 coins. With the lamp you can use both hands in combat." Two-handed
+ * weapons are already tracked-but-unenforced (`WeaponEntry.twoHanded`, no hand-economy system) --
+ * a flavor-only keepsake added to the Pack, same shape as any other `HeldItem`. */
+export function buyLamp(resources: AdventurerResources): AdventurerResources {
+  return {
+    ...resources,
+    coins: resources.coins - DWARF_LAMP_COST,
+    heldItems: [...resources.heldItems, { name: "Dwarven Lamp", worth: 5 }],
+  };
+}
+
+const ELVEN_BOOTS_COST = 60;
+export function canBuyElvenBoots(resources: AdventurerResources): boolean {
+  return resources.coins >= ELVEN_BOOTS_COST;
+}
+/** Elf: "Buy a pair of Elven Boots (2 HP) for 60 coins. With them you can only spend 1 provision to
+ * move through forests." A real `ArmorPiece` in the existing "boots" slot (can be damaged/fixed
+ * normally, same as any dungeon-found boots -- the rulebook's "can't wear two of the same piece"
+ * rule isn't enforced anywhere else in this codebase either, so buying a second pair over an
+ * already-equipped one isn't specially guarded against here). The travel discount itself is
+ * `hasElvenBoots()` below, checked by `WorldScreen.tsx`'s travel-cost caller. */
+export function buyElvenBoots(resources: AdventurerResources): AdventurerResources {
+  return {
+    ...resources,
+    coins: resources.coins - ELVEN_BOOTS_COST,
+    armor: [...resources.armor, { piece: "boots", hp: 2, maxHp: 2, itemName: "Elven Boots" }],
+  };
+}
+
+/** True once `resources.armor` includes a pair of Elven Boots -- a case-insensitive `itemName`
+ * substring match, the same precedent already established for monster-tag matching. Checked by
+ * `WorldScreen.tsx`'s travel-cost caller directly, not baked into `travelCost()` itself (a
+ * World-map-only concern, not a dungeon-combat `ItemEffect` one). */
+export function hasElvenBoots(resources: AdventurerResources): boolean {
+  return resources.armor.some((p) => p.itemName?.toLowerCase().includes("elven boots"));
+}
+
+const GNOME_SPELL_COST = 80;
+export function canLearnRandomSpell(resources: AdventurerResources): boolean {
+  return resources.coins >= GNOME_SPELL_COST;
+}
+/** Gnome: "Learn a random Basic Magic for 80 coins." Fully real -- rolls a spell exactly like
+ * Character Creation's own random-spell rolls (`rollSpell()`) and grants 1 use of it. */
+export function learnRandomSpell(resources: AdventurerResources, rng: RNG = Math.random): AdventurerResources {
+  const { entry } = rollSpell(rng);
+  return {
+    ...resources,
+    coins: resources.coins - GNOME_SPELL_COST,
+    spellUses: { ...resources.spellUses, [entry.roll]: (resources.spellUses[entry.roll] ?? 0) + 1 },
+  };
+}
+
+const GOBLIN_POTION_COST = 30;
+export interface VerdosaPotionResult {
+  resources: AdventurerResources;
+  healed: boolean;
+}
+export function canDrinkVerdosaPotion(resources: AdventurerResources): boolean {
+  return resources.coins >= GOBLIN_POTION_COST;
+}
+/** Goblin: "Buy a Verdosa Potion for 30 coins. When drinking, roll a die. If it's 3 or more you
+ * regain all your HP. If not you will be itchy for a whole day." Drunk immediately (not
+ * inventoried, matching "when drinking"); the itchy outcome is flavor-only -- no day-passage
+ * system exists to model it against. */
+export function drinkVerdosaPotion(resources: AdventurerResources, rng: RNG = Math.random): VerdosaPotionResult {
+  const roll = rollDie(rng);
+  const spent = { ...resources, coins: resources.coins - GOBLIN_POTION_COST };
+  if (roll >= 3) return { resources: { ...spent, hp: spent.maxHp }, healed: true };
+  return { resources: spent, healed: false };
+}
+
+const ORC_GLADIO_COST = 70;
+export function canBuyOrcGladio(resources: AdventurerResources): boolean {
+  return resources.coins >= ORC_GLADIO_COST;
+}
+/** Orc: "Buy an Orc Gladio (1d6+1 damage) for 70 coins." Fully real -- overwrites the equipped
+ * weapon, same precedent as finding a better one in a dungeon (no equip-swap UI, you use what you
+ * just got). */
+export function buyOrcGladio(resources: AdventurerResources): AdventurerResources {
+  return {
+    ...resources,
+    coins: resources.coins - ORC_GLADIO_COST,
+    weapon: { name: "Orc Gladio", formula: "1d6+1" },
+  };
+}
+
+/** "Hire Boat: spend 1 coin." The actual water-crossing capability lives on `WorldState.hasBoat`
+ * (see `hexReducer.ts`'s `HIRE_BOAT` action) -- this only spends the coin. */
+export function canHireBoat(resources: AdventurerResources): boolean {
+  return resources.coins >= 1;
+}
+export function hireBoat(resources: AdventurerResources): AdventurerResources {
+  return { ...resources, coins: resources.coins - 1 };
 }

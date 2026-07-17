@@ -134,10 +134,11 @@ export function locationHasDungeon(loc: LocationKind | null): boolean {
   return loc === "ruins" || (loc !== null && CITY_OR_FORTRESS.has(loc));
 }
 
-/** "It is not possible to move on water without a boat" (no boats yet) / "Rocks: It is not
- * possible to pass here." */
-export function isImpassable(terrain: Terrain, location: LocationKind | null): boolean {
-  return terrain === "water" || location === "rocks";
+/** "It is not possible to move on water without a boat" / "Rocks: It is not possible to pass
+ * here." `hasBoat` (see `WorldState.hasBoat`, set by the "Hire Boat" City Action) lifts the water
+ * restriction specifically -- "you travel normally" on water once hired, no exception for Rocks. */
+export function isImpassable(terrain: Terrain, location: LocationKind | null, hasBoat = false): boolean {
+  return (terrain === "water" && !hasBoat) || location === "rocks";
 }
 
 /** "Plains take 1 day (1 provision); Mountains take 3 days (3 provisions); any other land type

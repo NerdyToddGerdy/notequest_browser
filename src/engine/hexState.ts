@@ -55,6 +55,10 @@ export interface WorldState {
    * *parent* hex is entered), so there's no separate "terrain known, location TBD" state to model
    * -- presence in this map means fully known. */
   tiles: Record<string, HexTile>;
+  /** "Hire Boat" (a City Action, see `town.ts`/`TownScreen.tsx`) -- true for exactly one `MOVE`
+   * onto water; "once you enter non-water terrain you leave the boat" clears it automatically the
+   * moment the player lands somewhere that isn't water again. */
+  hasBoat: boolean;
 }
 
 /** `current` is trusted to belong to `climate`'s own terrain set (a hot-climate world only ever
@@ -112,5 +116,5 @@ export function createInitialWorldState(rng: RNG = Math.random): WorldState {
     [hexKey(home)]: { terrain: "plain", location: "humanCity" },
   };
   revealNeighborsInPlace(tiles, home, climate, rng);
-  return { climate, home, player: home, tiles };
+  return { climate, home, player: home, tiles, hasBoat: false };
 }

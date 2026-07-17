@@ -8,10 +8,11 @@ import {
   type LocationKind,
   type Terrain,
 } from "../../../data/hexTables.ts";
+import { hasAffinity, CULTURE_BY_LOCATION, type CityCulture } from "../../../data/affinity.ts";
 import { hexKey, hexNeighbors, type HexCoord, type HexTile, type WorldState } from "../../../engine/hexState.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
 import { hasUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
-import { payTravelCost, type AdventurerResources } from "../../../engine/town.ts";
+import { canHireBoat, hasElvenBoots, hireBoat, payTravelCost, type AdventurerResources } from "../../../engine/town.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { HexInspector } from "../../components/HexInspector/HexInspector.tsx";
 import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
@@ -151,12 +152,24 @@ export function WorldScreen({
       : currentDungeonStatus === "unfinished"
         ? "your unfinished dungeon is still here."
         : "a dungeon awaits here.";
+  const culture: CityCulture | null =
+    (currentTile?.location && CULTURE_BY_LOCATION[currentTile.location]) || null;
+  const besideWater = neighborCoords.some((n) => world.tiles[hexKey(n)]?.terrain === "water");
+
+  /** A hex is travelable if it's passable (respecting a hired boat on water) *and* the character's
+   * race has Affinity for whatever City/Fortress culture is there (non-city hexes are always
+   * `true` for the latter -- see `hasAffinity()`). */
+  function canTravelTo(tile: HexTile): boolean {
+    return !isImpassable(tile.terrain, tile.location, world.hasBoat) && hasAffinity(character.race.name, tile.location);
+  }
 
   function handleTravel(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
-    if (!tile || isImpassable(tile.terrain, tile.location)) return;
-    onUpdateResources(payTravelCost(resources, travelCost(tile.terrain)));
-    onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord }));
+    if (!tile || !canTravelTo(tile)) return;
+    // Elven Boots: "you can only spend 1 provision to move through forests."
+    const cost = tile.terrain === "forest" && hasElvenBoots(resources) ? 1 : travelCost(tile.terrain);
+    onUpdateResources(payTravelCost(resources, cost));
+    onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
     setShowMap(false);
     setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected
   }
@@ -164,17 +177,25 @@ export function WorldScreen({
   const inspectedCoord = selectedHex ?? world.player;
   const inspectedTile: HexTile | undefined = world.tiles[hexKey(inspectedCoord)];
   const isInspectingCurrentTile = inspectedCoord.q === world.player.q && inspectedCoord.r === world.player.r;
+  const inspectedNoAffinity = !!inspectedTile && !hasAffinity(character.race.name, inspectedTile.location);
 
   /** Clicking a passable, in-range neighbor travels immediately; anything else (out of range,
-   * impassable, or the player's own tile) just selects it for HexInspector to describe. */
+   * impassable, no Affinity, or the player's own tile) just selects it for HexInspector to
+   * describe. */
   function handleHexClick(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
     const isNeighbor = neighborCoords.some((n) => n.q === coord.q && n.r === coord.r);
-    if (tile && isNeighbor && !isImpassable(tile.terrain, tile.location)) {
+    if (tile && isNeighbor && canTravelTo(tile)) {
       handleTravel(coord);
     } else {
       setSelectedHex(coord);
     }
+  }
+
+  function handleHireBoat() {
+    if (!canHireBoat(resources)) return;
+    onUpdateResources(hireBoat(resources));
+    onUpdateWorld(hexReducer(world, { type: "HIRE_BOAT" }));
   }
 
   // Computed unconditionally (mirroring DungeonMap's own useMemo-before-early-return shape) since
@@ -290,8 +311,11 @@ export function WorldScreen({
         hasDungeon={canEnterDungeon}
         dungeonGateCopy={dungeonGateCopy}
         dungeonHistory={dungeonHistory}
+        culture={culture}
+        showHireBoat={besideWater}
         onUpdateResources={onUpdateResources}
         onEnterDungeon={onEnterDungeon}
+        onHireBoat={handleHireBoat}
         onExploreWorld={() => setShowMap(true)}
       />
     );
@@ -380,6 +404,7 @@ export function WorldScreen({
                   dungeonStatus={dungeonInfoFor(inspectedTile).status}
                   hasRemains={dungeonInfoFor(inspectedTile).hasRemains}
                   isCurrentTile={isInspectingCurrentTile}
+                  noAffinity={inspectedNoAffinity}
                 />
               </div>
             )}
@@ -409,8 +434,9 @@ export function WorldScreen({
           )}
 
           <p className={styles.scopeNote}>
-            Click a neighboring hex to travel there. Click any other known hex to inspect it. Water
-            and Rocks can't be crossed yet -- boats are a City action for another day.
+            Click a neighboring hex to travel there. Click any other known hex to inspect it. Rocks
+            can't be crossed; Water needs a hired boat first, and only lasts until you step onto dry
+            land again.
           </p>
         </div>
 
