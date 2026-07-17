@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { DicePool } from "../../components/DicePool/DicePool.tsx";
-import { Graveyard } from "../../components/Graveyard/Graveyard.tsx";
+import { RecordsPanel } from "../../components/RecordsPanel/RecordsPanel.tsx";
 import {
   computeSpellRequirements,
   computeTotalHp,
@@ -9,6 +9,7 @@ import {
   rollSpell,
 } from "../../../engine/character.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
+import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import { SPELL_TABLE } from "../../../data/spells.ts";
 import type { ClassDef, CreatedCharacter, RaceDef, SpellDef } from "../../../data/types.ts";
 import { revealDelay } from "../../rollTiming.ts";
@@ -41,9 +42,12 @@ const initialSpellRoll: SpellRollState = { values: [], rollToken: 0, entries: nu
 export interface CharacterCreationScreenProps {
   /** The character heads to Town next, not straight into a dungeon -- see App.tsx's screen state. */
   onCharacterCreated: (character: CreatedCharacter) => void;
+  /** Every dungeon any character has touched -- shown here read-only, alongside the Graveyard, via
+   * RecordsPanel's tab switcher. */
+  dungeonHistory: PendingDungeon[];
 }
 
-export function CharacterCreationScreen({ onCharacterCreated }: CharacterCreationScreenProps) {
+export function CharacterCreationScreen({ onCharacterCreated, dungeonHistory }: CharacterCreationScreenProps) {
   const [name, setName] = useState("");
   const [race, setRace] = useState<RollState<RaceDef>>(() => initialRoll(2));
   const [cls, setCls] = useState<RollState<ClassDef>>(() => initialRoll(2));
@@ -334,7 +338,7 @@ export function CharacterCreationScreen({ onCharacterCreated }: CharacterCreatio
         </div>
       </main>
 
-      <Graveyard entries={graveyard} />
+      <RecordsPanel graveyardEntries={graveyard} dungeons={dungeonHistory} />
 
       <footer className={styles.credit}>
         <p>NOTEQUEST · CHARACTER CREATION</p>

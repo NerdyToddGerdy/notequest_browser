@@ -460,6 +460,8 @@ export function DungeonScreen({
               spellUses={state.spellUses}
               canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
               onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}
+              monsterKills={state.monsterKills}
+              killsByName={state.killsByName}
             />
 
             {!state.alive && state.deathCause === "combat" && (

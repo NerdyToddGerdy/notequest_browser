@@ -128,7 +128,7 @@ export default function App() {
   }
 
   if (!character || !resources) {
-    return <CharacterCreationScreen onCharacterCreated={handleCharacterCreated} />;
+    return <CharacterCreationScreen onCharacterCreated={handleCharacterCreated} dungeonHistory={dungeonHistory} />;
   }
 
   const activeDungeon = dungeonHistory.find((pd) => pd.id === activeRunId) ?? null;

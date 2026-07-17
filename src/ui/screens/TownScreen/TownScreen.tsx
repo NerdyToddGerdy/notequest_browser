@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
+import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import {
   buyProvision,
   buyTorch,
@@ -16,7 +17,7 @@ import {
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
-import { Graveyard } from "../../components/Graveyard/Graveyard.tsx";
+import { RecordsPanel } from "../../components/RecordsPanel/RecordsPanel.tsx";
 import styles from "./TownScreen.module.css";
 
 export interface TownScreenProps {
@@ -29,6 +30,8 @@ export interface TownScreenProps {
    * distinguishes the three cases in the copy shown alongside the button. */
   hasDungeon: boolean;
   dungeonGateCopy: string;
+  /** Every dungeon any character has touched -- shown read-only via RecordsPanel's Dungeons tab. */
+  dungeonHistory: PendingDungeon[];
   onUpdateResources: (resources: AdventurerResources) => void;
   onEnterDungeon: () => void;
   /** Toggles WorldScreen's map view back on -- this screen renders in its place while standing on
@@ -41,6 +44,7 @@ export function TownScreen({
   resources,
   hasDungeon,
   dungeonGateCopy,
+  dungeonHistory,
   onUpdateResources,
   onEnterDungeon,
   onExploreWorld,
@@ -125,7 +129,7 @@ export function TownScreen({
             </div>
           </main>
 
-          <Graveyard entries={graveyard} />
+          <RecordsPanel graveyardEntries={graveyard} dungeons={dungeonHistory} />
         </div>
 
         <aside className={styles.side}>
@@ -140,6 +144,8 @@ export function TownScreen({
             weaponName={resources.weapon?.name}
             weaponFormula={resources.weapon?.formula}
             spellUses={resources.spellUses}
+            monsterKills={resources.monsterKills}
+            killsByName={resources.killsByName}
           />
           <Equipment
             armor={resources.armor}

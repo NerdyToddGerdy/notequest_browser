@@ -253,6 +253,20 @@ export function hasUnlootedRemains(state: DungeonState): boolean {
   return state.levels.some((lvl) => lvl.segments.some((seg) => seg.remains != null));
 }
 
+/** How many fallen adventurers' bodies -- across every segment, every level -- never got
+ * recovered. `SegmentState.remains.names` already accumulates every death's name if more than one
+ * character fell in the same room (see `leaveRemains()`), so this sums list lengths rather than
+ * counting segments. */
+export function countUnlootedRemains(state: DungeonState): number {
+  let count = 0;
+  for (const lvl of state.levels) {
+    for (const seg of lvl.segments) {
+      if (seg.remains) count += seg.remains.names.length;
+    }
+  }
+  return count;
+}
+
 export function makeLevel(depth: number): LevelState {
   return {
     depth,
