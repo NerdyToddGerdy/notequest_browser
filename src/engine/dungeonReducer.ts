@@ -1953,9 +1953,6 @@ export function dungeonReducer(
       );
     }
 
-    case "RESET":
-      return createInitialDungeonState();
-
     default:
       return state;
   }

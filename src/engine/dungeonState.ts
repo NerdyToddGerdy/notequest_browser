@@ -446,5 +446,4 @@ export type DungeonAction =
       bossKills: number;
       killsByName: Record<string, number>;
       killsByAbility: Partial<Record<MonsterAbility, number>>;
-    }
-  | { type: "RESET" };
+    };
