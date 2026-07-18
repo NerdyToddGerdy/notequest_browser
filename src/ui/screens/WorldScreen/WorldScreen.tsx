@@ -11,7 +11,7 @@ import {
 import { hexKey, hexNeighbors, type HexCoord, type HexTile, type WorldState } from "../../../engine/hexState.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
 import { hasUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
-import { payTravelCost, type AdventurerResources } from "../../../engine/town.ts";
+import { castSpell, payTravelCost, type AdventurerResources } from "../../../engine/town.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { HexInspector } from "../../components/HexInspector/HexInspector.tsx";
 import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
@@ -428,9 +428,29 @@ export function WorldScreen({
             spellUses={resources.spellUses}
             monsterKills={resources.monsterKills}
             killsByName={resources.killsByName}
+            canCastOutOfCombat
+            onCastSpell={(spellRoll) => onUpdateResources(castSpell(resources, spellRoll))}
           />
         </aside>
       </div>
+
+      <footer className={styles.credit}>
+        <p>NOTEQUEST · THE WORLD</p>
+        <p className={styles.creditSub}>
+          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support
+          the original on{" "}
+          <a
+            className={styles.creditLink}
+            href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            DriveThruRPG
+          </a>
+          .
+        </p>
+        <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
+      </footer>
     </div>
   );
 }

@@ -1,5 +1,11 @@
 import type { MonsterAbility } from "../data/dungeonTables.ts";
+import { HEAL_AMOUNT } from "./combat.ts";
 import type { ArmorPiece, EquippedWeapon, HeldItem } from "./dungeonState.ts";
+
+/** Heal (1) and Light (2) are the only two Basic Spells usable outside combat -- see
+ * CharacterSheet's own CASTABLE_OUT_OF_COMBAT set, the shared source of truth for which rolls
+ * these are. */
+const CASTABLE_OUT_OF_COMBAT = new Set([1, 2]);
 
 /** A living character's current stats, carried between the dungeon and the town -- unlike
  * `CreatedCharacter`, which only ever holds the starting values rolled at creation. */
@@ -58,6 +64,26 @@ export function rest(
     hp: resources.maxHp,
     spellUses: { ...maxSpellUses },
   };
+}
+
+export function canCastSpell(resources: AdventurerResources, spellRoll: number): boolean {
+  return CASTABLE_OUT_OF_COMBAT.has(spellRoll) && (resources.spellUses[spellRoll] ?? 0) > 0;
+}
+
+/** Town/World's own equivalent of dungeonReducer.ts's CAST_SPELL case, for just Heal and Light --
+ * the only two spells CharacterSheet's "Cast" button ever offers outside a dungeon (Teleport/Cold
+ * Ray/Lightning/Fireball all need combat, which neither screen has). Mirrors that case's Heal
+ * (min(HEAL_AMOUNT, room left before maxHp)) and Light (min(1, room left before MAX_TORCHES))
+ * math exactly, since there's no DungeonState/reducer here to dispatch CAST_SPELL against. */
+export function castSpell(resources: AdventurerResources, spellRoll: number): AdventurerResources {
+  if (!canCastSpell(resources, spellRoll)) return resources;
+  const spellUses = { ...resources.spellUses, [spellRoll]: resources.spellUses[spellRoll]! - 1 };
+  if (spellRoll === 1) {
+    const healed = Math.min(HEAL_AMOUNT, resources.maxHp - resources.hp);
+    return { ...resources, hp: resources.hp + healed, spellUses };
+  }
+  const gained = Math.min(1, MAX_TORCHES - resources.torches);
+  return { ...resources, torches: resources.torches + gained, spellUses };
 }
 
 export function canBuyTorch(resources: AdventurerResources): boolean {
