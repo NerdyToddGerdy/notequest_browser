@@ -4,8 +4,10 @@ import {
   buyTorch,
   canBuyProvision,
   canBuyTorch,
+  canCastSpell,
   canFixArmor,
   canRest,
+  castSpell,
   fixArmor,
   payTravelCost,
   rest,
@@ -196,6 +198,55 @@ describe("wieldWeapon", () => {
   it("is a no-op for an out-of-range index", () => {
     const resources = makeResources({ spareWeapons: [{ name: "Dagger", formula: "1d6-1" }] });
     const next = wieldWeapon(resources, 5);
+    expect(next).toEqual(resources);
+  });
+});
+
+describe("canCastSpell / castSpell", () => {
+  it("only allows Heal (1) and Light (2), and only with uses remaining", () => {
+    expect(canCastSpell(makeResources({ spellUses: { 1: 1 } }), 1)).toBe(true);
+    expect(canCastSpell(makeResources({ spellUses: { 1: 0 } }), 1)).toBe(false);
+    expect(canCastSpell(makeResources({ spellUses: { 2: 1 } }), 2)).toBe(true);
+    // Cold Ray/Lightning/Fireball/Teleport all need combat, which neither Town nor World has.
+    expect(canCastSpell(makeResources({ spellUses: { 4: 1 } }), 4)).toBe(false);
+  });
+
+  it("Heal recovers 5 HP, capped at maxHp, and spends a use", () => {
+    const resources = makeResources({ hp: 10, maxHp: 20, spellUses: { 1: 2 } });
+    const next = castSpell(resources, 1);
+    expect(next.hp).toBe(15);
+    expect(next.spellUses).toEqual({ 1: 1 });
+  });
+
+  it("Heal is capped at maxHp, not overhealing", () => {
+    const resources = makeResources({ hp: 18, maxHp: 20, spellUses: { 1: 1 } });
+    const next = castSpell(resources, 1);
+    expect(next.hp).toBe(20);
+  });
+
+  it("Light grants 1 torch, capped at 10, and spends a use", () => {
+    const resources = makeResources({ torches: 5, spellUses: { 2: 1 } });
+    const next = castSpell(resources, 2);
+    expect(next.torches).toBe(6);
+    expect(next.spellUses).toEqual({ 2: 0 });
+  });
+
+  it("Light is capped at 10 torches, still spending the use", () => {
+    const resources = makeResources({ torches: 10, spellUses: { 2: 1 } });
+    const next = castSpell(resources, 2);
+    expect(next.torches).toBe(10);
+    expect(next.spellUses).toEqual({ 2: 0 });
+  });
+
+  it("is a no-op with no uses remaining", () => {
+    const resources = makeResources({ hp: 10, maxHp: 20, spellUses: { 1: 0 } });
+    const next = castSpell(resources, 1);
+    expect(next).toEqual(resources);
+  });
+
+  it("is a no-op for a combat-only spell", () => {
+    const resources = makeResources({ spellUses: { 5: 1 } });
+    const next = castSpell(resources, 5);
     expect(next).toEqual(resources);
   });
 });

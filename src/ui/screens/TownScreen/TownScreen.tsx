@@ -9,6 +9,7 @@ import {
   canBuyProvision,
   canBuyTorch,
   canRest,
+  castSpell,
   fixArmor,
   rest,
   sellItem,
@@ -163,6 +164,8 @@ export function TownScreen({
             spellUses={resources.spellUses}
             monsterKills={resources.monsterKills}
             killsByName={resources.killsByName}
+            canCastOutOfCombat
+            onCastSpell={(spellRoll) => onUpdateResources(castSpell(resources, spellRoll))}
           />
           <Equipment
             armor={resources.armor}
