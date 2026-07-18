@@ -180,8 +180,7 @@
   margin: 4px 0 0;
 }
 
-.rollBtn,
-.ghostBtn {
+.rollBtn {
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 0.05em;
@@ -200,30 +199,12 @@
 .rollBtn:hover:not(:disabled) {
   background: linear-gradient(180deg, #4a3822, #2c2013);
 }
-.rollBtn:active:not(:disabled),
-.ghostBtn:active:not(:disabled) {
+.rollBtn:active:not(:disabled) {
   transform: translateY(1px);
 }
-.rollBtn:focus-visible,
-.ghostBtn:focus-visible {
+.rollBtn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-}
-.ghostBtn {
-  background: transparent;
-  color: var(--ink-soft);
-  border-color: var(--parchment-3);
-  box-shadow: none;
-  font-size: 0.72rem;
-}
-.ghostBtn:hover:not(:disabled) {
-  background: rgba(42, 32, 22, 0.06);
-  box-shadow: none;
-  color: var(--ink);
-}
-.ghostBtn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .side {
