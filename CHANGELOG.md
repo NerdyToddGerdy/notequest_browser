@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-07-18
+
+### Fixed
+
+- The World map's own view had no footer (credit line, version number)
+  at all, unlike every other screen.
+- Heal and Light could only be cast from a dungeon's "Cast" button --
+  Town and the World map had no way to cast either, despite both being
+  documented as usable anytime.
+- A dungeon already beaten by defeating its Boss could still be entered
+  via "Start a New Dungeon" mid-fight, letting a losing combat be
+  abandoned consequence-free -- it also reset the character's real
+  HP/kills/spells to hardcoded defaults on every use, combat or not.
+  The button is removed entirely: a hex's dungeon is meant to be a
+  fixed, persistent place, not something to re-roll on a whim.
+
 ## [2.2.0] - 2026-07-17
 
 ### Added
