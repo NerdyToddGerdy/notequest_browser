@@ -29,7 +29,7 @@ export default function App() {
   const [character, setCharacter] = useState<CreatedCharacter | null>(initialSession.character);
   const [resources, setResources] = useState<AdventurerResources | null>(initialSession.resources);
   const [screen, setScreen] = useState<Screen>("world");
-  /** This character's own paused dungeon, if any -- looked up in pendingDungeons below. */
+  /** This character's own paused dungeon, if any -- looked up in dungeonHistory below. */
   const [activeRunId, setActiveRunId] = useState<string | null>(initialSession.activeRunId);
   /** Which dungeon World's "Enter Dungeon" sent the player into -- their own active one, an
    * abandoned one they picked up, or null for a fresh roll. Read once when DungeonScreen mounts. */
