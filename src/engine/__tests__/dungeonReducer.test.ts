@@ -3007,15 +3007,3 @@ describe("countUnlootedRemains", () => {
     expect(countUnlootedRemains(next)).toBe(1);
   });
 });
-
-describe("RESET", () => {
-  it("returns to a completely fresh state", () => {
-    const state: DungeonState = {
-      ...stateWithLevel(makeLevel(1)),
-      selectedSegId: 3,
-      dungeonName: "The Prison",
-    };
-    const next = dungeonReducer(state, { type: "RESET" });
-    expect(next).toEqual(createInitialDungeonState());
-  });
-});

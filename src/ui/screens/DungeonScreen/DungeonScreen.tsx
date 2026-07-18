@@ -58,12 +58,8 @@ export interface DungeonScreenProps {
   onNewAdventurer: () => void;
   /** A voluntary retreat, alive -- back to Town with this run's current resources and map saved. */
   onReturnToTown: (runId: string, dungeon: DungeonState) => void;
-  /** Fires whenever this run ends (death, retreat, or "Start a New Dungeon") so it can be resumed later if unbeaten. */
+  /** Fires whenever this run ends (death, retreat, or beating the Final Room) so it can be resumed later if unbeaten. */
   onLeaveDungeon: (runId: string, dungeon: DungeonState, characterName: string) => void;
-  /** Fires whenever "Start a New Dungeon" mints a fresh runId mid-screen -- externalRunId only
-   * covers the id DungeonScreen is seeded with at mount, so World needs this separate signal to
-   * re-tie its hex to whichever dungeon is actually being explored now. No-op for a Town entry. */
-  onRunIdChanged?: (newRunId: string) => void;
 }
 
 export function DungeonScreen({
@@ -76,9 +72,8 @@ export function DungeonScreen({
   onNewAdventurer,
   onReturnToTown,
   onLeaveDungeon,
-  onRunIdChanged,
 }: DungeonScreenProps) {
-  const [runId, setRunId] = useState(
+  const [runId] = useState(
     () => activeDungeon?.id ?? resumeDungeon?.id ?? externalRunId ?? crypto.randomUUID(),
   );
   const [state, dispatch] = useReducer(reduceDungeon, undefined, () => {
@@ -248,16 +243,6 @@ export function DungeonScreen({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function handleStartNewDungeon() {
-    if (hasDungeon) {
-      onLeaveDungeon(runId, state, character.name);
-    }
-    const newRunId = crypto.randomUUID();
-    setRunId(newRunId);
-    onRunIdChanged?.(newRunId);
-    dispatch({ type: "RESET" });
-  }
 
   function handleRollDungeon() {
     if (rollingDungeon) return;
@@ -497,23 +482,14 @@ export function DungeonScreen({
                 <p className={styles.dungeonEyebrow}>Level {state.activeLevel + 1}</p>
                 <h2 className={styles.dungeonName}>{state.dungeonName}</h2>
                 <p className={styles.dungeonEntrance}>{state.entranceFlavor}</p>
-                {state.alive && (
+                {state.alive && !state.combat && (
                   <div className={styles.headerActions}>
-                    {!state.combat && (
-                      <button
-                        className={styles.ghostBtn}
-                        type="button"
-                        onClick={() => setConfirmingRetreat(true)}
-                      >
-                        Retreat to Town
-                      </button>
-                    )}
                     <button
                       className={styles.ghostBtn}
                       type="button"
-                      onClick={handleStartNewDungeon}
+                      onClick={() => setConfirmingRetreat(true)}
                     >
-                      Start a New Dungeon
+                      Retreat to Town
                     </button>
                   </div>
                 )}

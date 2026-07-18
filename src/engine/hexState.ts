@@ -91,10 +91,10 @@ export function revealNeighborsInPlace(
   }
 }
 
-/** Immutably ties a `PendingDungeon` to the hex at `coord` -- App.tsx's two call sites are a hex's
- * first-ever "Enter Dungeon" and "Start a New Dungeon" re-tying the hex to whatever gets rolled
- * next (see CLAUDE.md's per-hex dungeon persistence note). A no-op if the hex isn't known yet,
- * which shouldn't happen in practice -- both call sites only ever run while standing on one. */
+/** Immutably ties a `PendingDungeon` to the hex at `coord` -- called from App.tsx the moment a
+ * hex's dungeon is rolled for the very first time (see CLAUDE.md's per-hex dungeon persistence
+ * note). A no-op if the hex isn't known yet, which shouldn't happen in practice -- this only ever
+ * runs while standing on one. */
 export function withDungeonRunId(world: WorldState, coord: HexCoord, runId: string): WorldState {
   const key = hexKey(coord);
   const tile = world.tiles[key];

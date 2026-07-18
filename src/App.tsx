@@ -125,8 +125,8 @@ export default function App() {
     setScreen("world");
   }
 
-  // Called whenever a dungeon run ends (death, a voluntary retreat, "Start a New Dungeon", or
-  // beating the Final Room), with whatever the dungeon looked like at that moment. Only a run
+  // Called whenever a dungeon run ends (death, a voluntary retreat, or beating the Final Room),
+  // with whatever the dungeon looked like at that moment. Only a run
   // that never went anywhere is dropped; everything else is kept (or re-saved, if it was already
   // a resumed run) -- unbeaten ones so a later character can pick up where this one left off,
   // beaten ones as a historical record shown in Town (see PendingDungeon's doc comment).
@@ -207,14 +207,6 @@ export default function App() {
       onNewAdventurer={handleNewAdventurer}
       onReturnToTown={handleReturnToTown}
       onLeaveDungeon={handleLeaveDungeon}
-      onRunIdChanged={(newRunId) => {
-        // "Start a New Dungeon" mid-run mints its own fresh id, bypassing externalRunId entirely
-        // (that prop is only consulted once, at mount) -- re-tie the hex the player is standing on
-        // to it, same as a first-ever "Enter Dungeon" does, so the abandoned dungeon doesn't stay
-        // the one "on the map" once a different one gets explored (and beaten) in its place.
-        if (!world) return;
-        setWorld(withDungeonRunId(world, world.player, newRunId));
-      }}
     />
   );
 }
