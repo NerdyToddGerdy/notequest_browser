@@ -1,9 +1,12 @@
 import { produce } from "immer";
-import { isImpassable } from "../data/hexTables.ts";
+import { CITY_OR_FORTRESS, isImpassable } from "../data/hexTables.ts";
+import { hasAffinity } from "../data/affinity.ts";
 import { hexKey, hexNeighbors, revealNeighborsInPlace, type HexCoord, type WorldState } from "./hexState.ts";
 import type { RNG } from "./rng.ts";
 
-export type HexAction = { type: "MOVE"; to: HexCoord };
+export type HexAction =
+  | { type: "MOVE"; to: HexCoord; raceName: string }
+  | { type: "HIRE_BOAT" };
 
 /** Not an extension of `dungeonReducer.ts` -- a different persisted lifetime (one map that
  * outlives every dungeon run, vs. one DungeonState per run), a different action vocabulary, and no
@@ -18,11 +21,28 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
       const isNeighbor = hexNeighbors(state.player).some((n) => hexKey(n) === hexKey(action.to));
       if (!isNeighbor) return state;
       const targetTile = state.tiles[hexKey(action.to)];
-      if (!targetTile || isImpassable(targetTile.terrain, targetTile.location)) return state;
+      if (!targetTile) return state;
+      if (isImpassable(targetTile.terrain, targetTile.location, state.hasBoat)) return state;
+      if (!hasAffinity(action.raceName, targetTile.location)) return state;
 
       return produce(state, (draft) => {
         draft.player = action.to;
+        // "Once you enter non-water terrain you leave the boat" -- fires every landing, harmless
+        // no-op if hasBoat was already false.
+        if (targetTile.terrain !== "water") draft.hasBoat = false;
         revealNeighborsInPlace(draft.tiles, action.to, draft.climate, rng);
+      });
+    }
+    case "HIRE_BOAT": {
+      // "If you are in a city or fortress beside a water terrain" -- the reducer is the actual
+      // authority here (same precedent as dungeonReducer.ts's door-open guards), not just the UI
+      // deciding whether to show the button.
+      const currentTile = state.tiles[hexKey(state.player)];
+      if (!currentTile?.location || !CITY_OR_FORTRESS.has(currentTile.location)) return state;
+      const besideWater = hexNeighbors(state.player).some((n) => state.tiles[hexKey(n)]?.terrain === "water");
+      if (!besideWater) return state;
+      return produce(state, (draft) => {
+        draft.hasBoat = true;
       });
     }
     default:

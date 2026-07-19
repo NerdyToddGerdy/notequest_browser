@@ -70,6 +70,7 @@ describe("withDungeonRunId", () => {
       home: { q: 0, r: 0 },
       player: { q: 0, r: 0 },
       tiles: { "0,0": { terrain: "plain", location: "humanCity" } },
+      hasBoat: false,
     };
     const next = withDungeonRunId(world, { q: 0, r: 0 }, "run-1");
     expect(next.tiles["0,0"]).toEqual({ terrain: "plain", location: "humanCity", dungeonRunId: "run-1" });
@@ -82,6 +83,7 @@ describe("withDungeonRunId", () => {
       home: { q: 0, r: 0 },
       player: { q: 0, r: 0 },
       tiles: { "0,0": { terrain: "plain", location: "humanCity" } },
+      hasBoat: false,
     };
     const next = withDungeonRunId(world, { q: 5, r: 5 }, "run-1");
     expect(next).toBe(world);
