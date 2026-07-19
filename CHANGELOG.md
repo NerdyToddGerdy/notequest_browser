@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-07-19
+
+### Added
+
+- Race Affinity: a race with no Affinity for a City/Fortress's culture
+  can't travel onto that hex at all -- explained on the Hex Inspector
+  ("You are not welcome here.").
+- One bonus City Action per culture (Human/Dwarf/Elf/Gnome/Goblin/Orc)
+  on top of Rest/Buy Torches/Buy Provisions -- Elven Boots (real: forest
+  travel drops to 1 provision) and Learn a Spell/Buy Orc Gladio are
+  fully mechanical; Remove Curse/Buy Lamp/Verdosa Potion resolve as
+  flavor or a straightforward heal check, since this app has no
+  Curse/hand-economy/day-passage systems for them to hook into.
+- Hire Boat: in a City/Fortress next to water, spend 1 coin to cross
+  water normally until stepping onto dry land again.
+
 ## [2.2.1] - 2026-07-18
 
 ### Fixed
