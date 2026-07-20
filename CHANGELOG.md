@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-07-20
+
+### Added
+
+- README explaining what this project is, that it's an unofficial
+  fan-made adaptation of the NoteQuest tabletop game/PDF, and how to
+  run it locally.
+
 ## [2.8.0] - 2026-07-20
 
 ### Added
