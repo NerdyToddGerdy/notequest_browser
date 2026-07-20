@@ -126,6 +126,18 @@
   margin-bottom: 20px;
 }
 
+/* The city's own generated name (issue #49) now takes .sheetLabel's spot as the prominent
+   heading -- "Town Square" demotes to a small eyebrow above it, mirroring DungeonScreen's own
+   .dungeonEyebrow/.dungeonName pairing for the dungeon's own generated name. */
+.cityEyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 4px;
+}
+
 .trackTitle {
   font-family: var(--font-display);
   font-weight: 400;

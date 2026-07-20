@@ -4,6 +4,7 @@ import {
   findAskedDungeonHex,
   isBannedHex,
   revealNeighborsInPlace,
+  rollCityName,
   withBannedHex,
   withDungeonMarked,
   withDungeonRunId,
@@ -15,9 +16,11 @@ import { sequenceDie } from "../../test/mulberry32.ts";
 // HOT_TERRAIN_TABLE's "plain" column: 1->water, 2->mountain, 3->forest, 4/5/6->plain.
 // LOCATION_TABLE's "plain" column: 1..6 -> orcCity, goblinCity, ruins, humanCity, humanCity, humanFortress.
 // Neighbor order (HEX_DIRECTIONS) from {0,0}: {1,0} {1,-1} {0,-1} {-1,0} {-1,1} {0,1}.
+// CITY_NAME_PREFIX/SUFFIX's human column: 1 -> "Iron"/"hold".
 const HOME_REVEAL_ROLLS = [
   2, 3, // {1,0}: terrain mountain, no location
   6, 6, 4, // {1,-1}: terrain plain, location check succeeds, LOCATION_TABLE[4].plain -> humanCity
+  1, 1, // {1,-1}'s name: "Iron" + "hold" -> "Ironhold"
   1, 2, // {0,-1}: terrain water, no location
   4, 3, // {-1,0}: terrain plain, no location
   4, 3, // {-1,1}: terrain plain, no location
@@ -33,25 +36,50 @@ describe("createInitialWorldState", () => {
     expect(world.player).toEqual({ q: 0, r: 0 });
     expect(Object.keys(world.tiles)).toHaveLength(7);
 
-    expect(world.tiles["0,0"]).toEqual({ terrain: "plain", location: "humanCity" });
+    // Home's own name is fixed ("Haven"), not rolled -- see createInitialWorldState's doc comment.
+    expect(world.tiles["0,0"]).toEqual({ terrain: "plain", location: "humanCity", name: "Haven" });
     expect(world.tiles["1,0"]).toEqual({ terrain: "mountain", location: null });
-    expect(world.tiles["1,-1"]).toEqual({ terrain: "plain", location: "humanCity" });
+    expect(world.tiles["1,-1"]).toEqual({ terrain: "plain", location: "humanCity", name: "Ironhold" });
     expect(world.tiles["0,-1"]).toEqual({ terrain: "water", location: null });
+  });
+});
+
+describe("rollCityName", () => {
+  it("combines a prefix and suffix roll into one compound name, per culture", () => {
+    expect(rollCityName("human", sequenceDie([1, 1]))).toBe("Ironhold");
+    expect(rollCityName("dwarven", sequenceDie([1, 1]))).toBe("Deepforge");
+    expect(rollCityName("orc", sequenceDie([6, 6]))).toBe("Blackridge");
+  });
+
+  it("rolls independently for each of the six cultures", () => {
+    const cultures = ["human", "dwarven", "elven", "gnome", "goblin", "orc"] as const;
+    for (const culture of cultures) {
+      expect(rollCityName(culture, sequenceDie([3, 4]))).toMatch(/^[A-Z]/);
+    }
   });
 });
 
 describe("revealNeighborsInPlace", () => {
   it("rolls a Location only when the check die lands on 6", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([4, 6, 5]));
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([4, 6, 5, 1, 1]));
     // {1,0}: terrain roll 4 -> plain, location check 6 -> location roll 5 -> LOCATION_TABLE[5].plain
-    expect(tiles["1,0"]).toEqual({ terrain: "plain", location: "humanCity" });
+    // -> humanCity; name rolls 1, 1 -> "Iron" + "hold" -> "Ironhold".
+    expect(tiles["1,0"]).toEqual({ terrain: "plain", location: "humanCity", name: "Ironhold" });
   });
 
   it("doesn't roll a Location when the check die isn't a 6", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
     revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([2, 3]));
     expect(tiles["1,0"]).toEqual({ terrain: "mountain", location: null });
+  });
+
+  it("doesn't roll a name for a location with no culture (e.g. Ruins)", () => {
+    const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
+    // {1,0}: terrain roll 4 -> plain, location check 6 -> location roll 3 -> LOCATION_TABLE[3].plain
+    // -> "ruins" (no CityCulture) -- no extra dice consumed for a name.
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([4, 6, 3]));
+    expect(tiles["1,0"]).toEqual({ terrain: "plain", location: "ruins" });
   });
 
   it("never overwrites an already-revealed tile, even one shared by two expansions", () => {

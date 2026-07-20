@@ -197,7 +197,11 @@ export function WorldScreen({
     (currentTile?.location && CULTURE_BY_LOCATION[currentTile.location]) || null;
   const besideWater = neighborCoords.some((n) => world.tiles[hexKey(n)]?.terrain === "water");
   const isFortress = isFortressLocation(currentTile?.location ?? null);
-  const currentPlaceLabel = currentTile?.location ? LOCATION_LABEL[currentTile.location] : "the wilds";
+  // Prefers the hex's own generated name (issue #49, City/Fortress only -- see HexTile.name) over
+  // the generic type label wherever one exists; falls back to the type label for a Ruins/other
+  // location with no name of its own, or "the wilds" for a bare plain hex with no location at all.
+  const currentPlaceLabel =
+    currentTile?.name ?? (currentTile?.location ? LOCATION_LABEL[currentTile.location] : "the wilds");
   /** "If you don't already have a dungeon in any adjacent hex" -- gates the Ask button itself
    * (always rendered by TownScreen, disabled once true, same "visible but disabled" precedent as
    * every other City Action here) rather than the reducer alone, so the UI can explain why. */
@@ -389,6 +393,7 @@ export function WorldScreen({
         dungeonGateCopy={dungeonGateCopy}
         dungeonHistory={dungeonHistory}
         culture={culture}
+        cityName={currentPlaceLabel}
         showHireBoat={besideWater}
         askedDungeonKnown={askedDungeonKnown}
         isFortress={isFortress}
@@ -431,7 +436,7 @@ export function WorldScreen({
                 const tile = world.tiles[hexKey(coord)]!;
                 const isPlayer = coord.q === world.player.q && coord.r === world.player.r;
                 const isSelected = !isPlayer && selectedHex != null && coord.q === selectedHex.q && coord.r === selectedHex.r;
-                const label = tile.location ? LOCATION_LABEL[tile.location] : "";
+                const label = tile.name ?? (tile.location ? LOCATION_LABEL[tile.location] : "");
                 const { status: dungeonStatus, hasRemains } = dungeonInfoFor(tile);
                 return (
                   <g key={hexKey(coord)} className={styles.clickableHex} onClick={() => handleHexClick(coord)}>
@@ -490,6 +495,7 @@ export function WorldScreen({
                 <HexInspector
                   terrain={inspectedTile.terrain}
                   locationLabel={inspectedTile.location ? LOCATION_LABEL[inspectedTile.location] : ""}
+                  cityName={inspectedTile.name}
                   dungeonStatus={dungeonInfoFor(inspectedTile).status}
                   hasRemains={dungeonInfoFor(inspectedTile).hasRemains}
                   isCurrentTile={isInspectingCurrentTile}

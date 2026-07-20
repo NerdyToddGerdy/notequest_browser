@@ -11,6 +11,8 @@ import {
   type LocationKind,
   type Terrain,
 } from "../data/hexTables.ts";
+import { CULTURE_BY_LOCATION, type CityCulture } from "../data/affinity.ts";
+import { CITY_NAME_PREFIX, CITY_NAME_SUFFIX } from "../data/cityNames.ts";
 
 export interface HexCoord {
   q: number;
@@ -49,6 +51,13 @@ export interface HexTile {
    * as it does for a City/Fortress/Ruins hex -- this flag only ever widens *which* hexes can offer
    * that button, it never itself mints a run. */
   dungeonMarked?: boolean;
+  /** A generated proper name (issue #49), set once -- alongside `terrain`/`location` -- the moment
+   * a City/Fortress location is first rolled, so it's stable for that hex forever. Only ever set
+   * for a City/Fortress `location` (see `rollCityName()`); everything else (Ruins, water, "It was
+   * nothing...," etc.) has no identity of its own to name. Optional so a session persisted before
+   * this field existed still loads -- an old city with no name falls back to its generic
+   * `LOCATION_LABEL` wherever this is displayed. */
+  name?: string;
 }
 
 export interface WorldState {
@@ -83,13 +92,24 @@ function nextTerrain(current: Terrain, climate: Climate, roll: number): Terrain 
   return COLD_TERRAIN_TABLE[roll]![current as ColdTerrain];
 }
 
+/** City/Fortress name generator (issue #49) -- two 1d6 rolls (prefix, suffix) against the given
+ * culture's `CITY_NAME_PREFIX`/`CITY_NAME_SUFFIX` tables (`data/cityNames.ts`), joined into one
+ * compound word (e.g. "Iron" + "hold" -> "Ironhold"). Not from the rulebook, mirroring
+ * `dungeonTypes.ts`'s own "second part"/"third part" flavor-name combination. */
+export function rollCityName(culture: CityCulture, rng: RNG): string {
+  const prefix = CITY_NAME_PREFIX[culture][rollDie(rng)]!;
+  const suffix = CITY_NAME_SUFFIX[culture][rollDie(rng)]!;
+  return `${prefix}${suffix}`;
+}
+
 /**
  * "When entering a hex, first determine the neighboring hexes. Roll one die in the Terrain table
  * for each hex. After that, roll one more die for each hex to see if there is a location. If it
  * lands on 6, there is a location -- roll on the Location table." Mutates `tiles` in place (works
  * whether it's a plain object, as in `createInitialWorldState`, or an Immer `Draft`, as in
  * `hexReducer`'s `produce()`) and never overwrites an already-revealed tile, so a hex shared by
- * two revealed neighbors only ever gets rolled once.
+ * two revealed neighbors only ever gets rolled once. A City/Fortress location also gets a
+ * `rollCityName()` name in the same pass, right where its `location` itself is decided.
  */
 export function revealNeighborsInPlace(
   tiles: Record<string, HexTile>,
@@ -105,7 +125,8 @@ export function revealNeighborsInPlace(
     const terrain = nextTerrain(parent.terrain, climate, rollDie(rng));
     const hasLocation = rollDie(rng) === 6;
     const location = hasLocation ? LOCATION_TABLE[rollDie(rng)]![terrain as Land] : null;
-    tiles[key] = { terrain, location };
+    const culture = location ? CULTURE_BY_LOCATION[location] : undefined;
+    tiles[key] = culture ? { terrain, location, name: rollCityName(culture, rng) } : { terrain, location };
   }
 }
 
@@ -167,12 +188,15 @@ export function withBannedHex(world: WorldState, coord: HexCoord): WorldState {
 
 /** The player starts on a human city on a plain (fixed, not rolled -- "Choose a hex to start with
  * ... it will be a human city on a plain"), with its 6 neighbors already revealed so there's
- * somewhere to go without a wasted first move. */
+ * somewhere to go without a wasted first move. Its name ("Haven") is likewise fixed rather than
+ * rolled via `rollCityName()`, same "fixed, not rolled" precedent as its terrain/location -- rolling
+ * it would also shift every existing `rng` fixture's die sequence by two for no rules-driven reason
+ * (the rulebook doesn't roll a name for the starting hex either). */
 export function createInitialWorldState(rng: RNG = Math.random): WorldState {
   const home: HexCoord = { q: 0, r: 0 };
   const climate: Climate = "hot";
   const tiles: Record<string, HexTile> = {
-    [hexKey(home)]: { terrain: "plain", location: "humanCity" },
+    [hexKey(home)]: { terrain: "plain", location: "humanCity", name: "Haven" },
   };
   revealNeighborsInPlace(tiles, home, climate, rng);
   return { climate, home, player: home, tiles, hasBoat: false, bannedHexes: [] };

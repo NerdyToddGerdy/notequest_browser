@@ -6,6 +6,7 @@ import { sequenceDie } from "../../test/mulberry32.ts";
 const HOME_REVEAL_ROLLS = [
   2, 3, // {1,0}: mountain, no location
   6, 6, 4, // {1,-1}: plain, humanCity
+  1, 1, // {1,-1}'s name: "Iron" + "hold" -> "Ironhold"
   1, 2, // {0,-1}: water, no location
   4, 3, // {-1,0}: plain, no location
   4, 3, // {-1,1}: plain, no location

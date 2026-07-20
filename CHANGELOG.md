@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-07-20
+
+### Added
+
+- Cities and Fortresses now have their own generated names (#49),
+  e.g. "Ironhold" instead of an indistinguishable "Human City" --
+  shown on the World map, in HexInspector, and as Town Square's own
+  heading. Your home city is always "Haven."
+
 ## [2.8.1] - 2026-07-20
 
 ### Added

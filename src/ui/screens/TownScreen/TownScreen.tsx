@@ -132,6 +132,12 @@ export interface TownScreenProps {
   /** Which culture (if any) the current City/Fortress hex belongs to -- `null` for Ruins, which
    * has no City Actions at all (see CLAUDE.md's Town Square unification note). */
   culture: CityCulture | null;
+  /** The current hex's own generated name (issue #49) -- WorldScreen's own `currentPlaceLabel`,
+   * already preferring `HexTile.name` over the generic type label. Breaks this screen's previous
+   * "any City/Fortress is interchangeable" framing (see the culture prop above): every city now
+   * has a stable identity of its own, surfaced in the header in place of the old universal "Town
+   * Square" heading. */
+  cityName: string;
   /** True only when the current hex is a City/Fortress adjacent to water -- `WorldScreen`'s own
    * `besideWater` check, so this screen stays hex-agnostic about *which* hex, same as `hasDungeon`
    * above. Purely structural (can this hex offer the action at all); affordability is `TownScreen`'s
@@ -170,6 +176,7 @@ export function TownScreen({
   dungeonGateCopy,
   dungeonHistory,
   culture,
+  cityName,
   showHireBoat,
   askedDungeonKnown,
   isFortress,
@@ -275,7 +282,8 @@ export function TownScreen({
                 <p className={styles.tagline}>The town, between one dungeon and the next.</p>
               </header>
 
-              <span className={styles.sheetLabel}>Town Square</span>
+              <p className={styles.cityEyebrow}>Town Square</p>
+              <span className={styles.sheetLabel}>{cityName}</span>
 
               {arena ? (
                 <section className={styles.actions}>

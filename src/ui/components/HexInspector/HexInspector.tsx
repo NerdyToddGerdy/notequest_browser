@@ -5,6 +5,11 @@ export interface HexInspectorProps {
   terrain: Terrain;
   /** Already resolved via WorldScreen's LOCATION_LABEL, empty string if the hex has no location. */
   locationLabel: string;
+  /** The hex's own generated name (issue #49, `HexTile.name`) -- City/Fortress only, undefined for
+   * everything else (Ruins, a bare terrain hex, or a pre-#49 persisted hex with none rolled). Takes
+   * over as the panel's headline in place of `locationLabel`/`TERRAIN_LABEL`, which still show below
+   * in the Location/Terrain rows regardless. */
+  cityName?: string;
   dungeonStatus: "none" | "found" | "unfinished" | "beaten";
   hasRemains: boolean;
   isCurrentTile: boolean;
@@ -43,6 +48,7 @@ const DUNGEON_STATUS_COPY: Record<HexInspectorProps["dungeonStatus"], string> = 
 export function HexInspector({
   terrain,
   locationLabel,
+  cityName,
   dungeonStatus,
   hasRemains,
   isCurrentTile,
@@ -51,7 +57,7 @@ export function HexInspector({
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
-      <p className={styles.title}>{locationLabel || TERRAIN_LABEL[terrain]}</p>
+      <p className={styles.title}>{cityName || locationLabel || TERRAIN_LABEL[terrain]}</p>
       {isCurrentTile && <p className={styles.flavor}>You are here.</p>}
 
       <div className={styles.row}>
