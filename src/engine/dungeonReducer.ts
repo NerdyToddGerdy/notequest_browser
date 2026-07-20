@@ -408,6 +408,11 @@ function attackBonus(
   if (draft.className === "Grave Digger" && monster.abilities.includes("undead")) {
     bonus += 2;
   }
+  // Ogre (New Races, issue #22): "Deals +2 damage." Unconditional, unlike Grave Digger's
+  // Undead-only bonus above -- the rulebook doesn't restrict it to any monster type or weapon.
+  if (draft.raceName === "Ogre") {
+    bonus += 2;
+  }
   if (isHorn) return bonus;
   for (const effect of equippedEffects(draft)) {
     if (effect.kind === "weaponDamageBonus") {

@@ -65,4 +65,20 @@ describe("hasAffinity", () => {
     expect(hasAffinity("Some Future Race", "humanCity")).toBe(true);
     expect(hasAffinity("Some Future Race", "orcCity")).toBe(false);
   });
+
+  it("Orc and Ogre (New Races, issue #22) are both banned everywhere but Goblin/Orc cities, split from the rulebook's one combined row", () => {
+    for (const raceName of ["Orc", "Ogre"]) {
+      expect(hasAffinity(raceName, "humanCity")).toBe(false);
+      expect(hasAffinity(raceName, "dwarvenCity")).toBe(false);
+      expect(hasAffinity(raceName, "elvenCity")).toBe(false);
+      expect(hasAffinity(raceName, "gnomeCity")).toBe(false);
+      expect(hasAffinity(raceName, "goblinCity")).toBe(true);
+      expect(hasAffinity(raceName, "orcCity")).toBe(true);
+    }
+  });
+
+  it("a New Races addition with no explicit rulebook row (e.g. Centaur) falls to the default row, not a ban", () => {
+    expect(hasAffinity("Centaur", "humanCity")).toBe(true);
+    expect(hasAffinity("Centaur", "orcCity")).toBe(false);
+  });
 });

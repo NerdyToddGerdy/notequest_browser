@@ -2,10 +2,12 @@ import { useMemo, useRef, useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import {
   CITY_OR_FORTRESS,
+  hasWaterWalk,
   isFortressLocation,
   isImpassable,
   locationHasDungeon,
   travelCost,
+  travelCostMultiplier,
   type LocationKind,
   type Terrain,
 } from "../../../data/hexTables.ts";
@@ -210,13 +212,13 @@ export function WorldScreen({
     return !!t?.dungeonRunId || !!t?.dungeonMarked;
   });
 
-  /** A hex is travelable if it's passable (respecting a hired boat on water), the character's race
-   * has Affinity for whatever City/Fortress culture is there (non-city hexes are always `true` for
-   * the latter -- see `hasAffinity()`), and it isn't a hex Thug Life has permanently banned this
-   * world from. */
+  /** A hex is travelable if it's passable (respecting a hired boat on water, or Patovsky/Sharkin's
+   * own water-walking -- see `hasWaterWalk()`), the character's race has Affinity for whatever
+   * City/Fortress culture is there (non-city hexes are always `true` for the latter -- see
+   * `hasAffinity()`), and it isn't a hex Thug Life has permanently banned this world from. */
   function canTravelTo(tile: HexTile, coord: HexCoord): boolean {
     return (
-      !isImpassable(tile.terrain, tile.location, world.hasBoat) &&
+      !isImpassable(tile.terrain, tile.location, world.hasBoat || hasWaterWalk(character.race.name)) &&
       hasAffinity(character.race.name, tile.location) &&
       !isBannedHex(world, coord)
     );
@@ -226,7 +228,10 @@ export function WorldScreen({
     const tile = world.tiles[hexKey(coord)];
     if (!tile || !canTravelTo(tile, coord)) return;
     // Elven Boots: "you can only spend 1 provision to move through forests."
-    const cost = tile.terrain === "forest" && hasElvenBoots(resources) ? 1 : travelCost(tile.terrain);
+    const baseCost = tile.terrain === "forest" && hasElvenBoots(resources) ? 1 : travelCost(tile.terrain);
+    // Pandakhan (2x)/Centaur (0.5x, rounded up so a move is never free) -- layered on top of the
+    // base cost the same way Elven Boots' forest override already is.
+    const cost = Math.max(1, Math.ceil(baseCost * travelCostMultiplier(character.race.name)));
     onUpdateResources(payTravelCost(resources, cost));
     onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
     setShowMap(false);

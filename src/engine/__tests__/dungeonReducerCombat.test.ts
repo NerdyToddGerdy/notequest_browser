@@ -1098,6 +1098,22 @@ describe("Grave Digger: +2 damage to Undead", () => {
   });
 });
 
+describe("Ogre (New Races, issue #22): +2 damage, unconditional", () => {
+  it("adds +2 damage against any monster, undead or not", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: [] });
+    const state = stateWithCombat({ raceName: "Ogre" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(15); // 3 + 2
+  });
+
+  it("a non-Ogre gets no bonus", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: [] });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(17); // just 3
+  });
+});
+
 describe("Cook: +1 coin per kill (except Undead)", () => {
   it("gains 1 coin when a non-Undead monster is killed", () => {
     const monster = makeMonster({ hp: 3, abilities: [] });

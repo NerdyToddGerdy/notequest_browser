@@ -1,5 +1,5 @@
 import { produce } from "immer";
-import { CITY_OR_FORTRESS, isImpassable } from "../data/hexTables.ts";
+import { CITY_OR_FORTRESS, hasWaterWalk, isImpassable } from "../data/hexTables.ts";
 import { hasAffinity } from "../data/affinity.ts";
 import {
   findAskedDungeonHex,
@@ -32,7 +32,11 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
       if (!isNeighbor) return state;
       const targetTile = state.tiles[hexKey(action.to)];
       if (!targetTile) return state;
-      if (isImpassable(targetTile.terrain, targetTile.location, state.hasBoat)) return state;
+      // Patovsky/Sharkin (New Races, issue #22): "You can walk in water territories" -- lifts the
+      // water restriction the same way a hired boat does.
+      if (isImpassable(targetTile.terrain, targetTile.location, state.hasBoat || hasWaterWalk(action.raceName))) {
+        return state;
+      }
       if (!hasAffinity(action.raceName, targetTile.location)) return state;
       // "You have fled (and will no longer be able to enter this city)" -- Thug Life's failed-
       // escape outcome, see WorldState.bannedHexes.

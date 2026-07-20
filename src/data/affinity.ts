@@ -21,10 +21,14 @@ export const CULTURE_BY_LOCATION: Partial<Record<LocationKind, CityCulture>> = {
 /** "Table: Affinity" (`docs/game-rules-reference.md` lines 954-976) -- whether a given race can
  * enter/trade at a given culture's City/Fortress at all. Keyed by exact `RaceDef.name` (the same
  * "no formal taxonomy, just match the string" precedent used throughout this codebase), covering
- * all 11 of this app's currently-playable races (each matches an explicit rulebook row 1:1 --
- * Catfolk -> "Cat-Person", Slimeman -> "Slimemen") plus the Goblin and "Orc/Ogre" rows, which are
- * unreachable until issue #22 (New Races) adds them as playable, included here for
- * forward-compatibility rather than left for that issue to also touch this table. */
+ * every one of this app's playable races that has its own explicit rulebook row (Catfolk ->
+ * "Cat-Person", Slimeman -> "Slimemen"). The rulebook lists Orc and Ogre as one combined "Orc/Ogre"
+ * row (they behave identically) -- split into two exact-name rows here now that issue #22 made
+ * both independently playable, rather than needing `hasAffinity()` to special-case a combined key.
+ * Every other New Races addition (Centaur, Fungoid, Samambro, Corvino, Patovsky, Pandakhan,
+ * Sharkin, Pumpkinkin, Half-Human) has no explicit row in the rulebook's own table either --
+ * they fall through to `DEFAULT_AFFINITY` below exactly like the "Other race..." catch-all row
+ * intends, so they deliberately aren't added here. */
 export const RACE_AFFINITY: Record<string, Record<CityCulture, boolean>> = {
   Human: { human: true, dwarven: true, elven: true, gnome: true, goblin: false, orc: false },
   Dwarf: { human: true, dwarven: true, elven: false, gnome: true, goblin: false, orc: false },
@@ -38,11 +42,12 @@ export const RACE_AFFINITY: Record<string, Record<CityCulture, boolean>> = {
   Slimemen: { human: true, dwarven: true, elven: true, gnome: true, goblin: true, orc: true },
   Dragonkin: { human: true, dwarven: false, elven: false, gnome: true, goblin: true, orc: true },
   Goblin: { human: true, dwarven: false, elven: false, gnome: true, goblin: true, orc: true },
-  "Orc/Ogre": { human: false, dwarven: false, elven: false, gnome: false, goblin: true, orc: true },
+  Orc: { human: false, dwarven: false, elven: false, gnome: false, goblin: true, orc: true },
+  Ogre: { human: false, dwarven: false, elven: false, gnome: false, goblin: true, orc: true },
 };
 
-/** The rulebook's "Other race..." catch-all row -- not hit by anything currently playable (every
- * race above has its own explicit row), kept for the same forward-compatibility reason. */
+/** The rulebook's "Other race..." catch-all row -- covers every New Races addition with no
+ * explicit row of its own (see the comment above). */
 const DEFAULT_AFFINITY: Record<CityCulture, boolean> = {
   human: true,
   dwarven: true,

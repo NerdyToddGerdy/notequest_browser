@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RACE_TABLE } from "../../data/races.ts";
+import { EXOTIC_RACE_TABLE, MONSTROUS_RACE_TABLE, RACE_TABLE, UNCOMMON_RACE_TABLE } from "../../data/races.ts";
 import { CLASS_TABLE } from "../../data/classes.ts";
 import { SPELL_TABLE } from "../../data/spells.ts";
 import { FIRST_NAME_TABLE, LAST_NAME_TABLE } from "../../data/names.ts";
@@ -10,6 +10,7 @@ import {
   rollClass,
   rollName,
   rollRace,
+  rollRaceFromTable,
   rollSpell,
 } from "../character.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
@@ -42,6 +43,14 @@ describe("table completeness", () => {
       }
     }
   });
+
+  it("defines a full 1d6 row for each New Races table (Uncommon/Exotic/Monstrous)", () => {
+    for (const table of [UNCOMMON_RACE_TABLE, EXOTIC_RACE_TABLE, MONSTROUS_RACE_TABLE]) {
+      for (let roll = 1; roll <= 6; roll++) {
+        expect(table[roll], `missing race for roll ${roll}`).toBeDefined();
+      }
+    }
+  });
 });
 
 describe("rollRace / rollClass / rollSpell", () => {
@@ -59,6 +68,53 @@ describe("rollRace / rollClass / rollSpell", () => {
   it("resolves a spell from a single die", () => {
     const result = rollSpell(sequenceDie([6]));
     expect(result.entry.name).toBe("Fireball");
+  });
+});
+
+describe("rollRaceFromTable (New Races, issue #22)", () => {
+  it("'core' delegates straight to rollRace's own 2d6 sum", () => {
+    const result = rollRaceFromTable("core", sequenceDie([2, 2])); // sum 4 -> Pixie
+    expect(result.dice).toEqual([2, 2]);
+    expect(result.entry.name).toBe("Pixie");
+  });
+
+  it("rolls a flat 1d6 against the Uncommon table", () => {
+    const result = rollRaceFromTable("uncommon", sequenceDie([4])); // Pumpkinkin
+    expect(result.dice).toEqual([4]);
+    expect(result.entry.name).toBe("Pumpkinkin");
+  });
+
+  it("rolls a flat 1d6 against the Exotic table", () => {
+    const result = rollRaceFromTable("exotic", sequenceDie([2])); // Samambro
+    expect(result.entry.name).toBe("Samambro");
+  });
+
+  it("rolls a flat 1d6 against the Monstrous table", () => {
+    const result = rollRaceFromTable("monstrous", sequenceDie([5])); // Ogre
+    expect(result.entry.name).toBe("Ogre");
+  });
+
+  it("reuses the Core table's own entry for a row that re-lists an existing race", () => {
+    const result = rollRaceFromTable("uncommon", sequenceDie([3])); // Slimemen
+    expect(result.entry.name).toBe("Slimemen");
+    expect(result.entry.hp).toBe(RACE_TABLE[2]!.hp);
+    expect(result.entry.ability).toBe(RACE_TABLE[2]!.ability);
+  });
+
+  it("Half-Human rerolls on the Core table and inherits its ability/spell grants", () => {
+    // 6 -> Half-Human, then Core 2d6 [3,3] (sum 6) -> Elf (1 random Basic Spell).
+    const result = rollRaceFromTable("uncommon", sequenceDie([6, 3, 3]));
+    expect(result.dice).toEqual([6, 3, 3]);
+    expect(result.entry.name).toBe("Half-Human"); // keeps its own identity/HP
+    expect(result.entry.hp).toBe(20);
+    expect(result.entry.randomSpells).toBe(1); // inherited from Elf
+    expect(result.entry.ability).toContain("Elf");
+  });
+
+  it("Half-Human can inherit a fixedSpell grant too", () => {
+    // 6 -> Half-Human, then Core 2d6 [1,2] (sum 3) -> Lightbugster (3 uses of Light).
+    const result = rollRaceFromTable("uncommon", sequenceDie([6, 1, 2]));
+    expect(result.entry.fixedSpell).toEqual({ spellRoll: 2, uses: 3 });
   });
 });
 

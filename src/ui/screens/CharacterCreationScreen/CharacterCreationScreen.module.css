@@ -163,6 +163,50 @@
   }
 }
 
+/* "New Races" (issue #22) table picker -- small toggle buttons above the Race track's own roll
+   button, mirroring .nameRollBtn's ghost styling with an added "active" state for whichever table
+   is currently selected. */
+.raceTableRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.raceTableBtn {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--parchment-3);
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.raceTableBtn:hover:not(:disabled) {
+  background: rgba(42, 32, 22, 0.06);
+  color: var(--ink);
+}
+.raceTableBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.raceTableBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.raceTableBtnActive {
+  composes: raceTableBtn;
+  color: var(--gold);
+  border-color: var(--gold);
+  background: rgba(184, 134, 47, 0.08);
+}
+
 .trackTitle {
   display: flex;
   align-items: center;

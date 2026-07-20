@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DUNGEON_TYPES } from "../dungeonTypes.ts";
-import { DUNGEON_TYPE_BY_TERRAIN, isFortressLocation } from "../hexTables.ts";
+import { DUNGEON_TYPE_BY_TERRAIN, hasWaterWalk, isFortressLocation, travelCostMultiplier } from "../hexTables.ts";
 import type { Terrain } from "../hexTables.ts";
 
 const ALL_TERRAINS: Terrain[] = ["plain", "mountain", "forest", "swamp", "desert", "tundra", "water", "glacier"];
@@ -39,5 +39,25 @@ describe("isFortressLocation", () => {
     expect(isFortressLocation("goblinCity")).toBe(false);
     expect(isFortressLocation("ruins")).toBe(false);
     expect(isFortressLocation(null)).toBe(false);
+  });
+});
+
+describe("hasWaterWalk (New Races, issue #22)", () => {
+  it("is true for Patovsky and Sharkin", () => {
+    expect(hasWaterWalk("Patovsky")).toBe(true);
+    expect(hasWaterWalk("Sharkin")).toBe(true);
+  });
+
+  it("is false for any other race", () => {
+    expect(hasWaterWalk("Human")).toBe(false);
+    expect(hasWaterWalk("Rinoceroid")).toBe(false);
+  });
+});
+
+describe("travelCostMultiplier (New Races, issue #22)", () => {
+  it("is 2 for Pandakhan, 0.5 for Centaur, 1 for everyone else", () => {
+    expect(travelCostMultiplier("Pandakhan")).toBe(2);
+    expect(travelCostMultiplier("Centaur")).toBe(0.5);
+    expect(travelCostMultiplier("Human")).toBe(1);
   });
 });

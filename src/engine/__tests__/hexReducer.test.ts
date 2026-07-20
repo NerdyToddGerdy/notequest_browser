@@ -39,10 +39,17 @@ describe("hexReducer MOVE", () => {
     expect(next).toBe(world);
   });
 
+  it("lets a water-walking race (Patovsky/Sharkin) cross water with no boat at all", () => {
+    const world = homeWorld();
+    const next = hexReducer(world, { type: "MOVE", to: { q: 0, r: -1 }, raceName: "Sharkin" }, sequenceDie([3, 4]));
+    expect(next.player).toEqual({ q: 0, r: -1 });
+    expect(next.hasBoat).toBe(false); // never needed one in the first place
+  });
+
   it("is a no-op onto a City/Fortress hex the race has no Affinity for", () => {
     const world = homeWorld();
-    // {1,-1} was revealed as a humanCity by the fixture above -- Orc/Ogre has no Affinity there.
-    const next = hexReducer(world, { type: "MOVE", to: { q: 1, r: -1 }, raceName: "Orc/Ogre" });
+    // {1,-1} was revealed as a humanCity by the fixture above -- Orc has no Affinity there.
+    const next = hexReducer(world, { type: "MOVE", to: { q: 1, r: -1 }, raceName: "Orc" });
     expect(next).toBe(world);
   });
 

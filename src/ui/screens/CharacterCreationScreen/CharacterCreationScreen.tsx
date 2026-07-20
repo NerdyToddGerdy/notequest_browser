@@ -6,8 +6,9 @@ import {
   computeTotalHp,
   rollClass,
   rollName,
-  rollRace,
+  rollRaceFromTable,
   rollSpell,
+  type RaceTableKey,
 } from "../../../engine/character.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
 import type { PendingDungeon } from "../../../engine/dungeonState.ts";
@@ -41,6 +42,14 @@ interface SpellRollState {
 
 const initialSpellRoll: SpellRollState = { values: [], rollToken: 0, entries: null, revealing: false };
 
+/** "New Races" (issue #22) -- Prohibited Races is deliberately not offered here, see races.ts. */
+const RACE_TABLE_LABELS: Record<RaceTableKey, string> = {
+  core: "Core",
+  uncommon: "Uncommon",
+  exotic: "Exotic",
+  monstrous: "Monstrous",
+};
+
 export interface CharacterCreationScreenProps {
   /** The character heads to Town next, not straight into a dungeon -- see App.tsx's screen state. */
   onCharacterCreated: (character: CreatedCharacter) => void;
@@ -56,6 +65,7 @@ export function CharacterCreationScreen({
   onHardReset,
 }: CharacterCreationScreenProps) {
   const [name, setName] = useState("");
+  const [raceTable, setRaceTable] = useState<RaceTableKey>("core");
   const [race, setRace] = useState<RollState<RaceDef>>(() => initialRoll(2));
   const [cls, setCls] = useState<RollState<ClassDef>>(() => initialRoll(2));
   const [spells, setSpells] = useState<SpellRollState>(initialSpellRoll);
@@ -83,12 +93,22 @@ export function CharacterCreationScreen({
 
   function handleRollRace() {
     if (race.revealing || sealed) return;
-    const { dice, entry } = rollRace();
+    const { dice, entry } = rollRaceFromTable(raceTable);
     setRace((prev) => ({ values: dice, rollToken: prev.rollToken + 1, entry: null, revealing: true }));
     window.setTimeout(() => {
       setRace((prev) => ({ ...prev, entry, revealing: false }));
-      setAnnouncement(`Race rolled: ${entry.name} on a ${dice[0]! + dice[1]!}.`);
+      setAnnouncement(`Race rolled: ${entry.name} on a ${dice.reduce((a, b) => a + b, 0)}.`);
     }, revealDelay(dice.length));
+  }
+
+  // "New Races" (issue #22) -- switching tables is a fresh choice ("Instead of rolling a race on
+  // the base table, you can choose one of these tables"), not a modifier stacked onto whatever was
+  // already rolled, so any current race roll is cleared along with it. The Core table rolls 2d6;
+  // every other table is 1d6 (Half-Human's own bonus reroll aside -- see rollRaceFromTable()).
+  function handleSelectRaceTable(table: RaceTableKey) {
+    if (sealed || table === raceTable) return;
+    setRaceTable(table);
+    setRace(initialRoll(table === "core" ? 2 : 1));
   }
 
   function handleRollClass() {
@@ -209,8 +229,22 @@ export function CharacterCreationScreen({
           <div className={styles.tracks}>
             <section>
               <h2 className={styles.trackTitle}>
-                <span className={styles.trackIndex}>2d6</span>Race
+                <span className={styles.trackIndex}>{raceTable === "core" ? "2d6" : "1d6"}</span>Race
               </h2>
+              <div className={styles.raceTableRow} data-testid="race-table-row">
+                {(Object.keys(RACE_TABLE_LABELS) as RaceTableKey[]).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={raceTable === key ? styles.raceTableBtnActive : styles.raceTableBtn}
+                    data-testid={`race-table-${key}`}
+                    disabled={sealed}
+                    onClick={() => handleSelectRaceTable(key)}
+                  >
+                    {RACE_TABLE_LABELS[key]}
+                  </button>
+                ))}
+              </div>
               <DicePool values={race.values} rollToken={race.rollToken} />
               <button
                 className={styles.rollBtn}
@@ -224,7 +258,7 @@ export function CharacterCreationScreen({
               {race.entry && (
                 <div className={styles.resultCard} data-testid="race-result">
                   <p className={styles.resultName}>
-                    {race.entry.name} · {race.values[0]! + race.values[1]!}
+                    {race.entry.name} · {race.values.reduce((a, b) => a + b, 0)}
                   </p>
                   <dl className={styles.resultStats}>
                     <div>

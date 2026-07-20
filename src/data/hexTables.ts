@@ -157,6 +157,24 @@ export function travelCost(terrain: Terrain): number {
   return 2;
 }
 
+/** Patovsky/Sharkin (New Races, issue #22): "You can walk in water territories." Checked alongside
+ * `WorldState.hasBoat` wherever water passability matters (`WorldScreen.tsx`'s `canTravelTo()`,
+ * `hexReducer.ts`'s `MOVE` case) -- a real mechanical effect, unlike these races' "skip travel
+ * events" clause, which has nothing to skip (Events on Travel doesn't exist yet). */
+export function hasWaterWalk(raceName: string): boolean {
+  return raceName === "Patovsky" || raceName === "Sharkin";
+}
+
+/** Pandakhan/Centaur (New Races, issue #22): "Spend twice as much provisions" / "Spend half of
+ * your provisions when moving around the map." Applied on top of `travelCost()`'s base terrain
+ * cost by `WorldScreen.tsx`'s `handleTravel()`, same layering Elven Boots' forest override already
+ * uses. Centaur's half rounds up (`Math.ceil`) so a move never costs 0 provisions outright. */
+export function travelCostMultiplier(raceName: string): number {
+  if (raceName === "Pandakhan") return 2;
+  if (raceName === "Centaur") return 0.5;
+  return 1;
+}
+
 /** "Table: Dungeon Type (1d6, by terrain)" (`docs/game-rules-reference.md` lines 990-999) -- values
  * are `DUNGEON_TYPES` roll numbers (`src/data/dungeonTypes.ts`), i.e. what a `ROLL_DUNGEON` action's
  * `typeRoll` would be, not a parallel table of its own. The rulebook's real table references 8

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-07-20
+
+### Added
+
+- New Races (#22): three additional 1d6 race tables (Uncommon,
+  Exotic, Monstrous) selectable in Character Creation instead of the
+  Core Book's 2d6 table, adding 18 new playable races -- Pumpkinkin,
+  Half-Human, Samambro, Corvino, Patovsky, Pandakhan, Sharkin, Goblin,
+  Orc, Centaur, Fungoid, and Ogre. Half-Human rerolls a Core race and
+  inherits its ability. Patovsky/Sharkin can walk on water,
+  Pandakhan/Centaur have a travel-cost multiplier, and Ogre deals +2
+  damage -- real mechanics, not just flavor text. Prohibited Races
+  (the rulebook's own explicitly non-canonical joke table) is not
+  included.
+
 ## [2.9.2] - 2026-07-20
 
 ### Fixed
