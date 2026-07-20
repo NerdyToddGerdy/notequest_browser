@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-07-19
+
+### Fixed
+
+- A dungeon's entrance room could still ambush the player with fresh
+  monsters when resumed by a new character (`RESUME_DUNGEON`) -- the
+  "Monster table re-roll on return" mechanic had no exemption for the
+  entrance, undoing #43's guarantee that the very first room is always
+  safe.
+
 ## [2.4.0] - 2026-07-19
 
 ### Added
