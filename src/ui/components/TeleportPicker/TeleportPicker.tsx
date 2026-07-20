@@ -1,4 +1,4 @@
-import { TYPE_LABELS } from "../../../data/dungeonTypes.ts";
+import { TYPE_LABELS, type SegmentType } from "../../../data/dungeonTypes.ts";
 import { isTeleportDestination } from "../../../engine/dungeon.ts";
 import type { LevelState } from "../../../engine/dungeonState.ts";
 import styles from "./TeleportPicker.module.css";
@@ -24,10 +24,26 @@ export function TeleportPicker({ levels, excludeSegId, onSelect, onCancel }: Tel
       .filter((seg) => isTeleportDestination(seg, excludeSegId))
       .map((seg) => ({ levelIndex, segId: seg.id, type: seg.type })),
   );
+  // Looked up the same way the destination list itself is built, rather than threading the
+  // starting room's type/levelIndex down as extra props the caller would have to keep in sync.
+  let current: { levelIndex: number; type: SegmentType } | null = null;
+  for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+    const seg = levels[levelIndex]!.segments.find((s) => s.id === excludeSegId);
+    if (seg) {
+      current = { levelIndex, type: seg.type };
+      break;
+    }
+  }
 
   return (
     <div className={styles.panel}>
       <p className={styles.title}>Cast Teleport</p>
+      {current && (
+        <p className={styles.currentRoom}>
+          Fleeing from Level {current.levelIndex + 1} — {TYPE_LABELS[current.type]} (Segment{" "}
+          {excludeSegId})
+        </p>
+      )}
       <p className={styles.copy}>Choose an already-explored, empty room to reappear in.</p>
       {destinations.length === 0 ? (
         <p className={styles.copy}>There&apos;s nowhere to go yet -- explore more of the dungeon first.</p>
