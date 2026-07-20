@@ -20,6 +20,11 @@ export interface HexInspectorProps {
    * neighboring hex like this can't be traveled to, the same way `noAffinity` does (see
    * `WorldState.bannedHexes`). */
   banned: boolean;
+  /** WorldScreen's own `canEnterDungeon` check (issue #59) -- always about the *current* tile
+   * (you can only enter a dungeon on the hex you're standing on), so the button below only ever
+   * renders when `isCurrentTile` is also true, not for some other hex merely being inspected. */
+  canEnterDungeon: boolean;
+  onEnterDungeon: () => void;
 }
 
 const TERRAIN_LABEL: Record<Terrain, string> = {
@@ -42,9 +47,11 @@ const DUNGEON_STATUS_COPY: Record<HexInspectorProps["dungeonStatus"], string> = 
 
 /** Bottom-right overlay describing whichever hex is currently selected on the map, mirroring
  * RoomInspector's role/positioning for the dungeon map. Purely presentational -- WorldScreen
- * resolves all of this from its own currentTile/dungeonInfoFor() logic. Read-only: clicking a
- * passable neighbor hex on the map travels there directly, so there's no separate travel action
- * here to gate. */
+ * resolves all of this from its own currentTile/dungeonInfoFor() logic. Read-only for travel:
+ * clicking a passable neighbor hex on the map travels there directly, so there's no separate
+ * travel action here to gate -- but "Enter Dungeon" (issue #59) *does* live here, since unlike
+ * travel it has no other affordance on the map itself, and previously lived in a disconnected
+ * card below the map instead of next to the status this panel already displays. */
 export function HexInspector({
   terrain,
   locationLabel,
@@ -54,6 +61,8 @@ export function HexInspector({
   isCurrentTile,
   noAffinity,
   banned,
+  canEnterDungeon,
+  onEnterDungeon,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -90,6 +99,14 @@ export function HexInspector({
         <span className={styles.label}>Dungeon</span>
         <p>{DUNGEON_STATUS_COPY[dungeonStatus]}</p>
       </div>
+
+      {isCurrentTile && canEnterDungeon && (
+        <div className={styles.actionRow}>
+          <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
+            Enter Dungeon
+          </button>
+        </div>
+      )}
 
       {hasRemains && (
         <div className={styles.row}>

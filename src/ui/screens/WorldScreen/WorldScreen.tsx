@@ -501,26 +501,15 @@ export function WorldScreen({
                   isCurrentTile={isInspectingCurrentTile}
                   noAffinity={inspectedNoAffinity}
                   banned={inspectedBanned}
+                  // City/Fortress hexes handle their own "Enter Dungeon" via TownScreen -- excluded
+                  // here too (even while voluntarily viewing the map from inside one, see "Return
+                  // to the City" below) so there's exactly one entry point for that case, not two.
+                  canEnterDungeon={canEnterDungeon && !inCityOrFortress}
+                  onEnterDungeon={onEnterDungeon}
                 />
               </div>
             )}
           </div>
-
-          {/* City/Fortress hexes handle their own "Enter Dungeon" via TownScreen -- this card is
-           * only for a dungeon-bearing hex reached without a city on it (Ruins, or a plain hex
-           * "Ask" found -- see HexTile.dungeonMarked) or while voluntarily viewing the map from
-           * inside a city (see "Return to the City" below). */}
-          {canEnterDungeon && !inCityOrFortress && currentTile && (
-            <div className={styles.actionCard}>
-              <p className={styles.gateCopy}>
-                {currentTile.location ? `${LOCATION_LABEL[currentTile.location]}: ` : ""}
-                {dungeonGateCopy}
-              </p>
-              <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
-                Enter Dungeon
-              </button>
-            </div>
-          )}
 
           {inCityOrFortress && (
             <div className={styles.actionCard}>

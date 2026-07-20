@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.2] - 2026-07-20
+
+### Fixed
+
+- "Enter Dungeon" for a dungeon found nearby (via Ask, or on Ruins)
+  now lives inside the Hex Inspector info box, next to the status it
+  already displays for that hex, instead of a disconnected card below
+  the map that read as "no way to enter it" (#59).
+
 ## [2.9.1] - 2026-07-20
 
 ### Changed
