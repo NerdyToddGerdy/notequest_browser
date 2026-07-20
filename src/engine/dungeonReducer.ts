@@ -409,7 +409,13 @@ function attackBonus(
   isHorn = false,
 ): number {
   let bonus = draft.combat?.playerDamageBonus ?? 0;
-  if (draft.className === "Grave Digger" && monster.abilities.includes("undead")) {
+  // Grave Digger (base Class) and Gravedigger (Advanced Class, issue #23) are two separate
+  // rulebook entries that happen to grant the identical "+2 damage to Undead" bonus -- either one
+  // (or both) applies the same single +2, not stacked.
+  if (
+    (draft.className === "Grave Digger" || draft.advancedClasses.includes("Gravedigger")) &&
+    monster.abilities.includes("undead")
+  ) {
     bonus += 2;
   }
   // Ogre (New Races, issue #22): "Deals +2 damage." Unconditional, unlike Grave Digger's
@@ -1495,11 +1501,12 @@ export function dungeonReducer(
           );
 
           if (result.selfDestructDamageToPlayer > 0) {
-            pushLog(
-              draft,
-              `${monster.name} explodes, dealing ${result.selfDestructDamageToPlayer} damage to you!`,
-            );
-            draft.hp = Math.max(0, draft.hp - result.selfDestructDamageToPlayer);
+            // Goblinator (Advanced Class, issue #23): "Take -2 damage per Explosion."
+            const explosionDamage = draft.advancedClasses.includes("Goblinator")
+              ? Math.max(0, result.selfDestructDamageToPlayer - 2)
+              : result.selfDestructDamageToPlayer;
+            pushLog(draft, `${monster.name} explodes, dealing ${explosionDamage} damage to you!`);
+            draft.hp = Math.max(0, draft.hp - explosionDamage);
           } else if (result.damageDealt > 0) {
             pushLog(draft, `You hit ${monster.name} for ${result.damageDealt} damage.`);
           } else {
@@ -1956,6 +1963,7 @@ export function dungeonReducer(
           action.killsByName,
           action.killsByAbility,
           action.spareWeapons,
+          action.advancedClasses,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

@@ -81,6 +81,7 @@ export default function App() {
       killsByName: {},
       killsByAbility: {},
       provisions: 20,
+      advancedClasses: [],
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -155,6 +156,7 @@ export default function App() {
       // Provisions aren't tracked on DungeonState at all (irrelevant inside a dungeon) -- carried
       // over untouched from whatever it was before this trip started.
       provisions: prev?.provisions ?? 20,
+      advancedClasses: dungeon.advancedClasses,
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,

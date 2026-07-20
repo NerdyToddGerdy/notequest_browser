@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.11.0] - 2026-07-20
+## [2.12.0] - 2026-07-20
+
+### Added
+
+- Advanced Classes (#23): 45 purchasable classes a character can
+  stack on top of their Race/Class, each with a coin cost and an HP
+  bonus -- Ruthless, Goblinator, Gravedigger, Orcslayer, Dragonslayer,
+  Guard, Ghostbuster, Ambidextrous, Mage, Warrior, Multidextrous,
+  Cleric, Paladin, Anti-Paladin, Elementalist, Champion, Alchemist,
+  and Arcane are fully acquirable today, with real requirement checks
+  against kills/bosses/known-spells/the Graveyard and (where the
+  rulebook specifies one) a real ability -- spell grants, +2 damage
+  vs. Undead, a free Rest, an instant Health Potion. Every other class
+  is listed for flavor with its real cost/requirement/ability text,
+  disabled with a "not yet trackable" reason until its prerequisite
+  system (Buildings, Arena history, per-terrain travel counts, ...)
+  exists.
+
+### Fixed
+
+- A session saved before Advanced Classes existed no longer crashes
+  the app on load -- `loadSession()` now back-fills the missing field.
 
 ### Added
 

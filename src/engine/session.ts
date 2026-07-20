@@ -42,7 +42,11 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
     const p = parsed as Partial<SessionState>;
     return {
       character: p.character ?? null,
-      resources: p.resources ?? null,
+      // advancedClasses (issue #23) postdates this field -- back-fill it for a session persisted
+      // before it existed, same "optional for back-compat" precedent as WorldState.bannedHexes.
+      resources: p.resources
+        ? { ...p.resources, advancedClasses: p.resources.advancedClasses ?? [] }
+        : null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],
       activeRunId: p.activeRunId ?? null,
       world: p.world ?? null,

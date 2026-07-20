@@ -60,6 +60,7 @@ const RESOURCES: AdventurerResources = {
   killsByName: {},
   killsByAbility: {},
   provisions: 17,
+  advancedClasses: [],
 };
 
 const WORLD: WorldState = createInitialWorldState(fixedDie(3));
@@ -121,6 +122,15 @@ describe("loadSession", () => {
       activeRunId: null,
       world: null,
     });
+  });
+
+  it("back-fills resources.advancedClasses (issue #23) for a session persisted before it existed", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { advancedClasses, ...oldResources } = RESOURCES;
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
+    });
+    expect(loadSession(storage).resources).toEqual({ ...oldResources, advancedClasses: [] });
   });
 });
 

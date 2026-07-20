@@ -214,6 +214,7 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     characterName: "Test Adventurer",
     raceName: "",
     className: "",
+    advancedClasses: [],
     weaponFormula: "1d6",
     spellUses: {},
     nextMonsterId: 1,

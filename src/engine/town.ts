@@ -32,6 +32,10 @@ export interface AdventurerResources {
    * neither resource is touched by the other activity, but both persist across every screen as
    * part of this same object. */
   provisions: number;
+  /** Advanced Classes (issue #23) acquired so far, by name -- stacks freely, never the same one
+   * twice (enforced by `canAcquireAdvancedClass()`). Mirrored on `DungeonState` since a couple of
+   * abilities (Goblinator, Gravedigger) apply mid-dungeon -- see `advancedClasses.ts`. */
+  advancedClasses: string[];
 }
 
 /** "You can carry a maximum of 10 torches at a time." */
@@ -41,12 +45,15 @@ export const MAX_TORCHES = 10;
 export const MAX_PROVISIONS = 20;
 
 /** Resting only helps if it would actually recover something -- full HP and every spell already
- * at its max uses means the coin buys nothing. */
+ * at its max uses means the coin buys nothing. `isChampion`: Advanced Class Champion's "You don't
+ * need to spend money to recover" waives the coin cost entirely, same optional-flag shape as
+ * `isBlacksmith`/`isCatPerson` below. */
 export function canRest(
   resources: AdventurerResources,
   maxSpellUses: Record<string, number>,
+  isChampion = false,
 ): boolean {
-  if (resources.coins < 1) return false;
+  if (!isChampion && resources.coins < 1) return false;
   if (resources.hp < resources.maxHp) return true;
   return Object.entries(maxSpellUses).some(([key, max]) => (resources.spellUses[key] ?? 0) < max);
 }
@@ -55,10 +62,11 @@ export function canRest(
 export function rest(
   resources: AdventurerResources,
   maxSpellUses: Record<string, number>,
+  isChampion = false,
 ): AdventurerResources {
   return {
     ...resources,
-    coins: resources.coins - 1,
+    coins: isChampion ? resources.coins : resources.coins - 1,
     hp: resources.maxHp,
     spellUses: { ...maxSpellUses },
   };
@@ -426,4 +434,19 @@ function coinsResult(resources: AdventurerResources, amount: number): ThugLifeRe
     outcome: "coins",
     amount,
   };
+}
+
+// -- Advanced Classes (issue #23): town actions gated on having acquired a specific class, same
+// "optional flag" shape as isBlacksmith/isCatPerson above.
+
+const ALCHEMIST_POTION_COST = 50;
+/** Alchemist: "Spending 50 coins makes 1 Health Potion." No inventory/potion-use system exists
+ * anywhere in this codebase (Treasures' own Health Potion resolves as an instant heal-to-full the
+ * moment it's opened, not a stored item) -- brewing one here follows that same precedent, healing
+ * immediately rather than adding a `HeldItem` with no way to later "use" it. */
+export function canBrewHealthPotion(resources: AdventurerResources, isAlchemist: boolean): boolean {
+  return isAlchemist && resources.coins >= ALCHEMIST_POTION_COST && resources.hp < resources.maxHp;
+}
+export function brewHealthPotion(resources: AdventurerResources): AdventurerResources {
+  return { ...resources, coins: resources.coins - ALCHEMIST_POTION_COST, hp: resources.maxHp };
 }

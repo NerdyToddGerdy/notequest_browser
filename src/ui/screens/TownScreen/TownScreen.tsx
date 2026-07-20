@@ -4,6 +4,7 @@ import type { CityCulture } from "../../../data/affinity.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
 import { loadGraveyard, type TownDeathCause } from "../../../engine/graveyard.ts";
 import type { PendingDungeon } from "../../../engine/dungeonState.ts";
+import { acquireAdvancedClass } from "../../../engine/advancedClasses.ts";
 import {
   resolveArenaRound,
   startArena,
@@ -11,11 +12,13 @@ import {
   type ArenaState,
 } from "../../../engine/arena.ts";
 import {
+  brewHealthPotion,
   buyElvenBoots,
   buyLamp,
   buyOrcGladio,
   buyProvision,
   buyTorch,
+  canBrewHealthPotion,
   canBuyElvenBoots,
   canBuyLamp,
   canBuyOrcGladio,
@@ -40,6 +43,7 @@ import {
   type AdventurerResources,
   type ThugLifeResult,
 } from "../../../engine/town.ts";
+import { AdvancedClasses } from "../../components/AdvancedClasses/AdvancedClasses.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
@@ -192,6 +196,8 @@ export function TownScreen({
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const isCatPerson = character.race.name === "Cat-Person";
   const isBlacksmith = character.cls.name === "Blacksmith";
+  const isChampion = resources.advancedClasses.includes("Champion");
+  const isAlchemist = resources.advancedClasses.includes("Alchemist");
   const [graveyard] = useState(() => loadGraveyard());
   const hasRecords = graveyard.length > 0 || dungeonHistory.length > 0;
   const cultureAction = cultureActionFor(culture, resources);
@@ -248,6 +254,10 @@ export function TownScreen({
       return;
     }
     onUpdateResources(result.resources);
+  }
+
+  function handleAcquireAdvancedClass(name: string) {
+    onUpdateResources(acquireAdvancedClass({ resources, character, graveyard }, name));
   }
 
   // "Thug Life" -- resources/world are already applied by WorldScreen's onThugLife() by the time
@@ -319,13 +329,25 @@ export function TownScreen({
                     <button
                       className={styles.actionBtn}
                       type="button"
-                      disabled={!canRest(resources, maxSpellUses)}
-                      onClick={() => onUpdateResources(rest(resources, maxSpellUses))}
+                      disabled={!canRest(resources, maxSpellUses, isChampion)}
+                      onClick={() => onUpdateResources(rest(resources, maxSpellUses, isChampion))}
                     >
                       <span className={styles.actionName}>Rest</span>
-                      <span className={styles.actionCost}>1 coin</span>
+                      <span className={styles.actionCost}>{isChampion ? "Free (Champion)" : "1 coin"}</span>
                       <span className={styles.actionDesc}>Recover your HP and spent spells.</span>
                     </button>
+                    {isAlchemist && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canBrewHealthPotion(resources, isAlchemist)}
+                        onClick={() => onUpdateResources(brewHealthPotion(resources))}
+                      >
+                        <span className={styles.actionName}>Brew Health Potion</span>
+                        <span className={styles.actionCost}>50 coins</span>
+                        <span className={styles.actionDesc}>Heal to full HP (Alchemist).</span>
+                      </button>
+                    )}
                     <button
                       className={styles.actionBtn}
                       type="button"
@@ -475,6 +497,15 @@ export function TownScreen({
                     </div>
                   )}
                 </div>
+              </section>
+
+              <section className={styles.adventureSection}>
+                <AdvancedClasses
+                  character={character}
+                  resources={resources}
+                  graveyard={graveyard}
+                  onAcquire={handleAcquireAdvancedClass}
+                />
               </section>
             </div>
           </main>

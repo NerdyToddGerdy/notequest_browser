@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  brewHealthPotion,
   buyElvenBoots,
   buyLamp,
   buyOrcGladio,
   buyProvision,
   buyTorch,
+  canBrewHealthPotion,
   canBuyElvenBoots,
   canBuyLamp,
   canBuyOrcGladio,
@@ -54,6 +56,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     killsByName: {},
     killsByAbility: {},
     provisions: 10,
+    advancedClasses: [],
     ...overrides,
   };
 }
@@ -94,6 +97,32 @@ describe("canRest / rest", () => {
     expect(next.coins).toBe(2);
     expect(next.hp).toBe(20);
     expect(next.spellUses).toEqual({ 1: 3, 2: 2 });
+  });
+
+  it("Champion (Advanced Class, issue #23): Rest is free, waiving the coin requirement/cost", () => {
+    const resources = makeResources({ coins: 0, hp: 10, maxHp: 20 });
+    expect(canRest(resources, { 1: 3 }, true)).toBe(true);
+    expect(canRest(resources, { 1: 3 }, false)).toBe(false);
+
+    const next = rest(resources, { 1: 3 }, true);
+    expect(next.coins).toBe(0); // untouched
+    expect(next.hp).toBe(20);
+  });
+});
+
+describe("Alchemist (Advanced Class, issue #23): brew a Health Potion", () => {
+  it("requires being Alchemist, 50 coins, and being below max HP", () => {
+    expect(canBrewHealthPotion(makeResources({ coins: 50, hp: 10, maxHp: 20 }), false)).toBe(false);
+    expect(canBrewHealthPotion(makeResources({ coins: 49, hp: 10, maxHp: 20 }), true)).toBe(false);
+    expect(canBrewHealthPotion(makeResources({ coins: 50, hp: 20, maxHp: 20 }), true)).toBe(false);
+    expect(canBrewHealthPotion(makeResources({ coins: 50, hp: 10, maxHp: 20 }), true)).toBe(true);
+  });
+
+  it("spends 50 coins and heals to full", () => {
+    const resources = makeResources({ coins: 60, hp: 5, maxHp: 20 });
+    const next = brewHealthPotion(resources);
+    expect(next.coins).toBe(10);
+    expect(next.hp).toBe(20);
   });
 });
 

@@ -53,3 +53,19 @@ export interface CreatedCharacter {
   torches: number;
   coins: number;
 }
+
+/** Advanced Classes (Expanded World, issue #23) -- purchasable with coins in a City/Fortress,
+ * stacked on top of each other rather than rolled or chosen exclusively like Race/Class. Keyed by
+ * `name` (a stable id) rather than a dice roll, since these are bought, not rolled. See
+ * `src/engine/advancedClasses.ts` for which of these have a real, checkable requirement today. */
+export interface AdvancedClassDef {
+  name: string;
+  cost: number;
+  /** Rulebook's own requirement text, always shown regardless of whether this app can check it
+   * yet -- see `src/engine/advancedClasses.ts`'s `isAdvancedClassTrackable()`. */
+  requirementText: string;
+  hpBonus: number;
+  /** Rulebook's own ability text, always shown even when the ability itself is flavor-only for
+   * now (same "documented, deliberate simplification" precedent as `bladeTrap`'s roll-of-2). */
+  abilityText: string;
+}

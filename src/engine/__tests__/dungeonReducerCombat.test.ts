@@ -433,6 +433,22 @@ describe("PLAYER_ATTACK", () => {
     expect(next.combat).toBeNull(); // no fight lingers behind the death panel
   });
 
+  it("Goblinator (Advanced Class, issue #23): takes -2 damage per Explosion", () => {
+    const monster = makeMonster({ hp: 5, abilities: ["explosive"] });
+    const state = stateWithCombat({ advancedClasses: ["Goblinator"] }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+
+    expect(next.hp).toBe(next.maxHp - 3); // 5 - 2, instead of the usual 5
+  });
+
+  it("Goblinator's -2 reduction never drops the explosion's damage below 0", () => {
+    const monster = makeMonster({ hp: 1, abilities: ["explosive"] });
+    const state = stateWithCombat({ advancedClasses: ["Goblinator"] }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+
+    expect(next.hp).toBe(next.maxHp); // 1 - 2, floored at 0
+  });
+
   it("revives an Undead monster at 1 HP instead of removing it, on a roll of 1", () => {
     const monster = makeMonster({ hp: 2, abilities: ["undead"] });
     const state = stateWithCombat({}, [monster]);
@@ -1167,6 +1183,23 @@ describe("Grave Digger: +2 damage to Undead", () => {
     const state = stateWithCombat({}, [monster]);
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
     expect(next.combat!.monsters[0]!.hp).toBe(17); // just 3
+  });
+
+  it("Gravedigger (Advanced Class, issue #23) grants the identical +2 bonus, independent of class", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: ["undead"] });
+    const state = stateWithCombat({ advancedClasses: ["Gravedigger"] }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(15); // 3 + 2
+  });
+
+  it("having both the Grave Digger class and the Gravedigger Advanced Class doesn't stack the bonus", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: ["undead"] });
+    const state = stateWithCombat(
+      { className: "Grave Digger", advancedClasses: ["Gravedigger"] },
+      [monster],
+    );
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(15); // still just 3 + 2, not +4
   });
 });
 
