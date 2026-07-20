@@ -14,6 +14,7 @@ import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import { SPELL_TABLE } from "../../../data/spells.ts";
 import type { ClassDef, CreatedCharacter, RaceDef, SpellDef } from "../../../data/types.ts";
 import { revealDelay } from "../../rollTiming.ts";
+import { Footer } from "../../components/Footer/Footer.tsx";
 import styles from "./CharacterCreationScreen.module.css";
 
 const STARTING_TORCHES = 10;
@@ -46,9 +47,14 @@ export interface CharacterCreationScreenProps {
   /** Every dungeon any character has touched -- shown here read-only, alongside the Graveyard, via
    * RecordsPanel's tab switcher. */
   dungeonHistory: PendingDungeon[];
+  onHardReset: () => void;
 }
 
-export function CharacterCreationScreen({ onCharacterCreated, dungeonHistory }: CharacterCreationScreenProps) {
+export function CharacterCreationScreen({
+  onCharacterCreated,
+  dungeonHistory,
+  onHardReset,
+}: CharacterCreationScreenProps) {
   const [name, setName] = useState("");
   const [race, setRace] = useState<RollState<RaceDef>>(() => initialRoll(2));
   const [cls, setCls] = useState<RollState<ClassDef>>(() => initialRoll(2));
@@ -359,23 +365,7 @@ export function CharacterCreationScreen({ onCharacterCreated, dungeonHistory }: 
 
       <RecordsPanel graveyardEntries={graveyard} dungeons={dungeonHistory} />
 
-      <footer className={styles.credit}>
-        <p>NOTEQUEST · CHARACTER CREATION</p>
-        <p className={styles.creditSub}>
-          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support the
-          original on{" "}
-          <a
-            className={styles.creditLink}
-            href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            DriveThruRPG
-          </a>
-          .
-        </p>
-        <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
-      </footer>
+      <Footer screenLabel="CHARACTER CREATION" onHardReset={onHardReset} />
 
       <div className="visually-hidden" aria-live="polite">
         {announcement}

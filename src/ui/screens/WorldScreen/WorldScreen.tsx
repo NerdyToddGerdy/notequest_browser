@@ -24,6 +24,7 @@ import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.t
 import { HexInspector } from "../../components/HexInspector/HexInspector.tsx";
 import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
 import { TownScreen } from "../TownScreen/TownScreen.tsx";
+import { Footer } from "../../components/Footer/Footer.tsx";
 import styles from "./WorldScreen.module.css";
 
 interface ViewBox {
@@ -48,6 +49,7 @@ export interface WorldScreenProps {
   onUpdateResources: (resources: AdventurerResources) => void;
   onUpdateWorld: (world: WorldState) => void;
   onEnterDungeon: () => void;
+  onHardReset: () => void;
 }
 
 const HEX_SIZE = 44;
@@ -111,6 +113,7 @@ export function WorldScreen({
   onUpdateResources,
   onUpdateWorld,
   onEnterDungeon,
+  onHardReset,
 }: WorldScreenProps) {
   /** True while voluntarily looking at the map from within a City/Fortress hex (via TownScreen's
    * "Explore the World") -- reset to false on every arrival, so landing anywhere shows "the
@@ -324,6 +327,7 @@ export function WorldScreen({
         onEnterDungeon={onEnterDungeon}
         onHireBoat={handleHireBoat}
         onExploreWorld={() => setShowMap(true)}
+        onHardReset={onHardReset}
       />
     );
   }
@@ -467,23 +471,7 @@ export function WorldScreen({
         </aside>
       </div>
 
-      <footer className={styles.credit}>
-        <p>NOTEQUEST · THE WORLD</p>
-        <p className={styles.creditSub}>
-          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support
-          the original on{" "}
-          <a
-            className={styles.creditLink}
-            href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            DriveThruRPG
-          </a>
-          .
-        </p>
-        <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
-      </footer>
+      <Footer screenLabel="THE WORLD" onHardReset={onHardReset} />
     </div>
   );
 }

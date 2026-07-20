@@ -471,39 +471,6 @@
   text-align: right;
 }
 
-.credit {
-  margin-top: 30px;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  color: #6b5c46;
-  text-align: center;
-}
-.credit p {
-  margin: 0;
-}
-.credit .creditSub {
-  margin-top: 6px;
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 0.72rem;
-  letter-spacing: normal;
-  color: #52483a;
-}
-.credit .creditVersion {
-  margin-top: 6px;
-  font-size: 0.6rem;
-  color: #4a4030;
-}
-.creditLink {
-  color: var(--gold);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.creditLink:hover {
-  color: var(--gold-bright);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .dungeonHeader {
     animation: none;

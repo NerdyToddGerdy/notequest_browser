@@ -14,7 +14,8 @@ import {
 } from "./engine/hexState.ts";
 import { DUNGEON_TYPE_BY_TERRAIN } from "./data/hexTables.ts";
 import { rollDie } from "./engine/dice.ts";
-import { loadSession, saveSession } from "./engine/session.ts";
+import { clearSession, loadSession, saveSession } from "./engine/session.ts";
+import { clearGraveyard } from "./engine/graveyard.ts";
 
 // Home is just another hex, rendered by WorldScreen like any other City -- there's no separate
 // "town" screen anymore (see per-hex dungeon persistence / Town-Square unification in CLAUDE.md).
@@ -96,6 +97,23 @@ export default function App() {
     setScreen("world");
   }
 
+  // Settings' "Reset Everything" (issue #50) -- wipes both localStorage keys this app writes to
+  // and every piece of in-memory state App itself owns, landing back on Character Creation with
+  // a totally blank slate: no character, no Graveyard, no dungeon ever found, no World map.
+  function handleHardReset() {
+    clearSession();
+    clearGraveyard();
+    setCharacter(null);
+    setResources(null);
+    setActiveRunId(null);
+    setSelectedRunId(null);
+    setDungeonHistory([]);
+    setWorld(null);
+    setForcedTypeRoll(null);
+    setWorldFreshRunId(null);
+    setScreen("world");
+  }
+
   // A voluntary, alive retreat -- captures the run's current resources so City Actions can act on
   // them, and remembers the runId so re-entering that hex's dungeon jumps straight back in later.
   function handleReturnToTown(runId: string, dungeon: DungeonState) {
@@ -143,6 +161,7 @@ export default function App() {
       <CharacterCreationScreen
         onCharacterCreated={handleCharacterCreated}
         dungeonHistory={dungeonHistory}
+        onHardReset={handleHardReset}
       />
     );
   }
@@ -159,6 +178,7 @@ export default function App() {
         dungeonHistory={dungeonHistory}
         onUpdateResources={setResources}
         onUpdateWorld={setWorld}
+        onHardReset={handleHardReset}
         onEnterDungeon={() => {
           const key = hexKey(resolvedWorld.player);
           const tile = resolvedWorld.tiles[key];
@@ -207,6 +227,7 @@ export default function App() {
       onNewAdventurer={handleNewAdventurer}
       onReturnToTown={handleReturnToTown}
       onLeaveDungeon={handleLeaveDungeon}
+      onHardReset={handleHardReset}
     />
   );
 }

@@ -61,3 +61,14 @@ export function saveSession(session: SessionState, storage: Storage = globalThis
     // Storage unavailable (private browsing, quota, etc.) -- the run continues either way.
   }
 }
+
+/** Wipes the persisted session -- part of the app-wide hard reset (see App.tsx's handleHardReset
+ * and issue #50). Callers still need to reset their own in-memory state to EMPTY_SESSION's
+ * shape themselves; this only clears what's on disk. */
+export function clearSession(storage: Storage = globalThis.localStorage): void {
+  try {
+    storage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage unavailable -- nothing was there to clear either way.
+  }
+}

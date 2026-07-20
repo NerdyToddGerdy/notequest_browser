@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadSession, saveSession, type SessionState } from "../session.ts";
+import { clearSession, loadSession, saveSession, type SessionState } from "../session.ts";
 import { createInitialDungeonState } from "../dungeonState.ts";
 import { createInitialWorldState, type WorldState } from "../hexState.ts";
 import type { CreatedCharacter } from "../../data/types.ts";
@@ -142,5 +142,24 @@ describe("saveSession", () => {
     };
     saveSession(cleared, storage);
     expect(loadSession(storage)).toEqual(cleared);
+  });
+});
+
+describe("clearSession", () => {
+  it("wipes a previously stored session", () => {
+    const storage = makeFakeStorage({ "notequest:session": JSON.stringify(FULL_SESSION) });
+    clearSession(storage);
+    expect(loadSession(storage)).toEqual({
+      character: null,
+      resources: null,
+      dungeonHistory: [],
+      activeRunId: null,
+      world: null,
+    });
+  });
+
+  it("is a no-op when nothing was stored", () => {
+    const storage = makeFakeStorage();
+    expect(() => clearSession(storage)).not.toThrow();
   });
 });
