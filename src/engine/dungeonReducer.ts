@@ -672,6 +672,7 @@ function restoreMapFromPersisted(
   for (const level of draft.levels) {
     for (const seg of level.segments) {
       if (!seg.type.startsWith("room-")) continue;
+      if (seg.isEntrance) continue; // exempt from Monsters at creation (#43) and reroll alike
       if (oldCombat && seg.id === oldCombat.segId) continue;
       if (seg.monsters && !seg.monstersDefeated) continue;
       seg.needsMonsterReroll = true;

@@ -2658,6 +2658,47 @@ describe("Monster table re-roll on return", () => {
     expect(seg2.monstersDefeated).toBe(true);
   });
 
+  it("never flags the entrance for a reroll, matching its exemption from Monsters at creation (#43, #55)", () => {
+    const entrance = makeSegment({ id: 1, type: "room-small", doors: [], isEntrance: true }); // never had a monster, per #43
+    const room2 = makeSegment({ id: 2, type: "room-small", doors: [] });
+    const level = { ...makeLevel(1), segments: [entrance, room2] };
+    const persisted: DungeonState = {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+      selectedSegId: 1,
+    };
+
+    const next = dungeonReducer(
+      createInitialDungeonState(),
+      {
+        type: "RESUME_DUNGEON",
+        dungeon: persisted,
+        torches: 10,
+        hp: 20,
+        maxHp: 20,
+        weaponFormula: "1d6",
+        spellUses: {},
+        characterName: "Newcomer",
+        raceName: "",
+        className: "",
+      },
+      sequenceDie([1, 1]),
+    );
+
+    // A new character lands right back on the entrance (resetToEntrance) -- confirms this isn't
+    // passing merely because rerollMonstersIfNeeded was never called on segment 1.
+    expect(next.currentSegId).toBe(1);
+    const entranceAfter = next.levels[0]!.segments.find((s) => s.id === 1)!;
+    expect(entranceAfter.needsMonsterReroll).toBeFalsy();
+    expect(entranceAfter.monsters).toBeUndefined();
+    expect(next.combat).toBeNull();
+
+    // A non-entrance empty room is still flagged as before -- the fix is scoped to the entrance only.
+    const room2After = next.levels[0]!.segments.find((s) => s.id === 2)!;
+    expect(room2After.needsMonsterReroll).toBe(true);
+  });
+
   it("does not flag the room whose interrupted fight was just respawned", () => {
     const room = makeSegment({
       id: 1,
