@@ -28,7 +28,6 @@ import {
   assignDirections,
   isTeleportDestination,
   placeChild,
-  placeIslandRoot,
   reachableSegIds,
   resolveBoss,
   resolveRoomExtras,
@@ -1211,39 +1210,27 @@ export function dungeonReducer(
           }
 
           case "reuse-normal": {
-            if (action.roll == null) throw new Error("reuse-normal requires a roll");
-            const row = rollSegment(seg.type, action.roll);
+            // A second staircase down to an already-discovered level opens onto that level's own
+            // single entrance (its root segment, segments[0]) rather than a new, disconnected
+            // entry point -- the same "one shared destination" shape reuse-final already gives a
+            // second staircase down to an already-found Final Room. No Segments-table roll is
+            // needed since nothing new is built (see DungeonMap's AUTOMATIC_KINDS).
             const targetLevel = draft.levels[classification.targetLevel]!;
-            const box = placeIslandRoot(targetLevel.segments, row.type);
-            const island = buildSegment(
-              draft,
-              row.type,
-              box,
-              null,
-              row.doors,
-              row.flavor ?? null,
-              rng,
-            );
-            targetLevel.segments.push(island);
-            targetLevel.doorsRemaining += row.doors;
-            if (row.type === "staircase") targetLevel.hasStaircase = true;
-            bumpStatsForNewSegment(draft.stats, row.type, row.doors);
-
+            const rootSeg = targetLevel.segments[0]!;
             door.opened = true;
-            door.childId = island.id;
+            door.childId = rootSeg.id;
             door.leadsToLevel = classification.targetLevel;
             level.doorsRemaining -= 1;
             draft.stats.doorsRemaining -= 1;
 
             pushLog(
               draft,
-              `Segment ${seg.id} (staircase) → joins the existing Level ${classification.targetLevel + 1} as a new entry point — Segment ${island.id} (${TYPE_LABELS[row.type]})`,
+              `Segment ${seg.id} (staircase) → the same Level ${classification.targetLevel + 1} already found — Segment ${rootSeg.id} (${TYPE_LABELS[rootSeg.type]})`,
               "descend",
             );
             draft.activeLevel = classification.targetLevel;
-            draft.currentSegId = island.id;
-            draft.selectedSegId = island.id;
-            finishRoomSegment(draft, island, false, rng);
+            draft.currentSegId = rootSeg.id;
+            draft.selectedSegId = rootSeg.id;
             break;
           }
 

@@ -93,32 +93,6 @@ export function placeChild(parent: Box, dir: Direction, childType: SegmentType, 
   return box;
 }
 
-/** Places a second, unconnected entry point on an already-existing level's map (shared staircase target). */
-export function placeIslandRoot(targetSegments: Box[], type: SegmentType): Box {
-  const size = sizeFor(type, null);
-  const origin = boxFromCenter(0, 0, size);
-  if (!collidesInList(origin, targetSegments, MARGIN)) return origin;
-
-  const step = Math.max(size.w, size.h) + CONNECTOR_LEN;
-  for (let ring = 1; ring < 12; ring++) {
-    const offsets = [
-      { x: ring * step, y: 0 },
-      { x: -ring * step, y: 0 },
-      { x: 0, y: ring * step },
-      { x: 0, y: -ring * step },
-      { x: ring * step, y: ring * step },
-      { x: -ring * step, y: ring * step },
-      { x: ring * step, y: -ring * step },
-      { x: -ring * step, y: -ring * step },
-    ];
-    for (const offset of offsets) {
-      const box = boxFromCenter(offset.x, offset.y, size);
-      if (!collidesInList(box, targetSegments, MARGIN)) return box;
-    }
-  }
-  return boxFromCenter(12 * step, 0, size);
-}
-
 export function buildConnector(
   parentBox: Box,
   dir: Direction,
@@ -193,9 +167,11 @@ export type DoorOpenClassification =
 
 /**
  * Determines how opening a given door should resolve, without needing a die roll.
- * The UI consults this to decide whether to animate a roll at all (only "normal",
- * "descend-normal", and "reuse-normal" need one); the reducer re-derives the same
- * classification when applying OPEN_DOOR so there is one source of truth.
+ * The UI consults this to decide whether to animate a roll at all (only "normal" and
+ * "descend-normal" need one -- "reuse-normal" just links to the target level's own
+ * existing entrance, same as "reuse-final" already does, see DungeonMap's AUTOMATIC_KINDS);
+ * the reducer re-derives the same classification when applying OPEN_DOOR so there is one
+ * source of truth.
  */
 export function classifyDoorOpen(
   state: DungeonState,

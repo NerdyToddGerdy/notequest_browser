@@ -9,7 +9,6 @@ import {
   isTeleportDestination,
   MARGIN,
   placeChild,
-  placeIslandRoot,
   reachableSegIds,
   resolveBoss,
   resolveRoomExtras,
@@ -109,12 +108,6 @@ describe("placement geometry", () => {
     const blocker = boxFromCenter(200, 0, sizeFor("room-large", null)); // sits east of root
     const child = placeChild(root, "E", "room-large", [root, blocker]);
     expect(collidesInList(child, [root, blocker], MARGIN)).toBe(false);
-  });
-
-  it("finds a non-colliding island root even when the origin is occupied", () => {
-    const existing = [boxFromCenter(0, 0, sizeFor("room-large", null))];
-    const island = placeIslandRoot(existing, "corridor");
-    expect(collidesInList(island, existing, MARGIN)).toBe(false);
   });
 });
 
