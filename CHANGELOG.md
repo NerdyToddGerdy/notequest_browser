@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-07-19
+
+### Added
+
+- Settings: a "Reset Everything" action (confirmation-gated) on every
+  screen's footer, wiping the character, Graveyard, every dungeon ever
+  found, and the World map -- for a player who wants a genuinely clean
+  slate, not just a new adventurer.
+
+### Fixed
+
+- Teleporting mid-fight into a room that (per the Monster re-roll rule)
+  had just gotten fresh monsters could drop the player straight into a
+  second, un-signaled fight instead of the safety it was meant to be.
+- Potion of Fury's combat-damage bonus was silently discarded when used
+  outside of combat, with no feedback that anything happened.
+- Heal's "Cast" button vanished the instant its uses ran out instead of
+  staying visible and disabled, making it look like the spell had
+  disappeared rather than just being spent.
+
 ## [2.3.0] - 2026-07-19
 
 ### Added
