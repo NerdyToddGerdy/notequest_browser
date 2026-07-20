@@ -432,6 +432,7 @@ export function DungeonScreen({
                           onSelect={(levelIndex, segId) => {
                             dispatch({
                               type: "CAST_SPELL",
+                              table: "basic",
                               spellRoll: 3,
                               destLevel: levelIndex,
                               destSegId: segId,
@@ -454,8 +455,8 @@ export function DungeonScreen({
                           onAttack={(targetId, roll, useHorn) =>
                             dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })
                           }
-                          onCastSpell={(spellRoll, targetId) =>
-                            dispatch({ type: "CAST_SPELL", spellRoll, targetId })
+                          onCastSpell={(table, spellRoll, targetId) =>
+                            dispatch({ type: "CAST_SPELL", table, spellRoll, targetId })
                           }
                           onFlee={() => setPickingTeleport(true)}
                           onResolveDamage={(absorbWith) =>
@@ -512,7 +513,7 @@ export function DungeonScreen({
               weaponFormula={state.weapon?.formula}
               spellUses={state.spellUses}
               canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
-              onCastSpell={(spellRoll) => dispatch({ type: "CAST_SPELL", spellRoll })}
+              onCastSpell={(table, spellRoll) => dispatch({ type: "CAST_SPELL", table, spellRoll })}
               monsterKills={state.monsterKills}
               killsByName={state.killsByName}
             />

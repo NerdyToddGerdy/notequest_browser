@@ -495,7 +495,7 @@ export function TownScreen({
             monsterKills={resources.monsterKills}
             killsByName={resources.killsByName}
             canCastOutOfCombat
-            onCastSpell={(spellRoll) => onUpdateResources(castSpell(resources, spellRoll))}
+            onCastSpell={(table, spellRoll) => onUpdateResources(castSpell(resources, table, spellRoll))}
           />
           <Equipment
             armor={resources.armor}

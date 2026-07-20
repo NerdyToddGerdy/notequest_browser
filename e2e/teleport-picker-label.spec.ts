@@ -44,7 +44,7 @@ const RESOURCES = {
   armor: [],
   weapon: null,
   spareWeapons: [],
-  spellUses: { 3: 1 }, // Teleport, one use -- the only spell this test needs
+  spellUses: { "basic:3": 1 }, // Teleport, one use -- the only spell this test needs
   monsterKills: 0,
   bossKills: 0,
   killsByName: {},

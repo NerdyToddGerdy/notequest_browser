@@ -21,6 +21,7 @@ import {
   type WonderEntry,
 } from "../data/dungeonTables.ts";
 import { SPELL_TABLE } from "../data/spells.ts";
+import { SPELL_TABLE_BY_KEY, spellKey } from "./character.ts";
 import {
   boxFromCenter,
   buildConnector,
@@ -37,8 +38,10 @@ import {
 import { rollDie } from "./dice.ts";
 import {
   checkUndeadRevival,
+  COMBAT_ONLY_SPELL_NAMES,
   HEAL_AMOUNT,
   HORDE_ORC,
+  KNOWN_CASTABLE_SPELL_NAMES,
   NECROMANCY_SKELETON,
   parseWeaponFormula,
   resolveMonsterCount,
@@ -46,6 +49,7 @@ import {
   resolveSpellDamage,
   rollLoot,
   spawnMonsters,
+  TARGETED_SPELL_NAMES,
 } from "./combat.ts";
 import {
   createInitialDungeonState,
@@ -751,8 +755,10 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
     const gained = Math.min(entry.effect.amount, 10 - draft.torches);
     draft.torches += gained;
   } else if (entry.effect.kind === "randomSpell") {
+    // Always a random *Basic* Spell per the rulebook's own wording for every Wonder/Magic
+    // Scroll/Mana Potion that grants one -- New Spells (issue #24) tables are never rolled here.
     const spellRoll = rollDie(rng);
-    draft.spellUses[spellRoll] = (draft.spellUses[spellRoll] ?? 0) + 1;
+    draft.spellUses[spellKey("basic", spellRoll)] = (draft.spellUses[spellKey("basic", spellRoll)] ?? 0) + 1;
     const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
     pushLog(draft, `Treasure: ${entry.text} — learned ${spellName}!`);
     return;
@@ -839,7 +845,7 @@ function applyRoomContentReward(
       const spellNames: string[] = [];
       for (let i = 0; i < count; i++) {
         const spellRoll = rollDie(rng);
-        draft.spellUses[spellRoll] = (draft.spellUses[spellRoll] ?? 0) + 1;
+        draft.spellUses[spellKey("basic", spellRoll)] = (draft.spellUses[spellKey("basic", spellRoll)] ?? 0) + 1;
         spellNames.push(SPELL_TABLE[spellRoll]?.name ?? "a spell");
       }
       pushLog(
@@ -1672,23 +1678,26 @@ export function dungeonReducer(
     case "CAST_SPELL": {
       if (!state.alive || state.combat?.pendingDamage != null || hasPendingRoomEntry(state))
         return state;
-      const spell = SPELL_TABLE[action.spellRoll];
-      const remaining = state.spellUses[action.spellRoll] ?? 0;
-      if (!spell || remaining <= 0) return state;
-      // Cold Ray (4) and Lightning (5) need a target monster; all three combat-damage
-      // spells, plus Teleport's flee effect, only mean anything mid-fight.
-      const combatOnly = action.spellRoll === 4 || action.spellRoll === 5 || action.spellRoll === 6;
-      if ((combatOnly || action.spellRoll === 3) && !state.combat) return state;
-      if ((action.spellRoll === 4 || action.spellRoll === 5) && action.targetId == null)
-        return state;
-      if (action.spellRoll === 3) {
+      const spell = SPELL_TABLE_BY_KEY[action.table]?.[action.spellRoll];
+      const key = spellKey(action.table, action.spellRoll);
+      const remaining = state.spellUses[key] ?? 0;
+      // Matched by name, not (table, roll) -- see KNOWN_CASTABLE_SPELL_NAMES's own doc comment
+      // (combat.ts) for why: New Spells (issue #24) means the same name can appear under more than
+      // one table (Elemental's Cold Ray/Lightning/Fireball are the identical Core spells), and
+      // every New Spells effect beyond those isn't wired up to a real case here yet regardless of
+      // how many uses of it the character actually has.
+      if (!spell || remaining <= 0 || !KNOWN_CASTABLE_SPELL_NAMES.has(spell.name)) return state;
+      const combatOnly = COMBAT_ONLY_SPELL_NAMES.has(spell.name);
+      if (combatOnly && !state.combat) return state;
+      if (TARGETED_SPELL_NAMES.has(spell.name) && action.targetId == null) return state;
+      if (spell.name === "Teleport") {
         const destLevel = action.destLevel != null ? state.levels[action.destLevel] : undefined;
         const destSeg = destLevel?.segments.find((s) => s.id === action.destSegId);
         if (!destSeg || !isTeleportDestination(destSeg, state.combat!.segId)) return state;
       }
 
       return produce(state, (draft) => {
-        draft.spellUses[action.spellRoll] = remaining - 1;
+        draft.spellUses[key] = remaining - 1;
         const combat = draft.combat;
 
         if (combat && combat.paralyzedTurns > 0) {
@@ -1698,15 +1707,15 @@ export function dungeonReducer(
           return;
         }
 
-        switch (action.spellRoll) {
-          case 1: {
+        switch (spell.name) {
+          case "Heal": {
             const healed = Math.min(HEAL_AMOUNT, draft.maxHp - draft.hp);
             draft.hp += healed;
             pushLog(draft, `You cast Heal, recovering ${healed} HP.`);
             break;
           }
 
-          case 2: {
+          case "Light": {
             // "Worth a torch (does not use a hand)" -- modeled as a free torch, since this
             // codebase collapses light-source and hand-economy into the single torches count.
             const gained = Math.min(1, 10 - draft.torches);
@@ -1720,7 +1729,7 @@ export function dungeonReducer(
             break;
           }
 
-          case 3: {
+          case "Teleport": {
             if (!combat) break;
             const destLevelIndex = action.destLevel!;
             const destSeg = draft.levels[destLevelIndex]!.segments.find(
@@ -1739,7 +1748,7 @@ export function dungeonReducer(
             return; // fled -- no monster counter-turn
           }
 
-          case 4: {
+          case "Cold Ray": {
             if (!combat) break;
             const monster = combat.monsters.find((m) => m.id === action.targetId);
             if (!monster) break;
@@ -1756,7 +1765,7 @@ export function dungeonReducer(
             break;
           }
 
-          case 5: {
+          case "Lightning": {
             if (!combat) break;
             const monster = combat.monsters.find((m) => m.id === action.targetId);
             if (!monster) break;
@@ -1772,7 +1781,7 @@ export function dungeonReducer(
             break;
           }
 
-          case 6: {
+          case "Fireball": {
             if (!combat) break;
             pushLog(draft, "You cast Fireball, engulfing the room in flame.");
             for (const monster of [...combat.monsters]) {
@@ -1850,7 +1859,7 @@ export function dungeonReducer(
           }
           case "randomSpell": {
             const spellRoll = rollDie(rng);
-            draft.spellUses[spellRoll] = (draft.spellUses[spellRoll] ?? 0) + 1;
+            draft.spellUses[spellKey("basic", spellRoll)] = (draft.spellUses[spellKey("basic", spellRoll)] ?? 0) + 1;
             const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
             pushLog(draft, `Treasure: ${outcome.text} — learned ${spellName}!`);
             break;

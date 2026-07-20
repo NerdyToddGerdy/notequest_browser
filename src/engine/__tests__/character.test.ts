@@ -1,17 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { EXOTIC_RACE_TABLE, MONSTROUS_RACE_TABLE, RACE_TABLE, UNCOMMON_RACE_TABLE } from "../../data/races.ts";
 import { CLASS_TABLE } from "../../data/classes.ts";
-import { SPELL_TABLE } from "../../data/spells.ts";
+import {
+  ADVANCED_SPELL_TABLE,
+  DEATH_SPELL_TABLE,
+  ELEMENTAL_SPELL_TABLE,
+  NATURE_SPELL_TABLE,
+  SPELL_TABLE,
+} from "../../data/spells.ts";
 import { FIRST_NAME_TABLE, LAST_NAME_TABLE } from "../../data/names.ts";
 import {
   computeSpellRequirements,
   computeSpellUses,
   computeTotalHp,
+  parseSpellKey,
   rollClass,
   rollName,
   rollRace,
   rollRaceFromTable,
   rollSpell,
+  rollSpellFromTable,
+  spellKey,
 } from "../character.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
 
@@ -51,6 +60,20 @@ describe("table completeness", () => {
       }
     }
   });
+
+  it("defines a full 1d6 row for each New Spells table (Nature/Death/Elemental)", () => {
+    for (const table of [NATURE_SPELL_TABLE, DEATH_SPELL_TABLE, ELEMENTAL_SPELL_TABLE]) {
+      for (let roll = 1; roll <= 6; roll++) {
+        expect(table[roll], `missing spell for roll ${roll}`).toBeDefined();
+      }
+    }
+  });
+
+  it("defines the Advanced Spells table for every 2d6 sum (2-12)", () => {
+    for (let sum = 2; sum <= 12; sum++) {
+      expect(ADVANCED_SPELL_TABLE[sum], `missing spell for roll ${sum}`).toBeDefined();
+    }
+  });
 });
 
 describe("rollRace / rollClass / rollSpell", () => {
@@ -68,6 +91,47 @@ describe("rollRace / rollClass / rollSpell", () => {
   it("resolves a spell from a single die", () => {
     const result = rollSpell(sequenceDie([6]));
     expect(result.entry.name).toBe("Fireball");
+  });
+});
+
+describe("rollSpellFromTable (New Spells, issue #24)", () => {
+  it("'basic' delegates to the same 1d6 lookup as rollSpell", () => {
+    const result = rollSpellFromTable("basic", sequenceDie([1]));
+    expect(result.dice).toEqual([1]);
+    expect(result.entry.name).toBe("Heal");
+  });
+
+  it("rolls a flat 1d6 against the Nature table", () => {
+    const result = rollSpellFromTable("nature", sequenceDie([5]));
+    expect(result.dice).toEqual([5]);
+    expect(result.entry.name).toBe("Summon Wolf");
+  });
+
+  it("rolls a flat 1d6 against the Death table", () => {
+    const result = rollSpellFromTable("death", sequenceDie([3]));
+    expect(result.entry.name).toBe("Banish the Dead");
+  });
+
+  it("rolls a flat 1d6 against the Elemental table", () => {
+    const result = rollSpellFromTable("elemental", sequenceDie([6]));
+    expect(result.entry.name).toBe("Collapse");
+  });
+
+  it("rolls 2d6 summed against the Advanced table, unlike every other 1d6 table here", () => {
+    const result = rollSpellFromTable("advanced", sequenceDie([5, 4])); // sum 9 -> Stone Armor
+    expect(result.dice).toEqual([5, 4]);
+    expect(result.entry.name).toBe("Stone Armor");
+  });
+});
+
+describe("spellKey / parseSpellKey", () => {
+  it("round-trips a table and roll through the composite key", () => {
+    expect(spellKey("nature", 2)).toBe("nature:2");
+    expect(parseSpellKey("nature:2")).toEqual({ table: "nature", roll: 2 });
+  });
+
+  it("keeps the same roll number distinct across different tables", () => {
+    expect(spellKey("basic", 1)).not.toBe(spellKey("nature", 1));
   });
 });
 
@@ -114,7 +178,7 @@ describe("rollRaceFromTable (New Races, issue #22)", () => {
   it("Half-Human can inherit a fixedSpell grant too", () => {
     // 6 -> Half-Human, then Core 2d6 [1,2] (sum 3) -> Lightbugster (3 uses of Light).
     const result = rollRaceFromTable("uncommon", sequenceDie([6, 1, 2]));
-    expect(result.entry.fixedSpell).toEqual({ spellRoll: 2, uses: 3 });
+    expect(result.entry.fixedSpell).toEqual({ table: "basic", spellRoll: 2, uses: 3 });
   });
 });
 
@@ -134,24 +198,30 @@ describe("rollName", () => {
 describe("computeSpellRequirements", () => {
   it("is empty for a build with no spell-granting race or class", () => {
     const req = computeSpellRequirements(RACE_TABLE[7]!, CLASS_TABLE[7]!); // Human Guard
-    expect(req.randomSlots).toBe(0);
+    expect(req.randomSlotsByTable).toEqual({});
     expect(req.fixedGrants).toEqual([]);
   });
 
-  it("sums random slots from both race and class", () => {
+  it("sums random slots from both race and class into the same (Basic) table", () => {
     const req = computeSpellRequirements(RACE_TABLE[4]!, CLASS_TABLE[5]!); // Pixie (5) + Scholar (3)
-    expect(req.randomSlots).toBe(8);
+    expect(req.randomSlotsByTable).toEqual({ basic: 8 });
     expect(req.fixedGrants).toEqual([]);
+  });
+
+  it("keys a race's random grant by its own table when it isn't Basic", () => {
+    // Corvino (Exotic, issue #22): 5 random Advanced Spells.
+    const req = computeSpellRequirements(EXOTIC_RACE_TABLE[3]!, CLASS_TABLE[7]!); // Corvino + Guard
+    expect(req.randomSlotsByTable).toEqual({ advanced: 5 });
   });
 
   it("surfaces a race's fixed spell grant instead of a random roll", () => {
     const req = computeSpellRequirements(RACE_TABLE[3]!, CLASS_TABLE[7]!); // Lightbugster + Guard
-    expect(req.randomSlots).toBe(0);
-    expect(req.fixedGrants).toEqual([{ spellRoll: 2, uses: 3 }]); // Light x3
+    expect(req.randomSlotsByTable).toEqual({});
+    expect(req.fixedGrants).toEqual([{ table: "basic", spellRoll: 2, uses: 3 }]); // Light x3
   });
 
   it("handles a null race or class before either has been rolled", () => {
-    expect(computeSpellRequirements(null, null)).toEqual({ randomSlots: 0, fixedGrants: [] });
+    expect(computeSpellRequirements(null, null)).toEqual({ randomSlotsByTable: {}, fixedGrants: [] });
   });
 });
 
@@ -160,19 +230,24 @@ describe("computeSpellUses", () => {
     expect(computeSpellUses([], [])).toEqual({});
   });
 
-  it("counts each rolled spell as one use, keyed by its table roll", () => {
+  it("counts each rolled spell as one use, keyed by table:roll", () => {
     const uses = computeSpellUses([SPELL_TABLE[2]!, SPELL_TABLE[6]!], []);
-    expect(uses).toEqual({ 2: 1, 6: 1 });
+    expect(uses).toEqual({ "basic:2": 1, "basic:6": 1 });
   });
 
-  it("stacks duplicate rolled spells into extra uses of the same roll", () => {
+  it("stacks duplicate rolled spells into extra uses of the same key", () => {
     const uses = computeSpellUses([SPELL_TABLE[2]!, SPELL_TABLE[2]!], []);
-    expect(uses).toEqual({ 2: 2 });
+    expect(uses).toEqual({ "basic:2": 2 });
   });
 
-  it("combines fixed grants and rolled spells for the same spell roll", () => {
-    const uses = computeSpellUses([SPELL_TABLE[2]!], [{ spellRoll: 2, uses: 3 }]);
-    expect(uses).toEqual({ 2: 4 });
+  it("combines fixed grants and rolled spells for the same spell key", () => {
+    const uses = computeSpellUses([SPELL_TABLE[2]!], [{ table: "basic", spellRoll: 2, uses: 3 }]);
+    expect(uses).toEqual({ "basic:2": 4 });
+  });
+
+  it("keeps spells from different tables under separate keys even with the same roll number", () => {
+    const uses = computeSpellUses([SPELL_TABLE[1]!, NATURE_SPELL_TABLE[1]!], []);
+    expect(uses).toEqual({ "basic:1": 1, "nature:1": 1 });
   });
 });
 

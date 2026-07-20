@@ -6,6 +6,7 @@ import type {
   MonsterTemplate,
   RoomContentEntry,
 } from "../data/dungeonTables.ts";
+import type { SpellTableKey } from "../data/types.ts";
 
 export type Direction = "N" | "E" | "S" | "W";
 
@@ -234,8 +235,10 @@ export interface DungeonState {
   className: string;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
-  /** Remaining uses per spell, keyed by its 1d6 Basic Spells table roll. Depleted uses are gone until Rest (not yet built). */
-  spellUses: Record<number, number>;
+  /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (not a
+   * bare roll number -- see `SpellTableKey`'s own doc comment, issue #24). Depleted uses are gone
+   * until Rest. */
+  spellUses: Record<string, number>;
   /** false once the character has died; deathCause distinguishes the Darkness from a lost fight. */
   alive: boolean;
   deathCause: "darkness" | "combat" | null;
@@ -299,7 +302,7 @@ export function createInitialDungeonState(
   startingTorches = 10,
   startingHp = 20,
   weaponFormula = "1d6",
-  spellUses: Record<number, number> = {},
+  spellUses: Record<string, number> = {},
   characterName = "",
   coins = 0,
   treasures = 0,
@@ -390,7 +393,7 @@ export type DungeonAction =
   /** Swaps a found-but-unwielded weapon into the equipped slot, pushing whatever was equipped (if
    * anything) back into spareWeapons -- out-of-combat only, see CLAUDE.md's Armor & Weapons note. */
   | { type: "WIELD_WEAPON"; index: number }
-  | { type: "OPEN_TREASURE"; roll: number; maxSpellUses: Record<number, number> }
+  | { type: "OPEN_TREASURE"; roll: number; maxSpellUses: Record<string, number> }
   /** `useHorn`: Rinoceroid's "You can attack with your horn (Damage 1d6)" -- a flat 1d6, no
    * weapon modifier, ignoring whatever's equipped, for this one attack. */
   | { type: "PLAYER_ATTACK"; targetId: number; roll: number; useHorn?: boolean }
@@ -398,10 +401,14 @@ export type DungeonAction =
    * `CombatState.engulfableBodies` (set by `handleMonsterDefeat` whenever a monster is actually
    * removed, not revived) and heals to full, same as a full round (the monsters still counter-attack). */
   | { type: "ENGULF_BODY" }
-  /** `destLevel`/`destSegId`: required for Teleport (spellRoll 3) -- the already-discovered, empty
-   * room the player chose to reappear in (see `isTeleportDestination`). Unused by every other spell. */
+  /** `destLevel`/`destSegId`: required for Teleport (basic table, spellRoll 3) -- the
+   * already-discovered, empty room the player chose to reappear in (see `isTeleportDestination`).
+   * Unused by every other spell. `table` distinguishes which New Spells table (issue #24)
+   * `spellRoll` is from -- see `SpellTableKey`'s own doc comment for why a bare roll number alone
+   * isn't enough anymore. */
   | {
       type: "CAST_SPELL";
+      table: SpellTableKey;
       spellRoll: number;
       targetId?: number;
       destLevel?: number;
@@ -417,7 +424,7 @@ export type DungeonAction =
       hp: number;
       maxHp: number;
       weaponFormula: string;
-      spellUses: Record<number, number>;
+      spellUses: Record<string, number>;
       characterName: string;
       raceName: string;
       className: string;
@@ -438,7 +445,7 @@ export type DungeonAction =
       weapon: EquippedWeapon | null;
       spareWeapons: EquippedWeapon[];
       weaponFormula: string;
-      spellUses: Record<number, number>;
+      spellUses: Record<string, number>;
       characterName: string;
       raceName: string;
       className: string;

@@ -48,7 +48,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     armor: [],
     weapon: null,
     spareWeapons: [],
-    spellUses: { 1: 0 },
+    spellUses: { "basic:1": 0 },
     monsterKills: 0,
     bossKills: 0,
     killsByName: {},
@@ -223,50 +223,50 @@ describe("wieldWeapon", () => {
 });
 
 describe("canCastSpell / castSpell", () => {
-  it("only allows Heal (1) and Light (2), and only with uses remaining", () => {
-    expect(canCastSpell(makeResources({ spellUses: { 1: 1 } }), 1)).toBe(true);
-    expect(canCastSpell(makeResources({ spellUses: { 1: 0 } }), 1)).toBe(false);
-    expect(canCastSpell(makeResources({ spellUses: { 2: 1 } }), 2)).toBe(true);
+  it("only allows Heal (basic:1) and Light (basic:2), and only with uses remaining", () => {
+    expect(canCastSpell(makeResources({ spellUses: { "basic:1": 1 } }), "basic", 1)).toBe(true);
+    expect(canCastSpell(makeResources({ spellUses: { "basic:1": 0 } }), "basic", 1)).toBe(false);
+    expect(canCastSpell(makeResources({ spellUses: { "basic:2": 1 } }), "basic", 2)).toBe(true);
     // Cold Ray/Lightning/Fireball/Teleport all need combat, which neither Town nor World has.
-    expect(canCastSpell(makeResources({ spellUses: { 4: 1 } }), 4)).toBe(false);
+    expect(canCastSpell(makeResources({ spellUses: { "basic:4": 1 } }), "basic", 4)).toBe(false);
   });
 
   it("Heal recovers 5 HP, capped at maxHp, and spends a use", () => {
-    const resources = makeResources({ hp: 10, maxHp: 20, spellUses: { 1: 2 } });
-    const next = castSpell(resources, 1);
+    const resources = makeResources({ hp: 10, maxHp: 20, spellUses: { "basic:1": 2 } });
+    const next = castSpell(resources, "basic", 1);
     expect(next.hp).toBe(15);
-    expect(next.spellUses).toEqual({ 1: 1 });
+    expect(next.spellUses).toEqual({ "basic:1": 1 });
   });
 
   it("Heal is capped at maxHp, not overhealing", () => {
-    const resources = makeResources({ hp: 18, maxHp: 20, spellUses: { 1: 1 } });
-    const next = castSpell(resources, 1);
+    const resources = makeResources({ hp: 18, maxHp: 20, spellUses: { "basic:1": 1 } });
+    const next = castSpell(resources, "basic", 1);
     expect(next.hp).toBe(20);
   });
 
   it("Light grants 1 torch, capped at 10, and spends a use", () => {
-    const resources = makeResources({ torches: 5, spellUses: { 2: 1 } });
-    const next = castSpell(resources, 2);
+    const resources = makeResources({ torches: 5, spellUses: { "basic:2": 1 } });
+    const next = castSpell(resources, "basic", 2);
     expect(next.torches).toBe(6);
-    expect(next.spellUses).toEqual({ 2: 0 });
+    expect(next.spellUses).toEqual({ "basic:2": 0 });
   });
 
   it("Light is capped at 10 torches, still spending the use", () => {
-    const resources = makeResources({ torches: 10, spellUses: { 2: 1 } });
-    const next = castSpell(resources, 2);
+    const resources = makeResources({ torches: 10, spellUses: { "basic:2": 1 } });
+    const next = castSpell(resources, "basic", 2);
     expect(next.torches).toBe(10);
-    expect(next.spellUses).toEqual({ 2: 0 });
+    expect(next.spellUses).toEqual({ "basic:2": 0 });
   });
 
   it("is a no-op with no uses remaining", () => {
-    const resources = makeResources({ hp: 10, maxHp: 20, spellUses: { 1: 0 } });
-    const next = castSpell(resources, 1);
+    const resources = makeResources({ hp: 10, maxHp: 20, spellUses: { "basic:1": 0 } });
+    const next = castSpell(resources, "basic", 1);
     expect(next).toEqual(resources);
   });
 
   it("is a no-op for a combat-only spell", () => {
-    const resources = makeResources({ spellUses: { 5: 1 } });
-    const next = castSpell(resources, 5);
+    const resources = makeResources({ spellUses: { "basic:5": 1 } });
+    const next = castSpell(resources, "basic", 5);
     expect(next).toEqual(resources);
   });
 });
@@ -342,10 +342,14 @@ describe("Different Cultures: Elf -- Buy Elven Boots / hasElvenBoots", () => {
 
   it("hasElvenBoots matches case-insensitively by itemName, same as monster-tag matching", () => {
     expect(hasElvenBoots(makeResources({ armor: [] }))).toBe(false);
-    expect(hasElvenBoots(makeResources({ armor: [{ piece: "boots", hp: 2, maxHp: 2, itemName: "elven BOOTS" }] }))).toBe(
-      true,
+    expect(
+      hasElvenBoots(
+        makeResources({ armor: [{ piece: "boots", hp: 2, maxHp: 2, itemName: "elven BOOTS" }] }),
+      ),
+    ).toBe(true);
+    expect(hasElvenBoots(makeResources({ armor: [{ piece: "helm", hp: 4, maxHp: 4 }] }))).toBe(
+      false,
     );
-    expect(hasElvenBoots(makeResources({ armor: [{ piece: "helm", hp: 4, maxHp: 4 }] }))).toBe(false);
   });
 });
 
@@ -354,30 +358,42 @@ describe("Different Cultures: Gnome -- Learn a Spell", () => {
     expect(canLearnRandomSpell(makeResources({ coins: 79 }))).toBe(false);
     const next = learnRandomSpell(makeResources({ coins: 80, spellUses: {} }), sequenceDie([6])); // roll 6 -> Fireball, roll 6
     expect(next.coins).toBe(0);
-    expect(next.spellUses).toEqual({ 6: 1 });
+    expect(next.spellUses).toEqual({ "basic:6": 1 });
   });
 
   it("stacks onto an existing use of the same spell", () => {
-    const next = learnRandomSpell(makeResources({ coins: 80, spellUses: { 6: 2 } }), sequenceDie([6]));
-    expect(next.spellUses).toEqual({ 6: 3 });
+    const next = learnRandomSpell(
+      makeResources({ coins: 80, spellUses: { "basic:6": 2 } }),
+      sequenceDie([6]),
+    );
+    expect(next.spellUses).toEqual({ "basic:6": 3 });
   });
 });
 
 describe("Different Cultures: Goblin -- Verdosa Potion", () => {
   it("requires 30 coins, always spent regardless of outcome", () => {
     expect(canDrinkVerdosaPotion(makeResources({ coins: 29 }))).toBe(false);
-    const { resources } = drinkVerdosaPotion(makeResources({ coins: 30, hp: 5, maxHp: 20 }), sequenceDie([2]));
+    const { resources } = drinkVerdosaPotion(
+      makeResources({ coins: 30, hp: 5, maxHp: 20 }),
+      sequenceDie([2]),
+    );
     expect(resources.coins).toBe(0);
   });
 
   it("heals to max HP on a roll of 3 or more", () => {
-    const { resources, healed } = drinkVerdosaPotion(makeResources({ coins: 30, hp: 5, maxHp: 20 }), sequenceDie([3]));
+    const { resources, healed } = drinkVerdosaPotion(
+      makeResources({ coins: 30, hp: 5, maxHp: 20 }),
+      sequenceDie([3]),
+    );
     expect(healed).toBe(true);
     expect(resources.hp).toBe(20);
   });
 
   it("leaves HP untouched (just itchy, flavor-only) on a roll below 3", () => {
-    const { resources, healed } = drinkVerdosaPotion(makeResources({ coins: 30, hp: 5, maxHp: 20 }), sequenceDie([2]));
+    const { resources, healed } = drinkVerdosaPotion(
+      makeResources({ coins: 30, hp: 5, maxHp: 20 }),
+      sequenceDie([2]),
+    );
     expect(healed).toBe(false);
     expect(resources.hp).toBe(5);
   });
@@ -386,7 +402,9 @@ describe("Different Cultures: Goblin -- Verdosa Potion", () => {
 describe("Different Cultures: Orc -- Buy Orc Gladio", () => {
   it("requires 70 coins and overwrites the equipped weapon", () => {
     expect(canBuyOrcGladio(makeResources({ coins: 69 }))).toBe(false);
-    const next = buyOrcGladio(makeResources({ coins: 70, weapon: { name: "Rusty Sword", formula: "1d6-1" } }));
+    const next = buyOrcGladio(
+      makeResources({ coins: 70, weapon: { name: "Rusty Sword", formula: "1d6-1" } }),
+    );
     expect(next.coins).toBe(0);
     expect(next.weapon).toEqual({ name: "Orc Gladio", formula: "1d6+1" });
   });
@@ -485,8 +503,12 @@ describe("Getting Money: resolveThugLife", () => {
     expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([4, 4])).amount).toBe(2); // 8
     expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([4, 5])).amount).toBe(5); // 9
     expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([5, 5])).amount).toBe(7); // 10
-    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([5, 6])).amount).toBe(10); // 11
-    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([6, 6])).amount).toBe(10); // 12
+    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([5, 6])).amount).toBe(
+      10,
+    ); // 11
+    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([6, 6])).amount).toBe(
+      10,
+    ); // 12
   });
 
   it("13-14 (fortress only): steal 20 coins", () => {

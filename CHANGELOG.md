@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-07-20
+
+### Added
+
+- New Spells (#24): three additional 1d6 spell tables (Nature, Death,
+  Elemental) plus a 2d6 Advanced table, granted by a race ability, an
+  Advanced Class, or a Magic Item -- never a free player choice the
+  way Race tables are. Heal, Light, Teleport, Cold Ray, Lightning,
+  and Fireball (including Elemental's re-listed copies of the latter
+  three) are fully castable; every other new spell rolls, tracks
+  uses, and displays correctly but has no mechanical effect yet.
+  Spell identity widened to a `table:roll` composite key throughout
+  the engine, since the new tables reuse Basic Spells' own roll
+  numbers.
+
 ## [2.10.0] - 2026-07-20
 
 ### Added

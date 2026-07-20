@@ -547,7 +547,7 @@ export function WorldScreen({
             monsterKills={resources.monsterKills}
             killsByName={resources.killsByName}
             canCastOutOfCombat
-            onCastSpell={(spellRoll) => onUpdateResources(castSpell(resources, spellRoll))}
+            onCastSpell={(table, spellRoll) => onUpdateResources(castSpell(resources, table, spellRoll))}
           />
         </aside>
       </div>

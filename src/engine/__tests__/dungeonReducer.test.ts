@@ -318,7 +318,7 @@ describe("Room Content rewards", () => {
       { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
       rng,
     );
-    expect(state.spellUses).toEqual({ 3: 3 }); // three scrolls, all rolling spell 3 (Teleport)
+    expect(state.spellUses).toEqual({ "basic:3": 3 }); // three scrolls, all rolling spell 3 (Teleport)
     expect(state.log.some((entry) => entry.message.includes("3 Magic Scrolls"))).toBe(true);
   });
 
@@ -1660,11 +1660,11 @@ describe("CAST_SPELL: Heal and Light outside combat", () => {
       ...stateWithLevel(makeLevel(1)),
       hp: 12,
       maxHp: 20,
-      spellUses: { 1: 2 },
+      spellUses: { "basic:1": 2 },
     };
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 1 });
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 1 });
     expect(next.hp).toBe(17);
-    expect(next.spellUses[1]).toBe(1);
+    expect(next.spellUses["basic:1"]).toBe(1);
   });
 
   it("Heal never overheals past maxHp", () => {
@@ -1672,9 +1672,9 @@ describe("CAST_SPELL: Heal and Light outside combat", () => {
       ...stateWithLevel(makeLevel(1)),
       hp: 18,
       maxHp: 20,
-      spellUses: { 1: 1 },
+      spellUses: { "basic:1": 1 },
     };
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 1 });
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 1 });
     expect(next.hp).toBe(20);
   });
 
@@ -1682,29 +1682,29 @@ describe("CAST_SPELL: Heal and Light outside combat", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       torches: 6,
-      spellUses: { 2: 1 },
+      spellUses: { "basic:2": 1 },
     };
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 2 });
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 2 });
     expect(next.torches).toBe(7);
-    expect(next.spellUses[2]).toBe(0);
+    expect(next.spellUses["basic:2"]).toBe(0);
   });
 
   it("Light still consumes a use even when torches are already at the 10 cap", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       torches: 10,
-      spellUses: { 2: 1 },
+      spellUses: { "basic:2": 1 },
     };
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 2 });
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 2 });
     expect(next.torches).toBe(10);
-    expect(next.spellUses[2]).toBe(0);
+    expect(next.spellUses["basic:2"]).toBe(0);
   });
 });
 
 describe("CAST_SPELL guards", () => {
   it("is a no-op with no uses remaining", () => {
     const state = stateWithLevel(makeLevel(1));
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 1 });
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 1 });
     expect(next).toBe(state);
   });
 
@@ -1712,26 +1712,30 @@ describe("CAST_SPELL guards", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       alive: false,
-      spellUses: { 1: 1 },
+      spellUses: { "basic:1": 1 },
     };
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 1 });
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 1 });
     expect(next).toBe(state);
   });
 
   it("rejects Teleport outside combat -- there's nowhere for it to send you in this implementation", () => {
-    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), spellUses: { 3: 1 } };
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3 });
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), spellUses: { "basic:3": 1 } };
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 3 });
     expect(next).toBe(state);
   });
 
   it("rejects Cold Ray / Lightning / Fireball outside combat", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
-      spellUses: { 4: 1, 5: 1, 6: 1 },
+      spellUses: { "basic:4": 1, "basic:5": 1, "basic:6": 1 },
     };
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 4, targetId: 1 })).toBe(state);
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: 1 })).toBe(state);
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 6 })).toBe(state);
+    expect(
+      dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 4, targetId: 1 }),
+    ).toBe(state);
+    expect(
+      dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 5, targetId: 1 }),
+    ).toBe(state);
+    expect(dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 6 })).toBe(state);
   });
 
   it("allows Teleport mid-fight after choosing Attack First (regression: hasPendingRoomEntry must not block an already-active fight)", () => {
@@ -1767,17 +1771,18 @@ describe("CAST_SPELL guards", () => {
       ...stateWithLevel(level),
       currentSegId: 1,
       combat,
-      spellUses: { 3: 1 },
+      spellUses: { "basic:3": 1 },
     };
 
     const next = dungeonReducer(state, {
       type: "CAST_SPELL",
+      table: "basic",
       spellRoll: 3,
       destLevel: 0,
       destSegId: 2,
     });
     expect(next.combat).toBeNull();
-    expect(next.spellUses[3]).toBe(0);
+    expect(next.spellUses["basic:3"]).toBe(0);
     expect(next.currentSegId).toBe(2);
   });
 });
@@ -1810,7 +1815,7 @@ describe("OPEN_TREASURE", () => {
       { type: "OPEN_TREASURE", roll: 3, maxSpellUses: {} },
       fixedDie(5),
     );
-    expect(next.spellUses).toEqual({ 5: 1 });
+    expect(next.spellUses).toEqual({ "basic:5": 1 });
     expect(next.log[0]!.message).toContain("Lightning");
   });
 
@@ -1897,14 +1902,14 @@ describe("OPEN_TREASURE", () => {
       ...stateWithLevel(makeLevel(1)),
       dungeonTypeKey: "tomb",
       treasures: 1,
-      spellUses: { 1: 0, 6: 1 },
+      spellUses: { "basic:1": 0, "basic:6": 1 },
     };
     const next = dungeonReducer(state, {
       type: "OPEN_TREASURE",
       roll: 1,
-      maxSpellUses: { 1: 3, 6: 3 },
+      maxSpellUses: { "basic:1": 3, "basic:6": 3 },
     });
-    expect(next.spellUses).toEqual({ 1: 3, 6: 3 });
+    expect(next.spellUses).toEqual({ "basic:1": 3, "basic:6": 3 });
   });
 
   it("Crypt roll 5 redirects to the Wonders table; Potion of Luminescence (wonders roll 6) grants torches, capped at 10", () => {
@@ -1938,7 +1943,18 @@ describe("OPEN_TREASURE", () => {
   });
 
   it("Palace roll 5 redirects to the Wonders table; Potion of Fury (wonders roll 5) adds to the active fight's playerDamageBonus", () => {
-    const monster = { id: 1, name: "Orc", hp: 6, maxHp: 6, damage: 3, abilities: [], bonusDamage: 0, deathtouchPending: false, paralyzePending: 0, skipNextAttack: false };
+    const monster = {
+      id: 1,
+      name: "Orc",
+      hp: 6,
+      maxHp: 6,
+      damage: 3,
+      abilities: [],
+      bonusDamage: 0,
+      deathtouchPending: false,
+      paralyzePending: 0,
+      skipNextAttack: false,
+    };
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       dungeonTypeKey: "palace",
@@ -1990,7 +2006,7 @@ describe("OPEN_TREASURE", () => {
       { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
       fixedDie(5),
     );
-    expect(next.spellUses).toEqual({ 5: 1 });
+    expect(next.spellUses).toEqual({ "basic:5": 1 });
     expect(next.log[0]!.message).toContain("Lightning");
   });
 
@@ -2134,7 +2150,7 @@ describe("RESUME_DUNGEON", () => {
       hp: 24,
       maxHp: 24,
       weaponFormula: "1d6+1",
-      spellUses: { 1: 2 },
+      spellUses: { "basic:1": 2 },
       characterName: "New Hero",
       raceName: "",
       className: "",
@@ -2150,7 +2166,7 @@ describe("RESUME_DUNGEON", () => {
     expect(next.hp).toBe(24);
     expect(next.maxHp).toBe(24);
     expect(next.weaponFormula).toBe("1d6+1");
-    expect(next.spellUses).toEqual({ 1: 2 });
+    expect(next.spellUses).toEqual({ "basic:1": 2 });
     expect(next.alive).toBe(true);
     expect(next.deathCause).toBeNull();
     expect(next.characterName).toBe("New Hero");
@@ -2413,7 +2429,7 @@ describe("RETURN_TO_DUNGEON", () => {
       weapon: null,
       spareWeapons: [],
       weaponFormula: "1d6",
-      spellUses: { 1: 3 },
+      spellUses: { "basic:1": 3 },
       characterName: "Pip",
       raceName: "",
       className: "",
@@ -2435,7 +2451,7 @@ describe("RETURN_TO_DUNGEON", () => {
     expect(next.treasures).toBe(1);
     expect(next.keys).toBe(2);
     expect(next.heldItems).toEqual([{ name: "Ornament", worth: 5 }]);
-    expect(next.spellUses).toEqual({ 1: 3 });
+    expect(next.spellUses).toEqual({ "basic:1": 3 });
     expect(next.alive).toBe(true);
     expect(next.characterName).toBe("Pip");
     expect(next.monsterKills).toBe(5);

@@ -13,7 +13,7 @@ export const RACE_TABLE: Record<number, RaceDef> = {
     name: "Lightbugster",
     hp: 16,
     ability: "You start with 3 uses of the Light spell.",
-    fixedSpell: { spellRoll: 2, uses: 3 },
+    fixedSpell: { table: "basic", spellRoll: 2, uses: 3 },
   },
   4: {
     roll: 4,
@@ -72,7 +72,7 @@ export const RACE_TABLE: Record<number, RaceDef> = {
     name: "Dragonkin",
     hp: 30,
     ability: "You start with 3 uses of the Fireball spell.",
-    fixedSpell: { spellRoll: 6, uses: 3 },
+    fixedSpell: { table: "basic", spellRoll: 6, uses: 3 },
   },
 };
 
@@ -88,15 +88,18 @@ export const RACE_TABLE: Record<number, RaceDef> = {
  * Monstrous) -- those reuse the existing entry directly under this table's own 1d6 roll number,
  * rather than re-authoring identical data a second time.
  *
- * Several abilities here reference systems this codebase doesn't have yet (an Advanced Spells
- * table -- issue #24 -- for Pumpkinkin/Corvino; a real self-destruct-in-combat mechanic for
- * Goblin, ambiguous besides on whether it also hurts the Goblin; provisions existing inside a
- * dungeon run at all, for Fungoid's "at any time" heal; an armor/potion/scroll restriction system
- * for Ogre) -- those resolve as flavor-only text for now, the same "documented, deliberate
- * simplification" precedent as `bladeTrap`'s roll-of-2 or `WeaponEntry.twoHanded`, rather than
- * inventing rules the rulebook doesn't fully specify. See CLAUDE.md for exactly which abilities
- * here *are* mechanically real (water-walking, travel-cost multipliers, Ogre's +2 damage,
- * Half-Human's roll-time race merge) and which aren't yet. */
+ * A few abilities here still reference systems this codebase doesn't have (a real
+ * self-destruct-in-combat mechanic for Goblin, ambiguous besides on whether it also hurts the
+ * Goblin; provisions existing inside a dungeon run at all, for Fungoid's "at any time" heal; an
+ * armor/potion/scroll restriction system for Ogre) -- those resolve as flavor-only text for now,
+ * the same "documented, deliberate simplification" precedent as `bladeTrap`'s roll-of-2 or
+ * `WeaponEntry.twoHanded`, rather than inventing rules the rulebook doesn't fully specify.
+ * Pumpkinkin's "Vimes spell" and Corvino's "5 random Advanced Spells" were originally in that same
+ * bucket, blocked on an Advanced/Nature Spells table not existing -- now real grants (`fixedSpell`/
+ * `randomSpells`+`randomSpellsTable`) now that issue #24 built `NATURE_SPELL_TABLE`/
+ * `ADVANCED_SPELL_TABLE` (`data/spells.ts`). See CLAUDE.md for exactly which other abilities here
+ * *are* mechanically real (water-walking, travel-cost multipliers, Ogre's +2 damage, Half-Human's
+ * roll-time race merge) and which aren't yet. */
 export const UNCOMMON_RACE_TABLE: Record<number, RaceDef> = {
   1: { ...RACE_TABLE[3]!, roll: 1 }, // Lightbugster
   2: { ...RACE_TABLE[4]!, roll: 2 }, // Pixie
@@ -106,6 +109,7 @@ export const UNCOMMON_RACE_TABLE: Record<number, RaceDef> = {
     name: "Pumpkinkin",
     hp: 16,
     ability: "You start with 3 uses of the Vimes spell.",
+    fixedSpell: { table: "nature", spellRoll: 2, uses: 3 },
   },
   5: { ...RACE_TABLE[10]!, roll: 5 }, // Cat-Person
   6: {
@@ -129,6 +133,8 @@ export const EXOTIC_RACE_TABLE: Record<number, RaceDef> = {
     name: "Corvino",
     hp: 14,
     ability: "You start the game with 5 random Advanced Spells.",
+    randomSpells: 5,
+    randomSpellsTable: "advanced",
   },
   4: {
     roll: 4,

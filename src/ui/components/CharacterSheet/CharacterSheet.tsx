@@ -1,7 +1,7 @@
 import { useState } from "react";
-import type { CreatedCharacter } from "../../../data/types.ts";
-import { SPELL_TABLE } from "../../../data/spells.ts";
-import { computeSpellUses } from "../../../engine/character.ts";
+import type { CreatedCharacter, SpellTableKey } from "../../../data/types.ts";
+import { computeSpellUses, parseSpellKey, SPELL_TABLE_BY_KEY } from "../../../engine/character.ts";
+import { OUT_OF_COMBAT_SPELL_NAMES } from "../../../engine/combat.ts";
 import { KillBreakdownModal } from "../KillBreakdownModal/KillBreakdownModal.tsx";
 import styles from "./CharacterSheet.module.css";
 
@@ -30,15 +30,13 @@ export interface CharacterSheetProps {
   weaponName?: string;
   /** The acquired weapon's damage formula, paired with `weaponName` above. */
   weaponFormula?: string;
-  /** Remaining uses per spell in the current run; falls back to the character's starting uses outside a dungeon. */
-  spellUses?: Record<number, number>;
+  /** Remaining uses per spell in the current run, keyed by `character.ts`'s `spellKey(table, roll)`
+   * composite (issue #24) -- falls back to the character's starting uses outside a dungeon. */
+  spellUses?: Record<string, number>;
   /** Whether Heal/Light can be cast right now (in a dungeon, alive, not mid-fight). */
   canCastOutOfCombat?: boolean;
-  onCastSpell?: (spellRoll: number) => void;
+  onCastSpell?: (table: SpellTableKey, spellRoll: number) => void;
 }
-
-/** Heal and Light are the only spells that mean anything outside a fight; the rest need a target or a flee. */
-const CASTABLE_OUT_OF_COMBAT = new Set([1, 2]);
 
 export function CharacterSheet({
   character,
@@ -59,10 +57,11 @@ export function CharacterSheet({
   const [showKills, setShowKills] = useState(false);
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const liveSpellUses = spellUses ?? maxSpellUses;
-  const spellRolls = Object.keys(maxSpellUses)
-    .map(Number)
-    .sort((a, b) => a - b);
-  const hasSpells = spellRolls.length > 0;
+  // Every known spell keyed here, informational (name/effect/uses) regardless of table -- only
+  // Heal/Light (`OUT_OF_COMBAT_SPELL_NAMES`) ever get an actual "Cast" button below, since that's
+  // the only pair with a real out-of-combat CAST_SPELL/town.ts effect today (issue #24).
+  const spellKeys = Object.keys(maxSpellUses).sort();
+  const hasSpells = spellKeys.length > 0;
   const torchCount = torches ?? character.torches;
   const hpValue = hp ?? character.totalHp;
   const coinCount = coins ?? character.coins;
@@ -150,18 +149,19 @@ export function CharacterSheet({
           <>
             <p className={styles.spellsHeading}>Spells</p>
             <ul className={styles.spellList}>
-              {spellRolls.map((roll) => {
-                const spell = SPELL_TABLE[roll];
+              {spellKeys.map((key) => {
+                const { table, roll } = parseSpellKey(key);
+                const spell = SPELL_TABLE_BY_KEY[table]?.[roll];
                 if (!spell) return null;
-                const max = maxSpellUses[roll] ?? 0;
-                const remaining = liveSpellUses[roll] ?? 0;
+                const max = maxSpellUses[key] ?? 0;
+                const remaining = liveSpellUses[key] ?? 0;
                 // Rendered whenever this spell is *eligible* to cast here, even at 0 remaining
                 // uses -- disabled (not omitted) in that case, so "out of uses right now" reads
                 // differently from "not castable here at all" instead of looking identical.
                 const canCastHere =
-                  CASTABLE_OUT_OF_COMBAT.has(roll) && !!canCastOutOfCombat && !!onCastSpell;
+                  OUT_OF_COMBAT_SPELL_NAMES.has(spell.name) && !!canCastOutOfCombat && !!onCastSpell;
                 return (
-                  <li key={roll}>
+                  <li key={key}>
                     <div className={styles.spellHeader}>
                       <span className={styles.spellName}>{spell.name}</span>
                       <span className={styles.spellUses}>
@@ -174,7 +174,7 @@ export function CharacterSheet({
                         type="button"
                         className={styles.castBtn}
                         disabled={remaining <= 0}
-                        onClick={() => onCastSpell!(roll)}
+                        onClick={() => onCastSpell!(table, roll)}
                       >
                         Cast
                       </button>

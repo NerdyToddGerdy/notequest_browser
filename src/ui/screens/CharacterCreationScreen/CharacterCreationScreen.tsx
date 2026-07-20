@@ -7,13 +7,13 @@ import {
   rollClass,
   rollName,
   rollRaceFromTable,
-  rollSpell,
+  rollSpellFromTable,
+  SPELL_TABLE_BY_KEY,
   type RaceTableKey,
 } from "../../../engine/character.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
 import type { PendingDungeon } from "../../../engine/dungeonState.ts";
-import { SPELL_TABLE } from "../../../data/spells.ts";
-import type { ClassDef, CreatedCharacter, RaceDef, SpellDef } from "../../../data/types.ts";
+import type { ClassDef, CreatedCharacter, RaceDef, SpellDef, SpellTableKey } from "../../../data/types.ts";
 import { revealDelay } from "../../rollTiming.ts";
 import { Footer } from "../../components/Footer/Footer.tsx";
 import styles from "./CharacterCreationScreen.module.css";
@@ -33,10 +33,18 @@ function initialRoll<T>(diceCount: number): RollState<T> {
   return { values: Array(diceCount).fill(1) as number[], rollToken: 0, entry: null, revealing: false };
 }
 
+/** One rolled spell keeps its own dice alongside it (1 for a flat 1d6 table, 2 for Advanced's
+ * 2d6), rather than just the `SpellDef`, so the result list can show "d6 → 3" or "2d6 → 8"
+ * correctly regardless of which table it came from. */
+interface RolledSpell {
+  spell: SpellDef;
+  dice: number[];
+}
+
 interface SpellRollState {
   values: number[];
   rollToken: number;
-  entries: SpellDef[] | null;
+  entries: RolledSpell[] | null;
   revealing: boolean;
 }
 
@@ -48,6 +56,17 @@ const RACE_TABLE_LABELS: Record<RaceTableKey, string> = {
   uncommon: "Uncommon",
   exotic: "Exotic",
   monstrous: "Monstrous",
+};
+
+/** "New Spells" (issue #24) -- which table(s) `spellRequirements.randomSlotsByTable` owes rolls
+ * from. Never a player choice (see `computeSpellRequirements`'s own doc comment) -- this is purely
+ * a display label for whichever table(s) a race/class grant already picked. */
+const SPELL_TABLE_LABELS: Record<SpellTableKey, string> = {
+  basic: "Basic",
+  nature: "Nature",
+  death: "Death",
+  elemental: "Elemental",
+  advanced: "Advanced",
 };
 
 export interface CharacterCreationScreenProps {
@@ -68,7 +87,10 @@ export function CharacterCreationScreen({
   const [raceTable, setRaceTable] = useState<RaceTableKey>("core");
   const [race, setRace] = useState<RollState<RaceDef>>(() => initialRoll(2));
   const [cls, setCls] = useState<RollState<ClassDef>>(() => initialRoll(2));
-  const [spells, setSpells] = useState<SpellRollState>(initialSpellRoll);
+  // "New Spells" (issue #24) -- keyed by table rather than one flat roll, since a race and class
+  // can (rarely) owe random slots from two different tables at once (e.g. Corvino's 5 random
+  // Advanced Spells alongside a Scholar's 3 random Basic ones) -- see computeSpellRequirements().
+  const [spellRolls, setSpellRolls] = useState<Partial<Record<SpellTableKey, SpellRollState>>>({});
   const [sealed, setSealed] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [graveyard] = useState(() => loadGraveyard());
@@ -77,18 +99,18 @@ export function CharacterCreationScreen({
     () => computeSpellRequirements(race.entry, cls.entry),
     [race.entry, cls.entry],
   );
+  const requiredSpellTables = Object.keys(spellRequirements.randomSlotsByTable) as SpellTableKey[];
 
-  // A reroll of either race or class can change how many spells are owed, so
-  // any previously-rolled random spells no longer apply. Adjusting state
-  // during render (React's documented pattern for this) instead of an effect
-  // avoids an extra commit-then-reset render pass.
+  // A reroll of either race or class can change how many spells (and from which table) are owed,
+  // so any previously-rolled random spells no longer apply. Adjusting state during render (React's
+  // documented pattern for this) instead of an effect avoids an extra commit-then-reset render pass.
   const [spellsResetFor, setSpellsResetFor] = useState<{ race: RaceDef | null; cls: ClassDef | null }>({
     race: race.entry,
     cls: cls.entry,
   });
   if (spellsResetFor.race !== race.entry || spellsResetFor.cls !== cls.entry) {
     setSpellsResetFor({ race: race.entry, cls: cls.entry });
-    setSpells(initialSpellRoll);
+    setSpellRolls({});
   }
 
   function handleRollRace() {
@@ -130,33 +152,43 @@ export function CharacterCreationScreen({
     setName(entry);
   }
 
-  function handleRollSpells() {
-    if (spells.revealing || spells.entries !== null || sealed || spellRequirements.randomSlots === 0) return;
-    const rolls = Array.from({ length: spellRequirements.randomSlots }, () => rollSpell());
-    const values = rolls.map((r) => r.dice[0]!);
-    const entries = rolls.map((r) => r.entry);
-    setSpells((prev) => ({ values, rollToken: prev.rollToken + 1, entries: null, revealing: true }));
+  function handleRollSpells(table: SpellTableKey) {
+    const current = spellRolls[table];
+    const count = spellRequirements.randomSlotsByTable[table] ?? 0;
+    if (count === 0 || current?.revealing || current?.entries != null || sealed) return;
+    const rolls = Array.from({ length: count }, () => rollSpellFromTable(table));
+    const values = rolls.flatMap((r) => r.dice);
+    const entries = rolls.map((r) => ({ spell: r.entry, dice: r.dice }));
+    setSpellRolls((prev) => ({
+      ...prev,
+      [table]: { values, rollToken: (prev[table]?.rollToken ?? 0) + 1, entries: null, revealing: true },
+    }));
     window.setTimeout(() => {
-      setSpells((prev) => ({ ...prev, entries, revealing: false }));
-      setAnnouncement(`Rolled ${values.length} Basic Spell${values.length > 1 ? "s" : ""}.`);
+      setSpellRolls((prev) => ({ ...prev, [table]: { ...prev[table]!, entries, revealing: false } }));
+      setAnnouncement(
+        `Rolled ${entries.length} ${SPELL_TABLE_LABELS[table]} Spell${entries.length > 1 ? "s" : ""}.`,
+      );
     }, revealDelay(values.length));
   }
 
   const totalHp = race.entry && cls.entry ? computeTotalHp(race.entry, cls.entry) : null;
   const weaponText = cls.entry ? `${cls.entry.weapon} (${cls.entry.weaponDamage})` : null;
-  const spellsSatisfied = spellRequirements.randomSlots === 0 || spells.entries !== null;
+  const spellsSatisfied = requiredSpellTables.every((table) => spellRolls[table]?.entries != null);
   const hasName = name.trim().length > 0;
   const canBegin = hasName && race.entry !== null && cls.entry !== null && spellsSatisfied && !sealed;
 
   function handleBegin() {
     if (!canBegin || !race.entry || !cls.entry) return;
     setSealed(true);
+    const rolledSpells = requiredSpellTables.flatMap(
+      (table) => spellRolls[table]?.entries?.map((r) => r.spell) ?? [],
+    );
     const character: CreatedCharacter = {
       name: name.trim(),
       race: race.entry,
       cls: cls.entry,
       totalHp: computeTotalHp(race.entry, cls.entry),
-      spells: spells.entries ?? [],
+      spells: rolledSpells,
       fixedGrants: spellRequirements.fixedGrants,
       torches: STARTING_TORCHES,
       coins: STARTING_COINS,
@@ -166,16 +198,18 @@ export function CharacterCreationScreen({
 
   const spellsNoteText = useMemo(() => {
     const parts: string[] = [];
-    if (spellRequirements.randomSlots > 0) {
-      parts.push(
-        `Roll ${spellRequirements.randomSlots} random Basic Spell${spellRequirements.randomSlots > 1 ? "s" : ""}.`,
-      );
+    for (const table of requiredSpellTables) {
+      const count = spellRequirements.randomSlotsByTable[table]!;
+      parts.push(`Roll ${count} random ${SPELL_TABLE_LABELS[table]} Spell${count > 1 ? "s" : ""}.`);
     }
     for (const grant of spellRequirements.fixedGrants) {
-      const spell = SPELL_TABLE[grant.spellRoll];
+      const spell = SPELL_TABLE_BY_KEY[grant.table][grant.spellRoll];
       if (spell) parts.push(`${spell.name} is granted outright (${grant.uses} uses).`);
     }
     return parts.length > 0 ? parts.join(" ") : "This build carries no spells — steel and nerve only.";
+    // requiredSpellTables is derived from spellRequirements every render, so depending on the
+    // latter alone already covers both.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spellRequirements]);
 
   const beginStatusText =
@@ -312,31 +346,41 @@ export function CharacterCreationScreen({
             <section className={styles.trackSpells}>
               <h2 className={styles.trackTitle}>
                 <span className={styles.trackIndex}>
-                  {spellRequirements.randomSlots > 0 ? `${spellRequirements.randomSlots}d6` : "—"}
+                  {requiredSpellTables.length > 0
+                    ? requiredSpellTables
+                        .map((t) => `${spellRequirements.randomSlotsByTable[t]}${t === "advanced" ? "x2d6" : "d6"}`)
+                        .join(" + ")
+                    : "—"}
                 </span>
-                Basic Spells
+                Spells
               </h2>
               <p className={styles.spellsNote}>{spellsNoteText}</p>
 
-              {spellRequirements.randomSlots > 0 && (
-                <>
-                  <DicePool values={spells.values} rollToken={spells.rollToken} size={40} />
-                  <button
-                    className={styles.rollBtn}
-                    type="button"
-                    data-testid="spells-roll-btn"
-                    disabled={spells.revealing || spells.entries !== null || sealed}
-                    onClick={handleRollSpells}
-                  >
-                    {spells.entries ? "Spells Rolled" : "Roll for Spells"}
-                  </button>
-                </>
-              )}
+              {requiredSpellTables.map((table) => {
+                const rollState = spellRolls[table] ?? initialSpellRoll;
+                return (
+                  <div key={table} className={styles.spellTableRoll}>
+                    <DicePool values={rollState.values} rollToken={rollState.rollToken} size={40} />
+                    <button
+                      className={styles.rollBtn}
+                      type="button"
+                      data-testid={`spells-roll-btn-${table}`}
+                      disabled={rollState.revealing || rollState.entries !== null || sealed}
+                      onClick={() => handleRollSpells(table)}
+                    >
+                      {rollState.entries
+                        ? `${SPELL_TABLE_LABELS[table]} Spells Rolled`
+                        : `Roll for ${SPELL_TABLE_LABELS[table]} Spells`}
+                    </button>
+                  </div>
+                );
+              })}
 
-              {(spellRequirements.fixedGrants.length > 0 || spells.entries) && (
+              {(spellRequirements.fixedGrants.length > 0 ||
+                requiredSpellTables.some((table) => spellRolls[table]?.entries)) && (
                 <ul className={styles.spellList} data-testid="spell-list">
                   {spellRequirements.fixedGrants.map((grant, index) => {
-                    const spell = SPELL_TABLE[grant.spellRoll];
+                    const spell = SPELL_TABLE_BY_KEY[grant.table][grant.spellRoll];
                     if (!spell) return null;
                     return (
                       <li key={`fixed-${index}`}>
@@ -349,14 +393,18 @@ export function CharacterCreationScreen({
                       </li>
                     );
                   })}
-                  {spells.entries?.map((spell, index) => (
-                    <li key={`rolled-${index}`}>
-                      <span className={styles.spellName}>{spell.name}</span>
-                      <span className={styles.spellFx}>{spell.effect}</span>
-                      <br />
-                      <span className={styles.spellTag}>d6 → {spells.values[index]}</span>
-                    </li>
-                  ))}
+                  {requiredSpellTables.flatMap((table) =>
+                    (spellRolls[table]?.entries ?? []).map((rolled, index) => (
+                      <li key={`rolled-${table}-${index}`}>
+                        <span className={styles.spellName}>{rolled.spell.name}</span>
+                        <span className={styles.spellFx}>{rolled.spell.effect}</span>
+                        <br />
+                        <span className={styles.spellTag}>
+                          {rolled.dice.length > 1 ? "2d6" : "d6"} → {rolled.dice.reduce((a, b) => a + b, 0)}
+                        </span>
+                      </li>
+                    )),
+                  )}
                 </ul>
               )}
             </section>

@@ -343,6 +343,13 @@
   color: var(--ink-soft);
   margin: 0 0 12px;
 }
+/* "New Spells" (issue #24) -- one roll row per table owed, when more than one applies at once. */
+.spellTableRoll {
+  margin-bottom: 12px;
+}
+.spellTableRoll:last-of-type {
+  margin-bottom: 0;
+}
 .spellList {
   list-style: none;
   margin: 14px 0 0;

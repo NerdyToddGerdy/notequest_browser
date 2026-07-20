@@ -1,14 +1,10 @@
 import type { MonsterAbility } from "../data/dungeonTables.ts";
-import { HEAL_AMOUNT } from "./combat.ts";
+import type { SpellTableKey } from "../data/types.ts";
+import { HEAL_AMOUNT, OUT_OF_COMBAT_SPELL_NAMES } from "./combat.ts";
 import type { ArmorPiece, EquippedWeapon, HeldItem } from "./dungeonState.ts";
-import { rollSpell } from "./character.ts";
+import { rollSpell, spellKey, SPELL_TABLE_BY_KEY } from "./character.ts";
 import { rollDie } from "./dice.ts";
 import type { RNG } from "./rng.ts";
-
-/** Heal (1) and Light (2) are the only two Basic Spells usable outside combat -- see
- * CharacterSheet's own CASTABLE_OUT_OF_COMBAT set, the shared source of truth for which rolls
- * these are. */
-const CASTABLE_OUT_OF_COMBAT = new Set([1, 2]);
 
 /** A living character's current stats, carried between the dungeon and the town -- unlike
  * `CreatedCharacter`, which only ever holds the starting values rolled at creation. */
@@ -24,7 +20,8 @@ export interface AdventurerResources {
   weapon: EquippedWeapon | null;
   /** Found weapons not currently wielded -- see DungeonState.spareWeapons. */
   spareWeapons: EquippedWeapon[];
-  spellUses: Record<number, number>;
+  /** Keyed by `character.ts`'s `spellKey(table, roll)` composite -- see `DungeonState.spellUses`. */
+  spellUses: Record<string, number>;
   monsterKills: number;
   bossKills: number;
   /** Per-monster-name/-ability kill tallies, mirroring `DungeonState`'s own fields of the same
@@ -47,19 +44,17 @@ export const MAX_PROVISIONS = 20;
  * at its max uses means the coin buys nothing. */
 export function canRest(
   resources: AdventurerResources,
-  maxSpellUses: Record<number, number>,
+  maxSpellUses: Record<string, number>,
 ): boolean {
   if (resources.coins < 1) return false;
   if (resources.hp < resources.maxHp) return true;
-  return Object.entries(maxSpellUses).some(
-    ([roll, max]) => (resources.spellUses[Number(roll)] ?? 0) < max,
-  );
+  return Object.entries(maxSpellUses).some(([key, max]) => (resources.spellUses[key] ?? 0) < max);
 }
 
 /** "Rest: Spend 1 coin and recover your HP and spells consumed." */
 export function rest(
   resources: AdventurerResources,
-  maxSpellUses: Record<number, number>,
+  maxSpellUses: Record<string, number>,
 ): AdventurerResources {
   return {
     ...resources,
@@ -69,8 +64,13 @@ export function rest(
   };
 }
 
-export function canCastSpell(resources: AdventurerResources, spellRoll: number): boolean {
-  return CASTABLE_OUT_OF_COMBAT.has(spellRoll) && (resources.spellUses[spellRoll] ?? 0) > 0;
+/** Whether the spell at this composite key is one of the two (Heal/Light) usable outside a
+ * dungeon fight at all -- see `combat.ts`'s `OUT_OF_COMBAT_SPELL_NAMES` for why this is
+ * name-matched rather than keyed by table/roll directly. */
+export function canCastSpell(resources: AdventurerResources, table: SpellTableKey, roll: number): boolean {
+  const spell = SPELL_TABLE_BY_KEY[table]?.[roll];
+  if (!spell || !OUT_OF_COMBAT_SPELL_NAMES.has(spell.name)) return false;
+  return (resources.spellUses[spellKey(table, roll)] ?? 0) > 0;
 }
 
 /** Town/World's own equivalent of dungeonReducer.ts's CAST_SPELL case, for just Heal and Light --
@@ -78,10 +78,16 @@ export function canCastSpell(resources: AdventurerResources, spellRoll: number):
  * Ray/Lightning/Fireball all need combat, which neither screen has). Mirrors that case's Heal
  * (min(HEAL_AMOUNT, room left before maxHp)) and Light (min(1, room left before MAX_TORCHES))
  * math exactly, since there's no DungeonState/reducer here to dispatch CAST_SPELL against. */
-export function castSpell(resources: AdventurerResources, spellRoll: number): AdventurerResources {
-  if (!canCastSpell(resources, spellRoll)) return resources;
-  const spellUses = { ...resources.spellUses, [spellRoll]: resources.spellUses[spellRoll]! - 1 };
-  if (spellRoll === 1) {
+export function castSpell(
+  resources: AdventurerResources,
+  table: SpellTableKey,
+  roll: number,
+): AdventurerResources {
+  if (!canCastSpell(resources, table, roll)) return resources;
+  const spell = SPELL_TABLE_BY_KEY[table]![roll]!;
+  const key = spellKey(table, roll);
+  const spellUses = { ...resources.spellUses, [key]: resources.spellUses[key]! - 1 };
+  if (spell.name === "Heal") {
     const healed = Math.min(HEAL_AMOUNT, resources.maxHp - resources.hp);
     return { ...resources, hp: resources.hp + healed, spellUses };
   }
@@ -256,10 +262,11 @@ export function canLearnRandomSpell(resources: AdventurerResources): boolean {
  * Character Creation's own random-spell rolls (`rollSpell()`) and grants 1 use of it. */
 export function learnRandomSpell(resources: AdventurerResources, rng: RNG = Math.random): AdventurerResources {
   const { entry } = rollSpell(rng);
+  const key = spellKey(entry.table, entry.roll);
   return {
     ...resources,
     coins: resources.coins - GNOME_SPELL_COST,
-    spellUses: { ...resources.spellUses, [entry.roll]: (resources.spellUses[entry.roll] ?? 0) + 1 },
+    spellUses: { ...resources.spellUses, [key]: (resources.spellUses[key] ?? 0) + 1 },
   };
 }
 

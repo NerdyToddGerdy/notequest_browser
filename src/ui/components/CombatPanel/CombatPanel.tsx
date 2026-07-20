@@ -1,8 +1,14 @@
 import { useState } from "react";
 import type { ArmorPiece, CombatState } from "../../../engine/dungeonState.ts";
 import { ARMOR_PIECE_LABELS, type MonsterAbility } from "../../../data/dungeonTables.ts";
-import { SPELL_TABLE } from "../../../data/spells.ts";
-import { HEAL_AMOUNT, rollWeaponDamage } from "../../../engine/combat.ts";
+import type { SpellTableKey } from "../../../data/types.ts";
+import { parseSpellKey, SPELL_TABLE_BY_KEY } from "../../../engine/character.ts";
+import {
+  HEAL_AMOUNT,
+  KNOWN_CASTABLE_SPELL_NAMES,
+  rollWeaponDamage,
+  TARGETED_SPELL_NAMES,
+} from "../../../engine/combat.ts";
 import { Die } from "../Die/Die.tsx";
 import { HEAL_PREVIEW_MS, revealDelay } from "../../rollTiming.ts";
 import styles from "./CombatPanel.module.css";
@@ -14,16 +20,19 @@ export interface CombatPanelProps {
   weaponName: string;
   weaponFormula: string;
   armor: ArmorPiece[];
-  /** Remaining uses per spell, keyed by its 1d6 Basic Spells table roll. */
-  spellUses: Record<number, number>;
+  /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (issue
+   * #24) -- may include spells from tables besides Basic, but only ones in
+   * `KNOWN_CASTABLE_SPELL_NAMES` (matched by name, not table) ever render a button here; see that
+   * set's own doc comment for why. */
+  spellUses: Record<string, number>;
   /** Rinoceroid: "You can attack with your horn (Damage 1d6)" -- offered alongside the normal weapon. */
   isRinoceroid?: boolean;
   /** Slimemen: "If you engulf the body of an enemy, you regain all HP." */
   isSlimemen?: boolean;
   onAttack: (targetId: number, roll: number, useHorn?: boolean) => void;
-  onCastSpell: (spellRoll: number, targetId?: number) => void;
-  /** Teleport (spellRoll 3) needs a destination room first -- the parent screen owns that picker,
-   * so this just signals "the player wants to flee" instead of dispatching CAST_SPELL directly. */
+  onCastSpell: (table: SpellTableKey, spellRoll: number, targetId?: number) => void;
+  /** Teleport needs a destination room first -- the parent screen owns that picker, so this just
+   * signals "the player wants to flee" instead of dispatching CAST_SPELL directly. */
   onFlee: () => void;
   onResolveDamage: (absorbWith: "hp" | number) => void;
   onEngulfBody: () => void;
@@ -31,8 +40,16 @@ export interface CombatPanelProps {
 
 const HORN_FORMULA = "1d6";
 
-/** Cold Ray and Lightning target one monster; Heal/Light/Fireball/Teleport don't. */
-const TARGETED_SPELLS = new Set([4, 5]);
+/** One castable spell the character actually knows, resolved from a `spellUses` composite key
+ * back to its table/roll/name/effect/remaining-uses -- see `spellKey()`/`parseSpellKey()`. */
+interface KnownSpell {
+  key: string;
+  table: SpellTableKey;
+  roll: number;
+  name: string;
+  effect: string;
+  uses: number;
+}
 
 const ABILITY_LABELS: Record<MonsterAbility, string> = {
   stoneskin: "Stoneskin",
@@ -111,12 +128,20 @@ export function CombatPanel({
   // actually stops this panel from rendering at all, but this guards the actions directly too in
   // case a future death path forgets to clear it.
   const canAct = !rolling && !paralyzed && !awaitingDamageChoice && hp > 0;
-  const knownSpellRolls = Object.entries(spellUses)
+  // Only spells `KNOWN_CASTABLE_SPELL_NAMES` actually has a real CAST_SPELL case for render a
+  // button at all -- see that set's own doc comment (combat.ts). Matched by name, not (table,
+  // roll), so Elemental's Cold Ray/Lightning/Fireball reuse the same button/handler as Basic's.
+  const knownSpells: KnownSpell[] = Object.entries(spellUses)
     .filter(([, uses]) => uses > 0)
-    .map(([roll]) => Number(roll))
-    .sort((a, b) => a - b);
-  const targetedSpells = knownSpellRolls.filter((roll) => TARGETED_SPELLS.has(roll));
-  const generalSpells = knownSpellRolls.filter((roll) => !TARGETED_SPELLS.has(roll));
+    .map(([key, uses]) => {
+      const { table, roll } = parseSpellKey(key);
+      const spell = SPELL_TABLE_BY_KEY[table]?.[roll];
+      return spell ? { key, table, roll, name: spell.name, effect: spell.effect, uses } : null;
+    })
+    .filter((s): s is KnownSpell => s !== null && KNOWN_CASTABLE_SPELL_NAMES.has(s.name))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  const targetedSpells = knownSpells.filter((s) => TARGETED_SPELL_NAMES.has(s.name));
+  const generalSpells = knownSpells.filter((s) => !TARGETED_SPELL_NAMES.has(s.name));
 
   function rollAndAttack(targetId: number, useHorn = false) {
     if (!canAct) return;
@@ -136,14 +161,14 @@ export function CombatPanel({
     onAttack(first.id, 1);
   }
 
-  function castHeal() {
+  function castHeal(spell: KnownSpell) {
     if (!canAct) return;
     setHealPreviewHp(Math.min(hp + HEAL_AMOUNT, maxHp));
     setRolling(true);
     window.setTimeout(() => {
       setRolling(false);
       setHealPreviewHp(null);
-      onCastSpell(1);
+      onCastSpell(spell.table, spell.roll);
     }, HEAL_PREVIEW_MS);
   }
 
@@ -208,16 +233,16 @@ export function CombatPanel({
                   Horn ({HORN_FORMULA})
                 </button>
               )}
-              {targetedSpells.map((spellRoll) => (
+              {targetedSpells.map((s) => (
                 <button
-                  key={spellRoll}
+                  key={s.key}
                   type="button"
                   className={styles.spellBtn}
                   disabled={!canAct}
-                  title={SPELL_TABLE[spellRoll]!.effect}
-                  onClick={() => onCastSpell(spellRoll, monster.id)}
+                  title={s.effect}
+                  onClick={() => onCastSpell(s.table, s.roll, monster.id)}
                 >
-                  {SPELL_TABLE[spellRoll]!.name} ({spellUses[spellRoll]})
+                  {s.name} ({s.uses})
                 </button>
               ))}
             </div>
@@ -227,17 +252,19 @@ export function CombatPanel({
 
       {generalSpells.length > 0 && (
         <div className={styles.spellRow}>
-          {generalSpells.map((spellRoll) => (
+          {generalSpells.map((s) => (
             <button
-              key={spellRoll}
+              key={s.key}
               type="button"
-              className={spellRoll === 3 ? styles.fleeBtn : styles.spellBtn}
+              className={s.name === "Teleport" ? styles.fleeBtn : styles.spellBtn}
               disabled={!canAct}
-              title={SPELL_TABLE[spellRoll]!.effect}
-              onClick={() => (spellRoll === 1 ? castHeal() : spellRoll === 3 ? onFlee() : onCastSpell(spellRoll))}
+              title={s.effect}
+              onClick={() =>
+                s.name === "Heal" ? castHeal(s) : s.name === "Teleport" ? onFlee() : onCastSpell(s.table, s.roll)
+              }
             >
-              {spellRoll === 3 ? "Flee — " : ""}
-              {SPELL_TABLE[spellRoll]!.name} ({spellUses[spellRoll]})
+              {s.name === "Teleport" ? "Flee — " : ""}
+              {s.name} ({s.uses})
             </button>
           ))}
         </div>

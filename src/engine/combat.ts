@@ -8,6 +8,36 @@ import type { RNG } from "./rng.ts";
  * reducer's clamping logic or re-deriving it from `spells.ts`'s free-text `effect` string. */
 export const HEAL_AMOUNT = 5;
 
+/** Which spells `dungeonReducer.ts`'s `CAST_SPELL` action actually knows how to resolve, matched by
+ * exact spell *name* rather than `(table, roll)` -- "New Spells" (issue #24) means the same spell
+ * can legitimately appear under more than one table (Elemental's Cold Ray/Lightning/Fireball are
+ * the identical Core spells, just re-listed), and matching by name lets both copies share the one
+ * real implementation instead of needing a duplicate case per table. Every other New Spells effect
+ * (Natural Cure, Ethereal Body, Stone Armor, Paralyze, Banish the Dead, Insect Rain, Magic Shield,
+ * Magic Blast, Create Food, the various Summon spells, etc.) isn't wired up yet -- see CLAUDE.md's
+ * New Spells note for why each one is deferred, same "documented, deliberate simplification"
+ * precedent as `bladeTrap`'s roll-of-2 or `WeaponEntry.twoHanded`. A spell not in this set simply
+ * isn't offered a "Cast" button anywhere (`CombatPanel`/`CharacterSheet`/`town.ts` all filter
+ * against it), rather than being clickable and silently doing nothing. */
+export const KNOWN_CASTABLE_SPELL_NAMES = new Set([
+  "Heal",
+  "Light",
+  "Teleport",
+  "Cold Ray",
+  "Lightning",
+  "Fireball",
+]);
+
+/** Cold Ray and Lightning need a single target monster; every other known-castable spell doesn't. */
+export const TARGETED_SPELL_NAMES = new Set(["Cold Ray", "Lightning"]);
+
+/** Teleport and the three damage spells only mean anything mid-fight; Heal/Light don't need one. */
+export const COMBAT_ONLY_SPELL_NAMES = new Set(["Teleport", "Cold Ray", "Lightning", "Fireball"]);
+
+/** The only two known-castable spells usable outside a dungeon fight at all (Town/World's own
+ * `town.ts` castSpell, or CharacterSheet's "Cast" button while merely standing in a dungeon). */
+export const OUT_OF_COMBAT_SPELL_NAMES = new Set(["Heal", "Light"]);
+
 /** Fixed stat block from the Horde ability text: "an Orc (6 HP; Damage 3) enters the room." */
 export const HORDE_ORC: Omit<CombatMonsterState, "id"> = {
   name: "Orc",

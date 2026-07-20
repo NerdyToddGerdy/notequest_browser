@@ -561,18 +561,28 @@ describe("PLAYER_ATTACK guards", () => {
 describe("CAST_SPELL in combat", () => {
   it("Cold Ray deals 4 damage, freezes the target for its next attack, and consumes a use", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
-    const state = stateWithCombat({ spellUses: { 4: 2 } }, [monster]);
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 4, targetId: monster.id });
+    const state = stateWithCombat({ spellUses: { "basic:4": 2 } }, [monster]);
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      table: "basic",
+      spellRoll: 4,
+      targetId: monster.id,
+    });
 
-    expect(next.spellUses[4]).toBe(1);
+    expect(next.spellUses["basic:4"]).toBe(1);
     expect(next.combat!.monsters[0]!.hp).toBe(16);
     expect(next.hp).toBe(next.maxHp); // frozen monster skips its counter-attack this round
   });
 
   it("Lightning deals 6 damage and lets the monster counter-attack normally", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
-    const state = stateWithCombat({ spellUses: { 5: 1 } }, [monster]);
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: monster.id });
+    const state = stateWithCombat({ spellUses: { "basic:5": 1 } }, [monster]);
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      table: "basic",
+      spellRoll: 5,
+      targetId: monster.id,
+    });
 
     expect(next.combat!.monsters[0]!.hp).toBe(14);
     expect(next.hp).toBe(next.maxHp - 5); // not frozen -- counter-attack lands
@@ -583,8 +593,8 @@ describe("CAST_SPELL in combat", () => {
       makeMonster({ id: 1, hp: 20, damage: 0 }),
       makeMonster({ id: 2, hp: 3, damage: 0 }),
     ];
-    const state = stateWithCombat({ spellUses: { 6: 1 } }, monsters);
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 6 });
+    const state = stateWithCombat({ spellUses: { "basic:6": 1 } }, monsters);
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 6 });
 
     expect(next.combat!.monsters).toHaveLength(1); // the 3-HP monster died to 5 fire damage
     expect(next.combat!.monsters[0]!.hp).toBe(15); // 20 - 5
@@ -592,11 +602,11 @@ describe("CAST_SPELL in combat", () => {
 
   it("a killing spell defeats the monster, awards Loot, and closes combat like a weapon kill would", () => {
     const monster = makeMonster({ hp: 6, abilities: ["loot"] });
-    const state = stateWithCombat({ spellUses: { 5: 1 } }, [monster]);
+    const state = stateWithCombat({ spellUses: { "basic:5": 1 } }, [monster]);
     const rng = sequenceDie([4]); // Loot roll -> a coin
     const next = dungeonReducer(
       state,
-      { type: "CAST_SPELL", spellRoll: 5, targetId: monster.id },
+      { type: "CAST_SPELL", table: "basic", spellRoll: 5, targetId: monster.id },
       rng,
     );
 
@@ -606,12 +616,13 @@ describe("CAST_SPELL in combat", () => {
 
   it("Teleport flees combat without a monster counter-attack, and doesn't mark the room cleared", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
-    const state = stateWithCombat({ spellUses: { 3: 1 } }, [monster]);
+    const state = stateWithCombat({ spellUses: { "basic:3": 1 } }, [monster]);
     const dest = makeSegment({ id: 2, type: "room-small", doors: [] });
     state.levels[0]!.segments.push(dest);
 
     const next = dungeonReducer(state, {
       type: "CAST_SPELL",
+      table: "basic",
       spellRoll: 3,
       destLevel: 0,
       destSegId: 2,
@@ -619,7 +630,7 @@ describe("CAST_SPELL in combat", () => {
 
     expect(next.combat).toBeNull();
     expect(next.hp).toBe(next.maxHp);
-    expect(next.spellUses[3]).toBe(0);
+    expect(next.spellUses["basic:3"]).toBe(0);
     expect(next.levels[0]!.segments[0]!.monstersDefeated).toBeUndefined();
     expect(next.currentSegId).toBe(2);
     expect(next.selectedSegId).toBe(2);
@@ -627,12 +638,13 @@ describe("CAST_SPELL in combat", () => {
 
   it("Teleport rejects a room flagged needsMonsterReroll -- regression: it looks empty but would immediately spawn a fresh fight on arrival", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
-    const state = stateWithCombat({ spellUses: { 3: 1 } }, [monster]);
+    const state = stateWithCombat({ spellUses: { "basic:3": 1 } }, [monster]);
     const dest = makeSegment({ id: 2, type: "room-small", doors: [], needsMonsterReroll: true });
     state.levels[0]!.segments.push(dest);
 
     const next = dungeonReducer(state, {
       type: "CAST_SPELL",
+      table: "basic",
       spellRoll: 3,
       destLevel: 0,
       destSegId: 2,
@@ -643,45 +655,105 @@ describe("CAST_SPELL in combat", () => {
 
   it("Teleport is a no-op without a valid destination room", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
-    const state = stateWithCombat({ spellUses: { 3: 1 } }, [monster]);
+    const state = stateWithCombat({ spellUses: { "basic:3": 1 } }, [monster]);
 
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3 })).toBe(state);
+    expect(dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 3 })).toBe(state);
     expect(
-      dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 999 }),
+      dungeonReducer(state, {
+        type: "CAST_SPELL",
+        table: "basic",
+        spellRoll: 3,
+        destLevel: 0,
+        destSegId: 999,
+      }),
     ).toBe(state);
     // Segment 1 is the room the fight is happening in -- not a valid destination for itself.
     expect(
-      dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 3, destLevel: 0, destSegId: 1 }),
+      dungeonReducer(state, {
+        type: "CAST_SPELL",
+        table: "basic",
+        spellRoll: 3,
+        destLevel: 0,
+        destSegId: 1,
+      }),
     ).toBe(state);
   });
 
   it("casting while paralyzed consumes the paralyzed turn instead of the spell's effect, but still spends a use", () => {
     const monster = makeMonster({ hp: 20, damage: 2 });
-    const state = stateWithCombat({ spellUses: { 5: 1 } }, [monster]);
+    const state = stateWithCombat({ spellUses: { "basic:5": 1 } }, [monster]);
     state.combat!.paralyzedTurns = 1;
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: monster.id });
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      table: "basic",
+      spellRoll: 5,
+      targetId: monster.id,
+    });
 
     expect(next.combat!.paralyzedTurns).toBe(0);
     expect(next.combat!.monsters[0]!.hp).toBe(20); // Lightning never landed
-    expect(next.spellUses[5]).toBe(0);
+    expect(next.spellUses["basic:5"]).toBe(0);
     expect(next.hp).toBe(next.maxHp - 2); // but the monster still attacked
   });
 
   it("Cold Ray still freezes an Intangible monster even though its even-numbered damage is blocked", () => {
     const monster = makeMonster({ hp: 20, damage: 5, abilities: ["intangible"] });
-    const state = stateWithCombat({ spellUses: { 4: 1 } }, [monster]);
-    const next = dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 4, targetId: monster.id });
+    const state = stateWithCombat({ spellUses: { "basic:4": 1 } }, [monster]);
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      table: "basic",
+      spellRoll: 4,
+      targetId: monster.id,
+    });
 
     expect(next.combat!.monsters[0]!.hp).toBe(20); // Intangible blocked the (even) 4 damage
     expect(next.hp).toBe(next.maxHp); // but it's still frozen, so no counter-attack
   });
 });
 
-describe("CAST_SPELL guards in combat", () => {
-  it("is a no-op with no uses remaining", () => {
-    const state = stateWithCombat({ spellUses: { 5: 0 } });
+describe("CAST_SPELL: New Spells (issue #24) -- name-matched dispatch", () => {
+  it("Elemental's Cold Ray (roll 3) resolves identically to Basic's, since CAST_SPELL matches by spell name", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ spellUses: { "elemental:3": 1 } }, [monster]);
     const next = dungeonReducer(state, {
       type: "CAST_SPELL",
+      table: "elemental",
+      spellRoll: 3,
+      targetId: monster.id,
+    });
+
+    expect(next.spellUses["elemental:3"]).toBe(0);
+    expect(next.combat!.monsters[0]!.hp).toBe(16); // same 4 damage as Basic's Cold Ray
+    expect(next.hp).toBe(next.maxHp); // frozen monster skips its counter-attack this round
+  });
+
+  it("Elemental's Fireball (roll 5) hits every monster in the room, same as Basic's", () => {
+    const monsters = [
+      makeMonster({ id: 1, hp: 20, damage: 0 }),
+      makeMonster({ id: 2, hp: 3, damage: 0 }),
+    ];
+    const state = stateWithCombat({ spellUses: { "elemental:5": 1 } }, monsters);
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "elemental", spellRoll: 5 });
+
+    expect(next.combat!.monsters).toHaveLength(1); // the 3-HP monster died to 5 fire damage
+    expect(next.combat!.monsters[0]!.hp).toBe(15);
+  });
+
+  it("a New Spells effect with no real implementation yet (Nature's Natural Cure) is a no-op even with uses remaining", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ spellUses: { "nature:1": 1 } }, [monster]);
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "nature", spellRoll: 1 });
+
+    expect(next).toBe(state);
+  });
+});
+
+describe("CAST_SPELL guards in combat", () => {
+  it("is a no-op with no uses remaining", () => {
+    const state = stateWithCombat({ spellUses: { "basic:5": 0 } });
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      table: "basic",
       spellRoll: 5,
       targetId: state.combat!.monsters[0]!.id,
     });
@@ -689,11 +761,11 @@ describe("CAST_SPELL guards in combat", () => {
   });
 
   it("Cold Ray / Lightning are no-ops without a valid targetId", () => {
-    const state = stateWithCombat({ spellUses: { 4: 1, 5: 1 } });
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 4 })).toBe(state);
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 5, targetId: 999 })).not.toBe(
-      state,
-    ); // consumes a use, but hits nothing
+    const state = stateWithCombat({ spellUses: { "basic:4": 1, "basic:5": 1 } });
+    expect(dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 4 })).toBe(state);
+    expect(
+      dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 5, targetId: 999 }),
+    ).not.toBe(state); // consumes a use, but hits nothing
   });
 });
 
@@ -808,7 +880,7 @@ describe("Armor: damage-absorption choice", () => {
     const state = stateWithCombat({
       armor: [{ piece: "boots", hp: 3, maxHp: 3 }],
       treasures: 1,
-      spellUses: { 1: 1 },
+      spellUses: { "basic:1": 1 },
     });
     state.combat!.pendingDamage = 4;
 
@@ -819,7 +891,7 @@ describe("Armor: damage-absorption choice", () => {
         roll: 3,
       }),
     ).toBe(state);
-    expect(dungeonReducer(state, { type: "CAST_SPELL", spellRoll: 1 })).toBe(state);
+    expect(dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 1 })).toBe(state);
     expect(dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} })).toBe(state);
   });
 
