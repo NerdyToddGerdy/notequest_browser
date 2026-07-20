@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-07-19
+
+### Changed
+
+- A second staircase down to an already-discovered level now opens
+  directly onto that level's existing entrance, instead of creating a
+  new, physically disconnected entry point on its map.
+
 ## [2.4.2] - 2026-07-19
 
 ### Fixed
