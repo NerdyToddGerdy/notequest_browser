@@ -11,7 +11,7 @@ import { DescentIcon, DoorIcon, EntranceIcon, MonsterIcon, SecretIcon, SegmentIc
 import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
 import styles from "./DungeonMap.module.css";
 
-const AUTOMATIC_KINDS = new Set(["descend-final", "dead-end-final", "reuse-final"]);
+const AUTOMATIC_KINDS = new Set(["descend-final", "dead-end-final", "reuse-final", "reuse-normal"]);
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 2.5;
 function clamp(value: number, min: number, max: number): number {

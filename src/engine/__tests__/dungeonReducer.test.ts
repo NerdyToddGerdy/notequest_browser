@@ -526,7 +526,7 @@ describe("OPEN_DOOR: staircases", () => {
     expect(next.combat!.isBoss).toBe(true);
   });
 
-  it("reuse-normal sends a second staircase to the same already-discovered level as a new entry point", () => {
+  it("reuse-normal links a second staircase to the level's own existing entrance, no new segment (issue #54)", () => {
     const secondStair = makeSegment({
       id: 2,
       type: "staircase",
@@ -550,18 +550,21 @@ describe("OPEN_DOOR: staircases", () => {
       currentSegId: 2,
     };
 
+    // No roll needed -- nothing new is built, matching reuse-final (see AUTOMATIC_KINDS).
     const next = dungeonReducer(state, {
       type: "OPEN_DOOR",
       segId: 2,
       doorIdx: 0,
-      roll: 1,
+      roll: null,
       wasNoisy: false,
     });
 
     expect(next.activeLevel).toBe(1);
-    expect(next.levels[1]!.segments).toHaveLength(2); // existing room + new island
+    expect(next.levels[1]!.segments).toHaveLength(1); // no new segment created
     expect(next.levels[0]!.doorsRemaining).toBe(0);
-    expect(next.levels[1]!.segments[1]!.cameFromDir).toBeNull(); // unconnected island root
+    expect(next.levels[0]!.segments[0]!.doors[0]!.childId).toBe(50); // links to the existing entrance
+    expect(next.currentSegId).toBe(50);
+    expect(next.selectedSegId).toBe(50);
   });
 
   it("reuse-final links a second staircase straight to the already-found Final Room, no new level", () => {
