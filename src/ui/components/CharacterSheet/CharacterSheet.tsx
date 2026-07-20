@@ -155,11 +155,11 @@ export function CharacterSheet({
                 if (!spell) return null;
                 const max = maxSpellUses[roll] ?? 0;
                 const remaining = liveSpellUses[roll] ?? 0;
-                const canCast =
-                  CASTABLE_OUT_OF_COMBAT.has(roll) &&
-                  !!canCastOutOfCombat &&
-                  !!onCastSpell &&
-                  remaining > 0;
+                // Rendered whenever this spell is *eligible* to cast here, even at 0 remaining
+                // uses -- disabled (not omitted) in that case, so "out of uses right now" reads
+                // differently from "not castable here at all" instead of looking identical.
+                const canCastHere =
+                  CASTABLE_OUT_OF_COMBAT.has(roll) && !!canCastOutOfCombat && !!onCastSpell;
                 return (
                   <li key={roll}>
                     <div className={styles.spellHeader}>
@@ -169,10 +169,11 @@ export function CharacterSheet({
                       </span>
                     </div>
                     {spell.effect}
-                    {canCast && (
+                    {canCastHere && (
                       <button
                         type="button"
                         className={styles.castBtn}
+                        disabled={remaining <= 0}
                         onClick={() => onCastSpell!(roll)}
                       >
                         Cast
