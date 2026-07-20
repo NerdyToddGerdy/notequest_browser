@@ -125,9 +125,14 @@ export interface TownScreenProps {
    * own `canHireBoat(resources)` check on the button itself, same as every other City Action here
    * (always shown once structurally possible, only ever *disabled* for being unaffordable). */
   showHireBoat: boolean;
+  /** WorldScreen's own check across this hex's six neighbors -- true once one of them already has
+   * a dungeon found (marked or actually run), disabling Ask ("if you don't already have a dungeon
+   * in any adjacent hex, roll 1d6"). */
+  askedDungeonKnown: boolean;
   onUpdateResources: (resources: AdventurerResources) => void;
   onEnterDungeon: () => void;
   onHireBoat: () => void;
+  onAsk: () => void;
   /** Toggles WorldScreen's map view back on -- this screen renders in its place while standing on
    * a City/Fortress hex, so "leaving" just means looking at the map again, not switching screens. */
   onExploreWorld: () => void;
@@ -142,9 +147,11 @@ export function TownScreen({
   dungeonHistory,
   culture,
   showHireBoat,
+  askedDungeonKnown,
   onUpdateResources,
   onEnterDungeon,
   onHireBoat,
+  onAsk,
   onExploreWorld,
   onHardReset,
 }: TownScreenProps) {
@@ -203,6 +210,20 @@ export function TownScreen({
                     <span className={styles.actionCost}>1 coin</span>
                     <span className={styles.actionDesc}>
                       +1 provision, up to a maximum of 20 carried.
+                    </span>
+                  </button>
+                  <button
+                    className={styles.actionBtn}
+                    type="button"
+                    disabled={askedDungeonKnown}
+                    onClick={onAsk}
+                  >
+                    <span className={styles.actionName}>Ask</span>
+                    <span className={styles.actionCost}>Free</span>
+                    <span className={styles.actionDesc}>
+                      {askedDungeonKnown
+                        ? "A dungeon is already known nearby."
+                        : "Ask about the nearest dungeon."}
                     </span>
                   </button>
                   {cultureAction && (

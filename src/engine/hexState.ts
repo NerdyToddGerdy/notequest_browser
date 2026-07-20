@@ -42,6 +42,13 @@ export interface HexTile {
    * later visit (same character returning, or a new one taking over) resume the same dungeon
    * instead of rolling fresh. Set once, on first entry; never cleared, even once beaten. */
   dungeonRunId?: string;
+  /** Set by the "Ask" City Action (`findAskedDungeonHex`/`withDungeonMarked`) the moment a nearby
+   * dungeon hex is found -- "draw the dungeon on the map" happens here, before the player has ever
+   * set foot on this tile or a `dungeonRunId`/`PendingDungeon` exists for it. Once the player
+   * actually travels here and uses "Enter Dungeon", the normal first-entry flow takes over exactly
+   * as it does for a City/Fortress/Ruins hex -- this flag only ever widens *which* hexes can offer
+   * that button, it never itself mints a run. */
+  dungeonMarked?: boolean;
 }
 
 export interface WorldState {
@@ -104,6 +111,35 @@ export function withDungeonRunId(world: WorldState, coord: HexCoord, runId: stri
   const tile = world.tiles[key];
   if (!tile) return world;
   return { ...world, tiles: { ...world.tiles, [key]: { ...tile, dungeonRunId: runId } } };
+}
+
+/** "Ask" City Action (`docs/game-rules-reference.md` lines 978-985) -- rolls a hex side and steps
+ * clockwise through `from`'s own six neighbors for the first one that's land with no location: "In
+ * this hex there will be a dungeon ... If the hex has Water or another City or Ruins, go clockwise
+ * to the next hex until you find land that has no location and isn't water." Every neighbor of an
+ * already-entered hex is guaranteed to already be revealed (see `revealNeighborsInPlace`), so this
+ * only ever reads `tiles` -- it never needs to reveal anything itself. Returns `null` in the
+ * should-be-impossible case that all six neighbors are Water/City/Fortress/Ruins/Rocks, since the
+ * rulebook doesn't cover that.
+ */
+export function findAskedDungeonHex(world: WorldState, from: HexCoord, rng: RNG): HexCoord | null {
+  const roll = rollDie(rng);
+  for (let i = 0; i < 6; i++) {
+    const dir = HEX_DIRECTIONS[(roll - 1 + i) % 6]!;
+    const coord = { q: from.q + dir.q, r: from.r + dir.r };
+    const tile = world.tiles[hexKey(coord)];
+    if (tile && tile.terrain !== "water" && tile.location === null) return coord;
+  }
+  return null;
+}
+
+/** Companion to `withDungeonRunId` -- immutably flags a hex as "a dungeon has been found nearby"
+ * (see `HexTile.dungeonMarked`) without minting a run for it yet. */
+export function withDungeonMarked(world: WorldState, coord: HexCoord): WorldState {
+  const key = hexKey(coord);
+  const tile = world.tiles[key];
+  if (!tile) return world;
+  return { ...world, tiles: { ...world.tiles, [key]: { ...tile, dungeonMarked: true } } };
 }
 
 /** The player starts on a human city on a plain (fixed, not rolled -- "Choose a hex to start with

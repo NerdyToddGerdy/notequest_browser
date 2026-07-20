@@ -5,7 +5,7 @@ export interface HexInspectorProps {
   terrain: Terrain;
   /** Already resolved via WorldScreen's LOCATION_LABEL, empty string if the hex has no location. */
   locationLabel: string;
-  dungeonStatus: "none" | "unfinished" | "beaten";
+  dungeonStatus: "none" | "found" | "unfinished" | "beaten";
   hasRemains: boolean;
   isCurrentTile: boolean;
   /** True when this is a City/Fortress hex the player's race has no Affinity for -- explains why a
@@ -26,6 +26,7 @@ const TERRAIN_LABEL: Record<Terrain, string> = {
 
 const DUNGEON_STATUS_COPY: Record<HexInspectorProps["dungeonStatus"], string> = {
   none: "No dungeon found here yet.",
+  found: "A dungeon has been found nearby -- not yet explored.",
   unfinished: "An unfinished dungeon is here.",
   beaten: "The dungeon here has already been cleared.",
 };

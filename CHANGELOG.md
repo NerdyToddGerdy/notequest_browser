@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-07-20
+
+### Added
+
+- "Ask" City Action: in a City or Fortress, ask about the nearest
+  dungeon. Rolls a hex side and finds the first neighboring hex
+  that's land with no location, marking it on the map as a known,
+  enterable dungeon -- without ever setting foot there first.
+
 ## [2.5.0] - 2026-07-19
 
 ### Changed

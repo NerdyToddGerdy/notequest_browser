@@ -137,25 +137,39 @@ export function WorldScreen({
   const currentTile: HexTile | undefined = world.tiles[hexKey(world.player)];
   const neighborCoords = hexNeighbors(world.player);
   const inCityOrFortress = !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
-  /** "none" hexes never had a dungeonRunId stamped; otherwise a shared lookup for both the gate
-   * copy (current hex only) and the per-hex map badges (every known hex) below. */
+  /** "none" hexes never had a dungeonRunId/dungeonMarked stamped; otherwise a shared lookup for
+   * both the gate copy (current hex only) and the per-hex map badges (every known hex) below.
+   * "found" is a hex "Ask" has flagged (dungeonMarked) but the player has never actually stepped
+   * onto -- "draw the dungeon on the map" happens at Ask time, not first entry, so there's nothing
+   * "unfinished" about it yet. "unfinished" itself covers dungeonRunId being set (Enter Dungeon has
+   * actually been used here) even before a PendingDungeon exists in dungeonHistory (which only
+   * catches up once the player first leaves). */
   function dungeonInfoFor(tile: HexTile | undefined): {
-    status: "none" | "unfinished" | "beaten";
+    status: "none" | "found" | "unfinished" | "beaten";
     hasRemains: boolean;
   } {
-    if (!tile?.dungeonRunId) return { status: "none", hasRemains: false };
-    const pending = dungeonHistory.find((pd) => pd.id === tile.dungeonRunId);
-    if (!pending) return { status: "none", hasRemains: false };
-    return {
-      status: isDungeonBeaten(pending.dungeon) ? "beaten" : "unfinished",
-      hasRemains: hasUnlootedRemains(pending.dungeon),
-    };
+    if (tile?.dungeonRunId) {
+      const pending = dungeonHistory.find((pd) => pd.id === tile.dungeonRunId);
+      if (pending) {
+        return {
+          status: isDungeonBeaten(pending.dungeon) ? "beaten" : "unfinished",
+          hasRemains: hasUnlootedRemains(pending.dungeon),
+        };
+      }
+      return { status: "unfinished", hasRemains: false };
+    }
+    if (tile?.dungeonMarked) return { status: "found", hasRemains: false };
+    return { status: "none", hasRemains: false };
   }
   const currentDungeonStatus = dungeonInfoFor(currentTile).status;
   // Nothing left to do in an already-beaten dungeon -- RETURN_TO_DUNGEON/RESUME_DUNGEON would just
-  // redisplay the existing victory panel, not let the Boss be re-fought or re-looted.
+  // redisplay the existing victory panel, not let the Boss be re-fought or re-looted. A hex "Ask"
+  // marked (dungeonMarked) offers the same button as a City/Fortress/Ruins hex does, even though it
+  // has no location of its own -- see HexTile.dungeonMarked.
   const canEnterDungeon =
-    !!currentTile && locationHasDungeon(currentTile.location) && currentDungeonStatus !== "beaten";
+    !!currentTile &&
+    (locationHasDungeon(currentTile.location) || !!currentTile.dungeonMarked) &&
+    currentDungeonStatus !== "beaten";
   const dungeonGateCopy =
     currentDungeonStatus === "beaten"
       ? "the dungeon here has already been cleared."
@@ -165,6 +179,13 @@ export function WorldScreen({
   const culture: CityCulture | null =
     (currentTile?.location && CULTURE_BY_LOCATION[currentTile.location]) || null;
   const besideWater = neighborCoords.some((n) => world.tiles[hexKey(n)]?.terrain === "water");
+  /** "If you don't already have a dungeon in any adjacent hex" -- gates the Ask button itself
+   * (always rendered by TownScreen, disabled once true, same "visible but disabled" precedent as
+   * every other City Action here) rather than the reducer alone, so the UI can explain why. */
+  const askedDungeonKnown = neighborCoords.some((n) => {
+    const t = world.tiles[hexKey(n)];
+    return !!t?.dungeonRunId || !!t?.dungeonMarked;
+  });
 
   /** A hex is travelable if it's passable (respecting a hired boat on water) *and* the character's
    * race has Affinity for whatever City/Fortress culture is there (non-city hexes are always
@@ -206,6 +227,11 @@ export function WorldScreen({
     if (!canHireBoat(resources)) return;
     onUpdateResources(hireBoat(resources));
     onUpdateWorld(hexReducer(world, { type: "HIRE_BOAT" }));
+  }
+
+  function handleAsk() {
+    if (askedDungeonKnown) return;
+    onUpdateWorld(hexReducer(world, { type: "ASK_FOR_DUNGEON" }));
   }
 
   // Computed unconditionally (mirroring DungeonMap's own useMemo-before-early-return shape) since
@@ -323,9 +349,11 @@ export function WorldScreen({
         dungeonHistory={dungeonHistory}
         culture={culture}
         showHireBoat={besideWater}
+        askedDungeonKnown={askedDungeonKnown}
         onUpdateResources={onUpdateResources}
         onEnterDungeon={onEnterDungeon}
         onHireBoat={handleHireBoat}
+        onAsk={handleAsk}
         onExploreWorld={() => setShowMap(true)}
         onHardReset={onHardReset}
       />
@@ -381,7 +409,13 @@ export function WorldScreen({
                         textAnchor="middle"
                         className={dungeonStatus === "beaten" ? styles.dungeonBadgeCleared : styles.dungeonBadgeUnfinished}
                       >
-                        <title>{dungeonStatus === "beaten" ? "Dungeon cleared" : "Unfinished dungeon"}</title>
+                        <title>
+                          {dungeonStatus === "beaten"
+                            ? "Dungeon cleared"
+                            : dungeonStatus === "found"
+                              ? "A dungeon has been found here"
+                              : "Unfinished dungeon"}
+                        </title>
                         {dungeonStatus === "beaten" ? "✓" : "⚔"}
                       </text>
                     )}
@@ -422,12 +456,14 @@ export function WorldScreen({
           </div>
 
           {/* City/Fortress hexes handle their own "Enter Dungeon" via TownScreen -- this card is
-           * only for a dungeon-bearing hex reached without a city on it (Ruins) or while
-           * voluntarily viewing the map from inside a city (see "Return to the City" below). */}
-          {canEnterDungeon && !inCityOrFortress && currentTile?.location && (
+           * only for a dungeon-bearing hex reached without a city on it (Ruins, or a plain hex
+           * "Ask" found -- see HexTile.dungeonMarked) or while voluntarily viewing the map from
+           * inside a city (see "Return to the City" below). */}
+          {canEnterDungeon && !inCityOrFortress && currentTile && (
             <div className={styles.actionCard}>
               <p className={styles.gateCopy}>
-                {LOCATION_LABEL[currentTile.location]}: {dungeonGateCopy}
+                {currentTile.location ? `${LOCATION_LABEL[currentTile.location]}: ` : ""}
+                {dungeonGateCopy}
               </p>
               <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
                 Enter Dungeon

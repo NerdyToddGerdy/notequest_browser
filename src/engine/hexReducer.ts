@@ -1,12 +1,21 @@
 import { produce } from "immer";
 import { CITY_OR_FORTRESS, isImpassable } from "../data/hexTables.ts";
 import { hasAffinity } from "../data/affinity.ts";
-import { hexKey, hexNeighbors, revealNeighborsInPlace, type HexCoord, type WorldState } from "./hexState.ts";
+import {
+  findAskedDungeonHex,
+  hexKey,
+  hexNeighbors,
+  revealNeighborsInPlace,
+  withDungeonMarked,
+  type HexCoord,
+  type WorldState,
+} from "./hexState.ts";
 import type { RNG } from "./rng.ts";
 
 export type HexAction =
   | { type: "MOVE"; to: HexCoord; raceName: string }
-  | { type: "HIRE_BOAT" };
+  | { type: "HIRE_BOAT" }
+  | { type: "ASK_FOR_DUNGEON" };
 
 /** Not an extension of `dungeonReducer.ts` -- a different persisted lifetime (one map that
  * outlives every dungeon run, vs. one DungeonState per run), a different action vocabulary, and no
@@ -44,6 +53,21 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
       return produce(state, (draft) => {
         draft.hasBoat = true;
       });
+    }
+    case "ASK_FOR_DUNGEON": {
+      // "Ask" (rulebook p.29) -- same City/Fortress-only authority pattern as HIRE_BOAT. A no-op
+      // if a neighbor already has one ("if you don't already have a dungeon in any adjacent hex,
+      // roll 1d6") or if the should-be-impossible no-qualifying-neighbor case comes back null.
+      const currentTile = state.tiles[hexKey(state.player)];
+      if (!currentTile?.location || !CITY_OR_FORTRESS.has(currentTile.location)) return state;
+      const alreadyKnown = hexNeighbors(state.player).some((n) => {
+        const t = state.tiles[hexKey(n)];
+        return !!t?.dungeonRunId || !!t?.dungeonMarked;
+      });
+      if (alreadyKnown) return state;
+      const found = findAskedDungeonHex(state, state.player, rng);
+      if (!found) return state;
+      return withDungeonMarked(state, found);
     }
     default:
       return state;

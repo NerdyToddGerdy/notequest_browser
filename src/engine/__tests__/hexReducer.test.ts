@@ -104,3 +104,38 @@ describe("hexReducer HIRE_BOAT / boat-assisted MOVE", () => {
     expect(backOnLand.hasBoat).toBe(false);
   });
 });
+
+describe("hexReducer ASK_FOR_DUNGEON", () => {
+  it("is a no-op when not standing in a City/Fortress", () => {
+    const world = homeWorld();
+    const awayFromHome = hexReducer(world, { type: "MOVE", to: { q: 1, r: 0 }, raceName: "Human" }, sequenceDie([3, 4]));
+    const next = hexReducer(awayFromHome, { type: "ASK_FOR_DUNGEON" }, sequenceDie([1]));
+    expect(next).toBe(awayFromHome);
+  });
+
+  it("marks the first qualifying neighbor at the rolled side", () => {
+    const world = homeWorld();
+    // Roll 1 -> {1,0} (mountain, no location) qualifies directly.
+    const next = hexReducer(world, { type: "ASK_FOR_DUNGEON" }, sequenceDie([1]));
+    expect(next.tiles["1,0"]).toMatchObject({ dungeonMarked: true });
+  });
+
+  it("is a no-op once a neighbor already has a dungeon marked", () => {
+    const world = homeWorld();
+    const asked = hexReducer(world, { type: "ASK_FOR_DUNGEON" }, sequenceDie([1]));
+    const next = hexReducer(asked, { type: "ASK_FOR_DUNGEON" }, sequenceDie([2]));
+    expect(next).toBe(asked);
+  });
+
+  it("is a no-op once a neighbor already has a dungeonRunId", () => {
+    const world = {
+      ...homeWorld(),
+      tiles: {
+        ...homeWorld().tiles,
+        "1,0": { terrain: "mountain" as const, location: null, dungeonRunId: "run-1" },
+      },
+    };
+    const next = hexReducer(world, { type: "ASK_FOR_DUNGEON" }, sequenceDie([2]));
+    expect(next).toBe(world);
+  });
+});

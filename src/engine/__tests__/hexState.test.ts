@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   createInitialWorldState,
+  findAskedDungeonHex,
   revealNeighborsInPlace,
+  withDungeonMarked,
   withDungeonRunId,
   type HexTile,
   type WorldState,
@@ -86,6 +88,73 @@ describe("withDungeonRunId", () => {
       hasBoat: false,
     };
     const next = withDungeonRunId(world, { q: 5, r: 5 }, "run-1");
+    expect(next).toBe(world);
+  });
+});
+
+describe("findAskedDungeonHex", () => {
+  // Neighbor order (HEX_DIRECTIONS) from {0,0}: {1,0} mountain/none, {1,-1} plain/humanCity,
+  // {0,-1} water/none, {-1,0} plain/none, {-1,1} plain/none, {0,1} plain/none.
+  function homeWorld() {
+    return createInitialWorldState(sequenceDie(HOME_REVEAL_ROLLS));
+  }
+
+  it("returns the neighbor at the rolled side when it already qualifies", () => {
+    const world = homeWorld();
+    // Roll 1 -> start at {1,0} (index 0), which is land with no location.
+    expect(findAskedDungeonHex(world, world.player, sequenceDie([1]))).toEqual({ q: 1, r: 0 });
+  });
+
+  it("walks clockwise past Water and a City, to the first qualifying neighbor", () => {
+    const world = homeWorld();
+    // Roll 2 -> starts at {1,-1} (humanCity, skip), then {0,-1} (water, skip), then {-1,0}
+    // (plain, no location -- qualifies).
+    expect(findAskedDungeonHex(world, world.player, sequenceDie([2]))).toEqual({ q: -1, r: 0 });
+  });
+
+  it("returns null if every neighbor is Water or already has a location", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: {
+        "0,0": { terrain: "plain", location: "humanCity" },
+        "1,0": { terrain: "water", location: null },
+        "1,-1": { terrain: "plain", location: "humanCity" },
+        "0,-1": { terrain: "water", location: null },
+        "-1,0": { terrain: "plain", location: "ruins" },
+        "-1,1": { terrain: "water", location: null },
+        "0,1": { terrain: "plain", location: "orcCity" },
+      },
+      hasBoat: false,
+    };
+    expect(findAskedDungeonHex(world, world.player, sequenceDie([1]))).toBeNull();
+  });
+});
+
+describe("withDungeonMarked", () => {
+  it("stamps dungeonMarked onto the tile at the given coord, immutably", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: null } },
+      hasBoat: false,
+    };
+    const next = withDungeonMarked(world, { q: 0, r: 0 });
+    expect(next.tiles["0,0"]).toEqual({ terrain: "plain", location: null, dungeonMarked: true });
+    expect(world.tiles["0,0"]).toEqual({ terrain: "plain", location: null }); // original untouched
+  });
+
+  it("is a no-op if the coord isn't a known tile", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: null } },
+      hasBoat: false,
+    };
+    const next = withDungeonMarked(world, { q: 5, r: 5 });
     expect(next).toBe(world);
   });
 });
