@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-07-19
+
+### Fixed
+
+- TeleportPicker listed every destination room but never showed which
+  room the player was actually fleeing from -- there was no "you are
+  here" reference point. It now shows a "Fleeing from Level X --
+  [Type] (Segment N)" line above the destination list.
+
 ## [2.4.1] - 2026-07-19
 
 ### Fixed
