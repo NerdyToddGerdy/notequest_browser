@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.1] - 2026-07-20
+
+### Changed
+
+- CSS Module class names are now readable in devtools (e.g.
+  `Die-module__die`) instead of opaque hashes, in both dev and the
+  production build (#57).
+
 ## [2.9.0] - 2026-07-20
 
 ### Added

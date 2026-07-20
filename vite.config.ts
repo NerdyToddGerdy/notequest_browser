@@ -21,6 +21,20 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
+  css: {
+    modules: {
+      // Vite's default scoped-name format is an opaque hash (e.g. `_die_1ewh6_1`) -- fine
+      // functionally (CSS Modules classes are never meant to be typed by hand), but unfriendly to
+      // read in devtools, with no way to trace a class back to its source component. `[name]` is
+      // the CSS file's own basename (unique per component in this codebase -- every
+      // `*.module.css` file is named after the component it styles, see CLAUDE.md), so
+      // `[name]__[local]` (e.g. `Die__die`) stays collision-free while being traceable at a
+      // glance. Applied to both dev and the production build (issue #57) -- this is a small hobby
+      // project, not a bundle-size-critical one, so there's little reason to keep the terser
+      // hashed format only in production.
+      generateScopedName: "[name]__[local]",
+    },
+  },
   test: {
     globals: true,
     // Engine tests are pure logic and run fine in Node; component tests opt
