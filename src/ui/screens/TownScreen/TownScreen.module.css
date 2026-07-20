@@ -252,6 +252,24 @@
   border-top: 1px dashed var(--ink-soft);
 }
 
+.arenaCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.arenaLog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
 .rollBtn,
 .ghostBtn {
   font-family: var(--font-display);

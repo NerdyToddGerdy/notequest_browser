@@ -15,7 +15,7 @@ import {
 import { DUNGEON_TYPE_BY_TERRAIN } from "./data/hexTables.ts";
 import { rollDie } from "./engine/dice.ts";
 import { clearSession, loadSession, saveSession } from "./engine/session.ts";
-import { clearGraveyard } from "./engine/graveyard.ts";
+import { addGraveyardEntry, clearGraveyard, type TownDeathCause } from "./engine/graveyard.ts";
 
 // Home is just another hex, rendered by WorldScreen like any other City -- there's no separate
 // "town" screen anymore (see per-hex dungeon persistence / Town-Square unification in CLAUDE.md).
@@ -95,6 +95,25 @@ export default function App() {
     setResources(null);
     setActiveRunId(null);
     setScreen("world");
+  }
+
+  // A death outside a dungeon (Getting Money's Gamble/Thug Life/Arena, issue #58) -- Town/World's
+  // own equivalent of DungeonScreen's death-recording effect, except there's no DungeonState/
+  // useEffect to key off here, so WorldScreen/TownScreen call this directly the instant a losing
+  // roll comes back. `place` is whatever hex the death happened on (WorldScreen's own location
+  // label), standing in for `dungeon` on a GraveyardEntry that isn't about a dungeon at all.
+  function handleTownDeath(cause: TownDeathCause, place: string) {
+    if (!character || !resources) return;
+    addGraveyardEntry({
+      name: character.name,
+      dungeon: place,
+      causeOfDeath: cause,
+      race: character.race.name,
+      cls: character.cls.name,
+      monsterKills: resources.monsterKills,
+      bossKills: resources.bossKills,
+    });
+    handleNewAdventurer();
   }
 
   // Settings' "Reset Everything" (issue #50) -- wipes both localStorage keys this app writes to
@@ -179,6 +198,7 @@ export default function App() {
         onUpdateResources={setResources}
         onUpdateWorld={setWorld}
         onHardReset={handleHardReset}
+        onCharacterDied={handleTownDeath}
         onEnterDungeon={() => {
           const key = hexKey(resolvedWorld.player);
           const tile = resolvedWorld.tiles[key];

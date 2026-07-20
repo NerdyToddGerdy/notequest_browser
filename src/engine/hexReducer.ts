@@ -5,6 +5,7 @@ import {
   findAskedDungeonHex,
   hexKey,
   hexNeighbors,
+  isBannedHex,
   revealNeighborsInPlace,
   withDungeonMarked,
   type HexCoord,
@@ -33,6 +34,9 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
       if (!targetTile) return state;
       if (isImpassable(targetTile.terrain, targetTile.location, state.hasBoat)) return state;
       if (!hasAffinity(action.raceName, targetTile.location)) return state;
+      // "You have fled (and will no longer be able to enter this city)" -- Thug Life's failed-
+      // escape outcome, see WorldState.bannedHexes.
+      if (isBannedHex(state, action.to)) return state;
 
       return produce(state, (draft) => {
         draft.player = action.to;

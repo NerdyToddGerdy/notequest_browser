@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-07-20
+
+### Added
+
+- Getting Money: Thug Life and Fighting in the Arena (#58), completing
+  the set alongside Hard Work and Gamble. Thug Life robs a traveler
+  (2d6 in a City, 3d6 in a Fortress) for a chance at coins, a
+  Treasure, getting caught and permanently banned from that city, or
+  killed outright. The Arena (Fortress only) pits you against a
+  randomly rolled Champion for a real fight -- win 20 coins, lose and
+  your character dies.
+
+## [2.7.0] - 2026-07-20
+
+### Added
+
+- Getting Money: Hard Work and Gamble City Actions (#58). Hard Work
+  permanently trades 1 max HP for 1d6+1 coins (City only). Gamble
+  spends a coin for a shot at 6 more, or -- if you're broke -- bets
+  your life on the same roll. A death here is recorded to the
+  Graveyard just like a death in a dungeon, the first way to die
+  outside one. Thug Life and Arena are still to come.
+
 ## [2.6.0] - 2026-07-20
 
 ### Added

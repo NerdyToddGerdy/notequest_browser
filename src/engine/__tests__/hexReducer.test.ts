@@ -139,3 +139,11 @@ describe("hexReducer ASK_FOR_DUNGEON", () => {
     expect(next).toBe(world);
   });
 });
+
+describe("hexReducer MOVE onto a Thug-Life-banned hex", () => {
+  it("is a no-op even onto an otherwise passable, in-Affinity neighbor", () => {
+    const world = { ...homeWorld(), bannedHexes: ["1,0"] };
+    const next = hexReducer(world, { type: "MOVE", to: { q: 1, r: 0 }, raceName: "Human" }, sequenceDie([3, 4]));
+    expect(next).toBe(world);
+  });
+});

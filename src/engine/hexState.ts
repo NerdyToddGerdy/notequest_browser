@@ -66,6 +66,13 @@ export interface WorldState {
    * onto water; "once you enter non-water terrain you leave the boat" clears it automatically the
    * moment the player lands somewhere that isn't water again. */
   hasBoat: boolean;
+  /** Thug Life's failed-escape outcome ("you have fled, and will no longer be able to enter this
+   * city") -- hex keys the player is permanently barred from entering, world-scoped like
+   * `dungeonRunId`/discovered tiles rather than tied to any one character (this app has no
+   * per-character bucket on `WorldState` to scope a ban to any more narrowly -- see CLAUDE.md's
+   * "Getting Money" note). Optional so a session persisted before this field existed still loads;
+   * always read via `isBannedHex()`, never directly, so that default stays in one place. */
+  bannedHexes?: string[];
 }
 
 /** `current` is trusted to belong to `climate`'s own terrain set (a hot-climate world only ever
@@ -142,6 +149,22 @@ export function withDungeonMarked(world: WorldState, coord: HexCoord): WorldStat
   return { ...world, tiles: { ...world.tiles, [key]: { ...tile, dungeonMarked: true } } };
 }
 
+/** True once the hex at `coord` has been permanently barred by a failed Thug Life escape (see
+ * `HexTile`'s -- no, `WorldState.bannedHexes`' -- own doc comment). The one place this list should
+ * ever be read, so the `?? []` back-compat default for a pre-#58 persisted session lives here once
+ * instead of at every call site. */
+export function isBannedHex(world: WorldState, coord: HexCoord): boolean {
+  return (world.bannedHexes ?? []).includes(hexKey(coord));
+}
+
+/** Immutably bars a hex for good -- "Thug Life" (`town.ts`'s `resolveThugLife()`) is the only
+ * caller today. Idempotent (a second call is a no-op) even though nothing currently re-bans an
+ * already-banned hex. */
+export function withBannedHex(world: WorldState, coord: HexCoord): WorldState {
+  if (isBannedHex(world, coord)) return world;
+  return { ...world, bannedHexes: [...(world.bannedHexes ?? []), hexKey(coord)] };
+}
+
 /** The player starts on a human city on a plain (fixed, not rolled -- "Choose a hex to start with
  * ... it will be a human city on a plain"), with its 6 neighbors already revealed so there's
  * somewhere to go without a wasted first move. */
@@ -152,5 +175,5 @@ export function createInitialWorldState(rng: RNG = Math.random): WorldState {
     [hexKey(home)]: { terrain: "plain", location: "humanCity" },
   };
   revealNeighborsInPlace(tiles, home, climate, rng);
-  return { climate, home, player: home, tiles, hasBoat: false };
+  return { climate, home, player: home, tiles, hasBoat: false, bannedHexes: [] };
 }

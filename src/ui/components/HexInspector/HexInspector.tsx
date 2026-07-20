@@ -11,6 +11,10 @@ export interface HexInspectorProps {
   /** True when this is a City/Fortress hex the player's race has no Affinity for -- explains why a
    * neighboring hex like this can't be traveled to (see `hasAffinity()`, `data/affinity.ts`). */
   noAffinity: boolean;
+  /** True when a failed Thug Life escape has permanently barred this hex -- explains why a
+   * neighboring hex like this can't be traveled to, the same way `noAffinity` does (see
+   * `WorldState.bannedHexes`). */
+  banned: boolean;
 }
 
 const TERRAIN_LABEL: Record<Terrain, string> = {
@@ -43,6 +47,7 @@ export function HexInspector({
   hasRemains,
   isCurrentTile,
   noAffinity,
+  banned,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -65,6 +70,13 @@ export function HexInspector({
         <div className={styles.row}>
           <span className={styles.label}>Affinity</span>
           <p>You are not welcome here.</p>
+        </div>
+      )}
+
+      {banned && (
+        <div className={styles.row}>
+          <span className={styles.label}>Banned</span>
+          <p>You fled the guards here and can never return.</p>
         </div>
       )}
 

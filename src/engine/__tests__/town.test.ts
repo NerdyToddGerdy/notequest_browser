@@ -13,6 +13,7 @@ import {
   canCastSpell,
   canDrinkVerdosaPotion,
   canFixArmor,
+  canHardWork,
   canHireBoat,
   canLearnRandomSpell,
   canRemoveCurse,
@@ -20,11 +21,14 @@ import {
   castSpell,
   drinkVerdosaPotion,
   fixArmor,
+  gamble,
+  hardWork,
   hasElvenBoots,
   hireBoat,
   learnRandomSpell,
   payTravelCost,
   removeCurse,
+  resolveThugLife,
   rest,
   sellItem,
   wieldWeapon,
@@ -393,5 +397,108 @@ describe("canHireBoat / hireBoat", () => {
     expect(canHireBoat(makeResources({ coins: 0 }))).toBe(false);
     const next = hireBoat(makeResources({ coins: 3 }));
     expect(next.coins).toBe(2);
+  });
+});
+
+describe("Getting Money: canHardWork / hardWork", () => {
+  it("requires more than 1 maxHp, so it can never zero it out", () => {
+    expect(canHardWork(makeResources({ maxHp: 1 }))).toBe(false);
+    expect(canHardWork(makeResources({ maxHp: 2 }))).toBe(true);
+  });
+
+  it("permanently lowers maxHp by 1 and gains 1d6+1 coins", () => {
+    const next = hardWork(makeResources({ maxHp: 20, hp: 20, coins: 3 }), sequenceDie([4]));
+    expect(next.maxHp).toBe(19);
+    expect(next.hp).toBe(19); // was already at the old max, clamped down with it
+    expect(next.coins).toBe(3 + 4 + 1);
+  });
+
+  it("doesn't touch current hp if it was already below the new max", () => {
+    const next = hardWork(makeResources({ maxHp: 20, hp: 5 }), sequenceDie([2]));
+    expect(next.maxHp).toBe(19);
+    expect(next.hp).toBe(5);
+  });
+});
+
+describe("Getting Money: gamble", () => {
+  it("spends 1 coin and wins 6 more on a roll of 6", () => {
+    const result = gamble(makeResources({ coins: 3 }), sequenceDie([6]));
+    expect(result.outcome).toBe("won");
+    expect(result.resources.coins).toBe(3 - 1 + 6);
+  });
+
+  it("spends 1 coin and wins nothing on anything less than 6", () => {
+    const result = gamble(makeResources({ coins: 3 }), sequenceDie([5]));
+    expect(result.outcome).toBe("lost");
+    expect(result.resources.coins).toBe(2);
+  });
+
+  it("bets your life when broke: a 6 survives and earns 5 coins", () => {
+    const result = gamble(makeResources({ coins: 0 }), sequenceDie([6]));
+    expect(result.outcome).toBe("survivedLifeBet");
+    expect(result.resources.coins).toBe(5);
+  });
+
+  it("bets your life when broke: anything less than 6 is fatal, resources untouched", () => {
+    const resources = makeResources({ coins: 0 });
+    const result = gamble(resources, sequenceDie([1]));
+    expect(result.outcome).toBe("diedLifeBet");
+    expect(result.resources).toBe(resources);
+  });
+});
+
+describe("Getting Money: resolveThugLife", () => {
+  it("rolls 2d6 in a city", () => {
+    // 2+2 = 4 -- killed. A third queued die (6) would change the outcome to "coins" if consumed,
+    // so this also proves only 2 dice were rolled for the base check.
+    const result = resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([2, 2, 6]));
+    expect(result.outcome).toBe("killed");
+  });
+
+  it("rolls 3d6 in a fortress", () => {
+    // 2+2+2 = 6 -- jail, not killed (would be killed on 2d6 alone).
+    const result = resolveThugLife(makeResources({ hp: 10 }), true, sequenceDie([2, 2, 2, 1]));
+    expect(result.outcome).toBe("fled");
+  });
+
+  it("2-4: killed outright, resources untouched", () => {
+    const resources = makeResources({ coins: 5 });
+    const result = resolveThugLife(resources, false, sequenceDie([1, 1]));
+    expect(result).toEqual({ resources, died: true, banned: false, outcome: "killed" });
+  });
+
+  it("5-7: jail -- a survivable escape leaves you banned but alive", () => {
+    const result = resolveThugLife(makeResources({ hp: 10 }), false, sequenceDie([3, 4, 2]));
+    expect(result.died).toBe(false);
+    expect(result.banned).toBe(true);
+    expect(result.outcome).toBe("fled");
+    expect(result.resources.hp).toBe(8);
+  });
+
+  it("5-7: jail -- a fatal escape roll kills you, resources untouched", () => {
+    const resources = makeResources({ hp: 3 });
+    const result = resolveThugLife(resources, false, sequenceDie([2, 3, 6]));
+    expect(result).toEqual({ resources, died: true, banned: false, outcome: "diedEscaping" });
+  });
+
+  it("8/9/10/11-12: steal 2/5/7/10 coins", () => {
+    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([4, 4])).amount).toBe(2); // 8
+    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([4, 5])).amount).toBe(5); // 9
+    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([5, 5])).amount).toBe(7); // 10
+    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([5, 6])).amount).toBe(10); // 11
+    expect(resolveThugLife(makeResources({ coins: 0 }), false, sequenceDie([6, 6])).amount).toBe(10); // 12
+  });
+
+  it("13-14 (fortress only): steal 20 coins", () => {
+    const result = resolveThugLife(makeResources({ coins: 3 }), true, sequenceDie([4, 4, 5])); // 13
+    expect(result.outcome).toBe("coins");
+    expect(result.amount).toBe(20);
+    expect(result.resources.coins).toBe(23);
+  });
+
+  it("15-18 (fortress only): a generic Treasure, not a dungeon-type-specific one", () => {
+    const result = resolveThugLife(makeResources({ treasures: 1 }), true, sequenceDie([6, 6, 6])); // 18
+    expect(result.outcome).toBe("treasure");
+    expect(result.resources.treasures).toBe(2);
   });
 });

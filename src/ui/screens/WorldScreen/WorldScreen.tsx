@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import {
   CITY_OR_FORTRESS,
+  isFortressLocation,
   isImpassable,
   locationHasDungeon,
   travelCost,
@@ -9,15 +10,25 @@ import {
   type Terrain,
 } from "../../../data/hexTables.ts";
 import { hasAffinity, CULTURE_BY_LOCATION, type CityCulture } from "../../../data/affinity.ts";
-import { hexKey, hexNeighbors, type HexCoord, type HexTile, type WorldState } from "../../../engine/hexState.ts";
+import {
+  hexKey,
+  hexNeighbors,
+  isBannedHex,
+  withBannedHex,
+  type HexCoord,
+  type HexTile,
+  type WorldState,
+} from "../../../engine/hexState.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
 import { hasUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
+import type { TownDeathCause } from "../../../engine/graveyard.ts";
 import {
   canHireBoat,
   castSpell,
   hasElvenBoots,
   hireBoat,
   payTravelCost,
+  resolveThugLife,
   type AdventurerResources,
 } from "../../../engine/town.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
@@ -49,6 +60,11 @@ export interface WorldScreenProps {
   onUpdateResources: (resources: AdventurerResources) => void;
   onUpdateWorld: (world: WorldState) => void;
   onEnterDungeon: () => void;
+  /** A death outside a dungeon (Getting Money's Gamble/Thug Life/Arena, issue #58) -- App.tsx's own
+   * Graveyard-recording + session-clearing handler, mirroring DungeonScreen's death effect. This
+   * screen supplies `place` (the current hex's location label) so App.tsx doesn't need its own copy
+   * of `LOCATION_LABEL`. */
+  onCharacterDied: (cause: TownDeathCause, place: string) => void;
   onHardReset: () => void;
 }
 
@@ -113,6 +129,7 @@ export function WorldScreen({
   onUpdateResources,
   onUpdateWorld,
   onEnterDungeon,
+  onCharacterDied,
   onHardReset,
 }: WorldScreenProps) {
   /** True while voluntarily looking at the map from within a City/Fortress hex (via TownScreen's
@@ -179,6 +196,8 @@ export function WorldScreen({
   const culture: CityCulture | null =
     (currentTile?.location && CULTURE_BY_LOCATION[currentTile.location]) || null;
   const besideWater = neighborCoords.some((n) => world.tiles[hexKey(n)]?.terrain === "water");
+  const isFortress = isFortressLocation(currentTile?.location ?? null);
+  const currentPlaceLabel = currentTile?.location ? LOCATION_LABEL[currentTile.location] : "the wilds";
   /** "If you don't already have a dungeon in any adjacent hex" -- gates the Ask button itself
    * (always rendered by TownScreen, disabled once true, same "visible but disabled" precedent as
    * every other City Action here) rather than the reducer alone, so the UI can explain why. */
@@ -187,16 +206,21 @@ export function WorldScreen({
     return !!t?.dungeonRunId || !!t?.dungeonMarked;
   });
 
-  /** A hex is travelable if it's passable (respecting a hired boat on water) *and* the character's
-   * race has Affinity for whatever City/Fortress culture is there (non-city hexes are always
-   * `true` for the latter -- see `hasAffinity()`). */
-  function canTravelTo(tile: HexTile): boolean {
-    return !isImpassable(tile.terrain, tile.location, world.hasBoat) && hasAffinity(character.race.name, tile.location);
+  /** A hex is travelable if it's passable (respecting a hired boat on water), the character's race
+   * has Affinity for whatever City/Fortress culture is there (non-city hexes are always `true` for
+   * the latter -- see `hasAffinity()`), and it isn't a hex Thug Life has permanently banned this
+   * world from. */
+  function canTravelTo(tile: HexTile, coord: HexCoord): boolean {
+    return (
+      !isImpassable(tile.terrain, tile.location, world.hasBoat) &&
+      hasAffinity(character.race.name, tile.location) &&
+      !isBannedHex(world, coord)
+    );
   }
 
   function handleTravel(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
-    if (!tile || !canTravelTo(tile)) return;
+    if (!tile || !canTravelTo(tile, coord)) return;
     // Elven Boots: "you can only spend 1 provision to move through forests."
     const cost = tile.terrain === "forest" && hasElvenBoots(resources) ? 1 : travelCost(tile.terrain);
     onUpdateResources(payTravelCost(resources, cost));
@@ -209,6 +233,7 @@ export function WorldScreen({
   const inspectedTile: HexTile | undefined = world.tiles[hexKey(inspectedCoord)];
   const isInspectingCurrentTile = inspectedCoord.q === world.player.q && inspectedCoord.r === world.player.r;
   const inspectedNoAffinity = !!inspectedTile && !hasAffinity(character.race.name, inspectedTile.location);
+  const inspectedBanned = isBannedHex(world, inspectedCoord);
 
   /** Clicking a passable, in-range neighbor travels immediately; anything else (out of range,
    * impassable, no Affinity, or the player's own tile) just selects it for HexInspector to
@@ -216,7 +241,7 @@ export function WorldScreen({
   function handleHexClick(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
     const isNeighbor = neighborCoords.some((n) => n.q === coord.q && n.r === coord.r);
-    if (tile && isNeighbor && canTravelTo(tile)) {
+    if (tile && isNeighbor && canTravelTo(tile, coord)) {
       handleTravel(coord);
     } else {
       setSelectedHex(coord);
@@ -232,6 +257,22 @@ export function WorldScreen({
   function handleAsk() {
     if (askedDungeonKnown) return;
     onUpdateWorld(hexReducer(world, { type: "ASK_FOR_DUNGEON" }));
+  }
+
+  /** "Thug Life" -- unlike every other City Action, this can touch *both* resources (coins/
+   * Treasures/HP) and WorldState (a permanent ban) from the same die roll, so it's resolved once
+   * here (not in TownScreen, which only ever gets an `AdventurerResources`) and applied to
+   * whichever of the two actually changed. Returns the result so TownScreen can show what happened
+   * -- this screen doesn't otherwise track any per-action outcome text. */
+  function handleThugLife(): ReturnType<typeof resolveThugLife> {
+    const result = resolveThugLife(resources, isFortress);
+    if (result.died) {
+      onCharacterDied("thug-life", currentPlaceLabel);
+      return result;
+    }
+    onUpdateResources(result.resources);
+    if (result.banned) onUpdateWorld(withBannedHex(world, world.player));
+    return result;
   }
 
   // Computed unconditionally (mirroring DungeonMap's own useMemo-before-early-return shape) since
@@ -350,10 +391,13 @@ export function WorldScreen({
         culture={culture}
         showHireBoat={besideWater}
         askedDungeonKnown={askedDungeonKnown}
+        isFortress={isFortress}
         onUpdateResources={onUpdateResources}
         onEnterDungeon={onEnterDungeon}
         onHireBoat={handleHireBoat}
         onAsk={handleAsk}
+        onThugLife={handleThugLife}
+        onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
         onExploreWorld={() => setShowMap(true)}
         onHardReset={onHardReset}
       />
@@ -450,6 +494,7 @@ export function WorldScreen({
                   hasRemains={dungeonInfoFor(inspectedTile).hasRemains}
                   isCurrentTile={isInspectingCurrentTile}
                   noAffinity={inspectedNoAffinity}
+                  banned={inspectedBanned}
                 />
               </div>
             )}

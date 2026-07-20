@@ -134,6 +134,14 @@ export function locationHasDungeon(loc: LocationKind | null): boolean {
   return loc === "ruins" || (loc !== null && CITY_OR_FORTRESS.has(loc));
 }
 
+/** True for the four playable Fortress locations (Orc/Human/Dwarven/Elven) -- Goblin and Gnome only
+ * ever roll a City per "Table: Location," never a Fortress. "Getting Money" (issue #58) needs this
+ * to distinguish Hard Work (City-only) and Arena (Fortress-only) from the rest of "Cities and
+ * Fortresses," which the rulebook applies to both uniformly. */
+export function isFortressLocation(loc: LocationKind | null): boolean {
+  return loc !== null && loc.endsWith("Fortress");
+}
+
 /** "It is not possible to move on water without a boat" / "Rocks: It is not possible to pass
  * here." `hasBoat` (see `WorldState.hasBoat`, set by the "Hire Boat" City Action) lifts the water
  * restriction specifically -- "you travel normally" on water once hired, no exception for Rocks. */

@@ -1,15 +1,24 @@
 /** One row of the Graveyard play-sheet: "Write down the characters that died... Name, Dungeon, Cause of Death."
  * `race`/`cls`/`monsterKills`/`bossKills` are later additions -- optional so entries already sitting in a
- * player's `localStorage` from before these fields existed still parse and render without them. */
+ * player's `localStorage` from before these fields existed still parse and render without them.
+ * `causeOfDeath`'s "gamble"/"thug-life"/"arena" values (issue #58's Getting Money mini-games) are the first
+ * deaths that don't happen inside a dungeon run at all -- `dungeon` doubles as "where" for these, holding
+ * the city/fortress's location label instead of a dungeon name. */
 export interface GraveyardEntry {
   name: string;
   dungeon: string;
-  causeOfDeath: "darkness" | "combat";
+  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena";
   race?: string;
   cls?: string;
   monsterKills?: number;
   bossKills?: number;
 }
+
+/** The subset of `causeOfDeath` that can strike outside a dungeon -- Town/World's own equivalent of
+ * `DungeonState.deathCause`, which only ever needs "darkness"/"combat". Exported so App.tsx (the only
+ * place with both a `character` and the authority to clear the session) can type its own town-death
+ * handler without every caller needing to know the full union. */
+export type TownDeathCause = Exclude<GraveyardEntry["causeOfDeath"], "darkness" | "combat">;
 
 const STORAGE_KEY = "notequest:graveyard";
 

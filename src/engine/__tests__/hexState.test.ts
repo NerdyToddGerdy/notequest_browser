@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   createInitialWorldState,
   findAskedDungeonHex,
+  isBannedHex,
   revealNeighborsInPlace,
+  withBannedHex,
   withDungeonMarked,
   withDungeonRunId,
   type HexTile,
@@ -156,5 +158,39 @@ describe("withDungeonMarked", () => {
     };
     const next = withDungeonMarked(world, { q: 5, r: 5 });
     expect(next).toBe(world);
+  });
+});
+
+describe("isBannedHex / withBannedHex", () => {
+  function bareWorld(bannedHexes?: string[]): WorldState {
+    return {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: "humanCity" } },
+      hasBoat: false,
+      ...(bannedHexes !== undefined ? { bannedHexes } : {}),
+    };
+  }
+
+  it("is false for a fresh world and true once banned", () => {
+    const world = bareWorld([]);
+    expect(isBannedHex(world, { q: 0, r: 0 })).toBe(false);
+    const banned = withBannedHex(world, { q: 0, r: 0 });
+    expect(isBannedHex(banned, { q: 0, r: 0 })).toBe(true);
+    expect(isBannedHex(world, { q: 0, r: 0 })).toBe(false); // original untouched
+  });
+
+  it("treats a world with no bannedHexes field at all as having none banned (back-compat)", () => {
+    const world = bareWorld(undefined);
+    expect(isBannedHex(world, { q: 0, r: 0 })).toBe(false);
+    const banned = withBannedHex(world, { q: 0, r: 0 });
+    expect(banned.bannedHexes).toEqual(["0,0"]);
+  });
+
+  it("is idempotent -- banning an already-banned hex is a no-op", () => {
+    const world = withBannedHex(bareWorld([]), { q: 0, r: 0 });
+    const again = withBannedHex(world, { q: 0, r: 0 });
+    expect(again).toBe(world);
   });
 });

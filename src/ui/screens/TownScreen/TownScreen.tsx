@@ -2,8 +2,14 @@ import { useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import type { CityCulture } from "../../../data/affinity.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
-import { loadGraveyard } from "../../../engine/graveyard.ts";
+import { loadGraveyard, type TownDeathCause } from "../../../engine/graveyard.ts";
 import type { PendingDungeon } from "../../../engine/dungeonState.ts";
+import {
+  resolveArenaRound,
+  startArena,
+  type ArenaRoundResult,
+  type ArenaState,
+} from "../../../engine/arena.ts";
 import {
   buyElvenBoots,
   buyLamp,
@@ -16,6 +22,7 @@ import {
   canBuyProvision,
   canBuyTorch,
   canDrinkVerdosaPotion,
+  canHardWork,
   canHireBoat,
   canLearnRandomSpell,
   canRemoveCurse,
@@ -23,12 +30,15 @@ import {
   castSpell,
   drinkVerdosaPotion,
   fixArmor,
+  gamble,
+  hardWork,
   learnRandomSpell,
   removeCurse,
   rest,
   sellItem,
   wieldWeapon,
   type AdventurerResources,
+  type ThugLifeResult,
 } from "../../../engine/town.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
@@ -49,7 +59,10 @@ interface CultureAction {
  * per culture, on top of the base Rest/Buy/Sell/Fix set. See each `town.ts` function's own comment
  * for why some of these resolve as flavor-only (no Curse/hand-economy/day-passage system exists in
  * this codebase). */
-function cultureActionFor(culture: CityCulture | null, resources: AdventurerResources): CultureAction | null {
+function cultureActionFor(
+  culture: CityCulture | null,
+  resources: AdventurerResources,
+): CultureAction | null {
   switch (culture) {
     case "human":
       return {
@@ -129,10 +142,21 @@ export interface TownScreenProps {
    * a dungeon found (marked or actually run), disabling Ask ("if you don't already have a dungeon
    * in any adjacent hex, roll 1d6"). */
   askedDungeonKnown: boolean;
+  /** True for a Fortress, false for a City/Ruins -- `WorldScreen`'s own `isFortressLocation()`
+   * check. Hard Work is City-only per the rulebook's own wording (unlike everything else in
+   * "Cities and Fortresses," which the rulebook applies to both) -- see `town.ts`'s `hardWork()`. */
+  isFortress: boolean;
   onUpdateResources: (resources: AdventurerResources) => void;
   onEnterDungeon: () => void;
   onHireBoat: () => void;
   onAsk: () => void;
+  /** Resolved by `WorldScreen` (not here) since a single roll can touch both `resources` and
+   * `WorldState` (a permanent hex ban) -- this screen only ever sees an `AdventurerResources`, so
+   * it can't apply the ban itself. Returns the result so this screen can show what happened. */
+  onThugLife: () => ThugLifeResult;
+  /** A death outside a dungeon (Gamble's life-bet, Thug Life today; Arena to follow) -- forwarded
+   * up to App.tsx via WorldScreen, which supplies `place` itself (see WorldScreenProps). */
+  onCharacterDied: (cause: TownDeathCause) => void;
   /** Toggles WorldScreen's map view back on -- this screen renders in its place while standing on
    * a City/Fortress hex, so "leaving" just means looking at the map again, not switching screens. */
   onExploreWorld: () => void;
@@ -148,10 +172,13 @@ export function TownScreen({
   culture,
   showHireBoat,
   askedDungeonKnown,
+  isFortress,
   onUpdateResources,
   onEnterDungeon,
   onHireBoat,
   onAsk,
+  onThugLife,
+  onCharacterDied,
   onExploreWorld,
   onHardReset,
 }: TownScreenProps) {
@@ -161,6 +188,81 @@ export function TownScreen({
   const [graveyard] = useState(() => loadGraveyard());
   const hasRecords = graveyard.length > 0 || dungeonHistory.length > 0;
   const cultureAction = cultureActionFor(culture, resources);
+  // Thug Life's outcome text (issue #58) -- unlike every other City Action's static desc, this one
+  // has 5 different narrative outcomes (killed/jail-death/fled+banned/coins/treasure) worth telling
+  // the player about explicitly, especially "banned" -- otherwise there'd be no way to learn why a
+  // city they can see on the map suddenly refuses to let them back in. Reset to null on a fresh
+  // mount only (a new City Action outcome per hex visit, not persisted).
+  const [thugLifeMessage, setThugLifeMessage] = useState<string | null>(null);
+  // "Fighting in The Arena" (issue #58, Fortress-only) -- non-null while a fight is underway;
+  // `arenaLog` is a running line-per-round narration, since a fight can take several rounds unlike
+  // every other City Action's single die roll. Both reset to their empty state only by starting a
+  // fresh fight (RETURN_TO_CITY_ACTIONS below just closes the panel, keeping the log visible until
+  // the next fight overwrites it -- there's no reason to erase a just-finished fight's story).
+  const [arena, setArena] = useState<ArenaState | null>(null);
+  const [arenaLog, setArenaLog] = useState<string[]>([]);
+
+  function describeArenaRound(result: ArenaRoundResult, championName: string): string {
+    if (result.events.some((e) => e.kind === "explosive")) {
+      return `${championName} explodes! You catch the blast.`;
+    }
+    if (result.state.outcome === "victory") return `${championName} falls. Victory!`;
+    if (result.died) return `${championName} strikes you down.`;
+    return `You strike ${championName}. It hits back.`;
+  }
+
+  function handleStartArena() {
+    setArena(startArena());
+    setArenaLog([]);
+  }
+
+  function handleArenaAttack() {
+    if (!arena) return;
+    const weaponFormula = resources.weapon?.formula ?? character.cls.weaponDamage;
+    const result = resolveArenaRound(arena, resources.hp, weaponFormula);
+    const championName = arena.champion.name;
+    setArena(result.state);
+    setArenaLog((prev) => [...prev, describeArenaRound(result, championName)]);
+    if (result.died) {
+      onCharacterDied("arena");
+      return;
+    }
+    const coins = result.state.outcome === "victory" ? resources.coins + 20 : resources.coins;
+    onUpdateResources({ ...resources, hp: result.hp, coins });
+  }
+
+  // "Gamble" (issue #58): which of the rulebook's two sub-games runs is decided by resources.coins
+  // itself (see town.ts's gamble()) -- a losing life-bet is the first way to die outside a dungeon,
+  // so this can't just be a one-line onClick like every other City Action here.
+  function handleGamble() {
+    const result = gamble(resources);
+    if (result.outcome === "diedLifeBet") {
+      onCharacterDied("gamble");
+      return;
+    }
+    onUpdateResources(result.resources);
+  }
+
+  // "Thug Life" -- resources/world are already applied by WorldScreen's onThugLife() by the time
+  // this returns (died: true is the one exception, where App.tsx's death flow has already fired
+  // and this screen is about to unmount); all that's left here is turning the outcome into copy.
+  function handleThugLife() {
+    const result: ThugLifeResult = onThugLife();
+    if (result.died) return;
+    switch (result.outcome) {
+      case "fled":
+        setThugLifeMessage(
+          "Caught! You lost some blood escaping, and you're banned from here for good.",
+        );
+        break;
+      case "coins":
+        setThugLifeMessage(`You made off with ${result.amount} coins.`);
+        break;
+      case "treasure":
+        setThugLifeMessage("You made off with a Treasure!");
+        break;
+    }
+  }
 
   return (
     <div className={styles.page}>
@@ -175,90 +277,161 @@ export function TownScreen({
 
               <span className={styles.sheetLabel}>Town Square</span>
 
-              <section className={styles.actions}>
-                <h2 className={styles.trackTitle}>City Actions</h2>
-                <div className={styles.actionGrid}>
-                  <button
-                    className={styles.actionBtn}
-                    type="button"
-                    disabled={!canRest(resources, maxSpellUses)}
-                    onClick={() => onUpdateResources(rest(resources, maxSpellUses))}
-                  >
-                    <span className={styles.actionName}>Rest</span>
-                    <span className={styles.actionCost}>1 coin</span>
-                    <span className={styles.actionDesc}>Recover your HP and spent spells.</span>
-                  </button>
-                  <button
-                    className={styles.actionBtn}
-                    type="button"
-                    disabled={!canBuyTorch(resources)}
-                    onClick={() => onUpdateResources(buyTorch(resources))}
-                  >
-                    <span className={styles.actionName}>Buy Torches</span>
-                    <span className={styles.actionCost}>1 coin</span>
-                    <span className={styles.actionDesc}>
-                      +1 torch, up to a maximum of 10 carried.
-                    </span>
-                  </button>
-                  <button
-                    className={styles.actionBtn}
-                    type="button"
-                    disabled={!canBuyProvision(resources)}
-                    onClick={() => onUpdateResources(buyProvision(resources))}
-                  >
-                    <span className={styles.actionName}>Buy Provisions</span>
-                    <span className={styles.actionCost}>1 coin</span>
-                    <span className={styles.actionDesc}>
-                      +1 provision, up to a maximum of 20 carried.
-                    </span>
-                  </button>
-                  <button
-                    className={styles.actionBtn}
-                    type="button"
-                    disabled={askedDungeonKnown}
-                    onClick={onAsk}
-                  >
-                    <span className={styles.actionName}>Ask</span>
-                    <span className={styles.actionCost}>Free</span>
-                    <span className={styles.actionDesc}>
-                      {askedDungeonKnown
-                        ? "A dungeon is already known nearby."
-                        : "Ask about the nearest dungeon."}
-                    </span>
-                  </button>
-                  {cultureAction && (
+              {arena ? (
+                <section className={styles.actions}>
+                  <h2 className={styles.trackTitle}>The Arena</h2>
+                  <div className={styles.arenaCard}>
+                    <p className={styles.gateCopy}>
+                      {arena.champion.name} -- {arena.champion.hp} / {arena.champion.maxHp} HP
+                    </p>
+                    <ul className={styles.arenaLog}>
+                      {arenaLog.map((line, i) => (
+                        <li key={i}>{line}</li>
+                      ))}
+                    </ul>
+                    {arena.outcome === "ongoing" ? (
+                      <button className={styles.rollBtn} type="button" onClick={handleArenaAttack}>
+                        Attack
+                      </button>
+                    ) : (
+                      <button
+                        className={styles.rollBtn}
+                        type="button"
+                        onClick={() => setArena(null)}
+                      >
+                        Return to City Actions
+                      </button>
+                    )}
+                  </div>
+                </section>
+              ) : (
+                <section className={styles.actions}>
+                  <h2 className={styles.trackTitle}>City Actions</h2>
+                  <div className={styles.actionGrid}>
                     <button
                       className={styles.actionBtn}
                       type="button"
-                      disabled={cultureAction.disabled}
-                      onClick={() => onUpdateResources(cultureAction.apply(resources))}
+                      disabled={!canRest(resources, maxSpellUses)}
+                      onClick={() => onUpdateResources(rest(resources, maxSpellUses))}
                     >
-                      <span className={styles.actionName}>{cultureAction.name}</span>
-                      <span className={styles.actionCost}>{cultureAction.cost}</span>
-                      <span className={styles.actionDesc}>{cultureAction.desc}</span>
+                      <span className={styles.actionName}>Rest</span>
+                      <span className={styles.actionCost}>1 coin</span>
+                      <span className={styles.actionDesc}>Recover your HP and spent spells.</span>
                     </button>
-                  )}
-                  {showHireBoat && (
                     <button
                       className={styles.actionBtn}
                       type="button"
-                      disabled={!canHireBoat(resources)}
-                      onClick={onHireBoat}
+                      disabled={!canBuyTorch(resources)}
+                      onClick={() => onUpdateResources(buyTorch(resources))}
                     >
-                      <span className={styles.actionName}>Hire Boat</span>
+                      <span className={styles.actionName}>Buy Torches</span>
                       <span className={styles.actionCost}>1 coin</span>
                       <span className={styles.actionDesc}>
-                        Cross water normally until you step onto dry land again.
+                        +1 torch, up to a maximum of 10 carried.
                       </span>
                     </button>
-                  )}
-                </div>
-                <p className={styles.sellNote}>
-                  Sell items from your Pack for their listed worth in coins
-                  {isCatPerson ? " (doubled, Cat-Person)" : ""}, or fix a damaged armor piece from
-                  your Equipment, for {isBlacksmith ? "1 torch (Blacksmith)" : "1 coin"}.
-                </p>
-              </section>
+                    <button
+                      className={styles.actionBtn}
+                      type="button"
+                      disabled={!canBuyProvision(resources)}
+                      onClick={() => onUpdateResources(buyProvision(resources))}
+                    >
+                      <span className={styles.actionName}>Buy Provisions</span>
+                      <span className={styles.actionCost}>1 coin</span>
+                      <span className={styles.actionDesc}>
+                        +1 provision, up to a maximum of 20 carried.
+                      </span>
+                    </button>
+                    <button
+                      className={styles.actionBtn}
+                      type="button"
+                      disabled={askedDungeonKnown}
+                      onClick={onAsk}
+                    >
+                      <span className={styles.actionName}>Ask</span>
+                      <span className={styles.actionCost}>Free</span>
+                      <span className={styles.actionDesc}>
+                        {askedDungeonKnown
+                          ? "A dungeon is already known nearby."
+                          : "Ask about the nearest dungeon."}
+                      </span>
+                    </button>
+                    {cultureAction && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={cultureAction.disabled}
+                        onClick={() => onUpdateResources(cultureAction.apply(resources))}
+                      >
+                        <span className={styles.actionName}>{cultureAction.name}</span>
+                        <span className={styles.actionCost}>{cultureAction.cost}</span>
+                        <span className={styles.actionDesc}>{cultureAction.desc}</span>
+                      </button>
+                    )}
+                    {showHireBoat && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canHireBoat(resources)}
+                        onClick={onHireBoat}
+                      >
+                        <span className={styles.actionName}>Hire Boat</span>
+                        <span className={styles.actionCost}>1 coin</span>
+                        <span className={styles.actionDesc}>
+                          Cross water normally until you step onto dry land again.
+                        </span>
+                      </button>
+                    )}
+                    {!isFortress && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canHardWork(resources)}
+                        onClick={() => onUpdateResources(hardWork(resources))}
+                      >
+                        <span className={styles.actionName}>Hard Work</span>
+                        <span className={styles.actionCost}>Free</span>
+                        <span className={styles.actionDesc}>
+                          Permanently lose 1 max HP, gain 1d6+1 coins.
+                        </span>
+                      </button>
+                    )}
+                    <button className={styles.actionBtn} type="button" onClick={handleGamble}>
+                      <span className={styles.actionName}>Gamble</span>
+                      <span className={styles.actionCost}>
+                        {resources.coins >= 1 ? "1 coin" : "Your life"}
+                      </span>
+                      <span className={styles.actionDesc}>
+                        {resources.coins >= 1
+                          ? "Roll a 6 to win 6 coins, otherwise nothing."
+                          : "No coins left -- roll a 6 to survive and earn 5, or die."}
+                      </span>
+                    </button>
+                    <button className={styles.actionBtn} type="button" onClick={handleThugLife}>
+                      <span className={styles.actionName}>Thug Life</span>
+                      <span className={styles.actionCost}>Risky</span>
+                      <span className={styles.actionDesc}>
+                        {thugLifeMessage ??
+                          `Rob a traveler (${isFortress ? "3d6" : "2d6"}) -- could pay off, or get you killed or banned.`}
+                      </span>
+                    </button>
+                    {isFortress && (
+                      <button className={styles.actionBtn} type="button" onClick={handleStartArena}>
+                        <span className={styles.actionName}>Fight in the Arena</span>
+                        <span className={styles.actionCost}>Deadly</span>
+                        <span className={styles.actionDesc}>
+                          Face an unknown Champion. Win: 20 coins. Lose: you die.
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                  <p className={styles.sellNote}>
+                    Sell items from your Pack for their listed worth in coins
+                    {isCatPerson ? " (doubled, Cat-Person)" : ""}, or fix a damaged armor piece from
+                    your Equipment, for {isBlacksmith ? "1 torch (Blacksmith)" : "1 coin"}.
+                  </p>
+                </section>
+              )}
 
               <section className={styles.adventureSection}>
                 <div className={hasRecords ? styles.adventureRow : undefined}>
@@ -286,7 +459,11 @@ export function TownScreen({
 
                   {hasRecords && (
                     <div className={styles.recordsCol}>
-                      <RecordsPanel graveyardEntries={graveyard} dungeons={dungeonHistory} compact />
+                      <RecordsPanel
+                        graveyardEntries={graveyard}
+                        dungeons={dungeonHistory}
+                        compact
+                      />
                     </div>
                   )}
                 </div>

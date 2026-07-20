@@ -305,3 +305,118 @@ export function canHireBoat(resources: AdventurerResources): boolean {
 export function hireBoat(resources: AdventurerResources): AdventurerResources {
   return { ...resources, coins: resources.coins - 1 };
 }
+
+// -- "Getting Money" (issue #58, `docs/game-rules-reference.md` lines 1025-1071): mini-games for a
+// broke character. Unlike everything above, Gamble's life-bet can kill the character outright --
+// town.ts has no notion of "the character is dead" (that's App.tsx's job, the only place with both
+// a `character` and the authority to clear the session/write the Graveyard), so a lethal outcome is
+// surfaced as a result field instead of applied here. See `TownDeathCause` in `graveyard.ts`.
+
+/** "Hard work: In a city, spend a few years working hard for more than daily bread. Permanently
+ * lose 1 HP and gain 1d6+1 coins." "Permanently" -- unlike every other HP loss in this game, Rest
+ * can't undo this, so it comes out of `maxHp` itself (current `hp` clamped down to match if it was
+ * already at the old max), not just current HP. Guarded so `maxHp` can never drop to 0 -- the
+ * rulebook doesn't list this as a way to die, unlike Gamble/Thug Life/Arena. City-only per the
+ * rulebook's own wording (unlike Gamble, which explicitly says "city or fortress") -- callers gate
+ * this on `!isFortressLocation(...)`. */
+export function canHardWork(resources: AdventurerResources): boolean {
+  return resources.maxHp > 1;
+}
+export function hardWork(resources: AdventurerResources, rng: RNG = Math.random): AdventurerResources {
+  const maxHp = resources.maxHp - 1;
+  return {
+    ...resources,
+    maxHp,
+    hp: Math.min(resources.hp, maxHp),
+    coins: resources.coins + rollDie(rng) + 1,
+  };
+}
+
+export interface GambleResult {
+  resources: AdventurerResources;
+  outcome: "won" | "lost" | "survivedLifeBet" | "diedLifeBet";
+}
+/** "Gamble: In a city or fortress, spend 1 coin and roll a die. If you roll 6 you get 6 coins; if
+ * less, you get nothing. If you don't have money, you can bet your life. If you drop less than 6,
+ * someone kills you...; if you drop 6 you stay alive and earn 5 coins." Always offered -- which of
+ * the two sub-games runs is decided by `resources.coins` itself, matching the rulebook's own "if
+ * you don't have money" framing (not a separate action to pick). `diedLifeBet` leaves `resources`
+ * untouched; the caller (`TownScreen`, via `onCharacterDied`) is responsible for the actual death --
+ * see the block comment above. */
+export function gamble(resources: AdventurerResources, rng: RNG = Math.random): GambleResult {
+  if (resources.coins >= 1) {
+    const spent = { ...resources, coins: resources.coins - 1 };
+    if (rollDie(rng) === 6) return { resources: { ...spent, coins: spent.coins + 6 }, outcome: "won" };
+    return { resources: spent, outcome: "lost" };
+  }
+  if (rollDie(rng) === 6) {
+    return { resources: { ...resources, coins: resources.coins + 5 }, outcome: "survivedLifeBet" };
+  }
+  return { resources, outcome: "diedLifeBet" };
+}
+
+export interface ThugLifeResult {
+  resources: AdventurerResources;
+  /** Same "town.ts doesn't know the character is dead" split as Gamble's `diedLifeBet` -- `died`
+   * leaves `resources` untouched either way; the caller owns the actual death flow. */
+  died: boolean;
+  /** True on a successful-but-caught escape -- the caller applies the actual hex ban via
+   * `hexState.ts`'s `withBannedHex()`, since town.ts has no notion of hexes/WorldState. */
+  banned: boolean;
+  outcome: "killed" | "diedEscaping" | "fled" | "coins" | "treasure";
+  /** Only set for `outcome === "coins"`. */
+  amount?: number;
+}
+
+/** "Thug Life: Steal money from travelers. In a city roll 2d6, in a fortress roll 3d6, and compare
+ * with the table below" -- "Table: Stealing from Travelers." The 15-18 "Crypt/Sanctuary/Palace
+ * Treasure!" rows are only reachable on 3d6 (a city's 2d6 tops out at 12) and are flattened to a
+ * generic `treasures` credit -- this codebase has no per-dungeon-type Treasure concept to hand out
+ * one of specifically, same flavor-simplification precedent as `bladeTrap`'s roll-of-2 or
+ * `DUNGEON_TYPE_BY_TERRAIN`'s thematic substitutions. The 5-7 jail row's "lose 1d6 HP... if you are
+ * still alive, you have fled" can itself be lethal -- checked here rather than left for the caller,
+ * since it's the same roll that determines both the HP loss and whether the escape succeeds. */
+export function resolveThugLife(
+  resources: AdventurerResources,
+  isFortress: boolean,
+  rng: RNG = Math.random,
+): ThugLifeResult {
+  const dice = isFortress ? 3 : 2;
+  let roll = 0;
+  for (let i = 0; i < dice; i++) roll += rollDie(rng);
+
+  if (roll <= 4) return { resources, died: true, banned: false, outcome: "killed" };
+  if (roll <= 7) {
+    const hpLoss = rollDie(rng);
+    if (resources.hp - hpLoss <= 0) {
+      return { resources, died: true, banned: false, outcome: "diedEscaping" };
+    }
+    return {
+      resources: { ...resources, hp: resources.hp - hpLoss },
+      died: false,
+      banned: true,
+      outcome: "fled",
+    };
+  }
+  if (roll === 8) return coinsResult(resources, 2);
+  if (roll === 9) return coinsResult(resources, 5);
+  if (roll === 10) return coinsResult(resources, 7);
+  if (roll <= 12) return coinsResult(resources, 10);
+  if (roll <= 14) return coinsResult(resources, 20);
+  return {
+    resources: { ...resources, treasures: resources.treasures + 1 },
+    died: false,
+    banned: false,
+    outcome: "treasure",
+  };
+}
+
+function coinsResult(resources: AdventurerResources, amount: number): ThugLifeResult {
+  return {
+    resources: { ...resources, coins: resources.coins + amount },
+    died: false,
+    banned: false,
+    outcome: "coins",
+    amount,
+  };
+}
