@@ -733,7 +733,15 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
       effect: entry.effect,
     });
   } else if (entry.effect.kind === "combatDamageBonus") {
-    if (draft.combat) draft.combat.playerDamageBonus += entry.effect.amount;
+    // OPEN_TREASURE is "usable anytime, not tied to a room" (see CLAUDE.md), so opening one
+    // outside a fight is normal, expected usage -- but this bonus only means anything mid-fight,
+    // so it's simply wasted rather than banked for whatever fight comes next.
+    if (draft.combat) {
+      draft.combat.playerDamageBonus += entry.effect.amount;
+    } else {
+      pushLog(draft, `Treasure: ${entry.text} No fight is happening right now, so it has no effect.`);
+      return;
+    }
   } else if (entry.effect.kind === "grantsTorches") {
     const gained = Math.min(entry.effect.amount, 10 - draft.torches);
     draft.torches += gained;

@@ -163,6 +163,10 @@
   margin-top: 6px;
   cursor: pointer;
 }
-.castBtn:hover {
+.castBtn:hover:not(:disabled) {
   background: linear-gradient(180deg, #eabb5e, #c69537);
+}
+.castBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

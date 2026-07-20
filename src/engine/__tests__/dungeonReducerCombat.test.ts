@@ -625,6 +625,22 @@ describe("CAST_SPELL in combat", () => {
     expect(next.selectedSegId).toBe(2);
   });
 
+  it("Teleport rejects a room flagged needsMonsterReroll -- regression: it looks empty but would immediately spawn a fresh fight on arrival", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ spellUses: { 3: 1 } }, [monster]);
+    const dest = makeSegment({ id: 2, type: "room-small", doors: [], needsMonsterReroll: true });
+    state.levels[0]!.segments.push(dest);
+
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      spellRoll: 3,
+      destLevel: 0,
+      destSegId: 2,
+    });
+
+    expect(next).toBe(state);
+  });
+
   it("Teleport is a no-op without a valid destination room", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
     const state = stateWithCombat({ spellUses: { 3: 1 } }, [monster]);

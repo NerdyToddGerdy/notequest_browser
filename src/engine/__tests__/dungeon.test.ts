@@ -6,6 +6,7 @@ import {
   boxFromCenter,
   classifyDoorOpen,
   collidesInList,
+  isTeleportDestination,
   MARGIN,
   placeChild,
   placeIslandRoot,
@@ -394,5 +395,75 @@ describe("reachableSegIds", () => {
     const seg3 = makeSegment({ id: 3, type: "room-small", doors: [] });
     const level = makeLevel({ segments: [seg1, seg2, seg3] });
     expect(reachableSegIds(level, 1)).toEqual(new Set([1, 2]));
+  });
+});
+
+describe("isTeleportDestination", () => {
+  it("allows a plain empty room", () => {
+    const seg = makeSegment({ id: 2, type: "room-small", doors: [] });
+    expect(isTeleportDestination(seg, 1)).toBe(true);
+  });
+
+  it("excludes the room the fight is currently happening in", () => {
+    const seg = makeSegment({ id: 1, type: "room-small", doors: [] });
+    expect(isTeleportDestination(seg, 1)).toBe(false);
+  });
+
+  it("excludes corridors and staircases -- not a \"room\" per the rulebook", () => {
+    const corridor = makeSegment({ id: 2, type: "corridor", doors: [] });
+    const staircase = makeSegment({ id: 3, type: "staircase", doors: [] });
+    expect(isTeleportDestination(corridor, 1)).toBe(false);
+    expect(isTeleportDestination(staircase, 1)).toBe(false);
+  });
+
+  it("excludes a room with undefeated, un-sneaked-past monsters", () => {
+    const seg = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+    });
+    expect(isTeleportDestination(seg, 1)).toBe(false);
+  });
+
+  it("allows a room whose monsters were defeated or sneaked past", () => {
+    const defeated = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+      monstersDefeated: true,
+    });
+    const sneakedInto = makeSegment({
+      id: 3,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+      monstersDefeated: true,
+      sneakedPast: false,
+    });
+    expect(isTeleportDestination(defeated, 1)).toBe(true);
+    expect(isTeleportDestination(sneakedInto, 1)).toBe(true);
+  });
+
+  it("excludes a sneaked-past room -- its monsters are still there, just not noticing yet", () => {
+    const seg = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [],
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: [], count: 1 },
+      sneakedPast: true,
+    });
+    expect(isTeleportDestination(seg, 1)).toBe(false);
+  });
+
+  it("excludes a room flagged needsMonsterReroll -- regression: it looks empty, but arriving would immediately re-roll a fresh encounter and can start a new fight", () => {
+    const seg = makeSegment({
+      id: 2,
+      type: "room-small",
+      doors: [],
+      needsMonsterReroll: true,
+    });
+    expect(isTeleportDestination(seg, 1)).toBe(false);
   });
 });

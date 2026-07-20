@@ -1934,6 +1934,47 @@ describe("OPEN_TREASURE", () => {
     expect(next.torches).toBe(10);
   });
 
+  it("Palace roll 5 redirects to the Wonders table; Potion of Fury (wonders roll 5) adds to the active fight's playerDamageBonus", () => {
+    const monster = { id: 1, name: "Orc", hp: 6, maxHp: 6, damage: 3, abilities: [], bonusDamage: 0, deathtouchPending: false, paralyzePending: 0, skipNextAttack: false };
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      combat: {
+        segId: 1,
+        monsters: [monster],
+        paralyzedTurns: 0,
+        pendingLootRolls: 0,
+        isBoss: false,
+        outcome: "ongoing",
+        pendingDamage: null,
+        playerDamageBonus: 0,
+        engulfableBodies: 0,
+      },
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      fixedDie(5),
+    );
+    expect(next.combat!.playerDamageBonus).toBe(2);
+  });
+
+  it("Palace roll 5 redirects to the Wonders table; Potion of Fury (wonders roll 5) has no effect outside combat, and logs so rather than silently discarding it", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      fixedDie(5),
+    );
+    expect(next.combat).toBeNull();
+    expect(next.log[0]!.message).toContain("no effect");
+  });
+
   it("Tomb roll 5 redirects to the Wonders table; Sapphire of Magic (wonders roll 5) grants a random Spell use", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),

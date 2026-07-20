@@ -258,11 +258,16 @@ export function reachableSegIds(level: Pick<LevelState, "segments">, currentSegI
  * destination can be any already-discovered room, on any level, not just one adjacent to where the
  * player currently stands. "Room" excludes corridors/staircases (not a "room" per the rulebook's own
  * wording); "empty" excludes a room whose monsters are undefeated and haven't been avoided via a
- * successful Move Silently (a `sneakedPast` room's monsters are still there, just not yet noticing). */
+ * successful Move Silently (a `sneakedPast` room's monsters are still there, just not yet noticing),
+ * and also a room flagged `needsMonsterReroll` (see `restoreMapFromPersisted()`) -- it looks empty
+ * here, but CAST_SPELL's Teleport case calls `rerollMonstersIfNeeded()` the instant the player
+ * arrives, which is exactly what fires that flag's fresh encounter roll and can start a brand-new
+ * fight right where they just fled to. */
 export function isTeleportDestination(seg: SegmentState, excludeSegId: number): boolean {
   if (seg.id === excludeSegId) return false;
   if (seg.type === "corridor" || seg.type === "staircase") return false;
   if (seg.sneakedPast) return false;
   if (seg.monsters && !seg.monstersDefeated) return false;
+  if (seg.needsMonsterReroll) return false;
   return true;
 }
