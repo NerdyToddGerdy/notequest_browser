@@ -33,6 +33,7 @@ import { RoomInspector } from "../../components/RoomInspector/RoomInspector.tsx"
 import { RollLog } from "../../components/RollLog/RollLog.tsx";
 import { TrapToast } from "../../components/TrapToast/TrapToast.tsx";
 import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog.tsx";
+import { Footer } from "../../components/Footer/Footer.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import styles from "./DungeonScreen.module.css";
 
@@ -60,6 +61,7 @@ export interface DungeonScreenProps {
   onReturnToTown: (runId: string, dungeon: DungeonState) => void;
   /** Fires whenever this run ends (death, retreat, or beating the Final Room) so it can be resumed later if unbeaten. */
   onLeaveDungeon: (runId: string, dungeon: DungeonState, characterName: string) => void;
+  onHardReset: () => void;
 }
 
 export function DungeonScreen({
@@ -72,6 +74,7 @@ export function DungeonScreen({
   onNewAdventurer,
   onReturnToTown,
   onLeaveDungeon,
+  onHardReset,
 }: DungeonScreenProps) {
   const [runId] = useState(
     () => activeDungeon?.id ?? resumeDungeon?.id ?? externalRunId ?? crypto.randomUUID(),
@@ -595,23 +598,7 @@ export function DungeonScreen({
         </aside>
       </div>
 
-      <footer className={styles.credit}>
-        <p>NOTEQUEST · THE DUNGEON</p>
-        <p className={styles.creditSub}>
-          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support
-          the original on{" "}
-          <a
-            className={styles.creditLink}
-            href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            DriveThruRPG
-          </a>
-          .
-        </p>
-        <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
-      </footer>
+      <Footer screenLabel="THE DUNGEON" onHardReset={onHardReset} />
 
       {confirmingRetreat && (
         <ConfirmDialog

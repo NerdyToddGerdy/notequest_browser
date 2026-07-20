@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addGraveyardEntry, loadGraveyard, type GraveyardEntry } from "../graveyard.ts";
+import { addGraveyardEntry, clearGraveyard, loadGraveyard, type GraveyardEntry } from "../graveyard.ts";
 
 /** A minimal in-memory Storage so these tests don't need a DOM environment. */
 function makeFakeStorage(initial: Record<string, string> = {}): Storage {
@@ -80,5 +80,19 @@ describe("addGraveyardEntry", () => {
     expect(next).toEqual([DEAD_ADVENTURER, FULL_ADVENTURER]);
     expect(next[0]!.race).toBeUndefined();
     expect(next[1]!.race).toBe("Dwarf");
+  });
+});
+
+describe("clearGraveyard", () => {
+  it("wipes a previously stored graveyard", () => {
+    const storage = makeFakeStorage({ "notequest:graveyard": JSON.stringify([DEAD_ADVENTURER]) });
+    clearGraveyard(storage);
+    expect(loadGraveyard(storage)).toEqual([]);
+  });
+
+  it("is a no-op when nothing was stored", () => {
+    const storage = makeFakeStorage();
+    expect(() => clearGraveyard(storage)).not.toThrow();
+    expect(loadGraveyard(storage)).toEqual([]);
   });
 });

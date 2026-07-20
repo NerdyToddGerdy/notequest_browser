@@ -34,6 +34,7 @@ import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.t
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
 import { RecordsPanel } from "../../components/RecordsPanel/RecordsPanel.tsx";
+import { Footer } from "../../components/Footer/Footer.tsx";
 import styles from "./TownScreen.module.css";
 
 interface CultureAction {
@@ -130,6 +131,7 @@ export interface TownScreenProps {
   /** Toggles WorldScreen's map view back on -- this screen renders in its place while standing on
    * a City/Fortress hex, so "leaving" just means looking at the map again, not switching screens. */
   onExploreWorld: () => void;
+  onHardReset: () => void;
 }
 
 export function TownScreen({
@@ -144,6 +146,7 @@ export function TownScreen({
   onEnterDungeon,
   onHireBoat,
   onExploreWorld,
+  onHardReset,
 }: TownScreenProps) {
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const isCatPerson = character.race.name === "Cat-Person";
@@ -303,23 +306,7 @@ export function TownScreen({
         </aside>
       </div>
 
-      <footer className={styles.credit}>
-        <p>NOTEQUEST · THE TOWN</p>
-        <p className={styles.creditSub}>
-          NoteQuest was created by Tiago Junges — this is an unofficial fan-made adaptation. Support
-          the original on{" "}
-          <a
-            className={styles.creditLink}
-            href="https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            DriveThruRPG
-          </a>
-          .
-        </p>
-        <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
-      </footer>
+      <Footer screenLabel="THE TOWN" onHardReset={onHardReset} />
     </div>
   );
 }

@@ -41,3 +41,13 @@ export function addGraveyardEntry(
   }
   return next;
 }
+
+/** Wipes every recorded death -- part of the app-wide hard reset (see App.tsx's handleHardReset
+ * and issue #50), irreversible like the rest of it. */
+export function clearGraveyard(storage: Storage = globalThis.localStorage): void {
+  try {
+    storage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage unavailable -- nothing was there to clear either way.
+  }
+}
