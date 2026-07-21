@@ -1472,17 +1472,40 @@ describe("RESOLVE_DOOR_LOCK", () => {
 
   it("a monster-ambush trap (e.g. Crypt's Bats) spawns combat, noisy", () => {
     const state = { ...doorState(5), dungeonTypeKey: "crypt" as const };
-    const next = dungeonReducer(state, {
-      type: "RESOLVE_DOOR_LOCK",
-      segId: 1,
-      doorIdx: 0,
-      doorRoll: 1,
-      trapRoll: 3, // crypt trap 3: Appears 1d6 Bats
-      lockChoice: null,
-    });
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 3, // crypt trap 3: Appears 1d6 Bats
+        lockChoice: null,
+      },
+      fixedDie(4), // pins the 1d6 count roll at 4, so this stays plural (see the singular case below)
+    );
     expect(next.combat).not.toBeNull();
+    expect(next.combat!.monsters).toHaveLength(4);
     expect(next.combat!.monsters[0]!.name).toBe("Bats");
     expect(next.log.some((entry) => entry.message.includes("noise gave you away"))).toBe(true);
+  });
+
+  it("a monster-ambush trap uses the singular name when the dice-rolled count is exactly 1 (issue #65)", () => {
+    const state = { ...doorState(5), dungeonTypeKey: "crypt" as const };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 3, // crypt trap 3: Appears 1d6 Bats
+        lockChoice: null,
+      },
+      fixedDie(1),
+    );
+    expect(next.combat!.monsters).toHaveLength(1);
+    expect(next.combat!.monsters[0]!.name).toBe("Bat");
   });
 
   it("is a no-op once the character is already dead", () => {

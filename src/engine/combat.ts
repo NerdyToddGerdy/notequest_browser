@@ -75,16 +75,19 @@ export function resolveMonsterCount(count: MonsterCount, rng: RNG = Math.random)
   return total;
 }
 
-/** Spawns one CombatMonsterState per instance the table's count resolves to. */
+/** Spawns one CombatMonsterState per instance the table's count resolves to. A dice-counted
+ * template (e.g. "1d6 Goblins") uses its `singularName` instead of `name` when the roll actually
+ * comes up 1, so a lone Goblin isn't displayed/logged as "Goblins" everywhere its name shows up. */
 export function spawnMonsters(
   template: MonsterTemplate,
   makeId: () => number,
   rng: RNG = Math.random,
 ): CombatMonsterState[] {
   const n = resolveMonsterCount(template.count, rng);
+  const name = n === 1 && template.singularName ? template.singularName : template.name;
   return Array.from({ length: n }, () => ({
     id: makeId(),
-    name: template.name,
+    name,
     hp: template.hp,
     maxHp: template.hp,
     damage: template.damage,

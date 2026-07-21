@@ -45,8 +45,13 @@ function knownSpellNames(resources: AdventurerResources): Set<string> {
  * follow-up for the full breakdown. Only classes listed here are ever acquirable; every other one
  * always reads as "not yet trackable" via `isAdvancedClassTrackable()` below. */
 const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => boolean>> = {
+  // Imps are always 2d6 (minimum roll 2), so a solo "Imp" kill can never happen -- no singular
+  // form to sum here, unlike Goblinator below.
   Ruthless: (ctx) => (ctx.resources.killsByName["imps"] ?? 0) >= 10,
-  Goblinator: (ctx) => (ctx.resources.killsByName["goblins"] ?? 0) >= 20,
+  // Goblins are 1d6, so a lone kill logs as "goblin" (singular, issue #65) rather than "goblins" --
+  // both forms have to be summed or a run full of solo-Goblin rooms would silently undercount.
+  Goblinator: (ctx) =>
+    (ctx.resources.killsByName["goblins"] ?? 0) + (ctx.resources.killsByName["goblin"] ?? 0) >= 20,
   // "Having lost another character" -- the currently-alive character can't be in the Graveyard yet
   // (a character is only recorded there at the moment they die), so any entry at all necessarily
   // belongs to a previous character.

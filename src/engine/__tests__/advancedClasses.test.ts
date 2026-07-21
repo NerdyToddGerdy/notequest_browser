@@ -75,6 +75,16 @@ describe("meetsAdvancedClassRequirement", () => {
     expect(meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 20 } }))).toBe(true);
   });
 
+  it("Goblinator: sums singular 'goblin' kills alongside plural 'goblins' (issue #65 -- a solo Goblin logs singular)", () => {
+    expect(
+      meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 15, goblin: 4 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 15, goblin: 5 } })),
+    ).toBe(true);
+    expect(meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblin: 20 } }))).toBe(true);
+  });
+
   it("Gravedigger: at least one prior character in the (world-scoped) Graveyard", () => {
     expect(meetsAdvancedClassRequirement("Gravedigger", makeCtx({}, []))).toBe(false);
     expect(

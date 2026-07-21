@@ -61,6 +61,47 @@ describe("spawnMonsters", () => {
     const monsters = spawnMonsters(template, () => 1, rng);
     expect(monsters).toHaveLength(4);
   });
+
+  it("uses the plural name when more than one spawns, even with a singularName set (issue #65)", () => {
+    const template: MonsterTemplate = {
+      name: "Goblins",
+      singularName: "Goblin",
+      hp: 3,
+      damage: 1,
+      abilities: [],
+      count: { dice: 1, sides: 6 },
+    };
+    const monsters = spawnMonsters(template, () => 1, fixedDie(4));
+    expect(monsters).toHaveLength(4);
+    expect(monsters.every((m) => m.name === "Goblins")).toBe(true);
+  });
+
+  it("uses singularName instead of name when the dice-rolled count is exactly 1 (issue #65)", () => {
+    const template: MonsterTemplate = {
+      name: "Goblins",
+      singularName: "Goblin",
+      hp: 3,
+      damage: 1,
+      abilities: [],
+      count: { dice: 1, sides: 6 },
+    };
+    const monsters = spawnMonsters(template, () => 1, fixedDie(1));
+    expect(monsters).toHaveLength(1);
+    expect(monsters[0]!.name).toBe("Goblin");
+  });
+
+  it("falls back to the plural name at count 1 if no singularName is set", () => {
+    const template: MonsterTemplate = { name: "Orcs", hp: 6, damage: 3, abilities: [], count: { dice: 1, sides: 6 } };
+    const monsters = spawnMonsters(template, () => 1, fixedDie(1));
+    expect(monsters).toHaveLength(1);
+    expect(monsters[0]!.name).toBe("Orcs");
+  });
+
+  it("a fixed count of 1 is unaffected -- name is already correctly singular in the data", () => {
+    const template: MonsterTemplate = { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 };
+    const monsters = spawnMonsters(template, () => 1, Math.random);
+    expect(monsters[0]!.name).toBe("Orc");
+  });
 });
 
 describe("parseWeaponFormula", () => {

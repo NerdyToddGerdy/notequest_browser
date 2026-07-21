@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.3] - 2026-07-21
+
+### Fixed
+
+- A monster whose count is rolled from dice (e.g. "1d6 Goblins") now
+  displays and logs correctly in the singular when the roll actually
+  comes up 1 (#65) -- previously it stayed pluralized ("Goblins")
+  everywhere its name showed up, even for a single monster.
+  Goblinator's Advanced Class requirement now sums both the singular
+  and plural kill-count forms, so a run with several solo-Goblin kills
+  no longer silently undercounts toward it.
+
 ## [2.14.2] - 2026-07-21
 
 ### Fixed

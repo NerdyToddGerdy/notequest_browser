@@ -53,7 +53,14 @@ export type MonsterAbility =
 export type MonsterCount = number | { dice: number; sides: number };
 
 export interface MonsterTemplate {
+  /** Written however the rulebook prints it -- plural for anything with a dice-based `count`
+   * (e.g. "1d6 Goblins"), since that's how the table itself reads. */
   name: string;
+  /** Only set where `count` is dice-based and could actually resolve to exactly 1 (a fixed `count`
+   * of 1 already has a correctly-singular `name` of its own, e.g. "Orc") -- `spawnMonsters()` uses
+   * this instead of `name` for the spawned instance whenever the roll comes up 1, so a lone Goblin
+   * isn't displayed/logged as "Goblins" everywhere its name shows up. */
+  singularName?: string;
   hp: number;
   damage: number;
   abilities: MonsterAbility[];
@@ -275,6 +282,33 @@ const VALUABLE_JEWEL: RewardOutcome = {
   text: "Valuable jewel (worth 2d6 x 10 Coins in the town).",
   effect: { kind: "heldValueRoll", name: "Valuable jewel", dice: 2, sides: 6, multiplier: 10 },
 };
+
+// Table: Monsters -- these three dice-counted entries repeat word-for-word across dungeon types,
+// same shared-constant precedent as the traps/rewards above.
+const GOBLINS: MonsterTemplate = {
+  name: "Goblins",
+  singularName: "Goblin",
+  hp: 3,
+  damage: 1,
+  abilities: ["explosive"],
+  count: { dice: 1, sides: 6 },
+};
+const BATS: MonsterTemplate = {
+  name: "Bats",
+  singularName: "Bat",
+  hp: 1,
+  damage: 1,
+  abilities: ["poison"],
+  count: { dice: 1, sides: 6 },
+};
+const SKELETON_SOLDIERS_SWARM: MonsterTemplate = {
+  name: "Skeleton Soldiers",
+  singularName: "Skeleton Soldier",
+  hp: 4,
+  damage: 2,
+  abilities: ["undead"],
+  count: { dice: 1, sides: 6 },
+};
 export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   palace: {
     trap: {
@@ -314,8 +348,8 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: { name: "Minotaur", hp: 14, damage: 7, abilities: [], count: 1 },
       3: { name: "Orcs", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
       4: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 },
-      5: { name: "Giant Rats", hp: 2, damage: 1, abilities: [], count: { dice: 1, sides: 6 } },
-      6: { name: "Goblins", hp: 3, damage: 1, abilities: ["explosive"], count: { dice: 1, sides: 6 } },
+      5: { name: "Giant Rats", singularName: "Giant Rat", hp: 2, damage: 1, abilities: [], count: { dice: 1, sides: 6 } },
+      6: GOBLINS,
       7: null,
       8: null,
       9: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
@@ -426,7 +460,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: ACID_SPOUT_TRAP,
       3: {
         text: "Appears 1d6 Bats (1 HP; 1 Damage; Poison).",
-        monsters: { name: "Bats", hp: 1, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
+        monsters: BATS,
       },
       4: CLICK_NOTHING,
       5: CLICK_NOTHING,
@@ -458,10 +492,10 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { name: "Giant Leech", hp: 12, damage: 5, abilities: [], count: 1 },
       4: { name: "Skeletons", hp: 4, damage: 1, abilities: ["undead"], count: 3 },
       5: { name: "Ghoul", hp: 6, damage: 3, abilities: ["regeneration"], count: 1 },
-      6: { name: "Goblins", hp: 3, damage: 1, abilities: ["explosive"], count: { dice: 1, sides: 6 } },
+      6: GOBLINS,
       7: null,
       8: null,
-      9: { name: "Bats", hp: 1, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
+      9: BATS,
       10: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
       11: { name: "Fungoid", hp: 4, damage: 2, abilities: ["loot", "regeneration"], count: 3 },
       12: { name: "Giant Spiders", hp: 10, damage: 4, abilities: ["paralyze"], count: 2 },
@@ -570,11 +604,11 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       1: BLADE_TRAP,
       2: {
         text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 Damage; Undead).",
-        monsters: { name: "Skeleton Soldiers", hp: 4, damage: 2, abilities: ["undead"], count: { dice: 1, sides: 6 } },
+        monsters: SKELETON_SOLDIERS_SWARM,
       },
       3: {
         text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 Damage; Undead).",
-        monsters: { name: "Skeleton Soldiers", hp: 4, damage: 2, abilities: ["undead"], count: { dice: 1, sides: 6 } },
+        monsters: SKELETON_SOLDIERS_SWARM,
       },
       4: {
         text: "Raise 1 Skeleton (3 HP; 1 Damage; Undead).",
@@ -609,10 +643,10 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { name: "Bone Golem", hp: 12, damage: 5, abilities: ["undead"], count: 1 },
       4: { name: "Skeleton Soldiers", hp: 4, damage: 2, abilities: ["undead"], count: 2 },
       5: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 1 },
-      6: { name: "Goblins", hp: 3, damage: 1, abilities: ["explosive"], count: { dice: 1, sides: 6 } },
+      6: GOBLINS,
       7: null,
       8: null,
-      9: { name: "Scorpions", hp: 2, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
+      9: { name: "Scorpions", singularName: "Scorpion", hp: 2, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
       10: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
       11: { name: "Fungoid", hp: 4, damage: 2, abilities: ["loot", "regeneration"], count: 3 },
       12: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
@@ -755,7 +789,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { name: "Fungoid", hp: 4, damage: 2, abilities: ["loot", "regeneration"], count: 3 },
       4: { name: "Warrior Angels", hp: 4, damage: 2, abilities: [], count: 3 },
       5: { name: "Sentinel Angel", hp: 5, damage: 3, abilities: ["sorcery"], count: 1 },
-      6: { name: "Goblins", hp: 3, damage: 1, abilities: ["explosive"], count: { dice: 1, sides: 6 } },
+      6: GOBLINS,
       7: null,
       8: null,
       9: { name: "Orcs", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
@@ -903,11 +937,11 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       },
     },
     monsters: {
-      2: { name: "Imps", hp: 2, damage: 1, abilities: [], count: { dice: 2, sides: 6 } },
+      2: { name: "Imps", singularName: "Imp", hp: 2, damage: 1, abilities: [], count: { dice: 2, sides: 6 } },
       3: { name: "Fungoid", hp: 4, damage: 2, abilities: ["loot", "regeneration"], count: 3 },
-      4: { name: "Cultists", hp: 4, damage: 1, abilities: [], count: { dice: 1, sides: 6 } },
-      5: { name: "Serpents", hp: 2, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
-      6: { name: "Goblins", hp: 3, damage: 1, abilities: ["explosive"], count: { dice: 1, sides: 6 } },
+      4: { name: "Cultists", singularName: "Cultist", hp: 4, damage: 1, abilities: [], count: { dice: 1, sides: 6 } },
+      5: { name: "Serpents", singularName: "Serpent", hp: 2, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
+      6: GOBLINS,
       7: null,
       8: null,
       9: { name: "Orcs", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
@@ -1048,7 +1082,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { name: "Orc Leader", hp: 10, damage: 3, abilities: ["loot", "horde"], count: 1 },
       4: { name: "Orcs", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
       5: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 },
-      6: { name: "Goblins", hp: 3, damage: 1, abilities: ["explosive"], count: { dice: 1, sides: 6 } },
+      6: GOBLINS,
       7: null,
       8: null,
       9: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
