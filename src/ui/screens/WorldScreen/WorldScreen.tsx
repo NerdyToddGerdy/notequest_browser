@@ -232,7 +232,7 @@ export function WorldScreen({
     // Pandakhan (2x)/Centaur (0.5x, rounded up so a move is never free) -- layered on top of the
     // base cost the same way Elven Boots' forest override already is.
     const cost = Math.max(1, Math.ceil(baseCost * travelCostMultiplier(character.race.name)));
-    onUpdateResources(payTravelCost(resources, cost));
+    onUpdateResources(payTravelCost(resources, cost, !!resources.hireling));
     onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
     setShowMap(false);
     setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected

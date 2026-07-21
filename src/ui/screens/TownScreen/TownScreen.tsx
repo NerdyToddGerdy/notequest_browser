@@ -5,6 +5,8 @@ import { computeSpellUses } from "../../../engine/character.ts";
 import { loadGraveyard, type TownDeathCause } from "../../../engine/graveyard.ts";
 import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import { acquireAdvancedClass } from "../../../engine/advancedClasses.ts";
+import { hirelingsFor } from "../../../data/hirelings.ts";
+import { canHireHireling, hireHireling } from "../../../engine/hirelings.ts";
 import {
   resolveArenaRound,
   startArena,
@@ -44,6 +46,7 @@ import {
   type ThugLifeResult,
 } from "../../../engine/town.ts";
 import { AdvancedClasses } from "../../components/AdvancedClasses/AdvancedClasses.tsx";
+import { Hireling } from "../../components/Hireling/Hireling.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
@@ -201,6 +204,7 @@ export function TownScreen({
   const [graveyard] = useState(() => loadGraveyard());
   const hasRecords = graveyard.length > 0 || dungeonHistory.length > 0;
   const cultureAction = cultureActionFor(culture, resources);
+  const hirelingRoster = hirelingsFor(culture, isFortress);
   // Thug Life's outcome text (issue #58) -- unlike every other City Action's static desc, this one
   // has 5 different narrative outcomes (killed/jail-death/fled+banned/coins/treasure) worth telling
   // the player about explicitly, especially "banned" -- otherwise there'd be no way to learn why a
@@ -258,6 +262,10 @@ export function TownScreen({
 
   function handleAcquireAdvancedClass(name: string) {
     onUpdateResources(acquireAdvancedClass({ resources, character, graveyard }, name));
+  }
+
+  function handleHireHireling(name: string) {
+    onUpdateResources(hireHireling(resources, name, culture, isFortress));
   }
 
   // "Thug Life" -- resources/world are already applied by WorldScreen's onThugLife() by the time
@@ -507,6 +515,17 @@ export function TownScreen({
                   onAcquire={handleAcquireAdvancedClass}
                 />
               </section>
+
+              {hirelingRoster.length > 0 && (
+                <section className={styles.adventureSection}>
+                  <Hireling
+                    hireling={resources.hireling}
+                    roster={hirelingRoster}
+                    canHire={(name) => canHireHireling(resources, name, culture, isFortress)}
+                    onHire={handleHireHireling}
+                  />
+                </section>
+              )}
             </div>
           </main>
         </div>

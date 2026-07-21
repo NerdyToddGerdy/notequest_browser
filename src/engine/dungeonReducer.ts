@@ -423,6 +423,16 @@ function attackBonus(
   if (draft.raceName === "Ogre") {
     bonus += 2;
   }
+  // Minstrel (Hireling, issue #25): "Can play music in combat (+2 damage)." Unconditional, same
+  // shape as Ogre's own +2 above.
+  if (draft.hireling === "Minstrel") {
+    bonus += 2;
+  }
+  // Dwarf Soldier (Hireling, issue #25): "Deals +1 damage against Orcs and Goblins." Reuses the
+  // exact tag-substring-match mechanism the equipped-item effects below already establish.
+  if (draft.hireling === "Dwarf Soldier" && matchesTags(monster, ["orc", "goblin"])) {
+    bonus += 1;
+  }
   if (isHorn) return bonus;
   for (const effect of equippedEffects(draft)) {
     if (effect.kind === "weaponDamageBonus") {
@@ -1167,7 +1177,9 @@ export function dungeonReducer(
           wakeSneakedPastMonsters(draft, seg, rng);
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
-            if (draft.className === "Locksmith") {
+            // Locksmith (base Class) and Burglar (Hireling, issue #25) grant the identical
+            // "no torch spent picking a lock" benefit.
+            if (draft.className === "Locksmith" || draft.hireling === "Burglar") {
               pushLog(draft, `Segment ${seg.id}: your lockpicking skill needs no torch.`);
             } else {
               spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id);
@@ -1964,6 +1976,7 @@ export function dungeonReducer(
           action.killsByAbility,
           action.spareWeapons,
           action.advancedClasses,
+          action.hireling,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

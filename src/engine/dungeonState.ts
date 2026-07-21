@@ -239,6 +239,14 @@ export interface DungeonState {
    * every other acquired class's effect is already baked into `hp`/`maxHp`/`spellUses` at the
    * moment it's purchased in Town, same as the character's race/class abilities above. */
   advancedClasses: string[];
+  /** Hirelings (issue #25) -- the current dungeon trip's Hireling, by name, or `null`. Unlike
+   * `advancedClasses`, this deliberately does NOT default to `[]`/persist the same way -- it
+   * expires per trip (see CLAUDE.md's Hirelings note): `RESUME_DUNGEON` never carries it (a new
+   * character doesn't inherit a dead one's Hireling), `RETURN_TO_DUNGEON` carries it over exactly
+   * (same trip, paused in Town), and App.tsx's `handleReturnToTown` clears it once the trip is
+   * actually beaten. Burglar/Minstrel/Dwarf Soldier's abilities check this field directly (a passive
+   * check, not a one-time grant) -- see `attackBonus()`/`RESOLVE_DOOR_LOCK`/`RoomInspector.tsx`. */
+  hireling: string | null;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (not a
@@ -329,6 +337,7 @@ export function createInitialDungeonState(
   killsByAbility: Partial<Record<MonsterAbility, number>> = {},
   spareWeapons: EquippedWeapon[] = [],
   advancedClasses: string[] = [],
+  hireling: string | null = null,
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -362,6 +371,7 @@ export function createInitialDungeonState(
     raceName,
     className,
     advancedClasses,
+    hireling,
     weaponFormula,
     spellUses,
     alive: true,
@@ -458,6 +468,7 @@ export type DungeonAction =
       raceName: string;
       className: string;
       advancedClasses: string[];
+      hireling: string | null;
       monsterKills: number;
       bossKills: number;
       killsByName: Record<string, number>;

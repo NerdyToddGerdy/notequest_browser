@@ -82,6 +82,7 @@ export default function App() {
       killsByAbility: {},
       provisions: 20,
       advancedClasses: [],
+      hireling: null,
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -157,6 +158,11 @@ export default function App() {
       // over untouched from whatever it was before this trip started.
       provisions: prev?.provisions ?? 20,
       advancedClasses: dungeon.advancedClasses,
+      // Hirelings (issue #25) expire per dungeon trip, unlike advancedClasses -- a still-unbeaten
+      // retreat keeps this trip's Hireling attached (so a later RETURN_TO_DUNGEON picks it back up),
+      // but a beaten dungeon spends it for good, same as starting a genuinely new trip would need a
+      // fresh hire.
+      hireling: isDungeonBeaten(dungeon) ? null : dungeon.hireling,
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,
@@ -247,6 +253,7 @@ export default function App() {
       forcedTypeRoll={forcedTypeRoll ?? undefined}
       externalRunId={worldFreshRunId ?? undefined}
       onNewAdventurer={handleNewAdventurer}
+      onUpdateResources={setResources}
       onReturnToTown={handleReturnToTown}
       onLeaveDungeon={handleLeaveDungeon}
       onHardReset={handleHardReset}

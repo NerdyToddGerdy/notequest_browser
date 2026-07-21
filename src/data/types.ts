@@ -69,3 +69,18 @@ export interface AdvancedClassDef {
    * now (same "documented, deliberate simplification" precedent as `bladeTrap`'s roll-of-2). */
   abilityText: string;
 }
+
+/** Hirelings (Expanded World, issue #25) -- paid companions hired for one dungeon trip at a time
+ * (see `src/engine/hirelings.ts` for exactly how "one trip" is tracked). Keyed by `name`, like
+ * `AdvancedClassDef` -- hired, not rolled. No structured weapon type: a Hireling never actually
+ * fights as a combatant in this pass (see CLAUDE.md's Hirelings note for why), so equipment is
+ * display-only text rather than a real `EquippedWeapon`. */
+export interface HirelingDef {
+  name: string;
+  cost: number;
+  hp: number;
+  equipmentText: string;
+  /** Rulebook's own "Extra Service" text, always shown even when flavor-only for now -- see
+   * `src/engine/hirelings.ts` for which of these have a real mechanical effect today. */
+  abilityText: string;
+}

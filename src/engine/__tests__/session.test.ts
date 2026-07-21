@@ -61,6 +61,7 @@ const RESOURCES: AdventurerResources = {
   killsByAbility: {},
   provisions: 17,
   advancedClasses: [],
+  hireling: null,
 };
 
 const WORLD: WorldState = createInitialWorldState(fixedDie(3));
@@ -131,6 +132,15 @@ describe("loadSession", () => {
       "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
     });
     expect(loadSession(storage).resources).toEqual({ ...oldResources, advancedClasses: [] });
+  });
+
+  it("back-fills resources.hireling (issue #25) for a session persisted before it existed", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { hireling, ...oldResources } = RESOURCES;
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
+    });
+    expect(loadSession(storage).resources).toEqual({ ...oldResources, hireling: null });
   });
 });
 

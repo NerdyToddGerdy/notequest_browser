@@ -36,6 +36,11 @@ export interface AdventurerResources {
    * twice (enforced by `canAcquireAdvancedClass()`). Mirrored on `DungeonState` since a couple of
    * abilities (Goblinator, Gravedigger) apply mid-dungeon -- see `advancedClasses.ts`. */
   advancedClasses: string[];
+  /** Hirelings (issue #25) -- the currently-employed Hireling's name, or `null`. Unlike
+   * `advancedClasses`, this expires per dungeon trip rather than persisting indefinitely -- see
+   * CLAUDE.md's Hirelings note for exactly how it's threaded through `DungeonState`/App.tsx so a
+   * hire is spent the moment it's actually used to enter a new dungeon. */
+  hireling: string | null;
 }
 
 /** "You can carry a maximum of 10 torches at a time." */
@@ -194,10 +199,18 @@ export function buyProvision(resources: AdventurerResources): AdventurerResource
  * move at 0 provisions, not 3x as much just because Mountains normally cost more) -- floored at 1,
  * a deliberate v1 simplification: the rulebook's actual lethal hex hazards (Glacier's Cracked Ice,
  * Thin Ice, a failed Reef check) live in the deferred Events on Travel/Location-effects layer, not
- * here, so running out of provisions alone can hurt but not kill. */
-export function payTravelCost(resources: AdventurerResources, cost: number): AdventurerResources {
-  const spend = Math.min(resources.provisions, cost);
-  const shortfall = cost - spend;
+ * here, so running out of provisions alone can hurt but not kill. `hasHireling` (issue #25): "You
+ * also pay for Provisions for each of them during the trip" -- a flat +1 provision per move while
+ * one is employed, regardless of which Hireling (the rulebook doesn't specify a rate per type, so a
+ * flat surcharge is a documented simplification, same tier as `bladeTrap`'s roll-of-2). */
+export function payTravelCost(
+  resources: AdventurerResources,
+  cost: number,
+  hasHireling = false,
+): AdventurerResources {
+  const totalCost = hasHireling ? cost + 1 : cost;
+  const spend = Math.min(resources.provisions, totalCost);
+  const shortfall = totalCost - spend;
   return {
     ...resources,
     provisions: resources.provisions - spend,

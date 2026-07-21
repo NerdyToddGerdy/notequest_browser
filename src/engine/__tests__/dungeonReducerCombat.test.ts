@@ -1203,6 +1203,36 @@ describe("Grave Digger: +2 damage to Undead", () => {
   });
 });
 
+describe("Hirelings (issue #25): passive combat bonuses", () => {
+  it("Minstrel grants an unconditional +2 damage", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: [] });
+    const state = stateWithCombat({ hireling: "Minstrel" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(15); // 3 + 2
+  });
+
+  it("Dwarf Soldier grants +1 damage against Orcs and Goblins", () => {
+    const orc = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Orc" });
+    const state = stateWithCombat({ hireling: "Dwarf Soldier" }, [orc]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: orc.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(16); // 3 + 1
+  });
+
+  it("Dwarf Soldier's bonus doesn't apply against a non-Orc/Goblin monster", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Skeleton" });
+    const state = stateWithCombat({ hireling: "Dwarf Soldier" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(17); // just 3
+  });
+
+  it("no hireling means no bonus", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Orc" });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(17); // just 3
+  });
+});
+
 describe("Ogre (New Races, issue #22): +2 damage, unconditional", () => {
   it("adds +2 damage against any monster, undead or not", () => {
     const monster = makeMonster({ hp: 20, damage: 0, abilities: [] });

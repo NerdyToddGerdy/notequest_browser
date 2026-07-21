@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-07-21
+
+### Added
+
+- Hirelings (#25): 16 paid companions hired in a City/Fortress for
+  one dungeon trip at a time, one roster per culture. Burglar
+  (no-torch lock-picking), Minstrel (+2 combat damage), Dwarf Miner
+  (2-dice Secret Passage rolls), Dwarf Soldier (+1 vs. Orcs/Goblins),
+  and Rent Wizard/Elf Soldier/Gnome Helper (random Basic Spell grants)
+  all have a real, working ability; every other hireling is listed
+  with its real cost/HP/equipment/ability text but has no mechanical
+  effect yet. A Hireling is cosmetic once hired -- this app doesn't
+  model it as a real combatant (no live HP tracking, no death) --
+  and expires the moment its dungeon trip is actually beaten, unlike
+  Advanced Classes' permanent stacking.
+
 ## [2.12.0] - 2026-07-20
 
 ### Added

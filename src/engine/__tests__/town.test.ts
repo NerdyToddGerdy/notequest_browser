@@ -57,6 +57,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     killsByAbility: {},
     provisions: 10,
     advancedClasses: [],
+    hireling: null,
     ...overrides,
   };
 }
@@ -340,6 +341,18 @@ describe("payTravelCost", () => {
     const next = payTravelCost(makeResources({ provisions: 0, hp: 1 }), 3);
     expect(next.provisions).toBe(0);
     expect(next.hp).toBe(1);
+  });
+
+  it("Hirelings (issue #25): a flat +1 provision surcharge per move while one is employed", () => {
+    const next = payTravelCost(makeResources({ provisions: 10, hp: 15 }), 3, true);
+    expect(next.provisions).toBe(6); // 3 base + 1 hireling surcharge
+    expect(next.hp).toBe(15);
+  });
+
+  it("the hireling surcharge still only costs a flat 1 HP on shortfall, same as any other shortfall", () => {
+    const next = payTravelCost(makeResources({ provisions: 3, hp: 15 }), 3, true); // short by exactly 1
+    expect(next.provisions).toBe(0);
+    expect(next.hp).toBe(14);
   });
 });
 

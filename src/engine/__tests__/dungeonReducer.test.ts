@@ -1270,6 +1270,21 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.log[0]!.message).toContain("needs no torch");
   });
 
+  it("Burglar (Hireling, issue #25): pick lock costs no torch, same as Locksmith", () => {
+    const state = { ...doorState(0), hireling: "Burglar" };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 2,
+      trapRoll: null,
+      lockChoice: "pickLock",
+    });
+    expect(next.torches).toBe(0);
+    expect(next.alive).toBe(true);
+    expect(next.log[0]!.message).toContain("needs no torch");
+  });
+
   it("Lumberjack: breaking a door gains 1 torch on a roll of 6", () => {
     const state = { ...doorState(3), className: "Lumberjack" };
     const next = dungeonReducer(
@@ -2438,6 +2453,7 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByName: { orc: 4, goblin: 1 },
       killsByAbility: { loot: 2 },
       advancedClasses: [],
+      hireling: null,
     });
 
     expect(next.dungeonName).toBe("The Palace of the Secret Horrors");
@@ -2494,6 +2510,7 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByName: {},
       killsByAbility: {},
       advancedClasses: [],
+      hireling: null,
     });
 
     expect(next.hp).toBe(12);
@@ -2562,6 +2579,7 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByName: {},
       killsByAbility: {},
       advancedClasses: [],
+      hireling: null,
     });
 
     expect(next.combat).not.toBeNull();
@@ -2609,6 +2627,7 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByName: {},
       killsByAbility: {},
       advancedClasses: [],
+      hireling: null,
     });
 
     // still on Level 2 (unlike RESUME_DUNGEON, which always resets activeLevel to 0)...
@@ -2665,6 +2684,7 @@ describe("Monster table re-roll on return", () => {
         killsByName: {},
         killsByAbility: {},
         advancedClasses: [],
+        hireling: null,
       },
       rng,
     );
@@ -2785,6 +2805,7 @@ describe("Monster table re-roll on return", () => {
       killsByName: {},
       killsByAbility: {},
       advancedClasses: [],
+      hireling: null,
     });
 
     expect(next.levels[0]!.segments[0]!.needsMonsterReroll).toBeFalsy();
@@ -2942,6 +2963,7 @@ describe("Resuming a fight abandoned via Teleport", () => {
       killsByName: {},
       killsByAbility: {},
       advancedClasses: [],
+      hireling: null,
     });
 
     expect(next.combat).not.toBeNull();

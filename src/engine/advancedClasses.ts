@@ -104,7 +104,10 @@ export function canAcquireAdvancedClass(ctx: AdvancedClassContext, name: string)
   return meetsAdvancedClassRequirement(name, ctx);
 }
 
-function grantSpellUses(
+/** Rolls `count` spells from `table` and adds one use of each to `resources.spellUses` -- shared
+ * with `hirelings.ts` (Rent Wizard/Elf Soldier/Gnome Helper's "cast N random Basic Spells"), since
+ * both are the identical "grant N random spell uses at hire/acquire time" shape. */
+export function grantSpellUses(
   resources: AdventurerResources,
   table: Parameters<typeof rollSpellFromTable>[0],
   count: number,

@@ -42,6 +42,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     killsByAbility: {},
     provisions: 10,
     advancedClasses: [],
+    hireling: null,
     ...overrides,
   };
 }

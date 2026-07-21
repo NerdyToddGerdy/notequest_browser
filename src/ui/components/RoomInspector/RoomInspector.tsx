@@ -67,9 +67,9 @@ export function RoomInspector({
     if (revealing || !seg || seg.secretPassageSearched) return;
     // Dwarf: "When you roll to Find Secret Passages, roll two dice and discard the lowest" --
     // row 1 is the only bad outcome (it triggers a trap roll), so keeping the higher die is
-    // strictly an advantage.
-    const isDwarf = state.raceName === "Dwarf";
-    const dice = isDwarf ? [rollDie(), rollDie()] : [rollDie()];
+    // strictly an advantage. Dwarf Miner (Hireling, issue #25) grants the identical benefit.
+    const rollsTwoDice = state.raceName === "Dwarf" || state.hireling === "Dwarf Miner";
+    const dice = rollsTwoDice ? [rollDie(), rollDie()] : [rollDie()];
     const roll = Math.max(...dice);
     setPassageDice(dice);
     setRollToken((t) => t + 1);

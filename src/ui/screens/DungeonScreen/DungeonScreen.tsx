@@ -24,6 +24,7 @@ import { DicePool } from "../../components/DicePool/DicePool.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
+import { Hireling } from "../../components/Hireling/Hireling.tsx";
 import { CombatPanel } from "../../components/CombatPanel/CombatPanel.tsx";
 import { TeleportPicker } from "../../components/TeleportPicker/TeleportPicker.tsx";
 import { RoomEntryPrompt } from "../../components/RoomEntryPrompt/RoomEntryPrompt.tsx";
@@ -57,6 +58,10 @@ export interface DungeonScreenProps {
   externalRunId?: string;
   /** Sends the player back to Character Creation to roll a new adventurer -- this one is permadead. */
   onNewAdventurer: () => void;
+  /** Hirelings (issue #25) only: the mount-only effect below spends `resources.hireling` the
+   * instant a genuinely fresh dungeon trip actually begins (see CLAUDE.md's Hirelings note) --
+   * every other resource change during a run flows through `dispatch`/`onReturnToTown` instead. */
+  onUpdateResources: (resources: AdventurerResources) => void;
   /** A voluntary retreat, alive -- back to Town with this run's current resources and map saved. */
   onReturnToTown: (runId: string, dungeon: DungeonState) => void;
   /** Fires whenever this run ends (death, retreat, or beating the Final Room) so it can be resumed later if unbeaten. */
@@ -72,6 +77,7 @@ export function DungeonScreen({
   forcedTypeRoll,
   externalRunId,
   onNewAdventurer,
+  onUpdateResources,
   onReturnToTown,
   onLeaveDungeon,
   onHardReset,
@@ -104,6 +110,7 @@ export function DungeonScreen({
         killsByName: resources.killsByName,
         killsByAbility: resources.killsByAbility,
         advancedClasses: resources.advancedClasses,
+        hireling: resources.hireling,
       });
     }
     if (resumeDungeon) {
@@ -141,6 +148,7 @@ export function DungeonScreen({
       resources.killsByAbility,
       resources.spareWeapons,
       resources.advancedClasses,
+      resources.hireling,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -198,6 +206,19 @@ export function DungeonScreen({
     !!currentSeg?.monsters &&
     !currentSeg.monstersDefeated &&
     !currentSeg.sneakedPast;
+
+  // Hirelings (issue #25) expire per dungeon trip: a genuinely fresh entry (neither
+  // activeDungeon nor resumeDungeon, i.e. the lazy initializer above took its third,
+  // createInitialDungeonState branch) spends whatever's in resources.hireling into this run's
+  // own state.hireling, so it can't be reused to enter a *later*, different dungeon without
+  // paying again. Runs once on mount only -- RETURN_TO_DUNGEON's resumed trip already carries
+  // its own hireling through the reducer, so this must not fire for that case.
+  useEffect(() => {
+    if (!activeDungeon && !resumeDungeon && resources.hireling) {
+      onUpdateResources({ ...resources, hireling: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Records the character in the Graveyard exactly once per death (the effect only re-runs
   // when `alive` actually flips, not on every render while the death panel stays up).
@@ -576,6 +597,8 @@ export function DungeonScreen({
           />
 
           <Pack items={state.heldItems} />
+
+          <Hireling hireling={state.hireling} />
 
           {hasDungeon && (
             <div className={styles.statsCard}>
