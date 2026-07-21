@@ -501,6 +501,10 @@ describe("OPEN_DOOR: staircases", () => {
     expect(next.levels[0]!.segments[1]!.type).toBe("final");
     expect(next.levels[0]!.connectors).toHaveLength(1);
     expect(next.levels[0]!.finalRoomPlaced).toBe(true);
+    // Bug fix: this level now holds the Final Room at a non-zero index (segments[1], not
+    // segments[0]) -- isFinalRoomLevel must still be set, or isDungeonBeaten() (which requires
+    // it) can never recognize a dead-end-final victory as beating the dungeon.
+    expect(next.levels[0]!.isFinalRoomLevel).toBe(true);
     expect(next.stats.finalRooms).toBe(1);
   });
 

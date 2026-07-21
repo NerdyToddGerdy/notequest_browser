@@ -273,13 +273,21 @@ export interface PendingDungeon {
   lastCharacterName: string;
 }
 
-/** True once the Final Room's Boss has been defeated -- the dungeon is complete, nothing left to resume. */
+/** True once the Final Room's Boss has been defeated -- the dungeon is complete, nothing left to
+ * resume. Scans every segment of every level for a defeated Final Room, rather than gating on
+ * `lvl.isFinalRoomLevel` or assuming the Final Room sits at `segments[0]` -- `seg.type === "final"`
+ * is unambiguous on its own (it's only ever created for the Boss's own room, in exactly two places
+ * in `dungeonReducer.ts`, both already commented "doubles as isBoss with no separate field to
+ * track"), so no other flag is needed to confirm it. This deliberately doesn't depend on
+ * `isFinalRoomLevel` at all: a `dead-end-final` victory used to read as unfinished because that
+ * flag went unset AND the Final Room landed at a non-zero segment index -- fixing just the flag
+ * would only help *future* dungeons, since an already-persisted save's `isFinalRoomLevel` is
+ * already baked in as `false` and can't retroactively fix itself. Scanning every segment's own
+ * `type`/`monstersDefeated` instead works immediately for saves from before this fix too, since
+ * `monstersDefeated` was always being set correctly. */
 export function isDungeonBeaten(state: DungeonState): boolean {
-  return state.levels.some(
-    (lvl) =>
-      lvl.isFinalRoomLevel &&
-      lvl.segments[0]?.type === "final" &&
-      lvl.segments[0]?.monstersDefeated === true,
+  return state.levels.some((lvl) =>
+    lvl.segments.some((seg) => seg.type === "final" && seg.monstersDefeated === true),
   );
 }
 

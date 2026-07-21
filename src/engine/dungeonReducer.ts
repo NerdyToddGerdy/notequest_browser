@@ -1327,6 +1327,10 @@ export function dungeonReducer(
             door.childId = finalId;
             level.doorsRemaining -= 1;
             level.finalRoomPlaced = true;
+            // Bug fix: this level now holds the Final Room, same as a descend-final level does --
+            // without this, isDungeonBeaten() (which requires isFinalRoomLevel) never recognized a
+            // dead-end-final victory as beating the dungeon.
+            level.isFinalRoomLevel = true;
 
             draft.stats.segments += 1;
             draft.stats.finalRooms += 1;

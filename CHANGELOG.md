@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.1] - 2026-07-21
+
+### Fixed
+
+- A dead-end Final Room victory (the Boss found because no stairs
+  were ever found on that level, rather than the normal depth-3
+  descent) now correctly counts as beating the dungeon (#69). It
+  previously kept showing "unfinished" everywhere -- the World map,
+  Town, and Records -- even after the Boss was defeated, since
+  `isDungeonBeaten()` only ever checked the first segment of a level
+  and this path places the Final Room at a different index.
+  `isDungeonBeaten()` no longer depends on the level-level flag that
+  was also missing, so a dungeon already saved by an earlier build now
+  reads as cleared immediately too, with no action needed.
+
 ## [2.14.0] - 2026-07-21
 
 ### Added
