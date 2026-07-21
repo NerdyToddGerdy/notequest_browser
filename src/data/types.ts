@@ -42,6 +42,31 @@ export interface SpellDef {
   effect: string;
 }
 
+/** Animals (Expanded World, issue #26) -- domesticated companions trained in the wild, or (mounts
+ * only) bought outright in a qualifying city. Keyed by `name` like `HirelingDef`/`AdvancedClassDef`
+ * -- neither table's names collide with the other, so both are looked up through one shared
+ * `ANIMAL_BY_NAME` map (`src/data/animals.ts`). No structured weapon/combat hookup: like Hirelings,
+ * an owned animal never fights as a real combatant this pass (see CLAUDE.md's Animals note) --
+ * `hp`/`damage` are still recorded for display/completeness even though nothing reads them yet. */
+export interface AnimalDef {
+  name: string;
+  /** A couple of rows list two terrains ("Plain or Forest," "Forest or Tundra") -- training/buying
+   * only requires the current hex to match *one* of these. */
+  terrain: import("./hexTables.ts").Terrain[];
+  /** The 1d6 threshold a training roll must meet or beat. Not used at all for buying a mount
+   * outright (`mountCost` below) -- that always succeeds if affordable, no roll involved. */
+  dif: number;
+  hp: number;
+  damage: number;
+  /** Rulebook's own ability text, always shown even when flavor-only for now -- see
+   * `src/engine/animals.ts` for which of these have a real mechanical effect today. */
+  abilityText: string;
+  isMount: boolean;
+  /** Only set for the 8 Mounts -- the coin price to buy one outright in a qualifying city, instead
+   * of (or in addition to) training it in the wild for provisions + a die roll. */
+  mountCost?: number;
+}
+
 /** The finished result of character creation, handed off to the dungeon screen. */
 export interface CreatedCharacter {
   name: string;

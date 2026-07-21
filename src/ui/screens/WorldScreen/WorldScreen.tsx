@@ -13,9 +13,12 @@ import {
 } from "../../../data/hexTables.ts";
 import { hasAffinity, CULTURE_BY_LOCATION, type CityCulture } from "../../../data/affinity.ts";
 import {
+  countMatchingNeighbors,
   hexKey,
   hexNeighbors,
   isBannedHex,
+  qualifiesForBuyingMount,
+  qualifiesForTraining,
   withBannedHex,
   type HexCoord,
   type HexTile,
@@ -24,6 +27,8 @@ import {
 import { hexReducer } from "../../../engine/hexReducer.ts";
 import { hasUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
 import type { TownDeathCause } from "../../../engine/graveyard.ts";
+import { ANIMAL_BY_NAME, MOUNT_TABLE } from "../../../data/animals.ts";
+import { animalTravelCostOverride, animalTravelCostPenalty, buyMount, trainAnimal } from "../../../engine/animals.ts";
 import {
   canHireBoat,
   castSpell,
@@ -144,6 +149,10 @@ export function WorldScreen({
    * player's own tile -- just selects it for inspection instead, mirroring RoomInspector/
    * state.selectedSegId's own selected-vs-current split. */
   const [selectedHex, setSelectedHex] = useState<HexCoord | null>(null);
+  /** Animals (issue #26): the outcome text of the last "Train an Animal" attempt, shown in
+   * HexInspector the same way TownScreen's Thug Life outcome text works -- reset on arrival, same
+   * as `selectedHex`. */
+  const [trainResultMessage, setTrainResultMessage] = useState<string | null>(null);
   /** Null = today's auto-fit-everything behavior; set the instant the player zooms or drag-pans,
    * same "override until Reset View" shape DungeonMap's own `scale` state uses. */
   const [viewBoxOverride, setViewBoxOverride] = useState<ViewBox | null>(null);
@@ -198,6 +207,22 @@ export function WorldScreen({
   const culture: CityCulture | null =
     (currentTile?.location && CULTURE_BY_LOCATION[currentTile.location]) || null;
   const besideWater = neighborCoords.some((n) => world.tiles[hexKey(n)]?.terrain === "water");
+  /** Animals (issue #26): both "train in the wild" and "buy a mount in a city" require the
+   * *current* hex's own terrain to have at least 2 matching neighbors -- computed once and reused
+   * by both qualification checks below. */
+  const currentMatchingNeighbors = currentTile
+    ? countMatchingNeighbors(world.tiles, world.player, currentTile.terrain)
+    : 0;
+  const trainableAnimals = currentTile
+    ? Object.values(ANIMAL_BY_NAME).filter((a) =>
+        qualifiesForTraining(currentTile, currentMatchingNeighbors, a),
+      )
+    : [];
+  const buyableMounts = currentTile
+    ? Object.values(MOUNT_TABLE).filter((m) =>
+        qualifiesForBuyingMount(currentTile, currentMatchingNeighbors, m),
+      )
+    : [];
   const isFortress = isFortressLocation(currentTile?.location ?? null);
   // Prefers the hex's own generated name (issue #49, City/Fortress only -- see HexTile.name) over
   // the generic type label wherever one exists; falls back to the type label for a Ruins/other
@@ -227,15 +252,47 @@ export function WorldScreen({
   function handleTravel(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
     if (!tile || !canTravelTo(tile, coord)) return;
-    // Elven Boots: "you can only spend 1 provision to move through forests."
-    const baseCost = tile.terrain === "forest" && hasElvenBoots(resources) ? 1 : travelCost(tile.terrain);
+    // Elven Boots: "you can only spend 1 provision to move through forests." Combined with any
+    // owned Animal/Mount's own per-terrain cap (issue #26) -- Griffin's unconditional "1 for any
+    // land" always wins (checked first inside animalTravelCostOverride), otherwise the cheapest
+    // applicable override wins.
+    const elvenBootsOverride = tile.terrain === "forest" && hasElvenBoots(resources) ? 1 : null;
+    const animalOverride = animalTravelCostOverride(resources.animals, tile.terrain);
+    const overrides = [elvenBootsOverride, animalOverride].filter((v): v is number => v != null);
+    const baseCost = overrides.length > 0 ? Math.min(...overrides) : travelCost(tile.terrain);
+    // Mammoth: "you spend 1 extra provision per hex" -- a penalty, not a discount, so it's added on
+    // top of whatever override/base cost above rather than competing with them.
+    const withMammothPenalty = baseCost + animalTravelCostPenalty(resources.animals);
     // Pandakhan (2x)/Centaur (0.5x, rounded up so a move is never free) -- layered on top of the
     // base cost the same way Elven Boots' forest override already is.
-    const cost = Math.max(1, Math.ceil(baseCost * travelCostMultiplier(character.race.name)));
+    const cost = Math.max(1, Math.ceil(withMammothPenalty * travelCostMultiplier(character.race.name)));
     onUpdateResources(payTravelCost(resources, cost, !!resources.hireling));
     onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
     setShowMap(false);
     setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected
+    setTrainResultMessage(null);
+  }
+
+  /** Animals (issue #26): "go to the appropriate terrain... spend 4 provisions [8 for a mount] and
+   * roll a die." Re-validates the hex qualifies (defense in depth, same "reducer/handler
+   * re-checks, UI is only a convenience" precedent HIRE_BOAT/ASK_FOR_DUNGEON already establish)
+   * before spending anything. */
+  function handleTrainAnimal(name: string) {
+    const animal = ANIMAL_BY_NAME[name];
+    if (!animal || !currentTile) return;
+    if (!qualifiesForTraining(currentTile, currentMatchingNeighbors, animal)) return;
+    const result = trainAnimal(resources, animal);
+    onUpdateResources(result.resources);
+    setTrainResultMessage(result.trained ? `You trained a ${name}!` : `The ${name} slipped away.`);
+  }
+
+  /** "You can buy mounts in a city that is on the appropriate terrain" -- always succeeds if
+   * affordable, no roll involved, unlike training. */
+  function handleBuyMount(name: string) {
+    const mount = MOUNT_TABLE[name];
+    if (!mount || !currentTile) return;
+    if (!qualifiesForBuyingMount(currentTile, currentMatchingNeighbors, mount)) return;
+    onUpdateResources(buyMount(resources, mount));
   }
 
   const inspectedCoord = selectedHex ?? world.player;
@@ -402,9 +459,11 @@ export function WorldScreen({
         showHireBoat={besideWater}
         askedDungeonKnown={askedDungeonKnown}
         isFortress={isFortress}
+        buyableMounts={buyableMounts}
         onUpdateResources={onUpdateResources}
         onEnterDungeon={onEnterDungeon}
         onHireBoat={handleHireBoat}
+        onBuyMount={handleBuyMount}
         onAsk={handleAsk}
         onThugLife={handleThugLife}
         onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
@@ -511,6 +570,10 @@ export function WorldScreen({
                   // to the City" below) so there's exactly one entry point for that case, not two.
                   canEnterDungeon={canEnterDungeon && !inCityOrFortress}
                   onEnterDungeon={onEnterDungeon}
+                  trainableAnimals={isInspectingCurrentTile ? trainableAnimals : []}
+                  resources={resources}
+                  onTrainAnimal={handleTrainAnimal}
+                  trainResultMessage={trainResultMessage}
                 />
               </div>
             )}

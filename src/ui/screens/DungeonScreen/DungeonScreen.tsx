@@ -25,6 +25,7 @@ import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.t
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
 import { Hireling } from "../../components/Hireling/Hireling.tsx";
+import { Animals } from "../../components/Animals/Animals.tsx";
 import { CombatPanel } from "../../components/CombatPanel/CombatPanel.tsx";
 import { TeleportPicker } from "../../components/TeleportPicker/TeleportPicker.tsx";
 import { RoomEntryPrompt } from "../../components/RoomEntryPrompt/RoomEntryPrompt.tsx";
@@ -111,6 +112,7 @@ export function DungeonScreen({
         killsByAbility: resources.killsByAbility,
         advancedClasses: resources.advancedClasses,
         hireling: resources.hireling,
+        animals: resources.animals,
       });
     }
     if (resumeDungeon) {
@@ -149,6 +151,7 @@ export function DungeonScreen({
       resources.spareWeapons,
       resources.advancedClasses,
       resources.hireling,
+      resources.animals,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -423,6 +426,7 @@ export function DungeonScreen({
                     <div className={styles.combatOverlayInner}>
                       <RoomEntryPrompt
                         torches={state.torches}
+                        hasDog={state.animals.includes("Dog")}
                         onAttack={() =>
                           dispatch({
                             type: "RESOLVE_ROOM_ENTRY",
@@ -599,6 +603,8 @@ export function DungeonScreen({
           <Pack items={state.heldItems} />
 
           <Hireling hireling={state.hireling} />
+
+          {state.animals.length > 0 && <Animals animals={state.animals} />}
 
           {hasDungeon && (
             <div className={styles.statsCard}>

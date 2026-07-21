@@ -247,6 +247,11 @@ export interface DungeonState {
    * actually beaten. Burglar/Minstrel/Dwarf Soldier's abilities check this field directly (a passive
    * check, not a one-time grant) -- see `attackBonus()`/`RESOLVE_DOOR_LOCK`/`RoomInspector.tsx`. */
   hireling: string | null;
+  /** Animals (issue #26) -- trained/bought companions carried on this run, by name, mirroring
+   * `AdventurerResources.animals`. Threaded like `advancedClasses` (permanent -- `RESUME_DUNGEON`
+   * resets to `[]`, `RETURN_TO_DUNGEON` carries it over exactly), not like `hireling` (which
+   * expires per trip). Only needed here for Dog's reducer-side Move Silently block. */
+  animals: string[];
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (not a
@@ -338,6 +343,7 @@ export function createInitialDungeonState(
   spareWeapons: EquippedWeapon[] = [],
   advancedClasses: string[] = [],
   hireling: string | null = null,
+  animals: string[] = [],
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -372,6 +378,7 @@ export function createInitialDungeonState(
     className,
     advancedClasses,
     hireling,
+    animals,
     weaponFormula,
     spellUses,
     alive: true,
@@ -469,6 +476,7 @@ export type DungeonAction =
       className: string;
       advancedClasses: string[];
       hireling: string | null;
+      animals: string[];
       monsterKills: number;
       bossKills: number;
       killsByName: Record<string, number>;

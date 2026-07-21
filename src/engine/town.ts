@@ -41,6 +41,12 @@ export interface AdventurerResources {
    * CLAUDE.md's Hirelings note for exactly how it's threaded through `DungeonState`/App.tsx so a
    * hire is spent the moment it's actually used to enter a new dungeon. */
   hireling: string | null;
+  /** Animals (issue #26) -- trained or bought companions, by name, up to `MAX_ANIMALS`. Persists
+   * permanently once acquired, same "stacks freely, never expires" shape as `advancedClasses`
+   * (not `hireling`'s per-trip expiry) -- see `src/engine/animals.ts`. At most one entry is ever a
+   * Mount (enforced at acquisition time, see `activeMount()`). Mirrored on `DungeonState` since
+   * Dog's Move-Silently block applies mid-dungeon. */
+  animals: string[];
 }
 
 /** "You can carry a maximum of 10 torches at a time." */

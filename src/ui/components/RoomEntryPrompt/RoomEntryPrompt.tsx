@@ -2,6 +2,10 @@ import styles from "./RoomEntryPrompt.module.css";
 
 export interface RoomEntryPromptProps {
   torches: number;
+  /** Dog (issue #26): "In the dungeon, it doesn't allow you to Move in Silence." Mirrors the
+   * reducer's own `RESOLVE_ROOM_ENTRY` gate -- disabled, not omitted, matching the established
+   * always-visible-but-disabled precedent elsewhere in this app. */
+  hasDog?: boolean;
   onAttack: () => void;
   onMoveSilently: () => void;
 }
@@ -13,7 +17,7 @@ export interface RoomEntryPromptProps {
  * this app always gave before this choice existed); Move Silently spends a torch for a chance to
  * skip the fight entirely, at the risk of the monsters attacking first instead if detected.
  */
-export function RoomEntryPrompt({ torches, onAttack, onMoveSilently }: RoomEntryPromptProps) {
+export function RoomEntryPrompt({ torches, hasDog, onAttack, onMoveSilently }: RoomEntryPromptProps) {
   return (
     <div className={styles.panel}>
       <p className={styles.title}>Monsters Ahead</p>
@@ -25,8 +29,13 @@ export function RoomEntryPrompt({ torches, onAttack, onMoveSilently }: RoomEntry
         <button type="button" className={styles.attackBtn} onClick={onAttack}>
           Attack First
         </button>
-        <button type="button" className={styles.silentBtn} disabled={torches < 1} onClick={onMoveSilently}>
-          Move Silently (1 torch)
+        <button
+          type="button"
+          className={styles.silentBtn}
+          disabled={torches < 1 || !!hasDog}
+          onClick={onMoveSilently}
+        >
+          Move Silently (1 torch){hasDog ? " -- your Dog gives you away" : ""}
         </button>
       </div>
     </div>

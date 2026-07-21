@@ -226,6 +226,16 @@ describe("RESOLVE_ROOM_ENTRY: Move Silently", () => {
     expect(next.levels[0]!.segments[0]!.sneakedPast).toBe(true);
   });
 
+  it("Dog (issue #26): blocks Move Silently entirely, leaving the state untouched", () => {
+    const pending = statePendingRoomEntry({ animals: ["Dog"] });
+    const next = dungeonReducer(
+      pending,
+      { type: "RESOLVE_ROOM_ENTRY", segId: 1, choice: "moveSilently" },
+      sequenceDie([4]), // would otherwise succeed silently
+    );
+    expect(next).toBe(pending); // no torch spent, no roll resolved, no combat started
+  });
+
   it("blocks other dungeon actions until the player chooses Attack First or Move Silently", () => {
     const pending = statePendingRoomEntry();
     expect(

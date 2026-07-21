@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-07-21
+
+### Added
+
+- Animals (#26): 19 companions across Domesticated Animals and
+  Mounts, trained in the wild or (Mounts only) bought outright in a
+  qualifying city, persisting permanently once acquired. Owl/Giant
+  Wolf/Camel/Raptor/Goat/Llama discount their own terrain's travel
+  cost, Griffin discounts every terrain unconditionally, Mammoth adds
+  a travel penalty instead, and Dog blocks "Move Silently" entirely
+  in the dungeon. Every other entry is listed with its real
+  Dif/cost/terrain/HP/Dmg/ability text but has no mechanical effect
+  yet. An animal is cosmetic once acquired -- this app doesn't model
+  it as a real combatant (no live HP tracking, no death).
+
 ## [2.13.0] - 2026-07-21
 
 ### Added

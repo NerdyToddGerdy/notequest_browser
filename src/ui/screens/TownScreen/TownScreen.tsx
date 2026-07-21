@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CreatedCharacter } from "../../../data/types.ts";
+import type { AnimalDef, CreatedCharacter } from "../../../data/types.ts";
 import type { CityCulture } from "../../../data/affinity.ts";
 import { computeSpellUses } from "../../../engine/character.ts";
 import { loadGraveyard, type TownDeathCause } from "../../../engine/graveyard.ts";
@@ -47,6 +47,7 @@ import {
 } from "../../../engine/town.ts";
 import { AdvancedClasses } from "../../components/AdvancedClasses/AdvancedClasses.tsx";
 import { Hireling } from "../../components/Hireling/Hireling.tsx";
+import { Animals } from "../../components/Animals/Animals.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
@@ -159,9 +160,13 @@ export interface TownScreenProps {
    * check. Hard Work is City-only per the rulebook's own wording (unlike everything else in
    * "Cities and Fortresses," which the rulebook applies to both) -- see `town.ts`'s `hardWork()`. */
   isFortress: boolean;
+  /** Animals (issue #26): every Mount buyable at this specific hex right now (`WorldScreen`'s own
+   * `qualifiesForBuyingMount()` check, culture-agnostic -- only the hex's own terrain matters). */
+  buyableMounts: AnimalDef[];
   onUpdateResources: (resources: AdventurerResources) => void;
   onEnterDungeon: () => void;
   onHireBoat: () => void;
+  onBuyMount: (name: string) => void;
   onAsk: () => void;
   /** Resolved by `WorldScreen` (not here) since a single roll can touch both `resources` and
    * `WorldState` (a permanent hex ban) -- this screen only ever sees an `AdventurerResources`, so
@@ -187,9 +192,11 @@ export function TownScreen({
   showHireBoat,
   askedDungeonKnown,
   isFortress,
+  buyableMounts,
   onUpdateResources,
   onEnterDungeon,
   onHireBoat,
+  onBuyMount,
   onAsk,
   onThugLife,
   onCharacterDied,
@@ -526,6 +533,15 @@ export function TownScreen({
                   />
                 </section>
               )}
+
+              <section className={styles.adventureSection}>
+                <Animals
+                  animals={resources.animals}
+                  buyableMounts={buyableMounts}
+                  resources={resources}
+                  onBuyMount={onBuyMount}
+                />
+              </section>
             </div>
           </main>
         </div>

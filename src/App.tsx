@@ -83,6 +83,7 @@ export default function App() {
       provisions: 20,
       advancedClasses: [],
       hireling: null,
+      animals: [],
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -163,6 +164,9 @@ export default function App() {
       // but a beaten dungeon spends it for good, same as starting a genuinely new trip would need a
       // fresh hire.
       hireling: isDungeonBeaten(dungeon) ? null : dungeon.hireling,
+      // Animals (issue #26) persist permanently once acquired, same as advancedClasses -- no
+      // isDungeonBeaten gate needed here (unlike hireling, they don't expire).
+      animals: dungeon.animals,
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,

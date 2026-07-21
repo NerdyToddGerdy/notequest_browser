@@ -1431,6 +1431,10 @@ export function dungeonReducer(
           return;
         }
 
+        // Dog (issue #26): "In the dungeon, it doesn't allow you to Move in Silence." The reducer
+        // is the actual authority (RoomEntryPrompt.tsx mirrors this by not offering the button).
+        if (draft.animals.includes("Dog")) return;
+
         // Move Silently: "Spend 1 torch and roll a die for each monster inside the room; if any
         // die results in a 1, the monsters see you and attack first." The room's monster count can
         // itself be a dice roll (e.g. "1d6 Goblins"), so it's resolved here rather than passed in
@@ -1977,6 +1981,7 @@ export function dungeonReducer(
           action.spareWeapons,
           action.advancedClasses,
           action.hireling,
+          action.animals,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

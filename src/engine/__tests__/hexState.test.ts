@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  countMatchingNeighbors,
   createInitialWorldState,
   findAskedDungeonHex,
   isBannedHex,
+  qualifiesForBuyingMount,
+  qualifiesForTraining,
   revealNeighborsInPlace,
   rollCityName,
   withBannedHex,
@@ -11,6 +14,7 @@ import {
   type HexTile,
   type WorldState,
 } from "../hexState.ts";
+import { DOMESTICATED_ANIMAL_TABLE, MOUNT_TABLE } from "../../data/animals.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
 
 // HOT_TERRAIN_TABLE's "plain" column: 1->water, 2->mountain, 3->forest, 4/5/6->plain.
@@ -220,5 +224,53 @@ describe("isBannedHex / withBannedHex", () => {
     const world = withBannedHex(bareWorld([]), { q: 0, r: 0 });
     const again = withBannedHex(world, { q: 0, r: 0 });
     expect(again).toBe(world);
+  });
+});
+
+describe("countMatchingNeighbors / qualifiesForTraining / qualifiesForBuyingMount (issue #26)", () => {
+  // Neighbor order from {0,0}: {1,0} {1,-1} {0,-1} {-1,0} {-1,1} {0,1} -- 3 forest, 3 mountain.
+  const neighborTiles: Record<string, HexTile> = {
+    "1,0": { terrain: "forest", location: null },
+    "1,-1": { terrain: "forest", location: null },
+    "0,-1": { terrain: "forest", location: null },
+    "-1,0": { terrain: "mountain", location: null },
+    "-1,1": { terrain: "mountain", location: null },
+    "0,1": { terrain: "mountain", location: null },
+  };
+
+  it("counts only neighbors sharing the given terrain", () => {
+    expect(countMatchingNeighbors(neighborTiles, { q: 0, r: 0 }, "forest")).toBe(3);
+    expect(countMatchingNeighbors(neighborTiles, { q: 0, r: 0 }, "mountain")).toBe(3);
+    expect(countMatchingNeighbors(neighborTiles, { q: 0, r: 0 }, "desert")).toBe(0);
+  });
+
+  it("qualifiesForTraining requires an empty location, terrain match, and 2+ matching neighbors", () => {
+    const owl = DOMESTICATED_ANIMAL_TABLE.Owl!;
+    const forestTile: HexTile = { terrain: "forest", location: null };
+    expect(qualifiesForTraining(forestTile, 3, owl)).toBe(true);
+    expect(qualifiesForTraining(forestTile, 1, owl)).toBe(false); // not enough matching neighbors
+    expect(qualifiesForTraining({ ...forestTile, location: "humanCity" }, 3, owl)).toBe(false); // not empty
+    const mountainTile: HexTile = { terrain: "mountain", location: null };
+    expect(qualifiesForTraining(mountainTile, 3, owl)).toBe(false); // wrong terrain
+  });
+
+  it("Snake's empty terrain array ('Any') matches every terrain", () => {
+    const snake = DOMESTICATED_ANIMAL_TABLE.Snake!;
+    expect(qualifiesForTraining({ terrain: "forest", location: null }, 3, snake)).toBe(true);
+    expect(qualifiesForTraining({ terrain: "mountain", location: null }, 3, snake)).toBe(true);
+  });
+
+  it("qualifiesForBuyingMount requires a City/Fortress, terrain match, and 2+ matching neighbors -- culture-agnostic", () => {
+    const griffin = MOUNT_TABLE.Griffin!; // requires mountain
+    const dwarvenFortress: HexTile = { terrain: "mountain", location: "dwarvenFortress" };
+    expect(qualifiesForBuyingMount(dwarvenFortress, 3, griffin)).toBe(true);
+    // Any City/Fortress on the right terrain qualifies, regardless of culture.
+    const orcFortress: HexTile = { terrain: "mountain", location: "orcFortress" };
+    expect(qualifiesForBuyingMount(orcFortress, 3, griffin)).toBe(true);
+    expect(qualifiesForBuyingMount(dwarvenFortress, 1, griffin)).toBe(false); // not enough neighbors
+    const emptyMountain: HexTile = { terrain: "mountain", location: null };
+    expect(qualifiesForBuyingMount(emptyMountain, 3, griffin)).toBe(false); // not a City/Fortress
+    const wrongTerrainCity: HexTile = { terrain: "forest", location: "elvenCity" };
+    expect(qualifiesForBuyingMount(wrongTerrainCity, 3, griffin)).toBe(false); // wrong terrain
   });
 });

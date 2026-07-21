@@ -1,6 +1,7 @@
 import { rollDie } from "./dice.ts";
 import type { RNG } from "./rng.ts";
 import {
+  CITY_OR_FORTRESS,
   COLD_TERRAIN_TABLE,
   HOT_TERRAIN_TABLE,
   LOCATION_TABLE,
@@ -13,6 +14,7 @@ import {
 } from "../data/hexTables.ts";
 import { CULTURE_BY_LOCATION, type CityCulture } from "../data/affinity.ts";
 import { CITY_NAME_PREFIX, CITY_NAME_SUFFIX } from "../data/cityNames.ts";
+import type { AnimalDef } from "../data/types.ts";
 
 export interface HexCoord {
   q: number;
@@ -128,6 +130,31 @@ export function revealNeighborsInPlace(
     const culture = location ? CULTURE_BY_LOCATION[location] : undefined;
     tiles[key] = culture ? { terrain, location, name: rollCityName(culture, rng) } : { terrain, location };
   }
+}
+
+/** Animals (issue #26): how many of `coord`'s six neighbors already share `terrain` -- both
+ * acquisition paths ("train in the wild," "buy a mount in a qualifying city") require at least 2. */
+export function countMatchingNeighbors(
+  tiles: Record<string, HexTile>,
+  coord: HexCoord,
+  terrain: Terrain,
+): number {
+  return hexNeighbors(coord).filter((n) => tiles[hexKey(n)]?.terrain === terrain).length;
+}
+
+/** "This land must be empty (no location) and have at least 2 lands of the same type adjacent to
+ * it." An empty `animal.terrain` (Snake's "Any") always matches terrain-wise. */
+export function qualifiesForTraining(tile: HexTile, matchingNeighbors: number, animal: AnimalDef): boolean {
+  const terrainMatches = animal.terrain.length === 0 || animal.terrain.includes(tile.terrain);
+  return tile.location === null && terrainMatches && matchingNeighbors >= 2;
+}
+
+/** "You can buy mounts in a city that is on the appropriate terrain (and also has at least two of
+ * the same land adjacent to it)" -- culture-agnostic, unlike Hirelings: only the city's own terrain
+ * has to match, not which culture built it. */
+export function qualifiesForBuyingMount(tile: HexTile, matchingNeighbors: number, mount: AnimalDef): boolean {
+  const terrainMatches = mount.terrain.includes(tile.terrain);
+  return tile.location !== null && CITY_OR_FORTRESS.has(tile.location) && terrainMatches && matchingNeighbors >= 2;
 }
 
 /** Immutably ties a `PendingDungeon` to the hex at `coord` -- called from App.tsx the moment a

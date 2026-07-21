@@ -1,4 +1,7 @@
 import type { Terrain } from "../../../data/hexTables.ts";
+import type { AnimalDef } from "../../../data/types.ts";
+import { canTrainAnimal } from "../../../engine/animals.ts";
+import type { AdventurerResources } from "../../../engine/town.ts";
 import styles from "./HexInspector.module.css";
 
 export interface HexInspectorProps {
@@ -25,6 +28,14 @@ export interface HexInspectorProps {
    * renders when `isCurrentTile` is also true, not for some other hex merely being inspected. */
   canEnterDungeon: boolean;
   onEnterDungeon: () => void;
+  /** Animals (issue #26): every animal/mount trainable at this hex right now (`WorldScreen`'s own
+   * `qualifiesForTraining()` check) -- only ever non-empty for the current tile. */
+  trainableAnimals: AnimalDef[];
+  resources: AdventurerResources;
+  onTrainAnimal: (name: string) => void;
+  /** The last training attempt's outcome ("You trained a Dog!" / "The Dog slipped away."), same
+   * always-visible-until-replaced precedent as TownScreen's Thug Life message. */
+  trainResultMessage: string | null;
 }
 
 const TERRAIN_LABEL: Record<Terrain, string> = {
@@ -63,6 +74,10 @@ export function HexInspector({
   banned,
   canEnterDungeon,
   onEnterDungeon,
+  trainableAnimals,
+  resources,
+  onTrainAnimal,
+  trainResultMessage,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -112,6 +127,30 @@ export function HexInspector({
         <div className={styles.row}>
           <span className={styles.label}>Remains</span>
           <p>A fallen adventurer&apos;s belongings are still here, unrecovered.</p>
+        </div>
+      )}
+
+      {isCurrentTile && trainableAnimals.length > 0 && (
+        <div className={styles.row}>
+          <span className={styles.label}>Train an Animal</span>
+          {trainResultMessage && <p>{trainResultMessage}</p>}
+          <ul className={styles.trainList}>
+            {trainableAnimals.map((animal) => (
+              <li key={animal.name} className={styles.trainRow}>
+                <span>
+                  {animal.name} (Dif {animal.dif})
+                </span>
+                <button
+                  type="button"
+                  className={styles.trainBtn}
+                  disabled={!canTrainAnimal(resources, animal)}
+                  onClick={() => onTrainAnimal(animal.name)}
+                >
+                  Train ({animal.isMount ? 8 : 4} provisions)
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

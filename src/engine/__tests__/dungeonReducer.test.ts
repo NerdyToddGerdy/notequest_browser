@@ -2454,6 +2454,7 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByAbility: { loot: 2 },
       advancedClasses: [],
       hireling: null,
+      animals: [],
     });
 
     expect(next.dungeonName).toBe("The Palace of the Secret Horrors");
@@ -2511,6 +2512,7 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      animals: [],
     });
 
     expect(next.hp).toBe(12);
@@ -2580,6 +2582,7 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      animals: [],
     });
 
     expect(next.combat).not.toBeNull();
@@ -2628,6 +2631,7 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      animals: [],
     });
 
     // still on Level 2 (unlike RESUME_DUNGEON, which always resets activeLevel to 0)...
@@ -2685,6 +2689,7 @@ describe("Monster table re-roll on return", () => {
         killsByAbility: {},
         advancedClasses: [],
         hireling: null,
+        animals: [],
       },
       rng,
     );
@@ -2806,6 +2811,7 @@ describe("Monster table re-roll on return", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      animals: [],
     });
 
     expect(next.levels[0]!.segments[0]!.needsMonsterReroll).toBeFalsy();
@@ -2964,6 +2970,7 @@ describe("Resuming a fight abandoned via Teleport", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      animals: [],
     });
 
     expect(next.combat).not.toBeNull();
