@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.2] - 2026-07-21
+
+### Fixed
+
+- Known spells that need combat (Teleport, Cold Ray, Lightning,
+  Fireball) now show a disabled "Cast" button out of combat, with a
+  "Requires combat" tooltip, instead of vanishing entirely (#64) --
+  the same treatment already given to a spell that's simply out of
+  uses, now carried through to this last case too.
+
 ## [2.14.1] - 2026-07-21
 
 ### Fixed

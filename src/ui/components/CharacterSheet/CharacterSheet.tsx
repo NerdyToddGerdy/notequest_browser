@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { CreatedCharacter, SpellTableKey } from "../../../data/types.ts";
 import { computeSpellUses, parseSpellKey, SPELL_TABLE_BY_KEY } from "../../../engine/character.ts";
-import { OUT_OF_COMBAT_SPELL_NAMES } from "../../../engine/combat.ts";
+import { COMBAT_ONLY_SPELL_NAMES, KNOWN_CASTABLE_SPELL_NAMES } from "../../../engine/combat.ts";
 import { KillBreakdownModal } from "../KillBreakdownModal/KillBreakdownModal.tsx";
 import styles from "./CharacterSheet.module.css";
 
@@ -58,8 +58,8 @@ export function CharacterSheet({
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   const liveSpellUses = spellUses ?? maxSpellUses;
   // Every known spell keyed here, informational (name/effect/uses) regardless of table -- only
-  // Heal/Light (`OUT_OF_COMBAT_SPELL_NAMES`) ever get an actual "Cast" button below, since that's
-  // the only pair with a real out-of-combat CAST_SPELL/town.ts effect today (issue #24).
+  // the spells in `KNOWN_CASTABLE_SPELL_NAMES` (issue #24) ever get an actual "Cast" button below
+  // (Heal/Light enabled here, Teleport/Cold Ray/Lightning/Fireball shown but disabled -- see #64).
   const spellKeys = Object.keys(maxSpellUses).sort();
   const hasSpells = spellKeys.length > 0;
   const torchCount = torches ?? character.torches;
@@ -155,11 +155,18 @@ export function CharacterSheet({
                 if (!spell) return null;
                 const max = maxSpellUses[key] ?? 0;
                 const remaining = liveSpellUses[key] ?? 0;
-                // Rendered whenever this spell is *eligible* to cast here, even at 0 remaining
-                // uses -- disabled (not omitted) in that case, so "out of uses right now" reads
-                // differently from "not castable here at all" instead of looking identical.
-                const canCastHere =
-                  OUT_OF_COMBAT_SPELL_NAMES.has(spell.name) && !!canCastOutOfCombat && !!onCastSpell;
+                // Rendered whenever this *screen* supports casting out of combat at all (false
+                // mid-fight in DungeonScreen, where CombatPanel's own Cast buttons take over
+                // instead) and the spell is one of the few actually wired up to CAST_SPELL at all
+                // (`KNOWN_CASTABLE_SPELL_NAMES` -- every other New Spells effect is rolled/tracked
+                // but has no real implementation yet, so it gets no button at all, same as before).
+                // Within that, a combat-only spell (`COMBAT_ONLY_SPELL_NAMES`) or one with 0 uses
+                // left is shown disabled rather than omitted, so "out of uses" and "needs a fight"
+                // both read as "not right now," not "unsupported here."
+                const canCastAnythingHere =
+                  !!canCastOutOfCombat && !!onCastSpell && KNOWN_CASTABLE_SPELL_NAMES.has(spell.name);
+                const outOfUses = remaining <= 0;
+                const needsCombat = COMBAT_ONLY_SPELL_NAMES.has(spell.name);
                 return (
                   <li key={key}>
                     <div className={styles.spellHeader}>
@@ -169,11 +176,12 @@ export function CharacterSheet({
                       </span>
                     </div>
                     {spell.effect}
-                    {canCastHere && (
+                    {canCastAnythingHere && (
                       <button
                         type="button"
                         className={styles.castBtn}
-                        disabled={remaining <= 0}
+                        disabled={outOfUses || needsCombat}
+                        title={needsCombat ? "Requires combat" : outOfUses ? "No uses remaining" : undefined}
                         onClick={() => onCastSpell!(table, roll)}
                       >
                         Cast
