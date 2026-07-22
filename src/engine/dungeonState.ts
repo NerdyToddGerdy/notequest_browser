@@ -7,6 +7,7 @@ import type {
   RoomContentEntry,
 } from "../data/dungeonTables.ts";
 import type { SpellTableKey } from "../data/types.ts";
+import { createInitialMilestones, type AdvancedClassMilestones } from "./town.ts";
 
 export type Direction = "N" | "E" | "S" | "W";
 
@@ -252,6 +253,11 @@ export interface DungeonState {
    * resets to `[]`, `RETURN_TO_DUNGEON` carries it over exactly), not like `hireling` (which
    * expires per trip). Only needed here for Dog's reducer-side Move Silently block. */
   animals: string[];
+  /** Issue #70's Advanced Class achievement flags/counters -- mirrors `AdventurerResources` of the
+   * same name, but only the subset the reducer itself mutates mid-dungeon (hasCastSpell,
+   * hasCastColdRay, hasHadArmorDestroyed, locksOpened) is ever actually written here; hasSoldItem/
+   * hasFoughtInArena only ever change in Town/World and just ride along unchanged. */
+  milestones: AdvancedClassMilestones;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (not a
@@ -352,6 +358,7 @@ export function createInitialDungeonState(
   advancedClasses: string[] = [],
   hireling: string | null = null,
   animals: string[] = [],
+  milestones: AdvancedClassMilestones = createInitialMilestones(),
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -387,6 +394,7 @@ export function createInitialDungeonState(
     advancedClasses,
     hireling,
     animals,
+    milestones,
     weaponFormula,
     spellUses,
     alive: true,
@@ -489,4 +497,5 @@ export type DungeonAction =
       bossKills: number;
       killsByName: Record<string, number>;
       killsByAbility: Partial<Record<MonsterAbility, number>>;
+      milestones: AdvancedClassMilestones;
     };

@@ -1177,6 +1177,9 @@ export function dungeonReducer(
           wakeSneakedPastMonsters(draft, seg, rng);
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
+            // Thief (issue #70): counts as opened regardless of whether the free-pick bypass
+            // below applies -- the lock was still opened either way.
+            draft.milestones.locksOpened += 1;
             // Locksmith (base Class) and Burglar (Hireling, issue #25) grant the identical
             // "no torch spent picking a lock" benefit.
             if (draft.className === "Locksmith" || draft.hireling === "Burglar") {
@@ -1684,6 +1687,7 @@ export function dungeonReducer(
           const overflow = amount - absorbed;
           if (overflow > 0) draft.hp = Math.max(0, draft.hp - overflow);
           const label = piece.itemName ?? ARMOR_PIECE_LABELS[piece.piece];
+          if (piece.hp <= 0) draft.milestones.hasHadArmorDestroyed = true; // Blacksmith (issue #70)
           pushLog(
             draft,
             piece.hp <= 0
@@ -1725,6 +1729,7 @@ export function dungeonReducer(
 
       return produce(state, (draft) => {
         draft.spellUses[key] = remaining - 1;
+        draft.milestones.hasCastSpell = true; // Scholar (issue #70)
         const combat = draft.combat;
 
         if (combat && combat.paralyzedTurns > 0) {
@@ -1779,6 +1784,7 @@ export function dungeonReducer(
             if (!combat) break;
             const monster = combat.monsters.find((m) => m.id === action.targetId);
             if (!monster) break;
+            draft.milestones.hasCastColdRay = true; // Necromancer (issue #70)
             const result = resolveSpellDamage(monster, 4);
             monster.hp = Math.max(0, monster.hp - result.damageDealt);
             monster.skipNextAttack = true;
@@ -1888,6 +1894,7 @@ export function dungeonReducer(
             const spellRoll = rollDie(rng);
             draft.spellUses[spellKey("basic", spellRoll)] = (draft.spellUses[spellKey("basic", spellRoll)] ?? 0) + 1;
             const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
+            draft.milestones.hasCastSpell = true; // Scholar (issue #70): "used a spell or scroll"
             pushLog(draft, `Treasure: ${outcome.text} — learned ${spellName}!`);
             break;
           }
@@ -1986,6 +1993,7 @@ export function dungeonReducer(
           action.advancedClasses,
           action.hireling,
           action.animals,
+          action.milestones,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

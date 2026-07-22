@@ -598,6 +598,10 @@ describe("CAST_SPELL in combat", () => {
     expect(next.spellUses["basic:4"]).toBe(1);
     expect(next.combat!.monsters[0]!.hp).toBe(16);
     expect(next.hp).toBe(next.maxHp); // frozen monster skips its counter-attack this round
+    // Necromancer/Scholar (issue #70): Cold Ray specifically sets hasCastColdRay, alongside the
+    // generic hasCastSpell every successful cast already sets.
+    expect(next.milestones.hasCastSpell).toBe(true);
+    expect(next.milestones.hasCastColdRay).toBe(true);
   });
 
   it("Lightning deals 6 damage and lets the monster counter-attack normally", () => {
@@ -612,6 +616,10 @@ describe("CAST_SPELL in combat", () => {
 
     expect(next.combat!.monsters[0]!.hp).toBe(14);
     expect(next.hp).toBe(next.maxHp - 5); // not frozen -- counter-attack lands
+    // Scholar (issue #70): any successful cast sets the generic flag; Lightning isn't Cold Ray,
+    // so the Necromancer-specific one stays false.
+    expect(next.milestones.hasCastSpell).toBe(true);
+    expect(next.milestones.hasCastColdRay).toBe(false);
   });
 
   it("Fireball hits every monster in the room", () => {
@@ -937,6 +945,7 @@ describe("Armor: damage-absorption choice", () => {
     const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: 0 });
     expect(next.armor[0]!.hp).toBe(0); // fully depleted
     expect(next.hp).toBe(next.maxHp - 2); // the 2-damage overflow landed on HP
+    expect(next.milestones.hasHadArmorDestroyed).toBe(true); // Blacksmith (issue #70)
   });
 
   it("RESOLVE_DAMAGE fully absorbed by an armor piece leaves HP untouched", () => {
@@ -946,6 +955,7 @@ describe("Armor: damage-absorption choice", () => {
     const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: 0 });
     expect(next.armor[0]!.hp).toBe(6);
     expect(next.hp).toBe(next.maxHp);
+    expect(next.milestones.hasHadArmorDestroyed).toBe(false); // piece survived intact
   });
 
   it("resolving pending damage down to 0 HP still kills the character and leaves remains", () => {

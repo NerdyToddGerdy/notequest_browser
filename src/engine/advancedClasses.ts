@@ -1,4 +1,5 @@
 import { ADVANCED_CLASS_TABLE } from "../data/advancedClasses.ts";
+import type { ArmorPieceKind } from "../data/dungeonTables.ts";
 import type { CreatedCharacter } from "../data/types.ts";
 import type { GraveyardEntry } from "./graveyard.ts";
 import { parseSpellKey, rollSpellFromTable, spellKey, SPELL_TABLE_BY_KEY } from "./character.ts";
@@ -87,6 +88,32 @@ const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => 
   },
   Alchemist: (ctx) => knownSpellKeys(ctx.resources).length >= 4,
   Arcane: (ctx) => knownSpellKeys(ctx.resources).length >= 6,
+  // "Find all pieces of an armor" -- checkable straight from resources.armor with no new state at
+  // all: the 5 real body slots (excluding "ring", a documented 0-HP dud roll, and "wonderItem",
+  // which isn't a standard body slot -- see CLAUDE.md's Armor & Weapons note) all present at once.
+  Collector: (ctx) => {
+    const real: ArmorPieceKind[] = ["bracelets", "boots", "shoulderpads", "helm", "breastplate"];
+    const owned = new Set(ctx.resources.armor.map((a) => a.piece));
+    return real.every((piece) => owned.has(piece));
+  },
+  Scholar: (ctx) => ctx.resources.milestones.hasCastSpell,
+  Merchant: (ctx) => ctx.resources.milestones.hasSoldItem,
+  Necromancer: (ctx) => ctx.resources.milestones.hasCastColdRay,
+  Blacksmith: (ctx) => ctx.resources.milestones.hasHadArmorDestroyed,
+  Gladiator: (ctx) => ctx.resources.milestones.hasFoughtInArena,
+  Thief: (ctx) => ctx.resources.milestones.locksOpened >= 4,
+  // "Be Necromancer and have killed a Lich" -- no monster is named exactly "Lich" (the closest is
+  // Tomb's boss "Lich King of the Ethernal Wars"), so this is a substring match against
+  // killsByName, the same "no formal taxonomy" precedent Armor & Weapons' tag-matching already
+  // established, layered on top of the existing "chain on an already-acquired class" pattern
+  // Paladin/Anti-Paladin use.
+  Necromaster: (ctx) =>
+    ctx.resources.advancedClasses.includes("Necromancer") &&
+    Object.entries(ctx.resources.killsByName).some(
+      ([name, count]) => name.includes("lich") && count > 0,
+    ),
+  Assassin: (ctx) =>
+    ctx.resources.advancedClasses.includes("Thief") && ctx.resources.bossKills >= 1,
 };
 
 /** Whether this Advanced Class has a real requirement check at all -- every other entry in

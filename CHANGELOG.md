@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-07-21
+
+### Added
+
+- 9 more Advanced Classes -- Collector, Scholar, Merchant, Necromancer,
+  Blacksmith, Gladiator, Thief, Necromaster, Assassin -- are now
+  actually acquirable (#70), each requiring only a small one-time
+  achievement flag/counter (used a spell or scroll, sold an item, cast
+  Cold Ray, had an armor piece destroyed, fought in an Arena, opened
+  4 locks) or, for Collector/Necromaster/Assassin, nothing beyond
+  state the game already tracks.
+
 ## [2.14.3] - 2026-07-21
 
 ### Fixed

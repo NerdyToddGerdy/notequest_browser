@@ -113,6 +113,7 @@ export function DungeonScreen({
         advancedClasses: resources.advancedClasses,
         hireling: resources.hireling,
         animals: resources.animals,
+        milestones: resources.milestones,
       });
     }
     if (resumeDungeon) {
@@ -152,6 +153,7 @@ export function DungeonScreen({
       resources.advancedClasses,
       resources.hireling,
       resources.animals,
+      resources.milestones,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);

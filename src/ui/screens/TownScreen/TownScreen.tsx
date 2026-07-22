@@ -238,6 +238,12 @@ export function TownScreen({
   function handleStartArena() {
     setArena(startArena());
     setArenaLog([]);
+    if (!resources.milestones.hasFoughtInArena) {
+      onUpdateResources({
+        ...resources,
+        milestones: { ...resources.milestones, hasFoughtInArena: true },
+      });
+    }
   }
 
   function handleArenaAttack() {

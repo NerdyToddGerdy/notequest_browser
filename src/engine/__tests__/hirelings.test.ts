@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HIRELING_ROSTERS, HUMAN_FORTRESS_HIRELINGS, hirelingsFor } from "../../data/hirelings.ts";
-import type { AdventurerResources } from "../town.ts";
+import { createInitialMilestones, type AdventurerResources } from "../town.ts";
 import { canHireHireling, hireHireling } from "../hirelings.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
 
@@ -25,6 +25,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     advancedClasses: [],
     hireling: null,
     animals: [],
+    milestones: createInitialMilestones(),
     ...overrides,
   };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ADVANCED_CLASS_TABLE } from "../../data/advancedClasses.ts";
 import type { CreatedCharacter } from "../../data/types.ts";
 import type { GraveyardEntry } from "../graveyard.ts";
-import type { AdventurerResources } from "../town.ts";
+import { createInitialMilestones, type AdventurerResources } from "../town.ts";
 import {
   acquireAdvancedClass,
   canAcquireAdvancedClass,
@@ -44,6 +44,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     advancedClasses: [],
     hireling: null,
     animals: [],
+    milestones: createInitialMilestones(),
     ...overrides,
   };
 }
@@ -170,6 +171,146 @@ describe("meetsAdvancedClassRequirement", () => {
     expect(
       meetsAdvancedClassRequirement("Arcane", makeCtx({ spellUses: { ...fourSpells, "elemental:1": 0, "advanced:2": 0 } })),
     ).toBe(true);
+  });
+
+  it("Collector: owns all 5 real armor pieces at once (Ring and wonderItem don't count)", () => {
+    const piece = (kind: string) => ({ piece: kind, hp: 1, maxHp: 1, itemName: null }) as never;
+    const fourOfFive = makeCtx({
+      armor: [
+        piece("bracelets"),
+        piece("boots"),
+        piece("shoulderpads"),
+        piece("helm"),
+      ],
+    });
+    expect(meetsAdvancedClassRequirement("Collector", fourOfFive)).toBe(false);
+
+    const allFive = makeCtx({
+      armor: [
+        piece("ring"), // a dud roll -- shouldn't be required or interfere
+        piece("bracelets"),
+        piece("boots"),
+        piece("shoulderpads"),
+        piece("helm"),
+        piece("breastplate"),
+      ],
+    });
+    expect(meetsAdvancedClassRequirement("Collector", allFive)).toBe(true);
+  });
+
+  it("Scholar: has cast a spell or redeemed a Magic Scroll", () => {
+    expect(meetsAdvancedClassRequirement("Scholar", makeCtx({}))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Scholar",
+        makeCtx({ milestones: { ...createInitialMilestones(), hasCastSpell: true } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("Merchant: has sold an item", () => {
+    expect(meetsAdvancedClassRequirement("Merchant", makeCtx({}))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Merchant",
+        makeCtx({ milestones: { ...createInitialMilestones(), hasSoldItem: true } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("Necromancer: has specifically cast Cold Ray, not just any spell", () => {
+    expect(
+      meetsAdvancedClassRequirement(
+        "Necromancer",
+        makeCtx({ milestones: { ...createInitialMilestones(), hasCastSpell: true } }),
+      ),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Necromancer",
+        makeCtx({ milestones: { ...createInitialMilestones(), hasCastColdRay: true } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("Blacksmith: has had an armor piece destroyed", () => {
+    expect(meetsAdvancedClassRequirement("Blacksmith", makeCtx({}))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Blacksmith",
+        makeCtx({ milestones: { ...createInitialMilestones(), hasHadArmorDestroyed: true } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("Gladiator: has fought in an Arena", () => {
+    expect(meetsAdvancedClassRequirement("Gladiator", makeCtx({}))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Gladiator",
+        makeCtx({ milestones: { ...createInitialMilestones(), hasFoughtInArena: true } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("Thief: has opened at least 4 locks", () => {
+    expect(
+      meetsAdvancedClassRequirement(
+        "Thief",
+        makeCtx({ milestones: { ...createInitialMilestones(), locksOpened: 3 } }),
+      ),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Thief",
+        makeCtx({ milestones: { ...createInitialMilestones(), locksOpened: 4 } }),
+      ),
+    ).toBe(true);
+  });
+
+  it("Necromaster chains on Necromancer and requires a Lich kill (substring-matched)", () => {
+    expect(
+      meetsAdvancedClassRequirement(
+        "Necromaster",
+        makeCtx({
+          advancedClasses: ["Necromancer"],
+          killsByName: { "lich king of the ethernal wars": 1 },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Necromaster",
+        makeCtx({ advancedClasses: [], killsByName: { "lich king of the ethernal wars": 1 } }),
+      ),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Necromaster",
+        makeCtx({ advancedClasses: ["Necromancer"], killsByName: {} }),
+      ),
+    ).toBe(false);
+  });
+
+  it("Assassin chains on Thief and requires at least one boss kill", () => {
+    expect(
+      meetsAdvancedClassRequirement(
+        "Assassin",
+        makeCtx({ advancedClasses: ["Thief"], bossKills: 1 }),
+      ),
+    ).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Assassin",
+        makeCtx({ advancedClasses: [], bossKills: 1 }),
+      ),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Assassin",
+        makeCtx({ advancedClasses: ["Thief"], bossKills: 0 }),
+      ),
+    ).toBe(false);
   });
 
   it("a class with no requirement check at all is never met, regardless of state", () => {

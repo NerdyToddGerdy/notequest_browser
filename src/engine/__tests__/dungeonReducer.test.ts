@@ -11,6 +11,7 @@ import {
   type DungeonState,
   type SegmentState,
 } from "../dungeonState.ts";
+import { createInitialMilestones } from "../town.ts";
 import { fixedDie, mulberry32, sequenceDie } from "../../test/mulberry32.ts";
 
 function makeSegment(
@@ -1228,6 +1229,7 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.torches).toBe(2);
     expect(next.alive).toBe(true);
     expect(next.log[0]!.message).toContain("pick the lock");
+    expect(next.milestones.locksOpened).toBe(1); // Thief (issue #70)
   });
 
   it("locked + pick lock with no torches left: the Darkness kills the character", () => {
@@ -1257,6 +1259,7 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.torches).toBe(0);
     expect(next.alive).toBe(true);
     expect(next.log[0]!.message).toContain("broke the door open");
+    expect(next.milestones.locksOpened).toBe(0); // breaking a door isn't "opening a lock" (Thief)
   });
 
   it("Locksmith: pick lock costs no torch", () => {
@@ -1272,6 +1275,7 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.torches).toBe(0);
     expect(next.alive).toBe(true);
     expect(next.log[0]!.message).toContain("needs no torch");
+    expect(next.milestones.locksOpened).toBe(1); // still counts, even with the free-pick bypass
   });
 
   it("Burglar (Hireling, issue #25): pick lock costs no torch, same as Locksmith", () => {
@@ -1707,6 +1711,7 @@ describe("CAST_SPELL: Heal and Light outside combat", () => {
     const next = dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 1 });
     expect(next.hp).toBe(17);
     expect(next.spellUses["basic:1"]).toBe(1);
+    expect(next.milestones.hasCastSpell).toBe(true); // Scholar (issue #70)
   });
 
   it("Heal never overheals past maxHp", () => {
@@ -1859,6 +1864,7 @@ describe("OPEN_TREASURE", () => {
     );
     expect(next.spellUses).toEqual({ "basic:5": 1 });
     expect(next.log[0]!.message).toContain("Lightning");
+    expect(next.milestones.hasCastSpell).toBe(true); // Scholar (issue #70): scroll redemption counts
   });
 
   it("Valuable jewel (Palace roll 4) adds a held item worth 2d6 x 10 coins", () => {
@@ -2482,6 +2488,7 @@ describe("RETURN_TO_DUNGEON", () => {
       advancedClasses: [],
       hireling: null,
       animals: [],
+      milestones: createInitialMilestones(),
     });
 
     expect(next.dungeonName).toBe("The Palace of the Secret Horrors");
@@ -2540,6 +2547,7 @@ describe("RETURN_TO_DUNGEON", () => {
       advancedClasses: [],
       hireling: null,
       animals: [],
+      milestones: createInitialMilestones(),
     });
 
     expect(next.hp).toBe(12);
@@ -2610,6 +2618,7 @@ describe("RETURN_TO_DUNGEON", () => {
       advancedClasses: [],
       hireling: null,
       animals: [],
+      milestones: createInitialMilestones(),
     });
 
     expect(next.combat).not.toBeNull();
@@ -2659,6 +2668,7 @@ describe("RETURN_TO_DUNGEON", () => {
       advancedClasses: [],
       hireling: null,
       animals: [],
+      milestones: createInitialMilestones(),
     });
 
     // still on Level 2 (unlike RESUME_DUNGEON, which always resets activeLevel to 0)...
@@ -2717,6 +2727,7 @@ describe("Monster table re-roll on return", () => {
         advancedClasses: [],
         hireling: null,
         animals: [],
+        milestones: createInitialMilestones(),
       },
       rng,
     );
@@ -2839,6 +2850,7 @@ describe("Monster table re-roll on return", () => {
       advancedClasses: [],
       hireling: null,
       animals: [],
+      milestones: createInitialMilestones(),
     });
 
     expect(next.levels[0]!.segments[0]!.needsMonsterReroll).toBeFalsy();
@@ -2998,6 +3010,7 @@ describe("Resuming a fight abandoned via Teleport", () => {
       advancedClasses: [],
       hireling: null,
       animals: [],
+      milestones: createInitialMilestones(),
     });
 
     expect(next.combat).not.toBeNull();

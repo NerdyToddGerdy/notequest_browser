@@ -34,6 +34,7 @@ import {
   rest,
   sellItem,
   wieldWeapon,
+  createInitialMilestones,
   type AdventurerResources,
 } from "../town.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
@@ -59,6 +60,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     advancedClasses: [],
     hireling: null,
     animals: [],
+    milestones: createInitialMilestones(),
     ...overrides,
   };
 }
@@ -157,12 +159,14 @@ describe("sellItem", () => {
     const next = sellItem(resources, 0);
     expect(next.coins).toBe(5);
     expect(next.heldItems).toEqual([{ name: "Valuable jewel", worth: 70 }]);
+    expect(next.milestones.hasSoldItem).toBe(true); // Merchant (issue #70)
   });
 
   it("is a no-op for an out-of-range index", () => {
     const resources = makeResources({ heldItems: [{ name: "Ornament", worth: 5 }] });
     const next = sellItem(resources, 3);
     expect(next).toEqual(resources);
+    expect(next.milestones.hasSoldItem).toBe(false); // nothing was actually sold
   });
 
   it("Cat-Person: sells for double the item's worth", () => {

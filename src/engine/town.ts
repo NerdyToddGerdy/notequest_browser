@@ -47,6 +47,46 @@ export interface AdventurerResources {
    * Mount (enforced at acquisition time, see `activeMount()`). Mirrored on `DungeonState` since
    * Dog's Move-Silently block applies mid-dungeon. */
   animals: string[];
+  /** One-time achievement flags/counters (issue #70) powering several Advanced Classes'
+   * requirement checks that don't fit the existing kill-tally/graveyard-based shapes -- see
+   * `AdvancedClassMilestones`. */
+  milestones: AdvancedClassMilestones;
+}
+
+/** One-time achievement flags/counters (issue #70) that exist purely to answer a handful of
+ * Advanced Class requirement questions ("used a spell," "sold an item," ...) that neither the
+ * existing kill tallies nor the Graveyard can answer. Bundled into one object -- mirrored on
+ * `DungeonState` for the subset the reducer itself sets mid-dungeon -- rather than 6 separate
+ * top-level fields, to keep the already-repetitive `createInitialDungeonState()`/`RESUME_DUNGEON`/
+ * `RETURN_TO_DUNGEON`/`session.ts` threading surface from growing by 6 more individual params. */
+export interface AdvancedClassMilestones {
+  /** Scholar: "used a spell or scroll" -- set on any successful CAST_SPELL dispatch, or on
+   * redeeming a Magic Scroll's randomSpell reward (OPEN_TREASURE). */
+  hasCastSpell: boolean;
+  /** Necromancer: "used the Cold Ray spell" specifically -- not just any spell, so this is set
+   * only inside CAST_SPELL's "Cold Ray" case, alongside (not instead of) hasCastSpell above. */
+  hasCastColdRay: boolean;
+  /** Merchant: "sold an item" -- set the first time `sellItem()` actually removes one. */
+  hasSoldItem: boolean;
+  /** Blacksmith: "had an armor destroyed" -- set wherever an equipped piece's HP hits 0. */
+  hasHadArmorDestroyed: boolean;
+  /** Gladiator: "fought in an Arena" -- set whenever an Arena fight starts. */
+  hasFoughtInArena: boolean;
+  /** Thief: "opened at least 4 locks" -- incremented in RESOLVE_DOOR_LOCK's pickLock branch
+   * regardless of whether Locksmith/Burglar's free-pick bypass applies (the lock was still
+   * opened, just without spending a torch for it). */
+  locksOpened: number;
+}
+
+export function createInitialMilestones(): AdvancedClassMilestones {
+  return {
+    hasCastSpell: false,
+    hasCastColdRay: false,
+    hasSoldItem: false,
+    hasHadArmorDestroyed: false,
+    hasFoughtInArena: false,
+    locksOpened: 0,
+  };
 }
 
 /** "You can carry a maximum of 10 torches at a time." */
@@ -141,6 +181,7 @@ export function sellItem(
     ...resources,
     coins: resources.coins + item.worth * (isCatPerson ? 2 : 1),
     heldItems: resources.heldItems.filter((_, i) => i !== index),
+    milestones: { ...resources.milestones, hasSoldItem: true },
   };
 }
 

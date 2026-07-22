@@ -5,7 +5,7 @@ import { DungeonScreen } from "./ui/screens/DungeonScreen/DungeonScreen.tsx";
 import type { CreatedCharacter } from "./data/types.ts";
 import { computeSpellUses } from "./engine/character.ts";
 import { isDungeonBeaten, type DungeonState, type PendingDungeon } from "./engine/dungeonState.ts";
-import type { AdventurerResources } from "./engine/town.ts";
+import { createInitialMilestones, type AdventurerResources } from "./engine/town.ts";
 import {
   createInitialWorldState,
   hexKey,
@@ -84,6 +84,7 @@ export default function App() {
       advancedClasses: [],
       hireling: null,
       animals: [],
+      milestones: createInitialMilestones(),
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -167,6 +168,8 @@ export default function App() {
       // Animals (issue #26) persist permanently once acquired, same as advancedClasses -- no
       // isDungeonBeaten gate needed here (unlike hireling, they don't expire).
       animals: dungeon.animals,
+      // Milestones (issue #70) persist permanently once set, same as advancedClasses/animals.
+      milestones: dungeon.milestones,
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,

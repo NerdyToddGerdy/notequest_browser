@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DOMESTICATED_ANIMAL_TABLE, MOUNT_TABLE } from "../../data/animals.ts";
-import type { AdventurerResources } from "../town.ts";
+import { createInitialMilestones, type AdventurerResources } from "../town.ts";
 import {
   activeMount,
   animalTravelCostOverride,
@@ -35,6 +35,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     advancedClasses: [],
     hireling: null,
     animals: [],
+    milestones: createInitialMilestones(),
     ...overrides,
   };
 }

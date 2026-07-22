@@ -16,6 +16,7 @@ import {
   sizeFor,
 } from "../dungeon.ts";
 import type { DungeonState, LevelState, SegmentState } from "../dungeonState.ts";
+import { createInitialMilestones } from "../town.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
 
 describe("table completeness", () => {
@@ -217,6 +218,7 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     advancedClasses: [],
     hireling: null,
     animals: [],
+    milestones: createInitialMilestones(),
     weaponFormula: "1d6",
     spellUses: {},
     nextMonsterId: 1,
