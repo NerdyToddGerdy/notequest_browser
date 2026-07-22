@@ -114,6 +114,14 @@ const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => 
     ),
   Assassin: (ctx) =>
     ctx.resources.advancedClasses.includes("Thief") && ctx.resources.bossKills >= 1,
+  // Lumberjack/Druid: the identical lifetime forest-hexes-crossed signal at two thresholds.
+  Lumberjack: (ctx) => ctx.resources.travelStats.forestsCrossed >= 2,
+  Druid: (ctx) => ctx.resources.travelStats.forestsCrossed >= 6,
+  Survivor: (ctx) => ctx.resources.travelStats.desertsCrossed >= 2,
+  Pirate: (ctx) => ctx.resources.travelStats.territoriesSailed >= 5,
+  // Distinct cities/fortresses visited, not a raw travel count -- see TravelStats.citiesVisited.
+  Bard: (ctx) => ctx.resources.travelStats.citiesVisited.length >= 3,
+  Cook: (ctx) => ctx.resources.travelStats.provisionsSpentTotal >= 20,
 };
 
 /** Whether this Advanced Class has a real requirement check at all -- every other entry in
@@ -157,7 +165,10 @@ export function grantSpellUses(
 /** Applies the acquired class's ability, where it grants something mechanically real (see
  * CLAUDE.md's Advanced Classes note for the full list) -- every other class in `REQUIREMENT_CHECKS`
  * either has no ability ("None.") or one left flavor-only (Ambidextrous/Multidextrous's dual-wield,
- * Ghostbuster's first-turn Intangible immunity), so falls through untouched. */
+ * Ghostbuster's first-turn Intangible immunity, Collector's "sell an armor piece for 5 coins" --
+ * would need a new sell action on `Equipment`'s armor list, no precedent for selling armor exists
+ * yet -- and Assassin's "3x damage on your first attack," which would need a new `CombatState`
+ * field to track "has this fight's first attack happened yet"), so falls through untouched. */
 function applyAdvancedClassAbility(
   name: string,
   resources: AdventurerResources,
@@ -166,6 +177,10 @@ function applyAdvancedClassAbility(
   switch (name) {
     case "Mage":
       return grantSpellUses(resources, "basic", 4, rng);
+    // Scholar's own random-Basic-spell grant, same shape as Mage's just a smaller count -- unlike
+    // Mage, Scholar's requirement (`hasCastSpell`) is what unblocked this, not the spell count itself.
+    case "Scholar":
+      return grantSpellUses(resources, "basic", 3, rng);
     case "Cleric": {
       const key = spellKey("basic", 1); // Heal
       return { ...resources, spellUses: { ...resources.spellUses, [key]: (resources.spellUses[key] ?? 0) + 2 } };
@@ -185,6 +200,23 @@ function applyAdvancedClassAbility(
       return grantSpellUses(resources, "elemental", 4, rng);
     case "Arcane":
       return grantSpellUses(resources, "advanced", 4, rng);
+    // Necromancer and Necromaster (its own chained-on class, see REQUIREMENT_CHECKS) grant the
+    // identical "4 random Death Spells" -- same shape as Anti-Paladin's own Death Spell grant.
+    case "Necromancer":
+    case "Necromaster":
+      return grantSpellUses(resources, "death", 4, rng);
+    // Druid's own random-Nature-spell grant, same shape as Mage/Elementalist/Arcane/Scholar.
+    case "Druid":
+      return grantSpellUses(resources, "nature", 4, rng);
+    // Bard: "Gain 3 uses of the Paralyze Advanced Spell" -- a fixed grant, not random, same shape
+    // as Cleric/Paladin's fixed Heal grant. Paralyze (advanced:5) has no "Cast" button yet (issue
+    // #61 -- New Spells' still-deferred effects), so this correctly tracks the uses without doing
+    // anything mechanical until that spell itself is wired up, the same "tracked but not castable"
+    // state every other deferred New Spell is already in.
+    case "Bard": {
+      const key = spellKey("advanced", 5); // Paralyze
+      return { ...resources, spellUses: { ...resources.spellUses, [key]: (resources.spellUses[key] ?? 0) + 3 } };
+    }
     default:
       return resources;
   }

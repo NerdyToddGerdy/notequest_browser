@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { ADVANCED_CLASS_TABLE } from "../../data/advancedClasses.ts";
 import type { CreatedCharacter } from "../../data/types.ts";
 import type { GraveyardEntry } from "../graveyard.ts";
-import { createInitialMilestones, type AdventurerResources } from "../town.ts";
+import {
+  createInitialMilestones,
+  createInitialTravelStats,
+  type AdventurerResources,
+} from "../town.ts";
 import {
   acquireAdvancedClass,
   canAcquireAdvancedClass,
@@ -45,6 +49,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     hireling: null,
     animals: [],
     milestones: createInitialMilestones(),
+    travelStats: createInitialTravelStats(),
     ...overrides,
   };
 }
@@ -313,6 +318,57 @@ describe("meetsAdvancedClassRequirement", () => {
     ).toBe(false);
   });
 
+  it("Lumberjack/Druid: the identical lifetime forest-hexes-crossed signal at two thresholds", () => {
+    expect(
+      meetsAdvancedClassRequirement("Lumberjack", makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 1 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Lumberjack", makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 2 } })),
+    ).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Druid", makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 5 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Druid", makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 6 } })),
+    ).toBe(true);
+  });
+
+  it("Survivor: 2 deserts crossed", () => {
+    expect(
+      meetsAdvancedClassRequirement("Survivor", makeCtx({ travelStats: { ...createInitialTravelStats(), desertsCrossed: 1 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Survivor", makeCtx({ travelStats: { ...createInitialTravelStats(), desertsCrossed: 2 } })),
+    ).toBe(true);
+  });
+
+  it("Pirate: 5 territories sailed", () => {
+    expect(
+      meetsAdvancedClassRequirement("Pirate", makeCtx({ travelStats: { ...createInitialTravelStats(), territoriesSailed: 4 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Pirate", makeCtx({ travelStats: { ...createInitialTravelStats(), territoriesSailed: 5 } })),
+    ).toBe(true);
+  });
+
+  it("Bard: 3 distinct cities visited (a length check, not a raw count)", () => {
+    expect(
+      meetsAdvancedClassRequirement("Bard", makeCtx({ travelStats: { ...createInitialTravelStats(), citiesVisited: ["a", "b"] } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Bard", makeCtx({ travelStats: { ...createInitialTravelStats(), citiesVisited: ["a", "b", "c"] } })),
+    ).toBe(true);
+  });
+
+  it("Cook: 20 provisions spent (lifetime, not the current balance)", () => {
+    expect(
+      meetsAdvancedClassRequirement("Cook", makeCtx({ travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 19 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Cook", makeCtx({ travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 20 } })),
+    ).toBe(true);
+  });
+
   it("a class with no requirement check at all is never met, regardless of state", () => {
     expect(isAdvancedClassTrackable("Avenger")).toBe(false);
     expect(meetsAdvancedClassRequirement("Avenger", makeCtx({ coins: 999999 }))).toBe(false);
@@ -431,5 +487,63 @@ describe("acquireAdvancedClass", () => {
     const next = acquireAdvancedClass(ctx, "Warrior");
     expect(next.spellUses).toEqual({});
     expect(next.hp).toBe(ctx.resources.hp + 2);
+  });
+
+  it("Scholar grants 3 random Basic Spell uses (issue #72 -- previously missed from #70)", () => {
+    const ctx = makeCtx({
+      coins: 70,
+      milestones: { ...createInitialMilestones(), hasCastSpell: true },
+    });
+    const rng = sequenceDie([1, 2, 3]); // Heal, Light, Teleport
+    const next = acquireAdvancedClass(ctx, "Scholar", rng);
+    expect(next.spellUses["basic:1"]).toBe(1);
+    expect(next.spellUses["basic:2"]).toBe(1);
+    expect(next.spellUses["basic:3"]).toBe(1);
+  });
+
+  it("Necromancer and Necromaster both grant 4 random Death Spell uses (issue #72 -- previously missed from #70)", () => {
+    const necromancerCtx = makeCtx({
+      coins: 200,
+      milestones: { ...createInitialMilestones(), hasCastColdRay: true },
+    });
+    const necromancerNext = acquireAdvancedClass(
+      necromancerCtx,
+      "Necromancer",
+      sequenceDie([1, 2, 3, 4]),
+    );
+    expect(necromancerNext.spellUses["death:1"]).toBe(1);
+    expect(necromancerNext.spellUses["death:4"]).toBe(1);
+
+    const necromasterCtx = makeCtx(
+      { coins: 400, advancedClasses: ["Necromancer"], killsByName: { "lich king": 1 } },
+    );
+    const necromasterNext = acquireAdvancedClass(
+      necromasterCtx,
+      "Necromaster",
+      sequenceDie([2, 3, 4, 5]),
+    );
+    expect(necromasterNext.spellUses["death:2"]).toBe(1);
+    expect(necromasterNext.spellUses["death:5"]).toBe(1);
+  });
+
+  it("Druid grants 4 random Nature Spell uses (issue #72)", () => {
+    const ctx = makeCtx({
+      coins: 200,
+      travelStats: { ...createInitialTravelStats(), forestsCrossed: 6 },
+    });
+    const rng = sequenceDie([1, 2, 3, 4]);
+    const next = acquireAdvancedClass(ctx, "Druid", rng);
+    expect(next.spellUses["nature:1"]).toBe(1);
+    expect(next.spellUses["nature:4"]).toBe(1);
+  });
+
+  it("Bard grants 3 fixed uses of Paralyze (advanced:5) (issue #72)", () => {
+    const ctx = makeCtx({
+      coins: 200,
+      travelStats: { ...createInitialTravelStats(), citiesVisited: ["a", "b", "c"] },
+      spellUses: { "advanced:5": 1 },
+    });
+    const next = acquireAdvancedClass(ctx, "Bard");
+    expect(next.spellUses["advanced:5"]).toBe(4); // 1 existing + 3 granted
   });
 });

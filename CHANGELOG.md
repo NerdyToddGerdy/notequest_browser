@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-07-21
+
+### Added
+
+- 6 more Advanced Classes -- Lumberjack, Druid, Survivor, Pirate, Bard,
+  Cook -- are now acquirable (#72), each requiring a lifetime World-map
+  travel counter (forests/deserts crossed, territories sailed, distinct
+  cities visited, or provisions spent on the road).
+
+### Fixed
+
+- 6 Advanced Classes acquired in v2.15.0 (#70) did nothing beyond their
+  flat HP bonus, since their abilities were never actually wired up:
+  Scholar/Necromancer/Necromaster's spell grants, Merchant's doubled
+  sell value, Blacksmith's torch-for-armor-repair, and Thief's
+  torch-free lockpicking are now all real.
+
 ## [2.15.0] - 2026-07-21
 
 ### Added

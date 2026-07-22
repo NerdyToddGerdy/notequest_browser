@@ -3,7 +3,11 @@ import { clearSession, loadSession, saveSession, type SessionState } from "../se
 import { createInitialDungeonState } from "../dungeonState.ts";
 import { createInitialWorldState, type WorldState } from "../hexState.ts";
 import type { CreatedCharacter } from "../../data/types.ts";
-import { createInitialMilestones, type AdventurerResources } from "../town.ts";
+import {
+  createInitialMilestones,
+  createInitialTravelStats,
+  type AdventurerResources,
+} from "../town.ts";
 import { fixedDie } from "../../test/mulberry32.ts";
 
 /** A minimal in-memory Storage so these tests don't need a DOM environment. */
@@ -64,6 +68,7 @@ const RESOURCES: AdventurerResources = {
   hireling: null,
   animals: [],
   milestones: createInitialMilestones(),
+  travelStats: createInitialTravelStats(),
 };
 
 const WORLD: WorldState = createInitialWorldState(fixedDie(3));
@@ -163,6 +168,18 @@ describe("loadSession", () => {
     expect(loadSession(storage).resources).toEqual({
       ...oldResources,
       milestones: createInitialMilestones(),
+    });
+  });
+
+  it("back-fills resources.travelStats (issue #72) for a session persisted before it existed", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { travelStats, ...oldResources } = RESOURCES;
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
+    });
+    expect(loadSession(storage).resources).toEqual({
+      ...oldResources,
+      travelStats: createInitialTravelStats(),
     });
   });
 });

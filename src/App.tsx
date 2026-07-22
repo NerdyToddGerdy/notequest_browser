@@ -5,7 +5,11 @@ import { DungeonScreen } from "./ui/screens/DungeonScreen/DungeonScreen.tsx";
 import type { CreatedCharacter } from "./data/types.ts";
 import { computeSpellUses } from "./engine/character.ts";
 import { isDungeonBeaten, type DungeonState, type PendingDungeon } from "./engine/dungeonState.ts";
-import { createInitialMilestones, type AdventurerResources } from "./engine/town.ts";
+import {
+  createInitialMilestones,
+  createInitialTravelStats,
+  type AdventurerResources,
+} from "./engine/town.ts";
 import {
   createInitialWorldState,
   hexKey,
@@ -85,6 +89,7 @@ export default function App() {
       hireling: null,
       animals: [],
       milestones: createInitialMilestones(),
+      travelStats: createInitialTravelStats(),
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -170,6 +175,9 @@ export default function App() {
       animals: dungeon.animals,
       // Milestones (issue #70) persist permanently once set, same as advancedClasses/animals.
       milestones: dungeon.milestones,
+      // Travel stats (issue #72) aren't tracked on DungeonState at all (nothing inside a dungeon
+      // run needs them) -- carried over untouched, same as provisions above.
+      travelStats: prev?.travelStats ?? createInitialTravelStats(),
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,

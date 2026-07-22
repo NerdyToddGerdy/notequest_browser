@@ -35,6 +35,7 @@ import {
   hasElvenBoots,
   hireBoat,
   payTravelCost,
+  recordTravelStats,
   resolveThugLife,
   type AdventurerResources,
 } from "../../../engine/town.ts";
@@ -266,7 +267,15 @@ export function WorldScreen({
     // Pandakhan (2x)/Centaur (0.5x, rounded up so a move is never free) -- layered on top of the
     // base cost the same way Elven Boots' forest override already is.
     const cost = Math.max(1, Math.ceil(withMammothPenalty * travelCostMultiplier(character.race.name)));
-    onUpdateResources(payTravelCost(resources, cost, !!resources.hireling));
+    const afterCost = payTravelCost(resources, cost, !!resources.hireling);
+    // Advanced Classes (issue #72): Lumberjack/Druid/Survivor/Pirate/Bard's lifetime travel
+    // counters, describing whichever hex is actually being arrived at. `wasSailing` reads
+    // `world.hasBoat` *before* MOVE potentially clears it (hexReducer.ts drops the boat the
+    // instant the player lands on non-water terrain) -- true only while sailing onto more water.
+    const isCity = tile.location != null && CITY_OR_FORTRESS.has(tile.location);
+    onUpdateResources(
+      recordTravelStats(afterCost, tile.terrain, isCity, hexKey(coord), world.hasBoat),
+    );
     onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
     setShowMap(false);
     setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected

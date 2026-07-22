@@ -35,6 +35,8 @@ import {
   sellItem,
   wieldWeapon,
   createInitialMilestones,
+  createInitialTravelStats,
+  recordTravelStats,
   type AdventurerResources,
 } from "../town.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
@@ -61,6 +63,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     hireling: null,
     animals: [],
     milestones: createInitialMilestones(),
+    travelStats: createInitialTravelStats(),
     ...overrides,
   };
 }
@@ -358,6 +361,59 @@ describe("payTravelCost", () => {
     const next = payTravelCost(makeResources({ provisions: 3, hp: 15 }), 3, true); // short by exactly 1
     expect(next.provisions).toBe(0);
     expect(next.hp).toBe(14);
+  });
+
+  it("Cook (Advanced Class, issue #72): tallies the actual shortfall-aware spend, not the raw cost", () => {
+    const withPlenty = payTravelCost(makeResources({ provisions: 10, hp: 15 }), 3);
+    expect(withPlenty.travelStats.provisionsSpentTotal).toBe(3);
+
+    const withShortfall = payTravelCost(makeResources({ provisions: 2, hp: 15 }), 3);
+    expect(withShortfall.travelStats.provisionsSpentTotal).toBe(2); // only what was actually spent
+
+    const accumulated = payTravelCost(
+      makeResources({ provisions: 10, hp: 15, travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 5 } }),
+      3,
+    );
+    expect(accumulated.travelStats.provisionsSpentTotal).toBe(8); // 5 + 3, lifetime, not reset
+  });
+});
+
+describe("recordTravelStats", () => {
+  it("increments forestsCrossed only for a forest hex", () => {
+    const next = recordTravelStats(makeResources(), "forest", false, "1,1", false);
+    expect(next.travelStats.forestsCrossed).toBe(1);
+    expect(next.travelStats.desertsCrossed).toBe(0);
+  });
+
+  it("increments desertsCrossed only for a desert hex", () => {
+    const next = recordTravelStats(makeResources(), "desert", false, "2,2", false);
+    expect(next.travelStats.desertsCrossed).toBe(1);
+    expect(next.travelStats.forestsCrossed).toBe(0);
+  });
+
+  it("Pirate: territoriesSailed only counts a water hex crossed while sailing (a boat hired)", () => {
+    const sailing = recordTravelStats(makeResources(), "water", false, "3,3", true);
+    expect(sailing.travelStats.territoriesSailed).toBe(1);
+
+    const waterWalking = recordTravelStats(makeResources(), "water", false, "3,3", false);
+    expect(waterWalking.travelStats.territoriesSailed).toBe(0);
+
+    const sailingOntoLand = recordTravelStats(makeResources(), "plain", false, "3,3", true);
+    expect(sailingOntoLand.travelStats.territoriesSailed).toBe(0);
+  });
+
+  it("Bard: citiesVisited de-duplicates by hex key, only counting a City/Fortress hex", () => {
+    const first = recordTravelStats(makeResources(), "plain", true, "0,1", false);
+    expect(first.travelStats.citiesVisited).toEqual(["0,1"]);
+
+    const revisited = recordTravelStats(first, "plain", true, "0,1", false);
+    expect(revisited.travelStats.citiesVisited).toEqual(["0,1"]); // not double-counted
+
+    const second = recordTravelStats(revisited, "plain", true, "0,2", false);
+    expect(second.travelStats.citiesVisited).toEqual(["0,1", "0,2"]);
+
+    const nonCity = recordTravelStats(second, "mountain", false, "0,3", false);
+    expect(nonCity.travelStats.citiesVisited).toEqual(["0,1", "0,2"]);
   });
 });
 

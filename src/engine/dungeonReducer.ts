@@ -487,6 +487,9 @@ function hasUsableArmor(draft: Draft<DungeonState>): boolean {
 function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>): void {
   // Poison: "All damage from this creature cannot be absorbed by armor or other means" -- tallied
   // apart from every other monster's damage, which the player may still choose to absorb.
+  // Pirate (Advanced Class, issue #72): "Ignores Poison" -- the damage still lands, but no longer
+  // bypasses armor, so it folds into absorbableDamage below instead of the poison-only pool.
+  const ignoresPoison = draft.advancedClasses.includes("Pirate");
   let poisonDamage = 0;
   let absorbableDamage = 0;
   let deathtouchKill = false;
@@ -494,7 +497,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
   for (const monster of combat.monsters) {
     if (!monster.skipNextAttack) {
       const dmg = monster.damage + monster.bonusDamage;
-      if (monster.abilities.includes("poison")) {
+      if (monster.abilities.includes("poison") && !ignoresPoison) {
         poisonDamage += dmg;
       } else {
         absorbableDamage += dmg;
@@ -1177,12 +1180,17 @@ export function dungeonReducer(
           wakeSneakedPastMonsters(draft, seg, rng);
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
-            // Thief (issue #70): counts as opened regardless of whether the free-pick bypass
-            // below applies -- the lock was still opened either way.
+            // Thief (Advanced Class, issue #70): counts as opened regardless of whether the
+            // free-pick bypass below applies -- the lock was still opened either way.
             draft.milestones.locksOpened += 1;
-            // Locksmith (base Class) and Burglar (Hireling, issue #25) grant the identical
+            // Locksmith (base Class), Burglar (Hireling, issue #25), and Thief (Advanced Class,
+            // its own "Does not waste torches when Opening Locks" ability) all grant the identical
             // "no torch spent picking a lock" benefit.
-            if (draft.className === "Locksmith" || draft.hireling === "Burglar") {
+            if (
+              draft.className === "Locksmith" ||
+              draft.hireling === "Burglar" ||
+              draft.advancedClasses.includes("Thief")
+            ) {
               pushLog(draft, `Segment ${seg.id}: your lockpicking skill needs no torch.`);
             } else {
               spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id);

@@ -204,8 +204,15 @@ export function TownScreen({
   onHardReset,
 }: TownScreenProps) {
   const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
-  const isCatPerson = character.race.name === "Cat-Person";
-  const isBlacksmith = character.cls.name === "Blacksmith";
+  // Merchant's "sell items for double the value" is the identical bonus Cat-Person already grants
+  // -- same "two rulebook entries, one bonus" precedent as Grave Digger/Gravedigger, just OR'd
+  // into the existing flag rather than a second boolean the caller would have to combine itself.
+  const isCatPerson =
+    character.race.name === "Cat-Person" || resources.advancedClasses.includes("Merchant");
+  // Blacksmith (base Class) and Blacksmith (Advanced Class, issue #72) grant the identical
+  // "repair an armor by spending 1 Torch instead of a coin" -- same dual-source-one-bonus shape.
+  const isBlacksmith =
+    character.cls.name === "Blacksmith" || resources.advancedClasses.includes("Blacksmith");
   const isChampion = resources.advancedClasses.includes("Champion");
   const isAlchemist = resources.advancedClasses.includes("Alchemist");
   const [graveyard] = useState(() => loadGraveyard());
@@ -478,8 +485,14 @@ export function TownScreen({
                   </div>
                   <p className={styles.sellNote}>
                     Sell items from your Pack for their listed worth in coins
-                    {isCatPerson ? " (doubled, Cat-Person)" : ""}, or fix a damaged armor piece from
-                    your Equipment, for {isBlacksmith ? "1 torch (Blacksmith)" : "1 coin"}.
+                    {isCatPerson
+                      ? ` (doubled, ${character.race.name === "Cat-Person" ? "Cat-Person" : "Merchant"})`
+                      : ""}
+                    , or fix a damaged armor piece from your Equipment, for{" "}
+                    {isBlacksmith
+                      ? `1 torch (${character.cls.name === "Blacksmith" ? "Blacksmith" : "Advanced Class"})`
+                      : "1 coin"}
+                    .
                   </p>
                 </section>
               )}

@@ -1293,6 +1293,22 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.log[0]!.message).toContain("needs no torch");
   });
 
+  it("Thief (Advanced Class, issue #72): pick lock costs no torch, same as Locksmith/Burglar", () => {
+    const state = { ...doorState(0), advancedClasses: ["Thief"] };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 2,
+      trapRoll: null,
+      lockChoice: "pickLock",
+    });
+    expect(next.torches).toBe(0);
+    expect(next.alive).toBe(true);
+    expect(next.log[0]!.message).toContain("needs no torch");
+    expect(next.milestones.locksOpened).toBe(1);
+  });
+
   it("Lumberjack: breaking a door gains 1 torch on a roll of 6", () => {
     const state = { ...doorState(3), className: "Lumberjack" };
     const next = dungeonReducer(

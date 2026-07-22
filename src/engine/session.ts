@@ -1,6 +1,10 @@
 import type { CreatedCharacter } from "../data/types.ts";
 import type { PendingDungeon } from "./dungeonState.ts";
-import { createInitialMilestones, type AdventurerResources } from "./town.ts";
+import {
+  createInitialMilestones,
+  createInitialTravelStats,
+  type AdventurerResources,
+} from "./town.ts";
 import type { WorldState } from "./hexState.ts";
 
 /** Everything App.tsx needs to resume exactly where the player left off after a reload --
@@ -42,9 +46,10 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
     const p = parsed as Partial<SessionState>;
     return {
       character: p.character ?? null,
-      // advancedClasses (issue #23), hireling (issue #25), animals (issue #26), and milestones
-      // (issue #70) all postdate this field -- back-fill them for a session persisted before any
-      // of them existed, same "optional for back-compat" precedent as WorldState.bannedHexes.
+      // advancedClasses (issue #23), hireling (issue #25), animals (issue #26), milestones
+      // (issue #70), and travelStats (issue #72) all postdate this field -- back-fill them for a
+      // session persisted before any of them existed, same "optional for back-compat" precedent
+      // as WorldState.bannedHexes.
       resources: p.resources
         ? {
             ...p.resources,
@@ -52,6 +57,7 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
             hireling: p.resources.hireling ?? null,
             animals: p.resources.animals ?? [],
             milestones: p.resources.milestones ?? createInitialMilestones(),
+            travelStats: p.resources.travelStats ?? createInitialTravelStats(),
           }
         : null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],

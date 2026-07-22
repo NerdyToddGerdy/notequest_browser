@@ -1004,6 +1004,19 @@ describe("Armor: damage-absorption choice", () => {
     expect(next.alive).toBe(false);
     expect(next.combat).toBeNull(); // no lingering absorption prompt (or fight at all) for a dead character
   });
+
+  it("Pirate (Advanced Class, issue #72): Ignores Poison -- the damage still lands, but as an absorbable choice, not forced onto HP", () => {
+    const poisoner = makeMonster({ id: 1, hp: 10, damage: 2, abilities: ["poison"] });
+    const state = stateWithCombat(
+      { advancedClasses: ["Pirate"], armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] },
+      [poisoner],
+    );
+
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: poisoner.id, roll: 3 });
+
+    expect(next.hp).toBe(next.maxHp); // untouched -- the choice hasn't been made yet
+    expect(next.combat!.pendingDamage).toBe(2); // Poison damage now offered as a normal choice
+  });
 });
 
 describe("Armor: ignoresMonsterAbility", () => {

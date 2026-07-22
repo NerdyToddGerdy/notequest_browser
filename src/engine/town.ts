@@ -1,4 +1,5 @@
 import type { MonsterAbility } from "../data/dungeonTables.ts";
+import type { Terrain } from "../data/hexTables.ts";
 import type { SpellTableKey } from "../data/types.ts";
 import { HEAL_AMOUNT, OUT_OF_COMBAT_SPELL_NAMES } from "./combat.ts";
 import type { ArmorPiece, EquippedWeapon, HeldItem } from "./dungeonState.ts";
@@ -51,6 +52,49 @@ export interface AdventurerResources {
    * requirement checks that don't fit the existing kill-tally/graveyard-based shapes -- see
    * `AdvancedClassMilestones`. */
   milestones: AdvancedClassMilestones;
+  /** Lifetime World-map travel counters (issue #72) powering Lumberjack/Druid/Survivor/Pirate/
+   * Bard/Cook's requirement checks -- see `TravelStats`. Unlike `milestones`, this is never
+   * mirrored on `DungeonState`: every one of these signals only ever changes via World-map travel
+   * (`WorldScreen.tsx`'s `handleTravel()`) or Town's Rest/Buy actions, nothing inside a dungeon
+   * run needs to read it mid-fight. */
+  travelStats: TravelStats;
+}
+
+/** Lifetime World-map travel counters (issue #72) -- bundled into one object for the same reason
+ * `AdvancedClassMilestones` is: keeps the threading surface (creation, `handleReturnToTown`,
+ * `loadSession()` back-fill) from growing by 5 more individual fields. Unlike `milestones`, none
+ * of these need mirroring onto `DungeonState` (see `AdventurerResources.travelStats`'s own doc
+ * comment) so there's no `RESUME_DUNGEON`/`RETURN_TO_DUNGEON` threading to do at all -- `App.tsx`'s
+ * `handleReturnToTown` just carries it forward from `prev`, the same way `provisions` already is,
+ * since `DungeonState` has no equivalent field to read it from. */
+export interface TravelStats {
+  /** Lumberjack (>= 2) / Druid (>= 6, the same signal at a higher threshold) -- every move onto a
+   * forest hex, lifetime, not deduplicated by hex. */
+  forestsCrossed: number;
+  /** Survivor (>= 2) -- every move onto a desert hex, lifetime. */
+  desertsCrossed: number;
+  /** Pirate (>= 5) -- "sailed through," so this only counts a move onto a water hex made while
+   * `WorldState.hasBoat` was true for that move (a water hex crossed via Patovsky/Sharkin's own
+   * water-walking, with no boat hired, isn't "sailing"). */
+  territoriesSailed: number;
+  /** Bard (>= 3) -- distinct cities/fortresses *visited*, so this needs de-duplication (unlike the
+   * three counters above) -- stored as the hex key of every City/Fortress hex ever arrived at. */
+  citiesVisited: string[];
+  /** Cook (>= 20) -- lifetime provisions actually *spent* on travel, distinct from
+   * `resources.provisions`'s current balance (which also goes up on Buy Provisions) -- this only
+   * ever increases, tallied inside `payTravelCost()` itself from the same shortfall-aware `spend`
+   * value it already computes, rather than duplicating that math here. */
+  provisionsSpentTotal: number;
+}
+
+export function createInitialTravelStats(): TravelStats {
+  return {
+    forestsCrossed: 0,
+    desertsCrossed: 0,
+    territoriesSailed: 0,
+    citiesVisited: [],
+    provisionsSpentTotal: 0,
+  };
 }
 
 /** One-time achievement flags/counters (issue #70) that exist purely to answer a handful of
@@ -262,6 +306,40 @@ export function payTravelCost(
     ...resources,
     provisions: resources.provisions - spend,
     hp: Math.max(1, resources.hp - (shortfall > 0 ? 1 : 0)),
+    // Cook (Advanced Class, issue #72): "spent 20 provisions on the road" -- tallies the actual
+    // shortfall-aware amount deducted above, not the raw terrain cost.
+    travelStats: {
+      ...resources.travelStats,
+      provisionsSpentTotal: resources.travelStats.provisionsSpentTotal + spend,
+    },
+  };
+}
+
+/** Advanced Classes (issue #72): the remaining lifetime travel counters -- forests/deserts
+ * crossed, territories sailed, and distinct cities visited -- called by `WorldScreen.tsx`'s
+ * `handleTravel()` alongside `payTravelCost()`, describing whichever hex the player is actually
+ * arriving at. Kept separate from `payTravelCost()` (which only knows a numeric cost) since these
+ * need the destination's terrain/location, which the caller already has in hand. */
+export function recordTravelStats(
+  resources: AdventurerResources,
+  terrain: Terrain,
+  isCity: boolean,
+  hexKey: string,
+  wasSailing: boolean,
+): AdventurerResources {
+  const stats = resources.travelStats;
+  return {
+    ...resources,
+    travelStats: {
+      ...stats,
+      forestsCrossed: stats.forestsCrossed + (terrain === "forest" ? 1 : 0),
+      desertsCrossed: stats.desertsCrossed + (terrain === "desert" ? 1 : 0),
+      territoriesSailed: stats.territoriesSailed + (wasSailing && terrain === "water" ? 1 : 0),
+      citiesVisited:
+        isCity && !stats.citiesVisited.includes(hexKey)
+          ? [...stats.citiesVisited, hexKey]
+          : stats.citiesVisited,
+    },
   };
 }
 
