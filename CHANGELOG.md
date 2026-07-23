@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.1] - 2026-07-22
+
+### Fixed
+
+- Added a favicon (#74) -- a hand-authored torch-flame SVG in the
+  game's own gold/ember palette, referenced from `index.html`. The
+  browser tab previously showed a generic default icon.
+
 ## [2.17.0] - 2026-07-22
 
 ### Added
