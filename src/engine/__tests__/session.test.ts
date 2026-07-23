@@ -59,6 +59,7 @@ const RESOURCES: AdventurerResources = {
   weapon: null,
   spareWeapons: [],
   spellUses: {},
+  maxSpellUses: {},
   monsterKills: 2,
   bossKills: 0,
   killsByName: {},
@@ -181,6 +182,35 @@ describe("loadSession", () => {
       ...oldResources,
       travelStats: createInitialTravelStats(),
     });
+  });
+
+  it("back-fills resources.maxSpellUses (issue #75) from character.spells/fixedGrants for a session persisted before it existed", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { maxSpellUses, ...oldResources } = RESOURCES;
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
+    });
+    // CHARACTER has no starting spells at all, so the back-fill computes an empty ceiling.
+    expect(loadSession(storage).resources).toEqual({ ...oldResources, maxSpellUses: {} });
+  });
+
+  it("maxSpellUses back-fill takes the higher of the creation-time grant or whatever spellUses already holds -- a save from before this fix isn't regressed any further than it already was", () => {
+    const characterWithHeal: CreatedCharacter = {
+      ...CHARACTER,
+      fixedGrants: [{ table: "basic", spellRoll: 1, uses: 1 }],
+    };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { maxSpellUses, ...oldResources } = RESOURCES;
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({
+        ...FULL_SESSION,
+        character: characterWithHeal,
+        // basic:1 exceeds its creation-time grant of 1 (an Advanced Class grant this old save
+        // can't otherwise account for); basic:2 has no creation-time grant at all.
+        resources: { ...oldResources, spellUses: { "basic:1": 3, "basic:2": 2 } },
+      }),
+    });
+    expect(loadSession(storage).resources?.maxSpellUses).toEqual({ "basic:1": 3, "basic:2": 2 });
   });
 });
 

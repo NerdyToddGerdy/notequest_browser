@@ -320,6 +320,7 @@ describe("Room Content rewards", () => {
       rng,
     );
     expect(state.spellUses).toEqual({ "basic:3": 3 }); // three scrolls, all rolling spell 3 (Teleport)
+    expect(state.maxSpellUses).toEqual({ "basic:3": 3 }); // raises the ceiling too (issue #75)
     expect(state.log.some((entry) => entry.message.includes("3 Magic Scrolls"))).toBe(true);
   });
 
@@ -1853,7 +1854,7 @@ describe("CAST_SPELL guards", () => {
 describe("OPEN_TREASURE", () => {
   it("a flat-value outcome (Palace roll 1: Ornament) adds a held item and consumes the treasure", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 2 };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
     expect(next.treasures).toBe(1);
     expect(next.coins).toBe(0);
     expect(next.heldItems).toEqual([{ name: "Ornament", worth: 5 }]);
@@ -1867,7 +1868,7 @@ describe("OPEN_TREASURE", () => {
       hp: 12,
       maxHp: 20,
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 2, maxSpellUses: {} });
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 2 });
     expect(next.hp).toBe(20);
   });
 
@@ -1875,10 +1876,11 @@ describe("OPEN_TREASURE", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1, spellUses: {} };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 3, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 3 },
       fixedDie(5),
     );
     expect(next.spellUses).toEqual({ "basic:5": 1 });
+    expect(next.maxSpellUses).toEqual({ "basic:5": 1 }); // raises the ceiling too (issue #75)
     expect(next.log[0]!.message).toContain("Lightning");
     expect(next.milestones.hasCastSpell).toBe(true); // Scholar (issue #70): scroll redemption counts
   });
@@ -1887,7 +1889,7 @@ describe("OPEN_TREASURE", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 4, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 4 },
       sequenceDie([4, 3]),
     );
     expect(next.coins).toBe(0);
@@ -1899,7 +1901,7 @@ describe("OPEN_TREASURE", () => {
     // Wonders roll 1 -> Jester Hat (2 HP; Can't Move in Silence).
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 5 },
       fixedDie(1),
     );
     expect(next.treasures).toBe(0);
@@ -1914,7 +1916,7 @@ describe("OPEN_TREASURE", () => {
     // Wonders roll 3 -> Amulet of the Dead (Ignores Undead effect).
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 5 },
       fixedDie(3),
     );
     expect(next.armor).toEqual([
@@ -1933,7 +1935,7 @@ describe("OPEN_TREASURE", () => {
     // Magic Item roll 3 -> Centurion's [Armor] (+1 HP); base Armor roll 3 (same forced die) -> Boots (3 HP).
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 6 },
       fixedDie(3),
     );
     expect(next.armor).toEqual([
@@ -1946,7 +1948,7 @@ describe("OPEN_TREASURE", () => {
     // Magic Item roll 4 -> [Weapon] of Destruction (+2 damage); base Weapon roll 4 -> Whip (1d6+1).
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 6 },
       fixedDie(4),
     );
     // Weapon finds land in spareWeapons, never auto-equipped -- see WIELD_WEAPON.
@@ -1967,12 +1969,9 @@ describe("OPEN_TREASURE", () => {
       dungeonTypeKey: "tomb",
       treasures: 1,
       spellUses: { "basic:1": 0, "basic:6": 1 },
-    };
-    const next = dungeonReducer(state, {
-      type: "OPEN_TREASURE",
-      roll: 1,
       maxSpellUses: { "basic:1": 3, "basic:6": 3 },
-    });
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
     expect(next.spellUses).toEqual({ "basic:1": 3, "basic:6": 3 });
   });
 
@@ -1985,7 +1984,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 5 },
       fixedDie(6),
     );
     expect(next.torches).toBe(7);
@@ -2000,7 +1999,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 5 },
       fixedDie(6),
     );
     expect(next.torches).toBe(10);
@@ -2037,7 +2036,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 5 },
       fixedDie(5),
     );
     expect(next.combat!.playerDamageBonus).toBe(2);
@@ -2051,7 +2050,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 5 },
       fixedDie(5),
     );
     expect(next.combat).toBeNull();
@@ -2067,7 +2066,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 5, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 5 },
       fixedDie(5),
     );
     expect(next.spellUses).toEqual({ "basic:5": 1 });
@@ -2082,7 +2081,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 6 },
       fixedDie(5),
     );
     expect(next.weapon).toBeNull();
@@ -2104,7 +2103,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 6 },
       fixedDie(6),
     );
     expect(next.weapon).toBeNull();
@@ -2126,7 +2125,7 @@ describe("OPEN_TREASURE", () => {
     // Magic Item roll 1 -> Bone [Armor] (-1 HP); base Armor roll 1 (same forced die) -> Ring (0 HP).
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 6, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 6 },
       fixedDie(1),
     );
     expect(next.armor).toEqual([
@@ -2142,7 +2141,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(
       state,
-      { type: "OPEN_TREASURE", roll: 4, maxSpellUses: {} },
+      { type: "OPEN_TREASURE", roll: 4 },
       fixedDie(3),
     );
     expect(next.weapon).toBeNull();
@@ -2153,13 +2152,13 @@ describe("OPEN_TREASURE", () => {
 describe("OPEN_TREASURE guards", () => {
   it("is a no-op with no treasures to open", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 0 };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
     expect(next).toBe(state);
   });
 
   it("is a no-op once the character is dead", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1, alive: false };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
     expect(next).toBe(state);
   });
 });
@@ -2215,6 +2214,7 @@ describe("RESUME_DUNGEON", () => {
       maxHp: 24,
       weaponFormula: "1d6+1",
       spellUses: { "basic:1": 2 },
+      maxSpellUses: { "basic:1": 2 },
       characterName: "New Hero",
       raceName: "",
       className: "",
@@ -2280,6 +2280,7 @@ describe("RESUME_DUNGEON", () => {
         maxHp: 20,
         weaponFormula: "1d6",
         spellUses: {},
+        maxSpellUses: {},
         characterName: "New Hero",
         raceName: "",
         className: "",
@@ -2339,6 +2340,7 @@ describe("RESUME_DUNGEON", () => {
       maxHp: 30,
       weaponFormula: "1d6",
       spellUses: {},
+      maxSpellUses: {},
       characterName: "New Hero",
       raceName: "",
       className: "",
@@ -2371,6 +2373,7 @@ describe("RESUME_DUNGEON", () => {
       maxHp: 20,
       weaponFormula: "1d6",
       spellUses: {},
+      maxSpellUses: {},
       characterName: "New Hero",
       raceName: "",
       className: "",
@@ -2436,6 +2439,7 @@ describe("RESUME_DUNGEON", () => {
         maxHp: 20,
         weaponFormula: "1d6",
         spellUses: {},
+        maxSpellUses: {},
         characterName: "New Hero",
         raceName: "",
         className: "",
@@ -2494,6 +2498,7 @@ describe("RETURN_TO_DUNGEON", () => {
       spareWeapons: [],
       weaponFormula: "1d6",
       spellUses: { "basic:1": 3 },
+      maxSpellUses: { "basic:1": 3 },
       characterName: "Pip",
       raceName: "",
       className: "",
@@ -2553,6 +2558,7 @@ describe("RETURN_TO_DUNGEON", () => {
       spareWeapons: [],
       weaponFormula: "1d6",
       spellUses: {},
+      maxSpellUses: {},
       characterName: "Pip",
       raceName: "",
       className: "",
@@ -2624,6 +2630,7 @@ describe("RETURN_TO_DUNGEON", () => {
       spareWeapons: [],
       weaponFormula: "1d6",
       spellUses: {},
+      maxSpellUses: {},
       characterName: "Pip",
       raceName: "",
       className: "",
@@ -2674,6 +2681,7 @@ describe("RETURN_TO_DUNGEON", () => {
       spareWeapons: [],
       weaponFormula: "1d6",
       spellUses: {},
+      maxSpellUses: {},
       characterName: "Pip",
       raceName: "",
       className: "",
@@ -2733,6 +2741,7 @@ describe("Monster table re-roll on return", () => {
         spareWeapons: [],
         weaponFormula: "1d6",
         spellUses: {},
+        maxSpellUses: {},
         characterName: "Pip",
         raceName: "",
         className: "",
@@ -2782,6 +2791,7 @@ describe("Monster table re-roll on return", () => {
         maxHp: 20,
         weaponFormula: "1d6",
         spellUses: {},
+        maxSpellUses: {},
         characterName: "Newcomer",
         raceName: "",
         className: "",
@@ -2856,6 +2866,7 @@ describe("Monster table re-roll on return", () => {
       spareWeapons: [],
       weaponFormula: "1d6",
       spellUses: {},
+      maxSpellUses: {},
       characterName: "Pip",
       raceName: "",
       className: "",
@@ -3016,6 +3027,7 @@ describe("Resuming a fight abandoned via Teleport", () => {
       spareWeapons: [],
       weaponFormula: "1d6",
       spellUses: {},
+      maxSpellUses: {},
       characterName: "Pip",
       raceName: "",
       className: "",

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { AnimalDef, CreatedCharacter } from "../../../data/types.ts";
 import type { CityCulture } from "../../../data/affinity.ts";
-import { computeSpellUses } from "../../../engine/character.ts";
 import { loadGraveyard, type TownDeathCause } from "../../../engine/graveyard.ts";
 import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import { acquireAdvancedClass } from "../../../engine/advancedClasses.ts";
@@ -203,7 +202,6 @@ export function TownScreen({
   onExploreWorld,
   onHardReset,
 }: TownScreenProps) {
-  const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
   // Merchant's "sell items for double the value" is the identical bonus Cat-Person already grants
   // -- same "two rulebook entries, one bonus" precedent as Grave Digger/Gravedigger, just OR'd
   // into the existing flag rather than a second boolean the caller would have to combine itself.
@@ -357,8 +355,8 @@ export function TownScreen({
                     <button
                       className={styles.actionBtn}
                       type="button"
-                      disabled={!canRest(resources, maxSpellUses, isChampion)}
-                      onClick={() => onUpdateResources(rest(resources, maxSpellUses, isChampion))}
+                      disabled={!canRest(resources, isChampion)}
+                      onClick={() => onUpdateResources(rest(resources, isChampion))}
                     >
                       <span className={styles.actionName}>Rest</span>
                       <span className={styles.actionCost}>{isChampion ? "Free (Champion)" : "1 coin"}</span>
@@ -570,6 +568,7 @@ export function TownScreen({
             character={character}
             torches={resources.torches}
             hp={resources.hp}
+            maxHp={resources.maxHp}
             coins={resources.coins}
             treasures={resources.treasures}
             keys={resources.keys}
@@ -577,6 +576,7 @@ export function TownScreen({
             weaponName={resources.weapon?.name}
             weaponFormula={resources.weapon?.formula}
             spellUses={resources.spellUses}
+            maxSpellUses={resources.maxSpellUses}
             monsterKills={resources.monsterKills}
             killsByName={resources.killsByName}
             canCastOutOfCombat

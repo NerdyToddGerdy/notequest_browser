@@ -40,6 +40,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     weapon: null,
     spareWeapons: [],
     spellUses: {},
+    maxSpellUses: {},
     monsterKills: 0,
     bossKills: 0,
     killsByName: {},
@@ -478,6 +479,9 @@ describe("acquireAdvancedClass", () => {
     const ctx = makeCtx({ coins: 200, killsByAbility: { undead: 1 } });
     const next = acquireAdvancedClass(ctx, "Cleric");
     expect(next.spellUses["basic:1"]).toBe(2);
+    // Raises the ceiling too (issue #75), or this grant would vanish from CharacterSheet's Spells
+    // list and get wiped out the next time the character rests.
+    expect(next.maxSpellUses["basic:1"]).toBe(2);
   });
 
   it("Paladin grants 3 fixed uses of Heal, stacking on top of any already granted", () => {
@@ -504,6 +508,10 @@ describe("acquireAdvancedClass", () => {
     expect(next.spellUses["death:2"]).toBe(1);
     expect(next.spellUses["death:3"]).toBe(1);
     expect(next.spellUses["death:4"]).toBe(1);
+    // Zeroes the ceiling too (issue #75) -- otherwise a later Rest would silently restore Heal
+    // from whatever the character's original creation-time grant was, undoing this ability.
+    expect(next.maxSpellUses["basic:1"]).toBe(0);
+    expect(next.maxSpellUses["death:1"]).toBe(1);
   });
 
   it("Mage grants 4 random Basic Spell uses", () => {
@@ -513,6 +521,10 @@ describe("acquireAdvancedClass", () => {
     expect(next.spellUses["basic:1"]).toBe(3); // 1 existing + 2 new Heal rolls
     expect(next.spellUses["basic:2"]).toBe(2);
     expect(next.spellUses["basic:3"]).toBe(2);
+    // Raises the ceiling too (issue #75), same amount as the grant itself.
+    expect(next.maxSpellUses["basic:1"]).toBe(2);
+    expect(next.maxSpellUses["basic:2"]).toBe(1);
+    expect(next.maxSpellUses["basic:3"]).toBe(1);
   });
 
   it("Elementalist grants 4 random Elemental Spell uses", () => {

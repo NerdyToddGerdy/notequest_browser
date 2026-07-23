@@ -183,6 +183,23 @@ export function canAcquireAdvancedClass(ctx: AdvancedClassContext, name: string)
   return meetsAdvancedClassRequirement(name, ctx);
 }
 
+/** Grants `count` fixed (not random) uses of one specific spell, bumping `maxSpellUses` alongside
+ * `spellUses` the same way `grantSpellUses()` does -- shared by Cleric/Paladin's Heal grants and
+ * Bard's Paralyze grant, the three fixed-spell (as opposed to random-table-roll) grants. */
+function grantFixedSpellUse(
+  resources: AdventurerResources,
+  table: Parameters<typeof spellKey>[0],
+  roll: number,
+  count: number,
+): AdventurerResources {
+  const key = spellKey(table, roll);
+  return {
+    ...resources,
+    spellUses: { ...resources.spellUses, [key]: (resources.spellUses[key] ?? 0) + count },
+    maxSpellUses: { ...resources.maxSpellUses, [key]: (resources.maxSpellUses[key] ?? 0) + count },
+  };
+}
+
 /** Rolls `count` spells from `table` and adds one use of each to `resources.spellUses` -- shared
  * with `hirelings.ts` (Rent Wizard/Elf Soldier/Gnome Helper's "cast N random Basic Spells"), since
  * both are the identical "grant N random spell uses at hire/acquire time" shape. */
@@ -193,12 +210,16 @@ export function grantSpellUses(
   rng: RNG,
 ): AdventurerResources {
   const spellUses = { ...resources.spellUses };
+  const maxSpellUses = { ...resources.maxSpellUses };
   for (let i = 0; i < count; i++) {
     const { entry } = rollSpellFromTable(table, rng);
     const key = spellKey(entry.table, entry.roll);
     spellUses[key] = (spellUses[key] ?? 0) + 1;
+    // A grant permanently raises the ceiling too (issue #75) -- otherwise this spell never shows
+    // up in CharacterSheet's Spells list at all, and a later Rest wipes it straight back to 0.
+    maxSpellUses[key] = (maxSpellUses[key] ?? 0) + 1;
   }
-  return { ...resources, spellUses };
+  return { ...resources, spellUses, maxSpellUses };
 }
 
 /** Applies the acquired class's ability, where it grants something mechanically real (see
@@ -220,20 +241,23 @@ function applyAdvancedClassAbility(
     // Mage, Scholar's requirement (`hasCastSpell`) is what unblocked this, not the spell count itself.
     case "Scholar":
       return grantSpellUses(resources, "basic", 3, rng);
-    case "Cleric": {
-      const key = spellKey("basic", 1); // Heal
-      return { ...resources, spellUses: { ...resources.spellUses, [key]: (resources.spellUses[key] ?? 0) + 2 } };
-    }
-    case "Paladin": {
-      const key = spellKey("basic", 1); // Heal
-      return { ...resources, spellUses: { ...resources.spellUses, [key]: (resources.spellUses[key] ?? 0) + 3 } };
-    }
+    case "Cleric":
+      return grantFixedSpellUse(resources, "basic", 1, 2); // Heal
+    case "Paladin":
+      return grantFixedSpellUse(resources, "basic", 1, 3); // Heal
     case "Anti-Paladin": {
       // "Gains 4 Death Spells but loses all Healing spells" -- Heal is the only spell in this
-      // codebase that heals today, so it's the only one zeroed out.
+      // codebase that heals today, so it's the only one zeroed out. Zeroing maxSpellUses too
+      // (not just spellUses) is what makes this stick through a later Rest (issue #75) -- before
+      // that fix, Rest would silently restore Heal from whatever the character's original
+      // creation-time grant was, undoing this ability entirely.
       const withDeath = grantSpellUses(resources, "death", 4, rng);
       const healKey = spellKey("basic", 1);
-      return { ...withDeath, spellUses: { ...withDeath.spellUses, [healKey]: 0 } };
+      return {
+        ...withDeath,
+        spellUses: { ...withDeath.spellUses, [healKey]: 0 },
+        maxSpellUses: { ...withDeath.maxSpellUses, [healKey]: 0 },
+      };
     }
     case "Elementalist":
       return grantSpellUses(resources, "elemental", 4, rng);
@@ -253,10 +277,8 @@ function applyAdvancedClassAbility(
     // #61 -- New Spells' still-deferred effects), so this correctly tracks the uses without doing
     // anything mechanical until that spell itself is wired up, the same "tracked but not castable"
     // state every other deferred New Spell is already in.
-    case "Bard": {
-      const key = spellKey("advanced", 5); // Paralyze
-      return { ...resources, spellUses: { ...resources.spellUses, [key]: (resources.spellUses[key] ?? 0) + 3 } };
-    }
+    case "Bard":
+      return grantFixedSpellUse(resources, "advanced", 5, 3); // Paralyze
     default:
       return resources;
   }

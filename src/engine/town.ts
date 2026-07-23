@@ -23,6 +23,17 @@ export interface AdventurerResources {
   spareWeapons: EquippedWeapon[];
   /** Keyed by `character.ts`'s `spellKey(table, roll)` composite -- see `DungeonState.spellUses`. */
   spellUses: Record<string, number>;
+  /** Per-spell ceiling `spellUses` can hold/be restored to by Rest -- unlike `spellUses` itself,
+   * this isn't derivable on the fly from `character.spells`/`fixedGrants` alone (issue #75): a
+   * spell granted *after* Character Creation (an Advanced Class/Hireling ability, Gnome's Culture
+   * Action, a Magic Scroll) needs its own ceiling too, or it silently never shows up in
+   * `CharacterSheet`'s Spells list and gets wiped back down to nothing the next time the character
+   * Rests. Starts as `computeSpellUses(character.spells, character.fixedGrants)` at creation, then
+   * every site that grants a spell use bumps this by the identical amount alongside `spellUses`
+   * itself -- see `grantSpellUses()`, Cleric/Paladin/Anti-Paladin/Bard's fixed grants, Gnome's
+   * `learnRandomSpell()`, and `dungeonReducer.ts`'s Magic Scroll/`magicScrolls` reward sites.
+   * Mirrored on `DungeonState` for the same reason `spellUses` itself is. */
+  maxSpellUses: Record<string, number>;
   monsterKills: number;
   bossKills: number;
   /** Per-monster-name/-ability kill tallies, mirroring `DungeonState`'s own fields of the same
@@ -142,28 +153,29 @@ export const MAX_PROVISIONS = 20;
 /** Resting only helps if it would actually recover something -- full HP and every spell already
  * at its max uses means the coin buys nothing. `isChampion`: Advanced Class Champion's "You don't
  * need to spend money to recover" waives the coin cost entirely, same optional-flag shape as
- * `isBlacksmith`/`isCatPerson` below. */
-export function canRest(
-  resources: AdventurerResources,
-  maxSpellUses: Record<string, number>,
-  isChampion = false,
-): boolean {
+ * `isBlacksmith`/`isCatPerson` below. Reads `resources.maxSpellUses` directly (issue #75) rather
+ * than taking it as a separate parameter -- that field is now the persisted source of truth,
+ * kept in sync by every spell-granting site, so a second, independently-computed value here could
+ * only ever drift from it. */
+export function canRest(resources: AdventurerResources, isChampion = false): boolean {
   if (!isChampion && resources.coins < 1) return false;
   if (resources.hp < resources.maxHp) return true;
-  return Object.entries(maxSpellUses).some(([key, max]) => (resources.spellUses[key] ?? 0) < max);
+  return Object.entries(resources.maxSpellUses).some(
+    ([key, max]) => (resources.spellUses[key] ?? 0) < max,
+  );
 }
 
-/** "Rest: Spend 1 coin and recover your HP and spells consumed." */
-export function rest(
-  resources: AdventurerResources,
-  maxSpellUses: Record<string, number>,
-  isChampion = false,
-): AdventurerResources {
+/** "Rest: Spend 1 coin and recover your HP and spells consumed." Restores to
+ * `resources.maxSpellUses` (issue #75) -- the persisted ceiling, not a value recomputed from
+ * `character.spells`/`fixedGrants` alone, so a spell granted after Character Creation (an
+ * Advanced Class/Hireling ability, Gnome's Culture Action, a Magic Scroll) survives a Rest
+ * instead of being silently wiped back down to the character's original starting allotment. */
+export function rest(resources: AdventurerResources, isChampion = false): AdventurerResources {
   return {
     ...resources,
     coins: isChampion ? resources.coins : resources.coins - 1,
     hp: resources.maxHp,
-    spellUses: { ...maxSpellUses },
+    spellUses: { ...resources.maxSpellUses },
   };
 }
 
@@ -176,11 +188,12 @@ export function canCastSpell(resources: AdventurerResources, table: SpellTableKe
   return (resources.spellUses[spellKey(table, roll)] ?? 0) > 0;
 }
 
-/** Town/World's own equivalent of dungeonReducer.ts's CAST_SPELL case, for just Heal and Light --
- * the only two spells CharacterSheet's "Cast" button ever offers outside a dungeon (Teleport/Cold
- * Ray/Lightning/Fireball all need combat, which neither screen has). Mirrors that case's Heal
- * (min(HEAL_AMOUNT, room left before maxHp)) and Light (min(1, room left before MAX_TORCHES))
- * math exactly, since there's no DungeonState/reducer here to dispatch CAST_SPELL against. */
+/** Town/World's own equivalent of dungeonReducer.ts's CAST_SPELL case, for just the out-of-combat
+ * spells CharacterSheet's "Cast" button ever offers outside a dungeon (Teleport/Cold Ray/Lightning/
+ * Fireball/Insect Rain/Magic Blast/Banish the Dead all need combat, which neither screen has).
+ * Mirrors that case's Heal/Natural Cure (min(amount, room left before maxHp)) and Light
+ * (min(1, room left before MAX_TORCHES)) math exactly, since there's no DungeonState/reducer here
+ * to dispatch CAST_SPELL against. */
 export function castSpell(
   resources: AdventurerResources,
   table: SpellTableKey,
@@ -192,6 +205,10 @@ export function castSpell(
   const spellUses = { ...resources.spellUses, [key]: resources.spellUses[key]! - 1 };
   if (spell.name === "Heal") {
     const healed = Math.min(HEAL_AMOUNT, resources.maxHp - resources.hp);
+    return { ...resources, hp: resources.hp + healed, spellUses };
+  }
+  if (spell.name === "Natural Cure") {
+    const healed = Math.min(12, resources.maxHp - resources.hp);
     return { ...resources, hp: resources.hp + healed, spellUses };
   }
   const gained = Math.min(1, MAX_TORCHES - resources.torches);
@@ -413,6 +430,9 @@ export function learnRandomSpell(resources: AdventurerResources, rng: RNG = Math
     ...resources,
     coins: resources.coins - GNOME_SPELL_COST,
     spellUses: { ...resources.spellUses, [key]: (resources.spellUses[key] ?? 0) + 1 },
+    // Raises the ceiling too (issue #75), same as every other spell-granting site -- otherwise
+    // this never shows up in CharacterSheet's Spells list and a later Rest wipes it out.
+    maxSpellUses: { ...resources.maxSpellUses, [key]: (resources.maxSpellUses[key] ?? 0) + 1 },
   };
 }
 

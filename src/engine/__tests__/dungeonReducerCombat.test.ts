@@ -773,12 +773,72 @@ describe("CAST_SPELL: New Spells (issue #24) -- name-matched dispatch", () => {
     expect(next.combat!.monsters[0]!.hp).toBe(15);
   });
 
-  it("a New Spells effect with no real implementation yet (Nature's Natural Cure) is a no-op even with uses remaining", () => {
+  it("a New Spells effect with no real implementation yet (Nature's Vimes) is a no-op even with uses remaining", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
-    const state = stateWithCombat({ spellUses: { "nature:1": 1 } }, [monster]);
-    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "nature", spellRoll: 1 });
+    const state = stateWithCombat({ spellUses: { "nature:2": 1 } }, [monster]);
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "nature", spellRoll: 2 });
 
     expect(next).toBe(state);
+  });
+
+  it("Natural Cure (Nature 1, issue #61) recovers 12 HP, same shape as Basic's Heal", () => {
+    const state: DungeonState = {
+      ...stateWithCombat({ spellUses: { "nature:1": 1 } }, [makeMonster({ damage: 0 })]),
+      hp: 5,
+      maxHp: 20,
+    };
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "nature", spellRoll: 1 });
+    expect(next.hp).toBe(17);
+    expect(next.spellUses["nature:1"]).toBe(0);
+  });
+
+  it("Magic Blast (Advanced 10, issue #61) deals 12 damage to one target", () => {
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const state = stateWithCombat({ spellUses: { "advanced:10": 1 } }, [monster]);
+    const next = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      table: "advanced",
+      spellRoll: 10,
+      targetId: monster.id,
+    });
+    expect(next.combat!.monsters[0]!.hp).toBe(8);
+  });
+
+  it("Insect Rain (Nature 6, issue #61) deals 7 damage to every monster in the room", () => {
+    const monsters = [
+      makeMonster({ id: 1, hp: 20, damage: 0 }),
+      makeMonster({ id: 2, hp: 5, damage: 0 }),
+    ];
+    const state = stateWithCombat({ spellUses: { "nature:6": 1 } }, monsters);
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "nature", spellRoll: 6 });
+
+    expect(next.combat!.monsters).toHaveLength(1); // the 5-HP monster died to 7 damage
+    expect(next.combat!.monsters[0]!.hp).toBe(13);
+  });
+
+  it("Banish the Dead (Death 3, issue #61) destroys every Undead monster in the room, bypassing revival", () => {
+    const undead1 = makeMonster({ id: 1, hp: 3, damage: 0, abilities: ["undead"] });
+    const undead2 = makeMonster({ id: 2, hp: 100, damage: 0, abilities: ["undead"] });
+    const nonUndead = makeMonster({ id: 3, hp: 3, damage: 0, abilities: [] });
+    const state = stateWithCombat({ spellUses: { "death:3": 1 } }, [undead1, undead2, nonUndead]);
+    // Even a roll of 1 (which would normally revive an Undead) must not save it from this spell.
+    const next = dungeonReducer(
+      state,
+      { type: "CAST_SPELL", table: "death", spellRoll: 3 },
+      sequenceDie([1, 1]),
+    );
+
+    expect(next.combat!.monsters).toHaveLength(1);
+    expect(next.combat!.monsters[0]!.id).toBe(3);
+  });
+
+  it("Banish the Dead is a no-op flavor-wise (still consumes the round) when no Undead are present", () => {
+    const monster = makeMonster({ hp: 20, damage: 0, abilities: [] });
+    const state = stateWithCombat({ spellUses: { "death:3": 1 } }, [monster]);
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 3 });
+
+    expect(next.combat!.monsters).toHaveLength(1);
+    expect(next.log[0]!.message).toContain("no Undead linger here");
   });
 });
 
@@ -807,7 +867,7 @@ describe("OPEN_TREASURE in combat", () => {
   it("resolving it mid-fight consumes the round, letting the monster counter-attack", () => {
     const monster = makeMonster({ hp: 20, damage: 5 });
     const state = stateWithCombat({ treasures: 1 }, [monster]);
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
 
     expect(next.treasures).toBe(0);
     expect(next.coins).toBe(0);
@@ -819,7 +879,7 @@ describe("OPEN_TREASURE in combat", () => {
     const monster = makeMonster({ hp: 20, damage: 2 });
     const state = stateWithCombat({ treasures: 1 }, [monster]);
     state.combat!.paralyzedTurns = 1;
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} });
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
 
     expect(next.combat!.paralyzedTurns).toBe(0);
     expect(next.treasures).toBe(1); // never opened
@@ -926,7 +986,7 @@ describe("Armor: damage-absorption choice", () => {
       }),
     ).toBe(state);
     expect(dungeonReducer(state, { type: "CAST_SPELL", table: "basic", spellRoll: 1 })).toBe(state);
-    expect(dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1, maxSpellUses: {} })).toBe(state);
+    expect(dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 })).toBe(state);
   });
 
   it("RESOLVE_DAMAGE applied to HP subtracts it directly", () => {

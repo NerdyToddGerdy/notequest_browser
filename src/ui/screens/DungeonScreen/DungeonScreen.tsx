@@ -16,7 +16,6 @@ function reduceDungeon(state: DungeonState, action: DungeonAction): DungeonState
   return dungeonReducer(state, action);
 }
 import { rollDie } from "../../../engine/dice.ts";
-import { computeSpellUses } from "../../../engine/character.ts";
 import type { AdventurerResources } from "../../../engine/town.ts";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import { Die } from "../../components/Die/Die.tsx";
@@ -114,6 +113,7 @@ export function DungeonScreen({
         hireling: resources.hireling,
         animals: resources.animals,
         milestones: resources.milestones,
+        maxSpellUses: resources.maxSpellUses,
       });
     }
     if (resumeDungeon) {
@@ -125,6 +125,7 @@ export function DungeonScreen({
         maxHp: resources.maxHp,
         weaponFormula: character.cls.weaponDamage,
         spellUses: resources.spellUses,
+        maxSpellUses: resources.maxSpellUses,
         characterName: character.name,
         raceName: character.race.name,
         className: character.cls.name,
@@ -154,6 +155,7 @@ export function DungeonScreen({
       resources.hireling,
       resources.animals,
       resources.milestones,
+      resources.maxSpellUses,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -303,11 +305,7 @@ export function DungeonScreen({
     setOpeningTreasure(true);
     window.setTimeout(() => {
       setOpeningTreasure(false);
-      dispatch({
-        type: "OPEN_TREASURE",
-        roll,
-        maxSpellUses: computeSpellUses(character.spells, character.fixedGrants),
-      });
+      dispatch({ type: "OPEN_TREASURE", roll });
     }, revealDelay(1));
   }
 
@@ -536,12 +534,14 @@ export function DungeonScreen({
               character={character}
               torches={state.torches}
               hp={state.hp}
+              maxHp={state.maxHp}
               coins={state.coins}
               treasures={state.treasures}
               keys={state.keys}
               weaponName={state.weapon?.name}
               weaponFormula={state.weapon?.formula}
               spellUses={state.spellUses}
+              maxSpellUses={state.maxSpellUses}
               canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
               onCastSpell={(table, spellRoll) => dispatch({ type: "CAST_SPELL", table, spellRoll })}
               monsterKills={state.monsterKills}

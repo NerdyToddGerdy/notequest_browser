@@ -221,6 +221,7 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     milestones: createInitialMilestones(),
     weaponFormula: "1d6",
     spellUses: {},
+    maxSpellUses: {},
     nextMonsterId: 1,
     alive: true,
     deathCause: null,

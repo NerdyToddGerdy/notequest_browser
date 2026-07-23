@@ -63,6 +63,7 @@ import {
   type LevelState,
   type SegmentState,
 } from "./dungeonState.ts";
+import { createInitialMilestones } from "./town.ts";
 import type { RNG } from "./rng.ts";
 
 function bumpStatsForNewSegment(
@@ -577,9 +578,13 @@ function handleMonsterDefeat(
   combat: Draft<CombatState>,
   monster: Draft<CombatMonsterState>,
   rng: RNG,
+  // Banish the Dead (issue #61): "Destroy any Undead" -- a decisive banishment, not an ordinary
+  // kill, so it bypasses the Undead ability's own roll-of-1 revival entirely rather than letting
+  // RNG contradict the spell's own text.
+  bypassRevival = false,
 ): void {
   if (monster.hp > 0) return;
-  const revived = !ignoresAbility(draft, "undead") && checkUndeadRevival(monster, rng);
+  const revived = !bypassRevival && !ignoresAbility(draft, "undead") && checkUndeadRevival(monster, rng);
   if (revived) {
     monster.hp = 1;
     pushLog(draft, `${monster.name} rises again with 1 HP!`);
@@ -878,7 +883,10 @@ function applyRoomContentReward(
       const spellNames: string[] = [];
       for (let i = 0; i < count; i++) {
         const spellRoll = rollDie(rng);
-        draft.spellUses[spellKey("basic", spellRoll)] = (draft.spellUses[spellKey("basic", spellRoll)] ?? 0) + 1;
+        const key = spellKey("basic", spellRoll);
+        draft.spellUses[key] = (draft.spellUses[key] ?? 0) + 1;
+        // Raises the ceiling too (issue #75), same as every other spell-granting site.
+        draft.maxSpellUses[key] = (draft.maxSpellUses[key] ?? 0) + 1;
         spellNames.push(SPELL_TABLE[spellRoll]?.name ?? "a spell");
       }
       pushLog(
@@ -1769,6 +1777,15 @@ export function dungeonReducer(
             break;
           }
 
+          // Natural Cure (Nature 1, issue #61): "Recovers 12 HP" -- Heal's identical shape, just a
+          // bigger fixed amount.
+          case "Natural Cure": {
+            const healed = Math.min(12, draft.maxHp - draft.hp);
+            draft.hp += healed;
+            pushLog(draft, `You cast Natural Cure, recovering ${healed} HP.`);
+            break;
+          }
+
           case "Light": {
             // "Worth a torch (does not use a hand)" -- modeled as a free torch, since this
             // codebase collapses light-source and hand-economy into the single torches count.
@@ -1836,6 +1853,24 @@ export function dungeonReducer(
             break;
           }
 
+          // Magic Blast (Advanced 10, issue #61): "Attack that deals 12 damage" -- Lightning's
+          // identical single-target shape, just a bigger fixed amount and no freeze.
+          case "Magic Blast": {
+            if (!combat) break;
+            const monster = combat.monsters.find((m) => m.id === action.targetId);
+            if (!monster) break;
+            const result = resolveSpellDamage(monster, 12);
+            monster.hp = Math.max(0, monster.hp - result.damageDealt);
+            pushLog(
+              draft,
+              result.blocked
+                ? `Magic Blast fails to harm ${monster.name} (${result.blocked}).`
+                : `Magic Blast strikes ${monster.name} for ${result.damageDealt} damage.`,
+            );
+            handleMonsterDefeat(draft, combat, monster, rng);
+            break;
+          }
+
           case "Fireball": {
             if (!combat) break;
             pushLog(draft, "You cast Fireball, engulfing the room in flame.");
@@ -1848,6 +1883,42 @@ export function dungeonReducer(
                 pushLog(draft, `${monster.name} takes ${result.damageDealt} fire damage.`);
               }
               handleMonsterDefeat(draft, combat, monster, rng);
+            }
+            break;
+          }
+
+          // Insect Rain (Nature 6 / Advanced 2, issue #61): "Attack that deals 7 damage to all
+          // opponents" -- Fireball's identical room-wide shape, just a different fixed amount.
+          case "Insect Rain": {
+            if (!combat) break;
+            pushLog(draft, "You cast Insect Rain, swarming the room with biting insects.");
+            for (const monster of [...combat.monsters]) {
+              const result = resolveSpellDamage(monster, 7);
+              monster.hp = Math.max(0, monster.hp - result.damageDealt);
+              if (result.blocked) {
+                pushLog(draft, `${monster.name} is unharmed (${result.blocked}).`);
+              } else if (result.damageDealt > 0) {
+                pushLog(draft, `${monster.name} takes ${result.damageDealt} damage.`);
+              }
+              handleMonsterDefeat(draft, combat, monster, rng);
+            }
+            break;
+          }
+
+          // Banish the Dead (Death 3, issue #61): "Destroy any Undead that are in the same area
+          // as you" -- filters the room's Undead and destroys each outright, bypassing the normal
+          // damage math and the Undead ability's own revival roll (see handleMonsterDefeat).
+          case "Banish the Dead": {
+            if (!combat) break;
+            const undead = combat.monsters.filter((m) => m.abilities.includes("undead"));
+            if (undead.length === 0) {
+              pushLog(draft, "You cast Banish the Dead, but no Undead linger here.");
+              break;
+            }
+            pushLog(draft, "You cast Banish the Dead, destroying every Undead in the room.");
+            for (const monster of undead) {
+              monster.hp = 0;
+              handleMonsterDefeat(draft, combat, monster, rng, true);
             }
             break;
           }
@@ -1908,13 +1979,18 @@ export function dungeonReducer(
             break;
           }
           case "restoreAllSpells": {
-            draft.spellUses = { ...action.maxSpellUses };
+            // Reads the persisted ceiling directly (issue #75) rather than a client-computed value
+            // passed through the action -- the same fix `rest()` needed, and for the same reason.
+            draft.spellUses = { ...draft.maxSpellUses };
             pushLog(draft, `Treasure: ${outcome.text}`);
             break;
           }
           case "randomSpell": {
             const spellRoll = rollDie(rng);
-            draft.spellUses[spellKey("basic", spellRoll)] = (draft.spellUses[spellKey("basic", spellRoll)] ?? 0) + 1;
+            const key = spellKey("basic", spellRoll);
+            draft.spellUses[key] = (draft.spellUses[key] ?? 0) + 1;
+            // Raises the ceiling too (issue #75), same as every other spell-granting site.
+            draft.maxSpellUses[key] = (draft.maxSpellUses[key] ?? 0) + 1;
             const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
             draft.milestones.hasCastSpell = true; // Scholar (issue #70): "used a spell or scroll"
             pushLog(draft, `Treasure: ${outcome.text} — learned ${spellName}!`);
@@ -1975,6 +2051,12 @@ export function dungeonReducer(
           action.className,
           {},
           {},
+          [],
+          [],
+          null,
+          [],
+          createInitialMilestones(),
+          action.maxSpellUses,
         ),
         (draft) => {
           restoreMapFromPersisted(
@@ -2016,6 +2098,7 @@ export function dungeonReducer(
           action.hireling,
           action.animals,
           action.milestones,
+          action.maxSpellUses,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

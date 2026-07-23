@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-07-22
+
+### Added
+
+- 4 more New Spells are now castable (#61): Natural Cure (Heal, but
+  12 HP), Insect Rain and Magic Blast (Fireball/Lightning at
+  different damage), and Banish the Dead (destroys every Undead
+  monster in the room, bypassing their revival roll).
+
+### Fixed
+
+- Spell uses granted after Character Creation -- by an Advanced
+  Class, a Hireling, Gnome's Culture Action, or a Magic Scroll --
+  never appeared in the Spells list, and were silently erased the
+  next time the character rested (#75). A persisted per-spell max is
+  now tracked and kept in sync at every grant site instead of being
+  recomputed from creation-time data alone.
+- A character's displayed max HP never reflected any Advanced Class
+  HP bonus, always showing the value from Character Creation instead
+  of the current, live maximum.
+
 ## [2.18.0] - 2026-07-22
 
 ### Added

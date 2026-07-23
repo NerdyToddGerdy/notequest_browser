@@ -5,6 +5,7 @@ import {
   createInitialTravelStats,
   type AdventurerResources,
 } from "./town.ts";
+import { computeSpellUses } from "./character.ts";
 import type { WorldState } from "./hexState.ts";
 
 /** Everything App.tsx needs to resume exactly where the player left off after a reload --
@@ -24,6 +25,25 @@ export interface SessionState {
 }
 
 const STORAGE_KEY = "notequest:session";
+
+/** Back-fills `resources.maxSpellUses` (issue #75) for a session persisted before that field
+ * existed. Can't just default to `computeSpellUses(character)` alone -- if the player had already
+ * been granted a spell beyond their creation-time allotment (an Advanced Class/Hireling ability,
+ * Gnome's Culture Action) before this fix shipped, that grant is only visible in `spellUses` itself
+ * (the bug this field fixes). Taking the higher of the two per key means an old save is never
+ * regressed any further than it already was -- it can't recover a history of exactly how high the
+ * ceiling used to be, but it stops it from being wiped down any lower than what's currently held. */
+function backfillMaxSpellUses(
+  character: CreatedCharacter | null | undefined,
+  spellUses: Record<string, number>,
+): Record<string, number> {
+  const creationMax = character ? computeSpellUses(character.spells, character.fixedGrants) : {};
+  const merged = { ...creationMax };
+  for (const [key, count] of Object.entries(spellUses)) {
+    if (count > (merged[key] ?? 0)) merged[key] = count;
+  }
+  return merged;
+}
 
 const EMPTY_SESSION: SessionState = {
   character: null,
@@ -47,9 +67,9 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
     return {
       character: p.character ?? null,
       // advancedClasses (issue #23), hireling (issue #25), animals (issue #26), milestones
-      // (issue #70), and travelStats (issue #72) all postdate this field -- back-fill them for a
-      // session persisted before any of them existed, same "optional for back-compat" precedent
-      // as WorldState.bannedHexes.
+      // (issue #70), travelStats (issue #72), and maxSpellUses (issue #75) all postdate this
+      // field -- back-fill them for a session persisted before any of them existed, same
+      // "optional for back-compat" precedent as WorldState.bannedHexes.
       resources: p.resources
         ? {
             ...p.resources,
@@ -58,6 +78,9 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
             animals: p.resources.animals ?? [],
             milestones: p.resources.milestones ?? createInitialMilestones(),
             travelStats: p.resources.travelStats ?? createInitialTravelStats(),
+            maxSpellUses:
+              p.resources.maxSpellUses ??
+              backfillMaxSpellUses(p.character, p.resources.spellUses ?? {}),
           }
         : null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],

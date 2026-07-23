@@ -54,6 +54,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     weapon: null,
     spareWeapons: [],
     spellUses: { "basic:1": 0 },
+    maxSpellUses: { "basic:1": 3 },
     monsterKills: 0,
     bossKills: 0,
     killsByName: {},
@@ -70,48 +71,80 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
 
 describe("canRest / rest", () => {
   it("requires at least 1 coin", () => {
-    expect(canRest(makeResources({ coins: 0, hp: 10, maxHp: 20 }), { 1: 3 })).toBe(false);
-    expect(canRest(makeResources({ coins: 1, hp: 10, maxHp: 20 }), { 1: 3 })).toBe(true);
+    expect(canRest(makeResources({ coins: 0, hp: 10, maxHp: 20, maxSpellUses: { 1: 3 } }))).toBe(false);
+    expect(canRest(makeResources({ coins: 1, hp: 10, maxHp: 20, maxSpellUses: { 1: 3 } }))).toBe(true);
   });
 
   it("stays true below max HP regardless of spell uses", () => {
     expect(
-      canRest(makeResources({ coins: 1, hp: 10, maxHp: 20, spellUses: { 1: 3 } }), { 1: 3 }),
+      canRest(
+        makeResources({ coins: 1, hp: 10, maxHp: 20, spellUses: { 1: 3 }, maxSpellUses: { 1: 3 } }),
+      ),
     ).toBe(true);
   });
 
   it("is false at full HP with every spell already at max uses", () => {
     expect(
-      canRest(makeResources({ coins: 1, hp: 20, maxHp: 20, spellUses: { 1: 3, 2: 2 } }), {
-        1: 3,
-        2: 2,
-      }),
+      canRest(
+        makeResources({
+          coins: 1,
+          hp: 20,
+          maxHp: 20,
+          spellUses: { 1: 3, 2: 2 },
+          maxSpellUses: { 1: 3, 2: 2 },
+        }),
+      ),
     ).toBe(false);
   });
 
   it("is true at full HP if any spell still has used-up uses to recover", () => {
     expect(
-      canRest(makeResources({ coins: 1, hp: 20, maxHp: 20, spellUses: { 1: 1, 2: 2 } }), {
-        1: 3,
-        2: 2,
-      }),
+      canRest(
+        makeResources({
+          coins: 1,
+          hp: 20,
+          maxHp: 20,
+          spellUses: { 1: 1, 2: 2 },
+          maxSpellUses: { 1: 3, 2: 2 },
+        }),
+      ),
     ).toBe(true);
   });
 
   it("spends 1 coin, heals to max, and restores every spell to its max uses", () => {
-    const resources = makeResources({ coins: 3, hp: 10, maxHp: 20, spellUses: { 1: 0, 2: 1 } });
-    const next = rest(resources, { 1: 3, 2: 2 });
+    const resources = makeResources({
+      coins: 3,
+      hp: 10,
+      maxHp: 20,
+      spellUses: { 1: 0, 2: 1 },
+      maxSpellUses: { 1: 3, 2: 2 },
+    });
+    const next = rest(resources);
     expect(next.coins).toBe(2);
     expect(next.hp).toBe(20);
     expect(next.spellUses).toEqual({ 1: 3, 2: 2 });
   });
 
-  it("Champion (Advanced Class, issue #23): Rest is free, waiving the coin requirement/cost", () => {
-    const resources = makeResources({ coins: 0, hp: 10, maxHp: 20 });
-    expect(canRest(resources, { 1: 3 }, true)).toBe(true);
-    expect(canRest(resources, { 1: 3 }, false)).toBe(false);
+  it("restores from resources.maxSpellUses (issue #75), not a value recomputed from character.spells/fixedGrants -- so a spell granted after Character Creation survives a Rest instead of being wiped out", () => {
+    // Simulates a character who started with only basic:1, then had basic:2 granted later (e.g. by
+    // an Advanced Class) -- maxSpellUses already reflects that grant, spellUses has been spent down.
+    const resources = makeResources({
+      coins: 3,
+      hp: 20,
+      maxHp: 20,
+      spellUses: { 1: 0, 2: 0 },
+      maxSpellUses: { 1: 3, 2: 4 },
+    });
+    const next = rest(resources);
+    expect(next.spellUses).toEqual({ 1: 3, 2: 4 }); // basic:2 restored, not wiped to 0
+  });
 
-    const next = rest(resources, { 1: 3 }, true);
+  it("Champion (Advanced Class, issue #23): Rest is free, waiving the coin requirement/cost", () => {
+    const resources = makeResources({ coins: 0, hp: 10, maxHp: 20, maxSpellUses: { 1: 3 } });
+    expect(canRest(resources, true)).toBe(true);
+    expect(canRest(resources, false)).toBe(false);
+
+    const next = rest(resources, true);
     expect(next.coins).toBe(0); // untouched
     expect(next.hp).toBe(20);
   });
@@ -261,12 +294,27 @@ describe("wieldWeapon", () => {
 });
 
 describe("canCastSpell / castSpell", () => {
-  it("only allows Heal (basic:1) and Light (basic:2), and only with uses remaining", () => {
+  it("only allows Heal (basic:1), Light (basic:2), and Natural Cure (nature:1), and only with uses remaining", () => {
     expect(canCastSpell(makeResources({ spellUses: { "basic:1": 1 } }), "basic", 1)).toBe(true);
     expect(canCastSpell(makeResources({ spellUses: { "basic:1": 0 } }), "basic", 1)).toBe(false);
     expect(canCastSpell(makeResources({ spellUses: { "basic:2": 1 } }), "basic", 2)).toBe(true);
+    expect(canCastSpell(makeResources({ spellUses: { "nature:1": 1 } }), "nature", 1)).toBe(true);
     // Cold Ray/Lightning/Fireball/Teleport all need combat, which neither Town nor World has.
     expect(canCastSpell(makeResources({ spellUses: { "basic:4": 1 } }), "basic", 4)).toBe(false);
+  });
+
+  it("Natural Cure recovers 12 HP, capped at maxHp, and spends a use (issue #61 -- previously fell through to Light's torch math)", () => {
+    const resources = makeResources({ hp: 5, maxHp: 20, spellUses: { "nature:1": 2 } });
+    const next = castSpell(resources, "nature", 1);
+    expect(next.hp).toBe(17);
+    expect(next.torches).toBe(resources.torches); // must not have granted a torch instead
+    expect(next.spellUses).toEqual({ "nature:1": 1 });
+  });
+
+  it("Natural Cure is capped at maxHp, not overhealing", () => {
+    const resources = makeResources({ hp: 15, maxHp: 20, spellUses: { "nature:1": 1 } });
+    const next = castSpell(resources, "nature", 1);
+    expect(next.hp).toBe(20);
   });
 
   it("Heal recovers 5 HP, capped at maxHp, and spends a use", () => {
@@ -459,9 +507,15 @@ describe("Different Cultures: Elf -- Buy Elven Boots / hasElvenBoots", () => {
 describe("Different Cultures: Gnome -- Learn a Spell", () => {
   it("requires 80 coins and grants 1 use of a rolled spell", () => {
     expect(canLearnRandomSpell(makeResources({ coins: 79 }))).toBe(false);
-    const next = learnRandomSpell(makeResources({ coins: 80, spellUses: {} }), sequenceDie([6])); // roll 6 -> Fireball, roll 6
+    const next = learnRandomSpell(
+      makeResources({ coins: 80, spellUses: {}, maxSpellUses: {} }),
+      sequenceDie([6]),
+    ); // roll 6 -> Fireball, roll 6
     expect(next.coins).toBe(0);
     expect(next.spellUses).toEqual({ "basic:6": 1 });
+    // Raises the ceiling too (issue #75), or this grant would vanish from CharacterSheet's Spells
+    // list and get wiped out the next time the character rests.
+    expect(next.maxSpellUses).toEqual({ "basic:6": 1 });
   });
 
   it("stacks onto an existing use of the same spell", () => {

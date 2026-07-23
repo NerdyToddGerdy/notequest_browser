@@ -264,6 +264,11 @@ export interface DungeonState {
    * bare roll number -- see `SpellTableKey`'s own doc comment, issue #24). Depleted uses are gone
    * until Rest. */
   spellUses: Record<string, number>;
+  /** Per-spell ceiling `spellUses` is restored to by Rest -- mirrors `AdventurerResources` of the
+   * same name (issue #75). Bumped here (not just in Town) by the two `OPEN_TREASURE` reward sites
+   * that grant spell uses mid-dungeon (a room's automatic `magicScrolls` reward, and the Magic
+   * Scroll treasure's `randomSpell` roll). */
+  maxSpellUses: Record<string, number>;
   /** false once the character has died; deathCause distinguishes the Darkness from a lost fight. */
   alive: boolean;
   deathCause: "darkness" | "combat" | null;
@@ -359,6 +364,10 @@ export function createInitialDungeonState(
   hireling: string | null = null,
   animals: string[] = [],
   milestones: AdvancedClassMilestones = createInitialMilestones(),
+  // Defaults to `spellUses` itself -- for every existing caller that doesn't pass this explicitly
+  // (i.e. every test fixture predating issue #75), the character's current uses and their ceiling
+  // are the same thing, same as before this field existed.
+  maxSpellUses: Record<string, number> = spellUses,
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -397,6 +406,7 @@ export function createInitialDungeonState(
     milestones,
     weaponFormula,
     spellUses,
+    maxSpellUses,
     alive: true,
     deathCause: null,
   };
@@ -434,7 +444,10 @@ export type DungeonAction =
   /** Swaps a found-but-unwielded weapon into the equipped slot, pushing whatever was equipped (if
    * anything) back into spareWeapons -- out-of-combat only, see CLAUDE.md's Armor & Weapons note. */
   | { type: "WIELD_WEAPON"; index: number }
-  | { type: "OPEN_TREASURE"; roll: number; maxSpellUses: Record<string, number> }
+  // maxSpellUses (issue #75) is read from `state.maxSpellUses` directly now, rather than being
+  // recomputed client-side and passed through the action -- that field is the persisted source of
+  // truth for Mana Potion's restoreAllSpells effect below.
+  | { type: "OPEN_TREASURE"; roll: number }
   /** `useHorn`: Rinoceroid's "You can attack with your horn (Damage 1d6)" -- a flat 1d6, no
    * weapon modifier, ignoring whatever's equipped, for this one attack. */
   | { type: "PLAYER_ATTACK"; targetId: number; roll: number; useHorn?: boolean }
@@ -466,6 +479,7 @@ export type DungeonAction =
       maxHp: number;
       weaponFormula: string;
       spellUses: Record<string, number>;
+      maxSpellUses: Record<string, number>;
       characterName: string;
       raceName: string;
       className: string;
@@ -487,6 +501,7 @@ export type DungeonAction =
       spareWeapons: EquippedWeapon[];
       weaponFormula: string;
       spellUses: Record<string, number>;
+      maxSpellUses: Record<string, number>;
       characterName: string;
       raceName: string;
       className: string;

@@ -12,13 +12,16 @@ export const HEAL_AMOUNT = 5;
  * exact spell *name* rather than `(table, roll)` -- "New Spells" (issue #24) means the same spell
  * can legitimately appear under more than one table (Elemental's Cold Ray/Lightning/Fireball are
  * the identical Core spells, just re-listed), and matching by name lets both copies share the one
- * real implementation instead of needing a duplicate case per table. Every other New Spells effect
- * (Natural Cure, Ethereal Body, Stone Armor, Paralyze, Banish the Dead, Insect Rain, Magic Shield,
- * Magic Blast, Create Food, the various Summon spells, etc.) isn't wired up yet -- see CLAUDE.md's
- * New Spells note for why each one is deferred, same "documented, deliberate simplification"
- * precedent as `bladeTrap`'s roll-of-2 or `WeaponEntry.twoHanded`. A spell not in this set simply
- * isn't offered a "Cast" button anywhere (`CombatPanel`/`CharacterSheet`/`town.ts` all filter
- * against it), rather than being clickable and silently doing nothing. */
+ * real implementation instead of needing a duplicate case per table. Natural Cure/Insect Rain/
+ * Magic Blast/Banish the Dead (issue #61) are the first New Spells wired up beyond Basic's own six
+ * -- each reuses an existing shape (Heal, Fireball, Lightning, and a new "destroy every Undead in
+ * the room" case respectively) rather than needing new engine mechanics. Every other New Spells
+ * effect (Ethereal Body, Stone Armor, Paralyze, Magic Shield, Create Food, the various Summon
+ * spells, etc.) still isn't wired up -- see CLAUDE.md's New Spells note for why each one is
+ * deferred, same "documented, deliberate simplification" precedent as `bladeTrap`'s roll-of-2 or
+ * `WeaponEntry.twoHanded`. A spell not in this set simply isn't offered a "Cast" button anywhere
+ * (`CombatPanel`/`CharacterSheet`/`town.ts` all filter against it), rather than being clickable and
+ * silently doing nothing. */
 export const KNOWN_CASTABLE_SPELL_NAMES = new Set([
   "Heal",
   "Light",
@@ -26,17 +29,31 @@ export const KNOWN_CASTABLE_SPELL_NAMES = new Set([
   "Cold Ray",
   "Lightning",
   "Fireball",
+  "Natural Cure",
+  "Insect Rain",
+  "Magic Blast",
+  "Banish the Dead",
 ]);
 
-/** Cold Ray and Lightning need a single target monster; every other known-castable spell doesn't. */
-export const TARGETED_SPELL_NAMES = new Set(["Cold Ray", "Lightning"]);
+/** Cold Ray, Lightning, and Magic Blast need a single target monster; every other known-castable
+ * spell doesn't. */
+export const TARGETED_SPELL_NAMES = new Set(["Cold Ray", "Lightning", "Magic Blast"]);
 
-/** Teleport and the three damage spells only mean anything mid-fight; Heal/Light don't need one. */
-export const COMBAT_ONLY_SPELL_NAMES = new Set(["Teleport", "Cold Ray", "Lightning", "Fireball"]);
+/** Teleport and every damage/Undead-destroying spell only mean anything mid-fight; Heal/Light/
+ * Natural Cure don't need one. */
+export const COMBAT_ONLY_SPELL_NAMES = new Set([
+  "Teleport",
+  "Cold Ray",
+  "Lightning",
+  "Fireball",
+  "Insect Rain",
+  "Magic Blast",
+  "Banish the Dead",
+]);
 
-/** The only two known-castable spells usable outside a dungeon fight at all (Town/World's own
+/** The only known-castable spells usable outside a dungeon fight at all (Town/World's own
  * `town.ts` castSpell, or CharacterSheet's "Cast" button while merely standing in a dungeon). */
-export const OUT_OF_COMBAT_SPELL_NAMES = new Set(["Heal", "Light"]);
+export const OUT_OF_COMBAT_SPELL_NAMES = new Set(["Heal", "Light", "Natural Cure"]);
 
 /** Fixed stat block from the Horde ability text: "an Orc (6 HP; Damage 3) enters the room." */
 export const HORDE_ORC: Omit<CombatMonsterState, "id"> = {

@@ -609,6 +609,7 @@ export function WorldScreen({
             character={character}
             torches={resources.torches}
             hp={resources.hp}
+            maxHp={resources.maxHp}
             coins={resources.coins}
             treasures={resources.treasures}
             keys={resources.keys}
@@ -616,6 +617,7 @@ export function WorldScreen({
             weaponName={resources.weapon?.name}
             weaponFormula={resources.weapon?.formula}
             spellUses={resources.spellUses}
+            maxSpellUses={resources.maxSpellUses}
             monsterKills={resources.monsterKills}
             killsByName={resources.killsByName}
             canCastOutOfCombat

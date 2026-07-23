@@ -11,6 +11,11 @@ export interface CharacterSheetProps {
   torches?: number;
   /** Live HP in the current run; falls back to the character's full HP outside a dungeon. */
   hp?: number;
+  /** Live max HP in the current run -- distinct from `character.totalHp` (fixed at creation)
+   * once any HP-bonus Advanced Class is acquired, since that raises `resources.maxHp`/
+   * `DungeonState.maxHp` but never touches the character's own static record. Falls back to
+   * `character.totalHp` if not passed. */
+  maxHp?: number;
   /** Live coin count in the current run; falls back to the character's starting amount outside a dungeon. */
   coins?: number;
   /** Live Treasure count in the current run; 0 outside a dungeon (Treasures are only ever found there). */
@@ -33,6 +38,13 @@ export interface CharacterSheetProps {
   /** Remaining uses per spell in the current run, keyed by `character.ts`'s `spellKey(table, roll)`
    * composite (issue #24) -- falls back to the character's starting uses outside a dungeon. */
   spellUses?: Record<string, number>;
+  /** Per-spell ceiling, keyed the same way -- the persisted `AdventurerResources`/`DungeonState`
+   * field (issue #75), not recomputed from `character.spells`/`fixedGrants` alone, since a spell
+   * granted after Character Creation (an Advanced Class/Hireling ability, Gnome's Culture Action,
+   * a Magic Scroll) needs its own ceiling too, or it silently never appears here at all. Falls back
+   * to the character's own creation-time grants if not passed (e.g. a caller with no live
+   * resources at all). */
+  maxSpellUses?: Record<string, number>;
   /** Whether Heal/Light can be cast right now (in a dungeon, alive, not mid-fight). */
   canCastOutOfCombat?: boolean;
   onCastSpell?: (table: SpellTableKey, spellRoll: number) => void;
@@ -42,6 +54,7 @@ export function CharacterSheet({
   character,
   torches,
   hp,
+  maxHp,
   coins,
   treasures,
   keys,
@@ -49,13 +62,15 @@ export function CharacterSheet({
   weaponName,
   weaponFormula,
   spellUses,
+  maxSpellUses: maxSpellUsesProp,
   canCastOutOfCombat,
   onCastSpell,
   monsterKills,
   killsByName,
 }: CharacterSheetProps) {
   const [showKills, setShowKills] = useState(false);
-  const maxSpellUses = computeSpellUses(character.spells, character.fixedGrants);
+  const maxHpValue = maxHp ?? character.totalHp;
+  const maxSpellUses = maxSpellUsesProp ?? computeSpellUses(character.spells, character.fixedGrants);
   const liveSpellUses = spellUses ?? maxSpellUses;
   // Every known spell keyed here, informational (name/effect/uses) regardless of table -- only
   // the spells in `KNOWN_CASTABLE_SPELL_NAMES` (issue #24) ever get an actual "Cast" button below
@@ -83,10 +98,8 @@ export function CharacterSheet({
         <div className={styles.statRow}>
           <div className={styles.stat}>
             <span className={styles.statLabel}>HP</span>
-            <span
-              className={`${styles.statValue} ${hpValue <= character.totalHp / 4 ? styles.warn : ""}`}
-            >
-              {hpValue} / {character.totalHp}
+            <span className={`${styles.statValue} ${hpValue <= maxHpValue / 4 ? styles.warn : ""}`}>
+              {hpValue} / {maxHpValue}
             </span>
           </div>
           <div className={styles.stat}>

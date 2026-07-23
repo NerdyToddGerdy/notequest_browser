@@ -21,6 +21,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     weapon: null,
     spareWeapons: [],
     spellUses: {},
+    maxSpellUses: {},
     monsterKills: 0,
     bossKills: 0,
     killsByName: {},
