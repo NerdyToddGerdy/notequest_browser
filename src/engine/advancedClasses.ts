@@ -122,6 +122,18 @@ const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => 
   // Distinct cities/fortresses visited, not a raw travel count -- see TravelStats.citiesVisited.
   Bard: (ctx) => ctx.resources.travelStats.citiesVisited.length >= 3,
   Cook: (ctx) => ctx.resources.travelStats.provisionsSpentTotal >= 20,
+  // "Avenged the death of a relative" -- no family/relative concept exists anywhere in this game
+  // (issue #73), so this is approximated as "a previous character exists in the (world-scoped)
+  // Graveyard" -- the same signal Gravedigger's own "lost another character" already checks, just
+  // under different flavor text. A documented simplification, same tier as Cleric's "faced an
+  // undead" (approximated as having killed one).
+  Avenger: (ctx) => ctx.graveyard.length > 0,
+  // "Be Necromaster and having died" -- as written this is a paradox (the buyer is alive, in Town,
+  // acquiring it), so it's read instead as a genuinely cross-character, world-scoped check: did
+  // *any* past character die while holding the Necromancer class? `GraveyardEntry.advancedClasses`
+  // (issue #73) is optional for the same back-compat reason every other Graveyard field is, so an
+  // entry recorded before this field existed simply never satisfies this (rather than throwing).
+  Lich: (ctx) => ctx.graveyard.some((entry) => entry.advancedClasses?.includes("Necromancer")),
 };
 
 /** Whether this Advanced Class has a real requirement check at all -- every other entry in
@@ -204,6 +216,7 @@ function applyAdvancedClassAbility(
     // identical "4 random Death Spells" -- same shape as Anti-Paladin's own Death Spell grant.
     case "Necromancer":
     case "Necromaster":
+    case "Lich":
       return grantSpellUses(resources, "death", 4, rng);
     // Druid's own random-Nature-spell grant, same shape as Mage/Elementalist/Arcane/Scholar.
     case "Druid":

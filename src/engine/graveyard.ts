@@ -12,6 +12,12 @@ export interface GraveyardEntry {
   cls?: string;
   monsterKills?: number;
   bossKills?: number;
+  /** Advanced Classes (issue #23) the fallen character had acquired at time of death -- optional,
+   * same back-compat shape as every other field here, added specifically to answer Lich's (issue
+   * #73) "Be Necromaster and having died" requirement: a genuinely cross-character check (did any
+   * past character die while holding Necromancer?), the only Advanced Class currently checked this
+   * way, but reusable for any future "died while holding X" requirement. */
+  advancedClasses?: string[];
 }
 
 /** The subset of `causeOfDeath` that can strike outside a dungeon -- Town/World's own equivalent of

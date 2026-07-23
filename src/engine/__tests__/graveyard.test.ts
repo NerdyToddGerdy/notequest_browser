@@ -29,6 +29,7 @@ const FULL_ADVENTURER: GraveyardEntry = {
   cls: "Cook",
   monsterKills: 7,
   bossKills: 1,
+  advancedClasses: ["Necromancer"],
 };
 
 describe("loadGraveyard", () => {
@@ -80,6 +81,13 @@ describe("addGraveyardEntry", () => {
     expect(next).toEqual([DEAD_ADVENTURER, FULL_ADVENTURER]);
     expect(next[0]!.race).toBeUndefined();
     expect(next[1]!.race).toBe("Dwarf");
+  });
+
+  it("persists advancedClasses (issue #73) and tolerates an older entry that predates it", () => {
+    const storage = makeFakeStorage({ "notequest:graveyard": JSON.stringify([DEAD_ADVENTURER]) });
+    const next = addGraveyardEntry(FULL_ADVENTURER, storage);
+    expect(next[0]!.advancedClasses).toBeUndefined();
+    expect(next[1]!.advancedClasses).toEqual(["Necromancer"]);
   });
 });
 

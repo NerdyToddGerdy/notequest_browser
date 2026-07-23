@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-07-22
+
+### Added
+
+- Avenger and Lich are now acquirable Advanced Classes (#73). Avenger
+  requires any recorded Graveyard death; Lich requires a past character
+  who died while holding the Necromancer class, tracked via a new
+  optional `advancedClasses` field on each Graveyard entry.
+
 ## [2.16.0] - 2026-07-21
 
 ### Added

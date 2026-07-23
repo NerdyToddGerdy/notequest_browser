@@ -237,6 +237,7 @@ export function DungeonScreen({
       cls: character.cls.name,
       monsterKills: state.monsterKills,
       bossKills: state.bossKills,
+      advancedClasses: state.advancedClasses,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.alive]);

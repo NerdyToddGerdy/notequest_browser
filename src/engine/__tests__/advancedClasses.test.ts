@@ -369,9 +369,38 @@ describe("meetsAdvancedClassRequirement", () => {
     ).toBe(true);
   });
 
+  it("Avenger: approximated as any recorded Graveyard death (issue #73 -- no relative concept exists)", () => {
+    expect(meetsAdvancedClassRequirement("Avenger", makeCtx({}, []))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Avenger",
+        makeCtx({}, [{ name: "A Fallen Hero", dungeon: "The Crypt", causeOfDeath: "darkness" }]),
+      ),
+    ).toBe(true);
+  });
+
+  it("Lich: a past character died while holding Necromancer (issue #73 -- reads around the 'be X and have died' paradox)", () => {
+    expect(
+      meetsAdvancedClassRequirement("Lich", makeCtx({}, [
+        { name: "Old Necro", dungeon: "The Tomb", causeOfDeath: "combat", advancedClasses: ["Necromancer"] },
+      ])),
+    ).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Lich", makeCtx({}, [
+        { name: "Plain Fighter", dungeon: "The Tomb", causeOfDeath: "combat", advancedClasses: ["Guard"] },
+      ])),
+    ).toBe(false);
+    // A pre-#73 Graveyard entry has no advancedClasses field at all -- shouldn't throw, just not match.
+    expect(
+      meetsAdvancedClassRequirement("Lich", makeCtx({}, [
+        { name: "Ancient Entry", dungeon: "The Tomb", causeOfDeath: "combat" },
+      ])),
+    ).toBe(false);
+  });
+
   it("a class with no requirement check at all is never met, regardless of state", () => {
-    expect(isAdvancedClassTrackable("Avenger")).toBe(false);
-    expect(meetsAdvancedClassRequirement("Avenger", makeCtx({ coins: 999999 }))).toBe(false);
+    expect(isAdvancedClassTrackable("Noble")).toBe(false);
+    expect(meetsAdvancedClassRequirement("Noble", makeCtx({ coins: 999999 }))).toBe(false);
   });
 });
 
@@ -391,7 +420,7 @@ describe("canAcquireAdvancedClass", () => {
   });
 
   it("is false for an untrackable class even with every stat maxed out", () => {
-    expect(canAcquireAdvancedClass(makeCtx({ coins: 999999 }), "Avenger")).toBe(false);
+    expect(canAcquireAdvancedClass(makeCtx({ coins: 999999 }), "Noble")).toBe(false);
   });
 });
 
@@ -524,6 +553,17 @@ describe("acquireAdvancedClass", () => {
     );
     expect(necromasterNext.spellUses["death:2"]).toBe(1);
     expect(necromasterNext.spellUses["death:5"]).toBe(1);
+  });
+
+  it("Lich grants 4 random Death Spell uses, same as Necromancer/Necromaster (issue #73)", () => {
+    const ctx = makeCtx({}, [
+      { name: "Old Necro", dungeon: "The Tomb", causeOfDeath: "combat", advancedClasses: ["Necromancer"] },
+    ]);
+    const richCtx = { ...ctx, resources: { ...ctx.resources, coins: 500 } };
+    const next = acquireAdvancedClass(richCtx, "Lich", sequenceDie([3, 4, 5, 6]));
+    expect(next.spellUses["death:3"]).toBe(1);
+    expect(next.spellUses["death:6"]).toBe(1);
+    expect(next.hp).toBe(richCtx.resources.hp + 6); // Lich: +6 HP
   });
 
   it("Druid grants 4 random Nature Spell uses (issue #72)", () => {

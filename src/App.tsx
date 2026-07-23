@@ -27,7 +27,7 @@ type Screen = "world" | "dungeon";
 
 export default function App() {
   // Loaded once, on mount -- the pieces below seed themselves from it and then live as their own
-  // independent state, same as before persistence existed. `screen`/`selectedRunId` deliberately
+  // independent state, same as before persistence ezxisted. `screen`/`selectedRunId` deliberately
   // aren't part of this: they're transient navigation state, not worth remembering (a reload just
   // resumes wherever world.player physically was, since that itself is persisted).
   const [initialSession] = useState(() => loadSession());
@@ -121,6 +121,7 @@ export default function App() {
       cls: character.cls.name,
       monsterKills: resources.monsterKills,
       bossKills: resources.bossKills,
+      advancedClasses: resources.advancedClasses,
     });
     handleNewAdventurer();
   }
