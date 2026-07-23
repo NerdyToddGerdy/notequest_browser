@@ -1266,6 +1266,65 @@ describe("Hirelings (issue #25): passive combat bonuses", () => {
   });
 });
 
+describe("Helsing (Advanced Class, issue #71): +1 damage against Vampires and Ghouls", () => {
+  it("applies to a Vampire-tagged or Ghoul-tagged monster", () => {
+    const vampire = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Master Vampire" });
+    const state = stateWithCombat({ advancedClasses: ["Helsing"] }, [vampire]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: vampire.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(16); // 3 + 1
+
+    const ghoul = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Ghoul" });
+    const ghoulState = stateWithCombat({ advancedClasses: ["Helsing"] }, [ghoul]);
+    const ghoulNext = dungeonReducer(ghoulState, { type: "PLAYER_ATTACK", targetId: ghoul.id, roll: 3 });
+    expect(ghoulNext.combat!.monsters[0]!.hp).toBe(16);
+  });
+
+  it("doesn't apply without the class, or against a non-Vampire/Ghoul monster", () => {
+    const vampire = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Master Vampire" });
+    const withoutClass = dungeonReducer(stateWithCombat({}, [vampire]), {
+      type: "PLAYER_ATTACK",
+      targetId: vampire.id,
+      roll: 3,
+    });
+    expect(withoutClass.combat!.monsters[0]!.hp).toBe(17); // just 3
+
+    const skeleton = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Skeleton" });
+    const withClass = dungeonReducer(stateWithCombat({ advancedClasses: ["Helsing"] }, [skeleton]), {
+      type: "PLAYER_ATTACK",
+      targetId: skeleton.id,
+      roll: 3,
+    });
+    expect(withClass.combat!.monsters[0]!.hp).toBe(17);
+  });
+});
+
+describe("Bugcatcher (Advanced Class, issue #71): +1 damage against insects and arachnids", () => {
+  it("applies to a spider, scorpion, or wasp-tagged monster", () => {
+    const spider = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Giant Spider" });
+    const state = stateWithCombat({ advancedClasses: ["Bugcatcher"] }, [spider]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: spider.id, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(16); // 3 + 1
+  });
+
+  it("doesn't apply without the class, or against a non-insect/arachnid monster", () => {
+    const spider = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Giant Spider" });
+    const withoutClass = dungeonReducer(stateWithCombat({}, [spider]), {
+      type: "PLAYER_ATTACK",
+      targetId: spider.id,
+      roll: 3,
+    });
+    expect(withoutClass.combat!.monsters[0]!.hp).toBe(17); // just 3
+
+    const leech = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Giant Leech" });
+    const withClass = dungeonReducer(stateWithCombat({ advancedClasses: ["Bugcatcher"] }, [leech]), {
+      type: "PLAYER_ATTACK",
+      targetId: leech.id,
+      roll: 3,
+    });
+    expect(withClass.combat!.monsters[0]!.hp).toBe(17); // Giant Leech isn't an insect/arachnid
+  });
+});
+
 describe("Ogre (New Races, issue #22): +2 damage, unconditional", () => {
   it("adds +2 damage against any monster, undead or not", () => {
     const monster = makeMonster({ hp: 20, damage: 0, abilities: [] });

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-07-22
+
+### Added
+
+- Helsing and Bugcatcher are now acquirable Advanced Classes (#71),
+  each requiring a curated aggregate kill count (2 vampire-type
+  monsters; 10 spiders/scorpions/wasps) since no single monster name
+  answers the requirement on its own. Both also grant their real
+  +1-damage abilities in combat. Hotep stays unbuildable -- no
+  mummy-type monster exists in any dungeon type yet.
+
 ## [2.17.1] - 2026-07-22
 
 ### Fixed

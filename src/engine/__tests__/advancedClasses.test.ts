@@ -398,6 +398,40 @@ describe("meetsAdvancedClassRequirement", () => {
     ).toBe(false);
   });
 
+  it("Helsing: 2 vampire-type kills, summed across the curated Vampire Servant/Master Vampire/Vampiric Beast names (issue #71)", () => {
+    expect(meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { "vampire servant": 1 } }))).toBe(false);
+    expect(meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { "vampire servant": 2 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Helsing",
+        makeCtx({ killsByName: { "master vampire": 1, "vampiric beast": 1 } }),
+      ),
+    ).toBe(true);
+    // A kill of something else entirely (e.g. Ghoul) doesn't count toward "killed 2 vampires."
+    expect(meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { ghoul: 5 } }))).toBe(false);
+  });
+
+  it("Bugcatcher: 10 insect/arachnid kills, summed across the curated spider/scorpion/wasp names (issue #71)", () => {
+    expect(meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant spider": 9 } }))).toBe(false);
+    expect(meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant spider": 10 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Bugcatcher",
+        makeCtx({
+          killsByName: {
+            "giant spiders": 3,
+            "spider queen": 1,
+            scorpions: 2,
+            scorpion: 1,
+            "deadly stinger giant wasp": 3,
+          },
+        }),
+      ),
+    ).toBe(true);
+    // Giant Leech is a worm/annelid, not an insect or arachnid -- deliberately excluded.
+    expect(meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant leech": 20 } }))).toBe(false);
+  });
+
   it("a class with no requirement check at all is never met, regardless of state", () => {
     expect(isAdvancedClassTrackable("Noble")).toBe(false);
     expect(meetsAdvancedClassRequirement("Noble", makeCtx({ coins: 999999 }))).toBe(false);

@@ -39,6 +39,31 @@ function knownSpellNames(resources: AdventurerResources): Set<string> {
   return names;
 }
 
+/** Sums `killsByName` across a curated list of lowercased monster names -- for aggregate
+ * requirements (issue #71) that no single exact key or ability tag answers (unlike Ruthless's
+ * Imps or Goblinator's Goblins), the same "no formal taxonomy, just match the string" precedent
+ * Armor & Weapons' tag-matching already established, just summing several names instead of one. */
+function sumKillsByName(resources: AdventurerResources, names: string[]): number {
+  return names.reduce((total, name) => total + (resources.killsByName[name] ?? 0), 0);
+}
+
+// Helsing (issue #71): "killed 2 vampires" -- no monster is named exactly "vampire," so this is
+// every vampire-type name across every dungeon type's Monster table (all three live in Crypt's).
+const VAMPIRE_MONSTER_NAMES = ["vampire servant", "master vampire", "vampiric beast"];
+
+// Bugcatcher (issue #71): "killed 10 insects or arachnids" -- confirmed against every dungeon
+// type's Monster table: Giant Spider/Giant Spiders/Spider Queen (Crypt/Tomb/Sanctuary, arachnids),
+// Scorpions/Scorpion (Tomb, arachnid), Deadly Stinger Giant Wasp (Prison, insect). Giant Leech
+// (Crypt) is a worm/annelid, not an insect or arachnid, so it's deliberately excluded.
+const BUG_MONSTER_NAMES = [
+  "giant spider",
+  "giant spiders",
+  "spider queen",
+  "scorpions",
+  "scorpion",
+  "deadly stinger giant wasp",
+];
+
 /** Requirement predicates for the Advanced Classes this app can honestly check today -- every
  * other entry in `ADVANCED_CLASS_TABLE` is either blocked on a small counter this pass deliberately
  * doesn't add yet (opened-locks, sold-an-item, per-terrain travel counts, ...) or a whole unbuilt
@@ -134,6 +159,8 @@ const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => 
   // (issue #73) is optional for the same back-compat reason every other Graveyard field is, so an
   // entry recorded before this field existed simply never satisfies this (rather than throwing).
   Lich: (ctx) => ctx.graveyard.some((entry) => entry.advancedClasses?.includes("Necromancer")),
+  Helsing: (ctx) => sumKillsByName(ctx.resources, VAMPIRE_MONSTER_NAMES) >= 2,
+  Bugcatcher: (ctx) => sumKillsByName(ctx.resources, BUG_MONSTER_NAMES) >= 10,
 };
 
 /** Whether this Advanced Class has a real requirement check at all -- every other entry in

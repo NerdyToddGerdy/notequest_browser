@@ -433,6 +433,20 @@ function attackBonus(
   if (draft.hireling === "Dwarf Soldier" && matchesTags(monster, ["orc", "goblin"])) {
     bonus += 1;
   }
+  // Helsing (Advanced Class, issue #71): "+1 damage against Vampires and Ghouls" -- the identical
+  // tags the Garlic necklace item's own damageBonusVsTag effect already uses.
+  if (draft.advancedClasses.includes("Helsing") && matchesTags(monster, ["vampire", "ghoul"])) {
+    bonus += 1;
+  }
+  // Bugcatcher (Advanced Class, issue #71): "+1 damage against insects and arachnids" -- matches
+  // the same curated spider/scorpion/wasp names its kill-count requirement sums (see
+  // advancedClasses.ts's BUG_MONSTER_NAMES), as a substring so plural/boss variants match too.
+  if (
+    draft.advancedClasses.includes("Bugcatcher") &&
+    matchesTags(monster, ["spider", "scorpion", "wasp"])
+  ) {
+    bonus += 1;
+  }
   if (isHorn) return bonus;
   for (const effect of equippedEffects(draft)) {
     if (effect.kind === "weaponDamageBonus") {
