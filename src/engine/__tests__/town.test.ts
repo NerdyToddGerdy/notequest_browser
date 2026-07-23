@@ -158,6 +158,12 @@ describe("Alchemist (Advanced Class, issue #23): brew a Health Potion", () => {
     expect(canBrewHealthPotion(makeResources({ coins: 50, hp: 10, maxHp: 20 }), true)).toBe(true);
   });
 
+  it("Ogre (New Races, issue #60): cannot brew or drink a Health Potion, even as an Alchemist", () => {
+    expect(canBrewHealthPotion(makeResources({ coins: 50, hp: 10, maxHp: 20 }), true, true)).toBe(
+      false,
+    );
+  });
+
   it("spends 50 coins and heals to full", () => {
     const resources = makeResources({ coins: 60, hp: 5, maxHp: 20 });
     const next = brewHealthPotion(resources);
@@ -535,6 +541,10 @@ describe("Different Cultures: Goblin -- Verdosa Potion", () => {
       sequenceDie([2]),
     );
     expect(resources.coins).toBe(0);
+  });
+
+  it("Ogre (New Races, issue #60): cannot drink a Verdosa Potion even in a Goblin city, 'Cannot use potions'", () => {
+    expect(canDrinkVerdosaPotion(makeResources({ coins: 30 }), true)).toBe(false);
   });
 
   it("heals to max HP on a roll of 3 or more", () => {

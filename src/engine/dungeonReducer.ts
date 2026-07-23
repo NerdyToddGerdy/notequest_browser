@@ -135,12 +135,29 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
   }
 }
 
+/** Samambro (New Races, issue #60): "When you die, roll a die. If it's 3 or more, you come back to
+ * life with 1 HP." Checked at every one of the 7 places `alive` would otherwise flip to false
+ * (Darkness, both trap-death branches, Deathtouch, the normal counter-attack, Explosive
+ * self-destruct, and the deferred-armor-choice branch) -- returns true (having already set `hp` to
+ * 1 and logged the survival) if the character lives after all, so each call site can `return`
+ * before its own death bookkeeping (deathCause/leaveRemains/combat-clearing) ever runs. Only rolls
+ * for an actual Samambro -- no "wasted roll" for every other race, since nothing else in this
+ * codebase's race/class checks bothers with that either. */
+function trySamambroSurvival(draft: Draft<DungeonState>, rng: RNG): boolean {
+  if (draft.raceName !== "Samambro") return false;
+  if (rollDie(rng) < 3) return false;
+  draft.hp = 1;
+  pushLog(draft, "Samambro's resilience pulls you back from the brink -- you survive with 1 HP!");
+  return true;
+}
+
 /** Spends `cost` torches, logging `message`; if there aren't enough, the Darkness kills the character instead. */
 function spendTorches(
   draft: Draft<DungeonState>,
   cost: number,
   message: string,
   segId: number | null = null,
+  rng: RNG = Math.random,
 ): boolean {
   if (draft.torches < cost) {
     if (draft.className === "Miner") {
@@ -153,6 +170,7 @@ function spendTorches(
       );
       return false;
     }
+    if (trySamambroSurvival(draft, rng)) return false; // still out of torches, but alive
     draft.alive = false;
     pushLog(draft, DARKNESS_MESSAGE, "descend");
     leaveRemains(draft, segId);
@@ -235,6 +253,10 @@ function startCombat(
     pendingDamage: null,
     playerDamageBonus: 0,
     engulfableBodies: 0,
+    damageReduction: 0,
+    shields: [],
+    absorbSoulActive: false,
+    fireOfTheDeadActive: false,
   };
   pushLog(
     draft,
@@ -244,7 +266,7 @@ function startCombat(
   );
   if (wasNoisy && draft.combat) {
     pushLog(draft, "The noise gave you away — the monsters strike first!");
-    applyMonsterTurn(draft, draft.combat);
+    applyMonsterTurn(draft, draft.combat, rng);
   }
 }
 
@@ -315,6 +337,7 @@ function applyTrapEffect(
   if (trap.bladeTrap) {
     if (rollDie(rng) === 1) {
       draft.hp = 0;
+      if (trySamambroSurvival(draft, rng)) return;
       draft.alive = false;
       draft.deathCause = "combat";
       pushLog(draft, "The blade finds its mark. The dungeon keeps what it took.", "descend");
@@ -329,6 +352,7 @@ function applyTrapEffect(
     draft.hp = Math.max(0, draft.hp - trap.damage);
     pushLog(draft, `The trap deals ${trap.damage} damage.`);
     if (draft.hp <= 0) {
+      if (trySamambroSurvival(draft, rng)) return;
       draft.alive = false;
       draft.deathCause = "combat";
       pushLog(draft, "The trap finishes you. The dungeon keeps what it took.", "descend");
@@ -372,6 +396,7 @@ function resolveTrapOutcome(
       trap.torchCost,
       `Spent ${trap.torchCost} torch${trap.torchCost > 1 ? "es" : ""} climbing out.`,
       segId,
+      rng,
     );
   }
   applyTrapEffect(draft, trap, segId, rng);
@@ -499,7 +524,7 @@ function hasUsableArmor(draft: Draft<DungeonState>): boolean {
   return draft.armor.some((piece) => piece.hp > 0);
 }
 
-function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>): void {
+function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>, rng: RNG): void {
   // Poison: "All damage from this creature cannot be absorbed by armor or other means" -- tallied
   // apart from every other monster's damage, which the player may still choose to absorb.
   // Pirate (Advanced Class, issue #72): "Ignores Poison" -- the damage still lands, but no longer
@@ -510,8 +535,15 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
   let deathtouchKill = false;
   let paralyzeTurns = 0;
   for (const monster of combat.monsters) {
-    if (!monster.skipNextAttack) {
-      const dmg = monster.damage + monster.bonusDamage;
+    // Vimes/Paralyze (New Spells, issue #61): a silenced monster skips its attack entirely, same
+    // as a Cold Ray freeze, but for multiple rounds -- decremented once per round regardless of
+    // whether it actually had a turn to skip yet (silencedTurns already accounts for this round).
+    if (monster.silencedTurns > 0) {
+      monster.silencedTurns -= 1;
+    } else if (!monster.skipNextAttack) {
+      // Ethereal Body (New Spells, issue #61): "all damage you take is reduced by 1 point," applied
+      // per monster hit -- floored at 0, so it can't turn a hit into healing.
+      const dmg = Math.max(0, monster.damage + monster.bonusDamage - combat.damageReduction);
       if (monster.abilities.includes("poison") && !ignoresPoison) {
         poisonDamage += dmg;
       } else {
@@ -529,6 +561,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
   // Deathtouch "kills you" outright per the rulebook -- armor doesn't get a say.
   if (deathtouchKill) {
     draft.hp = 0;
+    if (trySamambroSurvival(draft, rng)) return;
     draft.alive = false;
     draft.deathCause = "combat";
     pushLog(draft, "A deathly touch stops your heart instantly.", "descend");
@@ -549,6 +582,17 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     pushLog(draft, `Poison courses through you for ${poisonDamage} damage.`);
   }
 
+  // Magic Shield (New Spells, issue #61): "it can absorb 4 damage points. Can cast more than one" --
+  // drains the oldest shield first, spilling into the next, before offering the normal
+  // armor-or-HP choice; poison already bypassed this pool entirely above, same as it bypasses
+  // armor ("cannot be absorbed by armor or other means"). Depleted shields are dropped.
+  while (absorbableDamage > 0 && combat.shields.length > 0) {
+    const absorbed = Math.min(absorbableDamage, combat.shields[0]!);
+    combat.shields[0] = combat.shields[0]! - absorbed;
+    absorbableDamage -= absorbed;
+    if (combat.shields[0] === 0) combat.shields.shift();
+  }
+
   if (draft.hp > 0 && absorbableDamage > 0) {
     // "Reduce this value from your HP (or armor's HP, if you're using one -- your call)": with
     // usable armor equipped, defer to RESOLVE_DAMAGE instead of subtracting HP immediately.
@@ -564,6 +608,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     pushLog(draft, `The monsters strike back for ${absorbableDamage} damage.`);
   }
   if (draft.hp <= 0) {
+    if (trySamambroSurvival(draft, rng)) return;
     draft.alive = false;
     draft.deathCause = "combat";
     pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
@@ -618,6 +663,23 @@ function finishIfVictorious(
   const level = draft.levels[draft.activeLevel];
   const seg = level?.segments.find((s) => s.id === combat.segId);
   if (seg) seg.monstersDefeated = true;
+
+  // Absorb Soul/Fire of the Dead (New Spells, issue #61): deferred-to-victory triggers, off the
+  // same "monsters actually killed this fight" count Slimemen's engulfableBodies already tracks --
+  // applies to a Boss victory too, since neither spell's text carves out an exception for one.
+  if (combat.absorbSoulActive && combat.engulfableBodies > 0) {
+    const healed = Math.min(5 * combat.engulfableBodies, draft.maxHp - draft.hp);
+    draft.hp += healed;
+    pushLog(draft, `Absorb Soul restores ${healed} HP from the fallen.`);
+  }
+  if (combat.fireOfTheDeadActive && combat.engulfableBodies > 0) {
+    const gained = Math.min(2 * combat.engulfableBodies, 10 - draft.torches);
+    draft.torches += gained;
+    pushLog(
+      draft,
+      `Fire of the Dead grants you ${gained} torch${gained === 1 ? "" : "es"} from the fallen.`,
+    );
+  }
 
   if (combat.isBoss) {
     const treasures = rollDie(rng) + rollDie(rng);
@@ -771,6 +833,14 @@ function rerollMonstersIfNeeded(
  * `randomSpell`, which apply immediately (to the active fight, the torch count, or spellUses
  * respectively) rather than lingering as an item. */
 function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG): void {
+  // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor" -- every Wonder
+  // outcome is one of exactly those three things (a potion effect, a random-spell scroll, or a
+  // worn `wonderItem`/`grantsHp` trinket), so the whole table is a no-op for one, not just a
+  // specific branch of it.
+  if (draft.raceName === "Ogre") {
+    pushLog(draft, `Treasure: ${entry.text} Ogres cannot use this -- it has no effect.`);
+    return;
+  }
   if (entry.grantsHp !== undefined) {
     draft.armor.push({
       piece: "wonderItem",
@@ -818,6 +888,13 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
  * a weapon bonus always rides along as `bonusEffect`, applied during combat). */
 function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng: RNG): void {
   if (entry.grants === "armor") {
+    // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor" -- only the armor
+    // half of this table is blocked; Ogre still fully benefits from "[Weapon] of X" items below,
+    // since the restriction never mentions weapons.
+    if (draft.raceName === "Ogre") {
+      pushLog(draft, `Treasure: ${entry.text} Ogres cannot wear armor -- it has no effect.`);
+      return;
+    }
     const roll = rollDie(rng);
     const base = ARMOR_TABLE[roll]!;
     const bonusHp = entry.effect.kind === "extraHp" ? entry.effect.amount : 0;
@@ -880,6 +957,15 @@ function applyRoomContentReward(
       break;
     }
     case "magicScrolls": {
+      // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor" -- the scrolls
+      // are still found (for flavor), but grant nothing.
+      if (draft.raceName === "Ogre") {
+        pushLog(
+          draft,
+          `You find ${count} Magic Scroll${count === 1 ? "" : "s"}, but Ogres cannot use scrolls.`,
+        );
+        break;
+      }
       const spellNames: string[] = [];
       for (let i = 0; i < count; i++) {
         const spellRoll = rollDie(rng);
@@ -1076,6 +1162,7 @@ export function dungeonReducer(
             1,
             `Segment ${seg.id}: spent 1 torch searching for a secret passage.`,
             seg.id,
+            rng,
           )
         ) {
           return;
@@ -1152,7 +1239,9 @@ export function dungeonReducer(
         draft.treasures += treasures;
         draft.keys += keys;
         draft.heldItems.push(...heldItems);
-        draft.armor.push(...armor);
+        // Ogre (New Races, issue #60): "Cannot... wear armor" -- recovered armor is left behind
+        // rather than picked up (coins/Treasures/Keys/held items/weapons are all unaffected).
+        if (draft.raceName !== "Ogre") draft.armor.push(...armor);
         if (weapon) draft.spareWeapons.push(weapon);
         draft.spareWeapons.push(...weapons);
         const itemsPart =
@@ -1215,7 +1304,7 @@ export function dungeonReducer(
             ) {
               pushLog(draft, `Segment ${seg.id}: your lockpicking skill needs no torch.`);
             } else {
-              spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id);
+              spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id, rng);
             }
           } else if (action.lockChoice === "breakDoor") {
             pushLog(
@@ -1482,6 +1571,7 @@ export function dungeonReducer(
             1,
             `Segment ${seg.id}: spent 1 torch trying to move silently.`,
             seg.id,
+            rng,
           )
         ) {
           return;
@@ -1521,7 +1611,7 @@ export function dungeonReducer(
         if (combat.paralyzedTurns > 0) {
           combat.paralyzedTurns -= 1;
           pushLog(draft, "You are paralyzed and cannot act this turn.");
-          applyMonsterTurn(draft, combat);
+          applyMonsterTurn(draft, combat, rng);
           return;
         }
 
@@ -1601,6 +1691,7 @@ export function dungeonReducer(
           }
 
           if (draft.hp <= 0) {
+            if (trySamambroSurvival(draft, rng)) return;
             draft.alive = false;
             draft.deathCause = "combat";
             pushLog(draft, "The explosion kills you instantly.", "descend");
@@ -1662,7 +1753,7 @@ export function dungeonReducer(
 
         finishIfVictorious(draft, combat, rng);
         if (draft.combat && draft.combat.outcome === "ongoing") {
-          applyMonsterTurn(draft, draft.combat);
+          applyMonsterTurn(draft, draft.combat, rng);
         }
       });
     }
@@ -1685,7 +1776,7 @@ export function dungeonReducer(
         if (combat.paralyzedTurns > 0) {
           combat.paralyzedTurns -= 1;
           pushLog(draft, "You are paralyzed and cannot act this turn.");
-          applyMonsterTurn(draft, combat);
+          applyMonsterTurn(draft, combat, rng);
           return;
         }
 
@@ -1694,7 +1785,7 @@ export function dungeonReducer(
         pushLog(draft, "You engulf a fallen enemy's body, regaining all your HP.");
 
         if (draft.combat && draft.combat.outcome === "ongoing") {
-          applyMonsterTurn(draft, draft.combat);
+          applyMonsterTurn(draft, draft.combat, rng);
         }
       });
     }
@@ -1727,6 +1818,7 @@ export function dungeonReducer(
         }
 
         if (draft.hp <= 0) {
+          if (trySamambroSurvival(draft, rng)) return;
           draft.alive = false;
           draft.deathCause = "combat";
           pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
@@ -1765,7 +1857,7 @@ export function dungeonReducer(
         if (combat && combat.paralyzedTurns > 0) {
           combat.paralyzedTurns -= 1;
           pushLog(draft, "You are paralyzed and cannot cast a spell this turn.");
-          applyMonsterTurn(draft, combat);
+          applyMonsterTurn(draft, combat, rng);
           return;
         }
 
@@ -1871,6 +1963,63 @@ export function dungeonReducer(
             break;
           }
 
+          // Vimes (Nature 2, issue #61): "Leaves a monster without attacking for 1d6 turns" -- a
+          // multi-turn version of Cold Ray's single-round freeze (see CombatMonsterState.silencedTurns).
+          case "Vimes": {
+            if (!combat) break;
+            const monster = combat.monsters.find((m) => m.id === action.targetId);
+            if (!monster) break;
+            const turns = rollDie(rng);
+            monster.silencedTurns = turns;
+            pushLog(draft, `You cast Vimes, silencing ${monster.name} for ${turns} turns.`);
+            break;
+          }
+
+          // Paralyze (Advanced 5, issue #61): "Leave all monsters in a room without attacking for
+          // 2 turns" -- Vimes' identical mechanism, room-wide and at a fixed duration.
+          case "Paralyze": {
+            if (!combat) break;
+            pushLog(draft, "You cast Paralyze, freezing every monster in the room for 2 turns.");
+            for (const monster of combat.monsters) monster.silencedTurns = 2;
+            break;
+          }
+
+          // Ethereal Body (Death 1 / Advanced 12, issue #61): "Until the end of the fight, all
+          // damage you take is reduced by 1 point" -- doesn't stack from a second cast.
+          case "Ethereal Body": {
+            if (!combat) break;
+            combat.damageReduction = Math.max(combat.damageReduction, 1);
+            pushLog(draft, "You cast Ethereal Body, dulling every blow against you.");
+            break;
+          }
+
+          // Magic Shield (Advanced 8, issue #61): "it can absorb 4 damage points. Can cast more
+          // than one" -- each cast is its own independently-depleting pool (see applyMonsterTurn).
+          case "Magic Shield": {
+            if (!combat) break;
+            combat.shields.push(4);
+            pushLog(draft, "You cast Magic Shield, conjuring a barrier that can absorb 4 damage.");
+            break;
+          }
+
+          // Absorb Soul (Death 2, issue #61): "After a fight, recover 5 HP for each monster
+          // killed" -- a deferred-to-victory trigger resolved in finishIfVictorious().
+          case "Absorb Soul": {
+            if (!combat) break;
+            combat.absorbSoulActive = true;
+            pushLog(draft, "You cast Absorb Soul -- victory here will restore your HP.");
+            break;
+          }
+
+          // Fire of the Dead (Death 4, issue #61): "After a fight, you get 2 torches for every
+          // monster killed" -- same deferred-to-victory shape as Absorb Soul above.
+          case "Fire of the Dead": {
+            if (!combat) break;
+            combat.fireOfTheDeadActive = true;
+            pushLog(draft, "You cast Fire of the Dead -- victory here will grant you torches.");
+            break;
+          }
+
           case "Fireball": {
             if (!combat) break;
             pushLog(draft, "You cast Fireball, engulfing the room in flame.");
@@ -1927,7 +2076,7 @@ export function dungeonReducer(
         if (draft.combat) {
           finishIfVictorious(draft, draft.combat, rng);
           if (draft.combat && draft.combat.outcome === "ongoing") {
-            applyMonsterTurn(draft, draft.combat);
+            applyMonsterTurn(draft, draft.combat, rng);
           }
         }
       });
@@ -1952,7 +2101,7 @@ export function dungeonReducer(
         if (combat && combat.paralyzedTurns > 0) {
           combat.paralyzedTurns -= 1;
           pushLog(draft, "You are paralyzed and cannot examine the treasure this turn.");
-          applyMonsterTurn(draft, combat);
+          applyMonsterTurn(draft, combat, rng);
           return;
         }
 
@@ -1973,12 +2122,22 @@ export function dungeonReducer(
             break;
           }
           case "healAll": {
+            // Ogre (New Races, issue #60): "Cannot use potions" -- Health/Mana Potions have no
+            // effect, though the Treasure is still spent (already decremented above).
+            if (draft.raceName === "Ogre") {
+              pushLog(draft, `Treasure: ${outcome.text} Ogres cannot use potions -- it has no effect.`);
+              break;
+            }
             const healed = draft.maxHp - draft.hp;
             draft.hp = draft.maxHp;
             pushLog(draft, `Treasure: ${outcome.text}${healed > 0 ? ` (+${healed} HP)` : ""}`);
             break;
           }
           case "restoreAllSpells": {
+            if (draft.raceName === "Ogre") {
+              pushLog(draft, `Treasure: ${outcome.text} Ogres cannot use potions -- it has no effect.`);
+              break;
+            }
             // Reads the persisted ceiling directly (issue #75) rather than a client-computed value
             // passed through the action -- the same fix `rest()` needed, and for the same reason.
             draft.spellUses = { ...draft.maxSpellUses };
@@ -1986,6 +2145,12 @@ export function dungeonReducer(
             break;
           }
           case "randomSpell": {
+            // Ogre (New Races, issue #60): "Cannot use scrolls" -- the scroll is still spent, but
+            // grants nothing.
+            if (draft.raceName === "Ogre") {
+              pushLog(draft, `Treasure: ${outcome.text} Ogres cannot use scrolls -- it has no effect.`);
+              break;
+            }
             const spellRoll = rollDie(rng);
             const key = spellKey("basic", spellRoll);
             draft.spellUses[key] = (draft.spellUses[key] ?? 0) + 1;
@@ -2020,7 +2185,7 @@ export function dungeonReducer(
         }
 
         if (draft.combat) {
-          applyMonsterTurn(draft, draft.combat);
+          applyMonsterTurn(draft, draft.combat, rng);
         }
       });
     }

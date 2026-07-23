@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-07-23
+
+### Added
+
+- Ogre's "Cannot use potions, scrolls or wear armor" restriction is
+  now enforced (#60), the second half of an ability that previously
+  only granted the +2 damage bonus. Potions, scrolls, and armor
+  found in a dungeon (or bought/brewed in Town) simply have no
+  effect for an Ogre; weapons are unaffected.
+
+## [2.21.0] - 2026-07-23
+
+### Added
+
+- Samambro's race ability is now real (#60): "when you die, roll a
+  die -- 3 or more and you come back to life with 1 HP" is checked
+  at every way a character can die in a dungeon, rather than being
+  flavor text with no effect.
+
+## [2.20.0] - 2026-07-23
+
+### Added
+
+- 6 more New Spells are now castable (#61, Tier 2): Vimes and
+  Paralyze silence one or every monster in the room for several
+  turns; Ethereal Body reduces all damage taken for the rest of the
+  fight; Magic Shield conjures a stacking, independently-depleting
+  damage-absorbing barrier; Absorb Soul and Fire of the Dead grant
+  bonus HP or torches per monster killed once the fight is won.
+
 ## [2.19.0] - 2026-07-22
 
 ### Added

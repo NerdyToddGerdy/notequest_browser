@@ -69,6 +69,7 @@ interface CultureAction {
 function cultureActionFor(
   culture: CityCulture | null,
   resources: AdventurerResources,
+  isOgre: boolean,
 ): CultureAction | null {
   switch (culture) {
     case "human":
@@ -108,7 +109,7 @@ function cultureActionFor(
         name: "Verdosa Potion",
         cost: "30 coins",
         desc: "Roll a die: 3+ heals to full HP, otherwise you'll be itchy for a day.",
-        disabled: !canDrinkVerdosaPotion(resources),
+        disabled: !canDrinkVerdosaPotion(resources, isOgre),
         apply: (r) => drinkVerdosaPotion(r).resources,
       };
     case "orc":
@@ -213,9 +214,11 @@ export function TownScreen({
     character.cls.name === "Blacksmith" || resources.advancedClasses.includes("Blacksmith");
   const isChampion = resources.advancedClasses.includes("Champion");
   const isAlchemist = resources.advancedClasses.includes("Alchemist");
+  // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor."
+  const isOgre = character.race.name === "Ogre";
   const [graveyard] = useState(() => loadGraveyard());
   const hasRecords = graveyard.length > 0 || dungeonHistory.length > 0;
-  const cultureAction = cultureActionFor(culture, resources);
+  const cultureAction = cultureActionFor(culture, resources, isOgre);
   const hirelingRoster = hirelingsFor(culture, isFortress);
   // Thug Life's outcome text (issue #58) -- unlike every other City Action's static desc, this one
   // has 5 different narrative outcomes (killed/jail-death/fled+banned/coins/treasure) worth telling
@@ -366,7 +369,7 @@ export function TownScreen({
                       <button
                         className={styles.actionBtn}
                         type="button"
-                        disabled={!canBrewHealthPotion(resources, isAlchemist)}
+                        disabled={!canBrewHealthPotion(resources, isAlchemist, isOgre)}
                         onClick={() => onUpdateResources(brewHealthPotion(resources))}
                       >
                         <span className={styles.actionName}>Brew Health Potion</span>

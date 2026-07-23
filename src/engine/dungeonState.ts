@@ -142,6 +142,10 @@ export interface CombatMonsterState {
   paralyzePending: number;
   /** Cold Ray: this monster is frozen and skips its next counter-attack entirely. */
   skipNextAttack: boolean;
+  /** Vimes/Paralyze (New Spells, issue #61): this monster skips its attack for this many more
+   * rounds (0 = none active) -- a multi-turn version of `skipNextAttack` above, decremented once
+   * per round in `applyMonsterTurn()` rather than cleared after a single skip. */
+  silencedTurns: number;
 }
 
 export interface CombatState {
@@ -165,8 +169,26 @@ export interface CombatState {
    * when combat ends (not persisted onto the character outside combat). */
   playerDamageBonus: number;
   /** Slimemen only: bumped by `handleMonsterDefeat` for every monster actually removed (killed, not
-   * revived) this fight -- each one is a "body" ENGULF_BODY can consume for a full heal. */
+   * revived) this fight -- each one is a "body" ENGULF_BODY can consume for a full heal. Also
+   * doubles as the generic "monsters killed this fight" count Absorb Soul/Fire of the Dead need
+   * (New Spells, issue #61) -- same underlying signal, reused rather than tracked twice. */
   engulfableBodies: number;
+  /** Ethereal Body (New Spells, issue #61): "all damage you take is reduced by 1 point," for the
+   * rest of this fight -- applied per monster hit (before poison/absorbable are split out), not
+   * once per round, floored at 0. */
+  damageReduction: number;
+  /** Magic Shield (New Spells, issue #61): "it can absorb 4 damage points. Can cast more than one" --
+   * each cast pushes a new independently-depleting pool; absorbable damage drains the oldest
+   * (first) shield before spilling to the next, then to the normal armor-or-HP choice. Poison still
+   * bypasses shields entirely, the same "cannot be absorbed by armor or other means" rule armor
+   * itself is already subject to. */
+  shields: number[];
+  /** Absorb Soul (New Spells, issue #61): "after a fight, recover 5 HP for each monster killed" --
+   * set when cast, consumed (and cleared) by `finishIfVictorious()` alongside `engulfableBodies`. */
+  absorbSoulActive: boolean;
+  /** Fire of the Dead (New Spells, issue #61): "after a fight, you get 2 torches for every monster
+   * killed" -- same shape as `absorbSoulActive` above, the other deferred-to-victory Death spell. */
+  fireOfTheDeadActive: boolean;
 }
 
 /** A "worth N Coins in the town" item found by opening a Treasure -- held until there's a town to sell it in. */

@@ -441,8 +441,11 @@ export interface VerdosaPotionResult {
   resources: AdventurerResources;
   healed: boolean;
 }
-export function canDrinkVerdosaPotion(resources: AdventurerResources): boolean {
-  return resources.coins >= GOBLIN_POTION_COST;
+/** `isOgre`: "Cannot use potions, scrolls or wear armor" (issue #60) -- this is a City Action tied
+ * to a Goblin-culture city, not the drinker's own race, so an Ogre visiting one could otherwise
+ * still buy and drink this. */
+export function canDrinkVerdosaPotion(resources: AdventurerResources, isOgre = false): boolean {
+  return !isOgre && resources.coins >= GOBLIN_POTION_COST;
 }
 /** Goblin: "Buy a Verdosa Potion for 30 coins. When drinking, roll a die. If it's 3 or more you
  * regain all your HP. If not you will be itchy for a whole day." Drunk immediately (not
@@ -602,8 +605,19 @@ const ALCHEMIST_POTION_COST = 50;
  * anywhere in this codebase (Treasures' own Health Potion resolves as an instant heal-to-full the
  * moment it's opened, not a stored item) -- brewing one here follows that same precedent, healing
  * immediately rather than adding a `HeldItem` with no way to later "use" it. */
-export function canBrewHealthPotion(resources: AdventurerResources, isAlchemist: boolean): boolean {
-  return isAlchemist && resources.coins >= ALCHEMIST_POTION_COST && resources.hp < resources.maxHp;
+/** `isOgre`: "Cannot use potions, scrolls or wear armor" (issue #60) -- Alchemist is an Advanced
+ * Class, acquirable independent of race, so an Ogre could otherwise still brew and drink one. */
+export function canBrewHealthPotion(
+  resources: AdventurerResources,
+  isAlchemist: boolean,
+  isOgre = false,
+): boolean {
+  return (
+    !isOgre &&
+    isAlchemist &&
+    resources.coins >= ALCHEMIST_POTION_COST &&
+    resources.hp < resources.maxHp
+  );
 }
 export function brewHealthPotion(resources: AdventurerResources): AdventurerResources {
   return { ...resources, coins: resources.coins - ALCHEMIST_POTION_COST, hp: resources.maxHp };

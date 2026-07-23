@@ -28,6 +28,7 @@ function makeMonster(overrides: Partial<CombatMonsterState> = {}): CombatMonster
     deathtouchPending: false,
     paralyzePending: 0,
     skipNextAttack: false,
+    silencedTurns: 0,
     ...overrides,
   };
 }

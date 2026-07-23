@@ -46,6 +46,7 @@ export function startArena(rng: RNG = Math.random): ArenaState {
       deathtouchPending: false,
       paralyzePending: 0,
       skipNextAttack: false,
+      silencedTurns: 0,
     },
     outcome: "ongoing",
   };

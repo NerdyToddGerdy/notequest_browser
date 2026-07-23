@@ -17,6 +17,7 @@ function makeState(overrides: Partial<CombatMonsterState> = {}): ArenaState {
       deathtouchPending: false,
       paralyzePending: 0,
       skipNextAttack: false,
+      silencedTurns: 0,
       ...overrides,
     },
     outcome: "ongoing",

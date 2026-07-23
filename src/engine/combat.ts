@@ -13,11 +13,14 @@ export const HEAL_AMOUNT = 5;
  * can legitimately appear under more than one table (Elemental's Cold Ray/Lightning/Fireball are
  * the identical Core spells, just re-listed), and matching by name lets both copies share the one
  * real implementation instead of needing a duplicate case per table. Natural Cure/Insect Rain/
- * Magic Blast/Banish the Dead (issue #61) are the first New Spells wired up beyond Basic's own six
- * -- each reuses an existing shape (Heal, Fireball, Lightning, and a new "destroy every Undead in
- * the room" case respectively) rather than needing new engine mechanics. Every other New Spells
- * effect (Ethereal Body, Stone Armor, Paralyze, Magic Shield, Create Food, the various Summon
- * spells, etc.) still isn't wired up -- see CLAUDE.md's New Spells note for why each one is
+ * Magic Blast/Banish the Dead (issue #61, Tier 1) reuse an existing shape (Heal, Fireball,
+ * Lightning, and a new "destroy every Undead in the room" case respectively); Vimes/Paralyze
+ * (a new per-monster/room multi-turn silence), Ethereal Body (a flat per-hit damage reduction for
+ * the fight), Magic Shield (stackable, independently-depleting absorption pools), and Absorb Soul/
+ * Fire of the Dead (deferred-to-victory triggers off `CombatState.engulfableBodies`) are issue
+ * #61's Tier 2 -- see CLAUDE.md's New Spells note for exactly how each works. Every other New
+ * Spells effect (Camouflage, Create Food, the Summon spells, Stone Armor, Collapse, Open Portal,
+ * Fly, Reload Mana) still isn't wired up -- see CLAUDE.md's New Spells note for why each one is
  * deferred, same "documented, deliberate simplification" precedent as `bladeTrap`'s roll-of-2 or
  * `WeaponEntry.twoHanded`. A spell not in this set simply isn't offered a "Cast" button anywhere
  * (`CombatPanel`/`CharacterSheet`/`town.ts` all filter against it), rather than being clickable and
@@ -33,14 +36,19 @@ export const KNOWN_CASTABLE_SPELL_NAMES = new Set([
   "Insect Rain",
   "Magic Blast",
   "Banish the Dead",
+  "Vimes",
+  "Paralyze",
+  "Ethereal Body",
+  "Magic Shield",
+  "Absorb Soul",
+  "Fire of the Dead",
 ]);
 
-/** Cold Ray, Lightning, and Magic Blast need a single target monster; every other known-castable
- * spell doesn't. */
-export const TARGETED_SPELL_NAMES = new Set(["Cold Ray", "Lightning", "Magic Blast"]);
+/** Cold Ray, Lightning, Magic Blast, and Vimes need a single target monster; every other
+ * known-castable spell doesn't. */
+export const TARGETED_SPELL_NAMES = new Set(["Cold Ray", "Lightning", "Magic Blast", "Vimes"]);
 
-/** Teleport and every damage/Undead-destroying spell only mean anything mid-fight; Heal/Light/
- * Natural Cure don't need one. */
+/** Every spell that only means anything mid-fight; Heal/Light/Natural Cure don't need one. */
 export const COMBAT_ONLY_SPELL_NAMES = new Set([
   "Teleport",
   "Cold Ray",
@@ -49,6 +57,12 @@ export const COMBAT_ONLY_SPELL_NAMES = new Set([
   "Insect Rain",
   "Magic Blast",
   "Banish the Dead",
+  "Vimes",
+  "Paralyze",
+  "Ethereal Body",
+  "Magic Shield",
+  "Absorb Soul",
+  "Fire of the Dead",
 ]);
 
 /** The only known-castable spells usable outside a dungeon fight at all (Town/World's own
@@ -66,6 +80,7 @@ export const HORDE_ORC: Omit<CombatMonsterState, "id"> = {
   deathtouchPending: false,
   paralyzePending: 0,
   skipNextAttack: false,
+  silencedTurns: 0,
 };
 
 /** Fixed stat block from the Necromancy ability text: "a Skeleton (4 HP; Damage 1; Undead) appears." */
@@ -79,6 +94,7 @@ export const NECROMANCY_SKELETON: Omit<CombatMonsterState, "id"> = {
   deathtouchPending: false,
   paralyzePending: 0,
   skipNextAttack: false,
+  silencedTurns: 0,
 };
 
 function rollUpTo(sides: number, rng: RNG): number {
@@ -113,6 +129,7 @@ export function spawnMonsters(
     deathtouchPending: false,
     paralyzePending: 0,
     skipNextAttack: false,
+    silencedTurns: 0,
   }));
 }
 

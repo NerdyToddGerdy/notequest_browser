@@ -324,6 +324,17 @@ describe("Room Content rewards", () => {
     expect(state.log.some((entry) => entry.message.includes("3 Magic Scrolls"))).toBe(true);
   });
 
+  it("Ogre (New Races, issue #60): a magicScrolls room reward grants nothing -- 'Cannot use scrolls'", () => {
+    const rng = sequenceDie([2, 3, 4, 5, 3, 3, 3, 3]);
+    const state = dungeonReducer(
+      { ...createInitialDungeonState(), raceName: "Ogre" },
+      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      rng,
+    );
+    expect(state.spellUses).toEqual({});
+    expect(state.log.some((entry) => entry.message.includes("cannot use scrolls"))).toBe(true);
+  });
+
   it("rolls Magic Items for a magicItems reward (Palace entrance, roll 12)", () => {
     // content sum 12 (Palace row 12: "2d6 Magic Items"), monster sum 12 (padded identically),
     // reward count roll 1+1=2 -> 2 items, each needing an item-table roll + a base-armor-table roll
@@ -1060,6 +1071,44 @@ describe("COLLECT_REMAINS", () => {
     expect(next.log[0]!.message).toContain("Doomed Dara");
   });
 
+  it("Ogre (New Races, issue #60): recovers everything from remains except armor -- 'Cannot wear armor'", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: {
+        names: ["Doomed Dara"],
+        coins: 5,
+        treasures: 2,
+        keys: 1,
+        heldItems: [{ name: "Ornament", worth: 5 }],
+        armor: [{ piece: "boots", hp: 3, maxHp: 3 }],
+        weapon: { name: "Sword", formula: "1d6+1" },
+        weapons: [],
+      },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = {
+      ...stateWithLevel(level),
+      coins: 1,
+      treasures: 0,
+      keys: 0,
+      heldItems: [],
+      armor: [],
+      spareWeapons: [],
+      raceName: "Ogre",
+    };
+
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+
+    expect(next.coins).toBe(6);
+    expect(next.treasures).toBe(2);
+    expect(next.keys).toBe(1);
+    expect(next.heldItems).toEqual([{ name: "Ornament", worth: 5 }]);
+    expect(next.spareWeapons).toEqual([{ name: "Sword", formula: "1d6+1" }]); // weapons unaffected
+    expect(next.armor).toEqual([]); // left behind
+  });
+
   it("is a no-op when there are no remains in the segment", () => {
     const room = makeSegment({ id: 1, type: "room-small", doors: [] });
     const level = { ...makeLevel(1), segments: [room] };
@@ -1185,6 +1234,10 @@ describe("WIELD_WEAPON", () => {
         pendingDamage: null,
         playerDamageBonus: 0,
         engulfableBodies: 0,
+        damageReduction: 0,
+        shields: [],
+        absorbSoulActive: false,
+        fireOfTheDeadActive: false,
       },
     });
     const next = dungeonReducer(state, { type: "WIELD_WEAPON", index: 0 });
@@ -1245,6 +1298,43 @@ describe("RESOLVE_DOOR_LOCK", () => {
     });
     expect(next.alive).toBe(false);
     expect(next.log[0]!.message).toContain("darkness");
+  });
+
+  it("Samambro (New Races, issue #60): survives the Darkness at 1 HP on a roll of 3+, but the action still fails", () => {
+    const state = { ...doorState(0), raceName: "Samambro" };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 3,
+        trapRoll: null,
+        lockChoice: "pickLock",
+      },
+      fixedDie(3),
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.log[0]!.message).toContain("survive with 1 HP");
+    expect(next.levels[0]!.segments[0]!.doors[0]!.opened).toBe(false); // still locked -- the pick still failed
+  });
+
+  it("Samambro doesn't survive a roll below 3 -- dies to the Darkness as normal", () => {
+    const state = { ...doorState(0), raceName: "Samambro" };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 3,
+        trapRoll: null,
+        lockChoice: "pickLock",
+      },
+      fixedDie(2),
+    );
+    expect(next.alive).toBe(false);
   });
 
   it("locked + break door: free, but no darkness risk regardless of torches", () => {
@@ -1457,6 +1547,25 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.log.some((entry) => entry.message.includes("blade"))).toBe(true);
   });
 
+  it("Samambro (New Races, issue #60): survives the Blade Trap's silent roll-of-1 death at 1 HP", () => {
+    const state = { ...doorState(5), raceName: "Samambro" };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 1,
+        lockChoice: null,
+      },
+      sequenceDie([1, 3]), // the trap's own death roll, then Samambro's survival roll
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.log.some((entry) => entry.message.includes("survive with 1 HP"))).toBe(true);
+  });
+
   it("the Blade Trap does nothing mechanical on any other roll (losing an arm is flavor only)", () => {
     const state = doorState(5);
     const next = dungeonReducer(
@@ -1489,6 +1598,31 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.hp).toBe(0);
     expect(next.deathCause).toBe("combat");
     expect(next.levels[0]!.segments[0]!.remains?.coins).toBe(4);
+  });
+
+  it("Samambro (New Races, issue #60): survives a fatal flat-damage trap at 1 HP, no remains left behind", () => {
+    const state = {
+      ...doorState(5),
+      hp: 3,
+      coins: 4,
+      characterName: "Lucky",
+      raceName: "Samambro",
+    };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 2, // palace trap 2: Acid Spout, 5 damage
+        lockChoice: null,
+      },
+      fixedDie(3),
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.levels[0]!.segments[0]!.remains).toBeUndefined();
   });
 
   it("a monster-ambush trap (e.g. Crypt's Bats) spawns combat, noisy", () => {
@@ -1821,6 +1955,7 @@ describe("CAST_SPELL guards", () => {
           deathtouchPending: false,
           paralyzePending: 0,
           skipNextAttack: false,
+          silencedTurns: 0,
         },
       ],
       paralyzedTurns: 0,
@@ -1830,6 +1965,10 @@ describe("CAST_SPELL guards", () => {
       pendingDamage: null,
       playerDamageBonus: 0,
       engulfableBodies: 0,
+      damageReduction: 0,
+      shields: [],
+      absorbSoulActive: false,
+      fireOfTheDeadActive: false,
     };
     const state: DungeonState = {
       ...stateWithLevel(level),
@@ -1872,6 +2011,20 @@ describe("OPEN_TREASURE", () => {
     expect(next.hp).toBe(20);
   });
 
+  it("Ogre (New Races, issue #60): Health Potion has no effect -- 'Cannot use potions'", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      treasures: 1,
+      hp: 12,
+      maxHp: 20,
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 2 });
+    expect(next.hp).toBe(12); // unchanged
+    expect(next.treasures).toBe(0); // still spent
+    expect(next.log[0]!.message).toContain("Ogres cannot use potions");
+  });
+
   it("Magic Scroll (Palace roll 3) grants one use of a randomly rolled Basic Spell", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1, spellUses: {} };
     const next = dungeonReducer(
@@ -1883,6 +2036,19 @@ describe("OPEN_TREASURE", () => {
     expect(next.maxSpellUses).toEqual({ "basic:5": 1 }); // raises the ceiling too (issue #75)
     expect(next.log[0]!.message).toContain("Lightning");
     expect(next.milestones.hasCastSpell).toBe(true); // Scholar (issue #70): scroll redemption counts
+  });
+
+  it("Ogre (New Races, issue #60): Magic Scroll grants nothing -- 'Cannot use scrolls'", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      treasures: 1,
+      spellUses: {},
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 3 }, fixedDie(5));
+    expect(next.spellUses).toEqual({});
+    expect(next.treasures).toBe(0); // still spent
+    expect(next.log[0]!.message).toContain("Ogres cannot use scrolls");
   });
 
   it("Valuable jewel (Palace roll 4) adds a held item worth 2d6 x 10 coins", () => {
@@ -1975,6 +2141,20 @@ describe("OPEN_TREASURE", () => {
     expect(next.spellUses).toEqual({ "basic:1": 3, "basic:6": 3 });
   });
 
+  it("Ogre (New Races, issue #60): Mana Potion has no effect -- 'Cannot use potions'", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "tomb",
+      treasures: 1,
+      spellUses: { "basic:1": 0, "basic:6": 1 },
+      maxSpellUses: { "basic:1": 3, "basic:6": 3 },
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(next.spellUses).toEqual({ "basic:1": 0, "basic:6": 1 }); // unchanged
+    expect(next.log[0]!.message).toContain("Ogres cannot use potions");
+  });
+
   it("Crypt roll 5 redirects to the Wonders table; Potion of Luminescence (wonders roll 6) grants torches, capped at 10", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
@@ -1988,6 +2168,25 @@ describe("OPEN_TREASURE", () => {
       fixedDie(6),
     );
     expect(next.torches).toBe(7);
+  });
+
+  it("Ogre (New Races, issue #60): every Wonder outcome is a no-op, whether it's a potion, a scroll, or a wearable trinket", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "crypt",
+      treasures: 1,
+      torches: 5,
+      armor: [],
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 5 }, // redirects to the Wonders table
+      fixedDie(6), // Potion of Luminescence (grantsTorches)
+    );
+    expect(next.torches).toBe(5); // unchanged
+    expect(next.armor).toEqual([]); // nothing worn either
+    expect(next.log[0]!.message).toContain("Ogres cannot use this");
   });
 
   it("grantsTorches never pushes the total past the 10-torch cap", () => {
@@ -2017,6 +2216,7 @@ describe("OPEN_TREASURE", () => {
       deathtouchPending: false,
       paralyzePending: 0,
       skipNextAttack: false,
+      silencedTurns: 0,
     };
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
@@ -2032,6 +2232,10 @@ describe("OPEN_TREASURE", () => {
         pendingDamage: null,
         playerDamageBonus: 0,
         engulfableBodies: 0,
+        damageReduction: 0,
+        shields: [],
+        absorbSoulActive: false,
+        fireOfTheDeadActive: false,
       },
     };
     const next = dungeonReducer(
@@ -2092,6 +2296,40 @@ describe("OPEN_TREASURE", () => {
         twoHanded: undefined,
         bonusEffect: { kind: "lifesteal", amount: 1 },
       },
+    ]);
+  });
+
+  it("Ogre (New Races, issue #60): a Magic Item's armor grant has no effect -- 'Cannot wear armor'", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      armor: [],
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 6 }, // redirects to the Magic Item table
+      fixedDie(1), // "[Armor] of Royalty"
+    );
+    expect(next.armor).toEqual([]);
+    expect(next.log[0]!.message).toContain("Ogres cannot wear armor");
+  });
+
+  it("Ogre (New Races, issue #60): a Magic Item's weapon grant is unaffected -- the restriction never mentions weapons", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 6 },
+      fixedDie(4), // "[Weapon] of Destruction", then Palace's own base weapon roll 4 -> Whip
+    );
+    expect(next.spareWeapons).toEqual([
+      { name: "Whip", formula: "1d6+1", twoHanded: undefined, bonusEffect: { kind: "weaponDamageBonus", amount: 2 } },
     ]);
   });
 
@@ -2313,6 +2551,7 @@ describe("RESUME_DUNGEON", () => {
           deathtouchPending: false,
           paralyzePending: 0,
           skipNextAttack: false,
+          silencedTurns: 0,
         },
       ],
       paralyzedTurns: 0,
@@ -2322,6 +2561,10 @@ describe("RESUME_DUNGEON", () => {
       pendingDamage: null,
       playerDamageBonus: 0,
       engulfableBodies: 0,
+      damageReduction: 0,
+      shields: [],
+      absorbSoulActive: false,
+      fireOfTheDeadActive: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -2408,6 +2651,7 @@ describe("RESUME_DUNGEON", () => {
           deathtouchPending: false,
           paralyzePending: 0,
           skipNextAttack: false,
+          silencedTurns: 0,
         },
       ],
       paralyzedTurns: 0,
@@ -2417,6 +2661,10 @@ describe("RESUME_DUNGEON", () => {
       pendingDamage: null,
       playerDamageBonus: 0,
       engulfableBodies: 0,
+      damageReduction: 0,
+      shields: [],
+      absorbSoulActive: false,
+      fireOfTheDeadActive: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -2598,6 +2846,7 @@ describe("RETURN_TO_DUNGEON", () => {
           deathtouchPending: false,
           paralyzePending: 0,
           skipNextAttack: false,
+          silencedTurns: 0,
         },
       ],
       paralyzedTurns: 0,
@@ -2607,6 +2856,10 @@ describe("RETURN_TO_DUNGEON", () => {
       pendingDamage: null,
       playerDamageBonus: 0,
       engulfableBodies: 0,
+      damageReduction: 0,
+      shields: [],
+      absorbSoulActive: false,
+      fireOfTheDeadActive: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -2834,6 +3087,7 @@ describe("Monster table re-roll on return", () => {
           deathtouchPending: false,
           paralyzePending: 0,
           skipNextAttack: false,
+          silencedTurns: 0,
         },
       ],
       paralyzedTurns: 0,
@@ -2843,6 +3097,10 @@ describe("Monster table re-roll on return", () => {
       pendingDamage: null,
       playerDamageBonus: 0,
       engulfableBodies: 0,
+      damageReduction: 0,
+      shields: [],
+      absorbSoulActive: false,
+      fireOfTheDeadActive: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),

@@ -39,6 +39,7 @@ function makeMonster(overrides: Partial<CombatMonsterState> = {}): CombatMonster
     deathtouchPending: false,
     paralyzePending: 0,
     skipNextAttack: false,
+    silencedTurns: 0,
     ...overrides,
   };
 }
@@ -60,6 +61,10 @@ function stateWithCombat(
     pendingDamage: null,
     playerDamageBonus: 0,
     engulfableBodies: 0,
+    damageReduction: 0,
+    shields: [],
+    absorbSoulActive: false,
+    fireOfTheDeadActive: false,
   };
   return {
     ...createInitialDungeonState(),
@@ -390,6 +395,20 @@ describe("PLAYER_ATTACK", () => {
     expect(next.combat).toBeNull(); // no fight lingers behind the death panel
   });
 
+  it("Samambro (New Races, issue #60): survives a lethal counter-attack at 1 HP, fight continues", () => {
+    const monster = makeMonster({ hp: 10, damage: 4 });
+    const state = stateWithCombat({ hp: 3, raceName: "Samambro" }, [monster]);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 },
+      fixedDie(3),
+    );
+
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.combat).not.toBeNull();
+  });
+
   it("kills the player outright on a pending Deathtouch, bypassing armor entirely", () => {
     const monster = makeMonster({ hp: 10, damage: 0, deathtouchPending: true });
     const state = stateWithCombat({ hp: 5, armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [
@@ -401,6 +420,20 @@ describe("PLAYER_ATTACK", () => {
     expect(next.deathCause).toBe("combat");
     expect(next.hp).toBe(0);
     expect(next.combat).toBeNull();
+  });
+
+  it("Samambro (New Races, issue #60): survives a Deathtouch kill at 1 HP, fight continues", () => {
+    const monster = makeMonster({ hp: 10, damage: 0, deathtouchPending: true });
+    const state = stateWithCombat({ hp: 5, raceName: "Samambro" }, [monster]);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 },
+      fixedDie(4),
+    );
+
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.combat).not.toBeNull(); // the fight isn't over just because the player survived
   });
 
   it("leaves the dying character's coins/Treasures/Keys behind in the fight's segment", () => {
@@ -441,6 +474,19 @@ describe("PLAYER_ATTACK", () => {
     expect(next.alive).toBe(false);
     expect(next.deathCause).toBe("combat");
     expect(next.combat).toBeNull(); // no fight lingers behind the death panel
+  });
+
+  it("Samambro (New Races, issue #60): survives an Explosive self-destruct kill at 1 HP", () => {
+    const monster = makeMonster({ hp: 20, abilities: ["explosive"] });
+    const state = stateWithCombat({ hp: 5, raceName: "Samambro" }, [monster]);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 },
+      fixedDie(3),
+    );
+
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
   });
 
   it("Goblinator (Advanced Class, issue #23): takes -2 damage per Explosion", () => {
@@ -842,6 +888,173 @@ describe("CAST_SPELL: New Spells (issue #24) -- name-matched dispatch", () => {
   });
 });
 
+describe("CAST_SPELL: New Spells Tier 2 (issue #61)", () => {
+  it("Vimes (Nature 2) silences one monster for a rolled 1d6 turns", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ spellUses: { "nature:2": 1 } }, [monster]);
+    const next = dungeonReducer(
+      state,
+      { type: "CAST_SPELL", table: "nature", spellRoll: 2, targetId: monster.id },
+      fixedDie(3),
+    );
+
+    expect(next.combat!.monsters[0]!.silencedTurns).toBe(2); // 1 consumed by this round's own turn
+    expect(next.hp).toBe(next.maxHp); // silenced -- no counter-attack this round
+  });
+
+  it("a silenced monster skips its attack each round until the counter runs out", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ spellUses: { "nature:2": 1 } }, [monster]);
+    const afterCast = dungeonReducer(
+      state,
+      { type: "CAST_SPELL", table: "nature", spellRoll: 2, targetId: monster.id },
+      fixedDie(2), // 2 turns silenced
+    );
+    expect(afterCast.combat!.monsters[0]!.silencedTurns).toBe(1);
+    expect(afterCast.hp).toBe(afterCast.maxHp);
+
+    // Next round: still silenced (1 -> 0), still no counter-attack.
+    const stillSilenced = dungeonReducer(afterCast, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 1,
+    });
+    expect(stillSilenced.combat!.monsters[0]!.silencedTurns).toBe(0);
+    expect(stillSilenced.hp).toBe(stillSilenced.maxHp);
+
+    // Next round: silence has worn off -- the monster attacks again.
+    const wornOff = dungeonReducer(stillSilenced, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 1,
+    });
+    expect(wornOff.hp).toBe(wornOff.maxHp - 5);
+  });
+
+  it("Paralyze (Advanced 5) silences every monster in the room for a fixed 2 turns", () => {
+    const monsters = [
+      makeMonster({ id: 1, hp: 20, damage: 5 }),
+      makeMonster({ id: 2, hp: 20, damage: 5 }),
+    ];
+    const state = stateWithCombat({ spellUses: { "advanced:5": 1 } }, monsters);
+    const next = dungeonReducer(state, { type: "CAST_SPELL", table: "advanced", spellRoll: 5 });
+
+    expect(next.combat!.monsters[0]!.silencedTurns).toBe(1);
+    expect(next.combat!.monsters[1]!.silencedTurns).toBe(1);
+    expect(next.hp).toBe(next.maxHp);
+  });
+
+  it("Ethereal Body (Death 1) reduces every hit's damage by 1 point for the rest of the fight", () => {
+    // Casting mid-combat consumes the round exactly like PLAYER_ATTACK -- the monster's own
+    // counter-attack (within this same dispatch) already shows the reduction taking effect.
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ spellUses: { "death:1": 1 } }, [monster]);
+    const afterCast = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 1 });
+    expect(afterCast.combat!.damageReduction).toBe(1);
+    expect(afterCast.hp).toBe(afterCast.maxHp - 4); // 5 - 1
+  });
+
+  it("Ethereal Body doesn't stack from a second cast", () => {
+    const state = stateWithCombat({ spellUses: { "death:1": 2 } });
+    const once = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 1 });
+    const twice = dungeonReducer(once, { type: "CAST_SPELL", table: "death", spellRoll: 1 });
+    expect(twice.combat!.damageReduction).toBe(1);
+  });
+
+  it("Ethereal Body can't turn a hit into healing (floored at 0)", () => {
+    const monster = makeMonster({ hp: 20, damage: 1 });
+    const state = stateWithCombat({ spellUses: { "death:1": 1 } }, [monster]);
+    const afterCast = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 1 });
+    expect(afterCast.hp).toBe(afterCast.maxHp); // 1 - 1 = 0, not negative
+  });
+
+  it("Magic Shield (Advanced 8) can be cast more than once, stacking a new pool each time", () => {
+    // damage: 0 so the monster's own counter-attack (which still fires within the same CAST_SPELL
+    // dispatch) doesn't drain anything, keeping this test focused purely on the cast itself.
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const state = stateWithCombat({ spellUses: { "advanced:8": 2 } }, [monster]);
+    const oneShield = dungeonReducer(state, { type: "CAST_SPELL", table: "advanced", spellRoll: 8 });
+    expect(oneShield.combat!.shields).toEqual([4]);
+
+    const twoShields = dungeonReducer(oneShield, {
+      type: "CAST_SPELL",
+      table: "advanced",
+      spellRoll: 8,
+    });
+    expect(twoShields.combat!.shields).toEqual([4, 4]);
+  });
+
+  it("absorbs damage before offering the armor-or-HP choice, draining the oldest shield first and dropping it once depleted", () => {
+    const monster = makeMonster({ hp: 20, damage: 6 });
+    // Pre-seeds two shields directly, bypassing CAST_SPELL, so this test isolates the drain math
+    // from the monster's own counter-attack that a real cast would also trigger.
+    const state = stateWithCombat({}, [monster]);
+    state.combat!.shields = [4, 4];
+
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+    // 6 damage: first shield fully depleted (4) and dropped, second absorbs the remaining 2.
+    expect(next.combat!.shields).toEqual([2]);
+    expect(next.hp).toBe(next.maxHp);
+    expect(next.combat!.pendingDamage).toBeNull(); // never even offered the armor/HP choice
+  });
+
+  it("Poison still bypasses Magic Shield entirely, same as it bypasses armor", () => {
+    const poisoner = makeMonster({ hp: 20, damage: 3, abilities: ["poison"] });
+    const state = stateWithCombat({}, [poisoner]);
+    state.combat!.shields = [4];
+
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: poisoner.id, roll: 1 });
+    expect(next.hp).toBe(next.maxHp - 3); // poison landed on HP directly
+    expect(next.combat!.shields).toEqual([4]); // untouched
+  });
+
+  it("Absorb Soul (Death 2) restores 5 HP per monster killed this fight, on victory", () => {
+    const monster = makeMonster({ hp: 3, damage: 0 });
+    const state = { ...stateWithCombat({ spellUses: { "death:2": 1 }, hp: 5, maxHp: 30 }, [monster]) };
+    const afterCast = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 2 });
+    expect(afterCast.combat!.absorbSoulActive).toBe(true);
+
+    const next = dungeonReducer(afterCast, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 3,
+    });
+    expect(next.combat).toBeNull(); // victory -- only monster defeated
+    expect(next.hp).toBe(10); // 5 (starting) + 5 (one kill)
+    expect(next.log.some((e) => e.message.includes("Absorb Soul restores"))).toBe(true);
+  });
+
+  it("Fire of the Dead (Death 4) grants 2 torches per monster killed this fight, on victory, capped at 10", () => {
+    const monster = makeMonster({ hp: 3, damage: 0 });
+    const state = {
+      ...stateWithCombat({ spellUses: { "death:4": 1 }, torches: 9 }, [monster]),
+    };
+    const afterCast = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 4 });
+    expect(afterCast.combat!.fireOfTheDeadActive).toBe(true);
+
+    const next = dungeonReducer(afterCast, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 3,
+    });
+    expect(next.combat).toBeNull();
+    expect(next.torches).toBe(10); // 9 + 2 capped at 10, not 11
+  });
+
+  it("Absorb Soul/Fire of the Dead grant nothing if the fight isn't actually won this round", () => {
+    const monster = makeMonster({ hp: 20, damage: 0 });
+    const state = { ...stateWithCombat({ spellUses: { "death:2": 1 }, hp: 5, maxHp: 30 }, [monster]) };
+    const afterCast = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 2 });
+    const next = dungeonReducer(afterCast, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 1,
+    });
+    expect(next.combat).not.toBeNull(); // monster survived -- no victory yet
+    expect(next.hp).toBe(5); // untouched
+  });
+});
+
 describe("CAST_SPELL guards in combat", () => {
   it("is a no-op with no uses remaining", () => {
     const state = stateWithCombat({ spellUses: { "basic:5": 0 } });
@@ -1035,6 +1248,34 @@ describe("Armor: damage-absorption choice", () => {
     expect(next.alive).toBe(false);
     expect(next.deathCause).toBe("combat");
     expect(next.levels[0]!.segments[0]!.remains).not.toBeNull();
+  });
+
+  it("Samambro (New Races, issue #60): survives the deferred armor-choice death at 1 HP, no remains left behind", () => {
+    const monster = makeMonster({ hp: 10, damage: 4 });
+    const state = stateWithCombat(
+      {
+        hp: 3,
+        armor: [{ piece: "boots", hp: 1, maxHp: 3 }],
+        characterName: "Lucky",
+        raceName: "Samambro",
+      },
+      [monster],
+    );
+    const afterAttack = dungeonReducer(state, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 3,
+    });
+    expect(afterAttack.combat!.pendingDamage).toBe(4);
+
+    const next = dungeonReducer(
+      afterAttack,
+      { type: "RESOLVE_DAMAGE", absorbWith: 0 },
+      fixedDie(5),
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.levels[0]!.segments[0]!.remains).toBeUndefined();
   });
 
   it("Poison damage always hits HP directly, even with usable armor equipped -- only non-poison damage is offered as a choice", () => {
