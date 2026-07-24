@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.27.0] - 2026-07-24
+
+### Added
+
+- Gear an Ogre can't use (unusable armor, potions, and scrolls) is
+  now sold as a coin-valued Pack item instead of vanishing outright
+  when found (#83).
+
 ## [2.26.0] - 2026-07-24
 
 ### Added

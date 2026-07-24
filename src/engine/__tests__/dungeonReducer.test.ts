@@ -324,7 +324,7 @@ describe("Room Content rewards", () => {
     expect(state.log.some((entry) => entry.message.includes("3 Magic Scrolls"))).toBe(true);
   });
 
-  it("Ogre (New Races, issue #60): a magicScrolls room reward grants nothing -- 'Cannot use scrolls'", () => {
+  it("Ogre (New Races, issue #60): a magicScrolls room reward grants no spell uses -- 'Cannot use scrolls' -- but sells as one bundled item (issue #83)", () => {
     const rng = sequenceDie([2, 3, 4, 5, 3, 3, 3, 3]);
     const state = dungeonReducer(
       { ...createInitialDungeonState(), raceName: "Ogre" },
@@ -332,6 +332,7 @@ describe("Room Content rewards", () => {
       rng,
     );
     expect(state.spellUses).toEqual({});
+    expect(state.heldItems).toEqual([{ name: "3 Magic Scrolls", worth: 9 }]);
     expect(state.log.some((entry) => entry.message.includes("cannot use scrolls"))).toBe(true);
   });
 
@@ -2019,7 +2020,7 @@ describe("OPEN_TREASURE", () => {
     expect(next.hp).toBe(20);
   });
 
-  it("Ogre (New Races, issue #60): Health Potion has no effect -- 'Cannot use potions'", () => {
+  it("Ogre (New Races, issue #60): Health Potion doesn't heal -- 'Cannot use potions' -- but sells instead (issue #83)", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       treasures: 1,
@@ -2030,6 +2031,7 @@ describe("OPEN_TREASURE", () => {
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 2 });
     expect(next.hp).toBe(12); // unchanged
     expect(next.treasures).toBe(0); // still spent
+    expect(next.heldItems).toEqual([{ name: "Health Potion", worth: 3 }]);
     expect(next.log[0]!.message).toContain("Ogres cannot use potions");
   });
 
@@ -2046,7 +2048,7 @@ describe("OPEN_TREASURE", () => {
     expect(next.milestones.hasCastSpell).toBe(true); // Scholar (issue #70): scroll redemption counts
   });
 
-  it("Ogre (New Races, issue #60): Magic Scroll grants nothing -- 'Cannot use scrolls'", () => {
+  it("Ogre (New Races, issue #60): Magic Scroll grants no spell use -- 'Cannot use scrolls' -- but sells instead (issue #83)", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       treasures: 1,
@@ -2056,6 +2058,7 @@ describe("OPEN_TREASURE", () => {
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 3 }, fixedDie(5));
     expect(next.spellUses).toEqual({});
     expect(next.treasures).toBe(0); // still spent
+    expect(next.heldItems).toEqual([{ name: "Magic Scroll", worth: 3 }]);
     expect(next.log[0]!.message).toContain("Ogres cannot use scrolls");
   });
 
@@ -2149,7 +2152,7 @@ describe("OPEN_TREASURE", () => {
     expect(next.spellUses).toEqual({ "basic:1": 3, "basic:6": 3 });
   });
 
-  it("Ogre (New Races, issue #60): Mana Potion has no effect -- 'Cannot use potions'", () => {
+  it("Ogre (New Races, issue #60): Mana Potion doesn't restore spells -- 'Cannot use potions' -- but sells instead (issue #83)", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       dungeonTypeKey: "tomb",
@@ -2160,6 +2163,7 @@ describe("OPEN_TREASURE", () => {
     };
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
     expect(next.spellUses).toEqual({ "basic:1": 0, "basic:6": 1 }); // unchanged
+    expect(next.heldItems).toEqual([{ name: "Mana Potion", worth: 3 }]);
     expect(next.log[0]!.message).toContain("Ogres cannot use potions");
   });
 
@@ -2178,7 +2182,7 @@ describe("OPEN_TREASURE", () => {
     expect(next.torches).toBe(7);
   });
 
-  it("Ogre (New Races, issue #60): every Wonder outcome is a no-op, whether it's a potion, a scroll, or a wearable trinket", () => {
+  it("Ogre (New Races, issue #60): a Wonder potion/scroll/trinket outcome is never usable -- but sells instead (issue #83)", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       dungeonTypeKey: "crypt",
@@ -2194,7 +2198,40 @@ describe("OPEN_TREASURE", () => {
     );
     expect(next.torches).toBe(5); // unchanged
     expect(next.armor).toEqual([]); // nothing worn either
+    // No coin value of its own (a torch-granting potion, not armor with a maxHp to draw on) -- the
+    // flat OGRE_UNUSABLE_TREASURE_WORTH placeholder applies.
+    expect(next.heldItems).toEqual([{ name: "Potion of Luminescence", worth: 3 }]);
     expect(next.log[0]!.message).toContain("Ogres cannot use this");
+  });
+
+  it("Ogre (New Races, issue #60): a Wonder trinket with its own HP sells for that HP amount instead of vanishing (issue #83)", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      treasures: 1,
+      armor: [],
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 5 }, // Palace redirects to the Wonders table
+      fixedDie(1), // Jester Hat (2 HP)
+    );
+    expect(next.armor).toEqual([]); // never worn
+    expect(next.heldItems).toEqual([{ name: "Jester Hat", worth: 2 }]);
+  });
+
+  it("Ogre (New Races, issue #60): a pure-flavor Wonder with no grantsHp grants nothing to anyone, Ogre included -- no invented item", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "crypt",
+      treasures: 1,
+      raceName: "Ogre",
+    };
+    // Crypt Wonders roll 4 -> "Salamander Potion" (flavor-only, no grantsHp) -- a non-Ogre gets no
+    // item for this either (there's no addArmorPiece call in that branch), so parity holds.
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(4));
+    expect(next.heldItems).toEqual([]);
+    expect(next.armor).toEqual([]);
   });
 
   it("grantsTorches never pushes the total past the 10-torch cap", () => {
@@ -2307,7 +2344,7 @@ describe("OPEN_TREASURE", () => {
     ]);
   });
 
-  it("Ogre (New Races, issue #60): a Magic Item's armor grant has no effect -- 'Cannot wear armor'", () => {
+  it("Ogre (New Races, issue #60): a Magic Item's armor grant is never worn -- 'Cannot wear armor' -- but sells instead (issue #83)", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       dungeonTypeKey: "palace",
@@ -2318,10 +2355,93 @@ describe("OPEN_TREASURE", () => {
     const next = dungeonReducer(
       state,
       { type: "OPEN_TREASURE", roll: 6 }, // redirects to the Magic Item table
-      fixedDie(1), // "[Armor] of Royalty"
+      fixedDie(1), // "[Armor] of Royalty"; base Armor table roll 1 (same forced die) -> Ring, 0 HP
     );
     expect(next.armor).toEqual([]);
+    // Ring's own maxHp is 0 -- Math.max(1, 0) keeps the sellable item from being worth literally
+    // nothing.
+    expect(next.heldItems).toEqual([{ name: "[Armor] of Royalty", worth: 1 }]);
     expect(next.log[0]!.message).toContain("Ogres cannot wear armor");
+  });
+
+  it("Ogre (New Races, issue #60): a Magic Item's armor grant sells for the rolled piece's own maxHp", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      armor: [],
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 6 },
+      fixedDie(3), // Magic Item roll 3 -> Centurion's [Armor]; base Armor roll 3 -> Boots (3 HP)
+    );
+    expect(next.armor).toEqual([]);
+    expect(next.heldItems).toEqual([{ name: "Centurion's [Armor]", worth: 3 }]);
+  });
+
+  it("Ogre (New Races, issue #60): Potion of Fury never touches playerDamageBonus, even mid-fight -- sells instead (issue #83)", () => {
+    const monster = {
+      id: 1,
+      name: "Orc",
+      hp: 6,
+      maxHp: 6,
+      damage: 3,
+      abilities: [],
+      bonusDamage: 0,
+      deathtouchPending: false,
+      paralyzePending: 0,
+      skipNextAttack: false,
+      silencedTurns: 0,
+    };
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      raceName: "Ogre",
+      combat: {
+        segId: 1,
+        monsters: [monster],
+        paralyzedTurns: 0,
+        pendingLootRolls: 0,
+        isBoss: false,
+        outcome: "ongoing",
+        pendingDamage: null,
+        playerDamageBonus: 0,
+        engulfableBodies: 0,
+        damageReduction: 0,
+        shields: [],
+        absorbSoulActive: false,
+        fireOfTheDeadActive: false,
+      },
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 5 }, // Palace redirects to the Wonders table
+      fixedDie(5), // Potion of Fury (combatDamageBonus)
+    );
+    expect(next.combat!.playerDamageBonus).toBe(0); // unaffected, unlike the non-Ogre case
+    expect(next.heldItems).toEqual([{ name: "Potion of Fury", worth: 3 }]);
+  });
+
+  it("Ogre (New Races, issue #60): an unusable find still respects the Pack cap (issue #82/#83 interaction)", () => {
+    const tenItems = Array.from({ length: 10 }, (_, i) => ({ name: `Item ${i}`, worth: 1 }));
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      armor: [],
+      heldItems: tenItems,
+      raceName: "Ogre",
+    };
+    const next = dungeonReducer(
+      state,
+      { type: "OPEN_TREASURE", roll: 6 },
+      fixedDie(1), // "[Armor] of Royalty"
+    );
+    expect(next.heldItems).toEqual(tenItems); // untouched
+    expect(next.pendingPackItem).toEqual({ name: "[Armor] of Royalty", worth: 1 });
   });
 
   it("Ogre (New Races, issue #60): a Magic Item's weapon grant is unaffected -- the restriction never mentions weapons", () => {

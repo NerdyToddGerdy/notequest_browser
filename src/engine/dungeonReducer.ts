@@ -888,6 +888,12 @@ function addHeldItem(draft: Draft<DungeonState>, item: HeldItem, foundText: stri
   }
 }
 
+/** Issue #83: flat placeholder worth for an Ogre-unusable potion/scroll outcome that has no coin
+ * value of its own to draw on (unlike armor, which at least has a `maxHp` to derive one from) --
+ * matches the scale of this dungeon type's other small heldValue Treasures (Religious Object/
+ * Sinister Idol, 3 coins). */
+const OGRE_UNUSABLE_TREASURE_WORTH = 3;
+
 /** A Wonder either grants its own HP-bearing item (Jester Hat, 2 HP) or a standing ability with
  * nothing else to attach to (Amulet of the Dead) -- both become a `draft.armor` entry (0 HP for
  * the latter, so it's never offered as a damage-absorption choice but still equipped/trackable and
@@ -896,11 +902,20 @@ function addHeldItem(draft: Draft<DungeonState>, item: HeldItem, foundText: stri
  * respectively) rather than lingering as an item. */
 function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG): void {
   // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor" -- every Wonder
-  // outcome is one of exactly those three things (a potion effect, a random-spell scroll, or a
-  // worn `wonderItem`/`grantsHp` trinket), so the whole table is a no-op for one, not just a
-  // specific branch of it.
-  if (draft.raceName === "Ogre") {
-    pushLog(draft, `Treasure: ${entry.text} Ogres cannot use this -- it has no effect.`);
+  // outcome that would otherwise grant *something* (a worn trinket, or an immediate potion/scroll/
+  // combat-buff effect) is one of exactly those three restricted things, so instead of vanishing
+  // outright it becomes a sellable HeldItem (issue #83) -- worth taken from the item's own HP pool
+  // where it has one (a worn trinket), else a flat placeholder matching this dungeon type's other
+  // small heldValue Treasures (Religious Object/Sinister Idol, 3 coins) for the potion/scroll-shaped
+  // outcomes that never had a coin value of their own to draw on. A pure-flavor Wonder with no
+  // `grantsHp` (e.g. "Lamp") grants nothing to anyone, Ogre included, so it's excluded here.
+  if (draft.raceName === "Ogre" && (entry.grantsHp !== undefined || entry.effect.kind !== "flavor")) {
+    const worth = entry.grantsHp !== undefined ? Math.max(1, entry.grantsHp) : OGRE_UNUSABLE_TREASURE_WORTH;
+    addHeldItem(
+      draft,
+      { name: entry.name, worth },
+      `Treasure: ${entry.text} Ogres cannot use this -- sold instead.`,
+    );
     return;
   }
   if (entry.grantsHp !== undefined) {
@@ -952,13 +967,19 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
   if (entry.grants === "armor") {
     // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor" -- only the armor
     // half of this table is blocked; Ogre still fully benefits from "[Weapon] of X" items below,
-    // since the restriction never mentions weapons.
-    if (draft.raceName === "Ogre") {
-      pushLog(draft, `Treasure: ${entry.text} Ogres cannot wear armor -- it has no effect.`);
-      return;
-    }
+    // since the restriction never mentions weapons. The base Armor table is still rolled (same RNG
+    // consumption as anyone else), since its `maxHp` is what gives the unusable piece a worth once
+    // it becomes a sellable HeldItem instead of vanishing outright (issue #83).
     const roll = rollDie(rng);
     const base = ARMOR_TABLE[roll]!;
+    if (draft.raceName === "Ogre") {
+      addHeldItem(
+        draft,
+        { name: entry.name, worth: Math.max(1, base.maxHp) },
+        `Treasure: ${entry.text} Ogres cannot wear armor -- sold instead.`,
+      );
+      return;
+    }
     const bonusHp = entry.effect.kind === "extraHp" ? entry.effect.amount : 0;
     const maxHp = Math.max(0, base.maxHp + bonusHp);
     addArmorPiece(draft, {
@@ -1019,12 +1040,15 @@ function applyRoomContentReward(
       break;
     }
     case "magicScrolls": {
-      // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor" -- the scrolls
-      // are still found (for flavor), but grant nothing.
+      // Ogre (New Races, issue #60): "Cannot use scrolls" -- the scrolls are still found, but
+      // instead of vanishing they're sold as one bundled HeldItem (issue #83) rather than granting
+      // spell uses.
       if (draft.raceName === "Ogre") {
-        pushLog(
+        const label = `${count} Magic Scroll${count === 1 ? "" : "s"}`;
+        addHeldItem(
           draft,
-          `You find ${count} Magic Scroll${count === 1 ? "" : "s"}, but Ogres cannot use scrolls.`,
+          { name: label, worth: count * OGRE_UNUSABLE_TREASURE_WORTH },
+          `You find ${label}, but Ogres cannot use scrolls -- sold instead.`,
         );
         break;
       }
@@ -2270,10 +2294,16 @@ export function dungeonReducer(
             break;
           }
           case "healAll": {
-            // Ogre (New Races, issue #60): "Cannot use potions" -- Health/Mana Potions have no
-            // effect, though the Treasure is still spent (already decremented above).
+            // Ogre (New Races, issue #60): "Cannot use potions" -- the Treasure is still spent
+            // (already decremented above), but instead of vanishing outright it becomes a sellable
+            // HeldItem (issue #83), same flat placeholder worth every Ogre-unusable potion/scroll
+            // outcome uses.
             if (draft.raceName === "Ogre") {
-              pushLog(draft, `Treasure: ${outcome.text} Ogres cannot use potions -- it has no effect.`);
+              addHeldItem(
+                draft,
+                { name: "Health Potion", worth: OGRE_UNUSABLE_TREASURE_WORTH },
+                `Treasure: ${outcome.text} Ogres cannot use potions -- sold instead.`,
+              );
               break;
             }
             const healed = draft.maxHp - draft.hp;
@@ -2283,7 +2313,11 @@ export function dungeonReducer(
           }
           case "restoreAllSpells": {
             if (draft.raceName === "Ogre") {
-              pushLog(draft, `Treasure: ${outcome.text} Ogres cannot use potions -- it has no effect.`);
+              addHeldItem(
+                draft,
+                { name: "Mana Potion", worth: OGRE_UNUSABLE_TREASURE_WORTH },
+                `Treasure: ${outcome.text} Ogres cannot use potions -- sold instead.`,
+              );
               break;
             }
             // Reads the persisted ceiling directly (issue #75) rather than a client-computed value
@@ -2294,9 +2328,13 @@ export function dungeonReducer(
           }
           case "randomSpell": {
             // Ogre (New Races, issue #60): "Cannot use scrolls" -- the scroll is still spent, but
-            // grants nothing.
+            // instead of vanishing it becomes a sellable HeldItem (issue #83).
             if (draft.raceName === "Ogre") {
-              pushLog(draft, `Treasure: ${outcome.text} Ogres cannot use scrolls -- it has no effect.`);
+              addHeldItem(
+                draft,
+                { name: "Magic Scroll", worth: OGRE_UNUSABLE_TREASURE_WORTH },
+                `Treasure: ${outcome.text} Ogres cannot use scrolls -- sold instead.`,
+              );
               break;
             }
             const spellRoll = rollDie(rng);
