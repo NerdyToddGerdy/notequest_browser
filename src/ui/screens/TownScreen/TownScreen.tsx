@@ -41,6 +41,8 @@ import {
   rest,
   sellItem,
   wieldWeapon,
+  wieldArmor,
+  discardItem,
   type AdventurerResources,
   type ThugLifeResult,
 } from "../../../engine/town.ts";
@@ -749,12 +751,15 @@ export function TownScreen({
             weapon={resources.weapon}
             spareWeapons={resources.spareWeapons}
             onWield={(index) => onUpdateResources(wieldWeapon(resources, index))}
+            spareArmor={resources.spareArmor}
+            onWieldArmor={(index) => onUpdateResources(wieldArmor(resources, index))}
             onFixArmor={(index) => onUpdateResources(fixArmor(resources, index, isBlacksmith))}
             isBlacksmith={isBlacksmith}
           />
           <Pack
             items={resources.heldItems}
             onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson))}
+            onDiscard={(index) => onUpdateResources(discardItem(resources, index))}
           />
         </aside>
       </div>

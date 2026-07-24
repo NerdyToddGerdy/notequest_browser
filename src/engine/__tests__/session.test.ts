@@ -58,6 +58,7 @@ const RESOURCES: AdventurerResources = {
   armor: [],
   weapon: null,
   spareWeapons: [],
+  spareArmor: [],
   spellUses: {},
   maxSpellUses: {},
   monsterKills: 2,

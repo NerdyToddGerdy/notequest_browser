@@ -163,7 +163,7 @@ export function RoomInspector({
           <button
             className={styles.rollBtn}
             type="button"
-            disabled={revealing || !state.alive || !!state.combat}
+            disabled={revealing || !state.alive || !!state.combat || !!state.pendingPackItem}
             onClick={handleSearch}
           >
             Find Secret Passage (1 torch)
@@ -177,7 +177,7 @@ export function RoomInspector({
           <button
             className={styles.rollBtn}
             type="button"
-            disabled={chestRevealing || !state.alive || !!state.combat}
+            disabled={chestRevealing || !state.alive || !!state.combat || !!state.pendingPackItem}
             onClick={handleOpenChest}
           >
             Open Chest
@@ -190,7 +190,7 @@ export function RoomInspector({
           <button
             className={styles.rollBtn}
             type="button"
-            disabled={!state.alive || !!state.combat}
+            disabled={!state.alive || !!state.combat || !!state.pendingPackItem}
             onClick={() => onCollectRemains(seg.id)}
           >
             Recover Remains

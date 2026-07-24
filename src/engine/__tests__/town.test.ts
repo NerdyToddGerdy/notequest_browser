@@ -34,6 +34,8 @@ import {
   rest,
   sellItem,
   wieldWeapon,
+  wieldArmor,
+  discardItem,
   createInitialMilestones,
   createInitialTravelStats,
   recordTravelStats,
@@ -53,6 +55,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     armor: [],
     weapon: null,
     spareWeapons: [],
+    spareArmor: [],
     spellUses: { "basic:1": 0 },
     maxSpellUses: { "basic:1": 3 },
     monsterKills: 0,
@@ -298,6 +301,59 @@ describe("wieldWeapon", () => {
   it("is a no-op for an out-of-range index", () => {
     const resources = makeResources({ spareWeapons: [{ name: "Dagger", formula: "1d6-1" }] });
     const next = wieldWeapon(resources, 5);
+    expect(next).toEqual(resources);
+  });
+});
+
+describe("wieldArmor", () => {
+  it("equips the chosen spare, displacing the same-slot piece already worn back into spareArmor", () => {
+    const resources = makeResources({
+      armor: [{ piece: "boots", hp: 1, maxHp: 3, itemName: "Worn Boots" }],
+      spareArmor: [
+        { piece: "helm", hp: 4, maxHp: 4 },
+        { piece: "boots", hp: 3, maxHp: 3, itemName: "Fresh Boots" },
+      ],
+    });
+    const next = wieldArmor(resources, 1);
+    expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3, itemName: "Fresh Boots" }]);
+    expect(next.spareArmor).toEqual([
+      { piece: "helm", hp: 4, maxHp: 4 },
+      { piece: "boots", hp: 1, maxHp: 3, itemName: "Worn Boots" },
+    ]);
+  });
+
+  it("equips a spare directly when nothing already occupies that slot", () => {
+    const resources = makeResources({
+      armor: [],
+      spareArmor: [{ piece: "helm", hp: 4, maxHp: 4 }],
+    });
+    const next = wieldArmor(resources, 0);
+    expect(next.armor).toEqual([{ piece: "helm", hp: 4, maxHp: 4 }]);
+    expect(next.spareArmor).toEqual([]);
+  });
+
+  it("is a no-op for an out-of-range index", () => {
+    const resources = makeResources({ spareArmor: [{ piece: "helm", hp: 4, maxHp: 4 }] });
+    const next = wieldArmor(resources, 5);
+    expect(next).toEqual(resources);
+  });
+});
+
+describe("discardItem", () => {
+  it("removes the chosen item", () => {
+    const resources = makeResources({
+      heldItems: [
+        { name: "A", worth: 1 },
+        { name: "B", worth: 2 },
+      ],
+    });
+    const next = discardItem(resources, 0);
+    expect(next.heldItems).toEqual([{ name: "B", worth: 2 }]);
+  });
+
+  it("is a no-op for an out-of-range index", () => {
+    const resources = makeResources({ heldItems: [{ name: "A", worth: 1 }] });
+    const next = discardItem(resources, 5);
     expect(next).toEqual(resources);
   });
 });

@@ -68,6 +68,8 @@ export interface FallenAdventurer {
   weapon: EquippedWeapon | null;
   /** Unwielded weapons the fallen character was carrying -- see DungeonState.spareWeapons. */
   weapons: EquippedWeapon[];
+  /** Benched armor the fallen character was carrying -- see DungeonState.spareArmor. */
+  spareArmor: ArmorPiece[];
 }
 
 /** A worn armor piece -- either one of the 5 named pieces (rolled on the Armor table) or a
@@ -230,10 +232,18 @@ export interface DungeonState {
   treasures: number;
   /** From Loot rolls -- currently just a counter; doesn't yet let you skip a door's lock roll. */
   keys: number;
-  /** Coin-valued items found by opening Treasures, held until there's a town to sell them in. */
+  /** Coin-valued items found by opening Treasures, held until there's a town to sell them in.
+   * Capped at `MAX_HELD_ITEMS` (issue #82, `town.ts`) -- an item that would exceed it becomes
+   * `pendingPackItem` instead of pushing directly. */
   heldItems: HeldItem[];
-  /** Worn armor pieces (max one of each ArmorPieceKind per the rulebook's "can't use more than one
-   * identical piece"), each an independent HP pool the player may choose to absorb damage with. */
+  /** An item trying to come in while `heldItems` is already at `MAX_HELD_ITEMS` (issue #82) --
+   * blocks every other action (see `isActionBlocked()`) until resolved via RESOLVE_PACK_SWAP,
+   * either discarding an existing item to make room or declining the new one for good. */
+  pendingPackItem: HeldItem | null;
+  /** Worn armor pieces -- at most one of each *real* `ArmorPieceKind` (`bracelets`/`boots`/
+   * `shoulderpads`/`helm`/`breastplate`, per the rulebook's "can't use more than one identical
+   * piece") is ever equipped at once; `ring`/`wonderItem` are exempt (see `spareArmor`'s own doc
+   * comment). Each piece is an independent HP pool the player may choose to absorb damage with. */
   armor: ArmorPiece[];
   /** An acquired weapon overriding the character's class weapon; null falls back to it. */
   weapon: EquippedWeapon | null;
@@ -241,6 +251,12 @@ export interface DungeonState {
    * overwriting `weapon` directly, so finding a new one never silently discards whatever was
    * equipped. WIELD_WEAPON swaps a chosen entry here with whatever's currently equipped. */
   spareWeapons: EquippedWeapon[];
+  /** Found armor pieces benched because their slot was already occupied (issue #82) -- `ring` (a
+   * documented 0-HP dud, not one of the rulebook's "5 pieces") and `wonderItem` (an unlimited
+   * trinket collection) are exempt from slot-uniqueness entirely and always go straight to `armor`
+   * instead. WIELD_ARMOR swaps a chosen entry here into its slot, displacing whatever's already
+   * there (if anything) back here -- see `addArmorPiece()` in `dungeonReducer.ts`. */
+  spareArmor: ArmorPiece[];
   combat: CombatState | null;
   /** Ordinary monsters and Bosses defeated this run -- character-specific, like torches/hp, not
    * map/exploration state, so a new adventurer via RESUME_DUNGEON starts back at 0 even though
@@ -417,6 +433,7 @@ export function createInitialDungeonState(
   // are the same thing, same as before this field existed.
   maxSpellUses: Record<string, number> = spellUses,
   buildings: OwnedBuilding[] = [],
+  spareArmor: ArmorPiece[] = [],
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -438,9 +455,11 @@ export function createInitialDungeonState(
     treasures,
     keys,
     heldItems,
+    pendingPackItem: null,
     armor,
     weapon,
     spareWeapons,
+    spareArmor,
     combat: null,
     monsterKills,
     bossKills,
@@ -494,6 +513,16 @@ export type DungeonAction =
   /** Swaps a found-but-unwielded weapon into the equipped slot, pushing whatever was equipped (if
    * anything) back into spareWeapons -- out-of-combat only, see CLAUDE.md's Armor & Weapons note. */
   | { type: "WIELD_WEAPON"; index: number }
+  /** Issue #82: armor's own per-slot equivalent of WIELD_WEAPON -- displaces whatever already
+   * occupies the chosen spare's *same* slot (if anything) back into spareArmor. */
+  | { type: "WIELD_ARMOR"; index: number }
+  /** Issue #82: a free, anywhere-usable Pack discard -- out-of-combat only, same gate as
+   * WIELD_WEAPON/WIELD_ARMOR. */
+  | { type: "DISCARD_ITEM"; index: number }
+  /** Issue #82: resolves a pending Pack-full swap (see DungeonState.pendingPackItem) -- a number
+   * discards that existing heldItems index to make room for the incoming item; "decline" drops the
+   * incoming item for good instead. */
+  | { type: "RESOLVE_PACK_SWAP"; discardIndex: number | "decline" }
   // maxSpellUses (issue #75) is read from `state.maxSpellUses` directly now, rather than being
   // recomputed client-side and passed through the action -- that field is the persisted source of
   // truth for Mana Potion's restoreAllSpells effect below.
@@ -549,6 +578,7 @@ export type DungeonAction =
       armor: ArmorPiece[];
       weapon: EquippedWeapon | null;
       spareWeapons: EquippedWeapon[];
+      spareArmor: ArmorPiece[];
       weaponFormula: string;
       spellUses: Record<string, number>;
       maxSpellUses: Record<string, number>;

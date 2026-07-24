@@ -184,7 +184,15 @@ export function DungeonMap({
   }
 
   function handleDoorClick(segId: number, doorIdx: number, x: number, y: number) {
-    if (doorFlow || !state.alive || state.combat || pendingRoomEntry || segId !== state.currentSegId) return;
+    if (
+      doorFlow ||
+      !state.alive ||
+      state.combat ||
+      pendingRoomEntry ||
+      state.pendingPackItem ||
+      segId !== state.currentSegId
+    )
+      return;
     setDoorFlow({ kind: "rolling", segId, doorIdx, x, y });
     const doorRoll = rollDie();
     animateDie(doorRoll, () => {
@@ -321,6 +329,7 @@ export function DungeonMap({
                       !state.alive ||
                       !!state.combat ||
                       pendingRoomEntry ||
+                      !!state.pendingPackItem ||
                       seg.id !== state.currentSegId
                     }
                     title={seg.id === state.currentSegId ? "Open door" : "Walk here first"}
@@ -338,7 +347,12 @@ export function DungeonMap({
                   type="button"
                   className={styles.descentBtn}
                   style={{ left: mx - 13, top: my - 13 }}
-                  disabled={!state.alive || !!state.combat || seg.id !== state.currentSegId}
+                  disabled={
+                    !state.alive ||
+                    !!state.combat ||
+                    !!state.pendingPackItem ||
+                    seg.id !== state.currentSegId
+                  }
                   title={seg.id === state.currentSegId ? `Descend to Level ${targetLevel + 1}` : "Walk here first"}
                   onClick={() => door.childId != null && onSwitchLevel(targetLevel, door.childId)}
                 >

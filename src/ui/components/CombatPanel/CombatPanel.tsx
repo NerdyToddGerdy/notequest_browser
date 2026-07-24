@@ -29,6 +29,10 @@ export interface CombatPanelProps {
   isRinoceroid?: boolean;
   /** Slimemen: "If you engulf the body of an enemy, you regain all HP." */
   isSlimemen?: boolean;
+  /** OPEN_TREASURE can be dispatched mid-fight and can itself fill the Pack (issue #82) -- while a
+   * swap choice is pending (resolved from the sidebar Pack card, not this panel), every action
+   * here is blocked the same way a pending armor-absorption choice already is. */
+  hasPendingPackItem?: boolean;
   onAttack: (targetId: number, roll: number, useHorn?: boolean) => void;
   onCastSpell: (table: SpellTableKey, spellRoll: number, targetId?: number) => void;
   /** Teleport needs a destination room first -- the parent screen owns that picker, so this just
@@ -106,6 +110,7 @@ export function CombatPanel({
   spellUses,
   isRinoceroid = false,
   isSlimemen = false,
+  hasPendingPackItem = false,
   onAttack,
   onCastSpell,
   onFlee,
@@ -127,7 +132,7 @@ export function CombatPanel({
   // reducer already clears `combat` to null on every death (see dungeonReducer.ts), which is what
   // actually stops this panel from rendering at all, but this guards the actions directly too in
   // case a future death path forgets to clear it.
-  const canAct = !rolling && !paralyzed && !awaitingDamageChoice && hp > 0;
+  const canAct = !rolling && !paralyzed && !awaitingDamageChoice && !hasPendingPackItem && hp > 0;
   // Only spells `KNOWN_CASTABLE_SPELL_NAMES` actually has a real CAST_SPELL case for render a
   // button at all -- see that set's own doc comment (combat.ts). Matched by name, not (table,
   // roll), so Elemental's Cold Ray/Lightning/Fireball reuse the same button/handler as Basic's.

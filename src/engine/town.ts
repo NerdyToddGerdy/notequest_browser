@@ -21,6 +21,9 @@ export interface AdventurerResources {
   weapon: EquippedWeapon | null;
   /** Found weapons not currently wielded -- see DungeonState.spareWeapons. */
   spareWeapons: EquippedWeapon[];
+  /** Issue #82: found armor pieces benched because their slot was already occupied ("can't use
+   * more than one identical piece") -- see DungeonState.spareArmor. */
+  spareArmor: ArmorPiece[];
   /** Keyed by `character.ts`'s `spellKey(table, roll)` composite -- see `DungeonState.spellUses`. */
   spellUses: Record<string, number>;
   /** Per-spell ceiling `spellUses` can hold/be restored to by Rest -- unlike `spellUses` itself,
@@ -171,6 +174,10 @@ export const MAX_TORCHES = 10;
 /** "No one can carry more than 20 provisions." */
 export const MAX_PROVISIONS = 20;
 
+/** "Load Limit: ...up to 10 items in your backpack" (issue #82) -- `heldItems`' own sibling cap to
+ * `MAX_TORCHES`, previously never enforced anywhere. */
+export const MAX_HELD_ITEMS = 10;
+
 /** Resting only helps if it would actually recover something -- full HP and every spell already
  * at its max uses means the coin buys nothing. `isChampion`: Advanced Class Champion's "You don't
  * need to spend money to recover" waives the coin cost entirely, same optional-flag shape as
@@ -306,6 +313,30 @@ export function wieldWeapon(resources: AdventurerResources, index: number): Adve
     weapon: chosen,
     spareWeapons: resources.weapon ? [...remaining, resources.weapon] : remaining,
   };
+}
+
+/** Swaps a benched armor piece into its slot, displacing whatever already occupies that *same*
+ * slot (if anything) back into `spareArmor` -- Town's own free, no-roll equivalent of
+ * dungeonReducer.ts's WIELD_ARMOR action. Unlike `wieldWeapon()`'s single equipped slot, armor has
+ * to find-and-replace by `piece` kind, since several different slots can be worn at once. */
+export function wieldArmor(resources: AdventurerResources, index: number): AdventurerResources {
+  const chosen = resources.spareArmor[index];
+  if (!chosen) return resources;
+  const remaining = resources.spareArmor.filter((_, i) => i !== index);
+  const displaced = resources.armor.find((p) => p.piece === chosen.piece);
+  return {
+    ...resources,
+    armor: [...resources.armor.filter((p) => p.piece !== chosen.piece), chosen],
+    spareArmor: displaced ? [...remaining, displaced] : remaining,
+  };
+}
+
+/** Issue #82: a free, anywhere-usable discard from the Pack -- Town's own equivalent of
+ * dungeonReducer.ts's DISCARD_ITEM action, and the non-Town counterpart to `sellItem()` (no coins
+ * credited, just gone). */
+export function discardItem(resources: AdventurerResources, index: number): AdventurerResources {
+  if (!resources.heldItems[index]) return resources;
+  return { ...resources, heldItems: resources.heldItems.filter((_, i) => i !== index) };
 }
 
 export function canBuyProvision(resources: AdventurerResources): boolean {

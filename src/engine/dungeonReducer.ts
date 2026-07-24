@@ -12,6 +12,7 @@ import {
   ARMOR_PIECE_LABELS,
   ARMOR_TABLE,
   DUNGEON_TABLES,
+  type ArmorPieceKind,
   type ItemEffect,
   type MagicItemEntry,
   type MonsterAbility,
@@ -55,16 +56,18 @@ import {
 import {
   createInitialDungeonState,
   makeLevel,
+  type ArmorPiece,
   type CombatMonsterState,
   type CombatState,
   type Direction,
   type DungeonAction,
   type DungeonState,
   type DungeonStats,
+  type HeldItem,
   type LevelState,
   type SegmentState,
 } from "./dungeonState.ts";
-import { createInitialMilestones } from "./town.ts";
+import { createInitialMilestones, MAX_HELD_ITEMS } from "./town.ts";
 import type { RNG } from "./rng.ts";
 
 function bumpStatsForNewSegment(
@@ -104,6 +107,7 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
     draft.keys === 0 &&
     draft.heldItems.length === 0 &&
     draft.armor.length === 0 &&
+    draft.spareArmor.length === 0 &&
     !draft.weapon &&
     draft.spareWeapons.length === 0
   ) {
@@ -120,6 +124,7 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
     seg.remains.keys += draft.keys;
     seg.remains.heldItems.push(...draft.heldItems);
     seg.remains.armor.push(...draft.armor);
+    seg.remains.spareArmor.push(...draft.spareArmor);
     if (!seg.remains.weapon) seg.remains.weapon = draft.weapon;
     seg.remains.weapons.push(...draft.spareWeapons);
   } else {
@@ -130,6 +135,7 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
       keys: draft.keys,
       heldItems: [...draft.heldItems],
       armor: [...draft.armor],
+      spareArmor: [...draft.spareArmor],
       weapon: draft.weapon,
       weapons: [...draft.spareWeapons],
     };
@@ -296,6 +302,13 @@ function hasPendingRoomEntry(state: DungeonState): boolean {
   const level = state.levels[state.activeLevel];
   const seg = level?.segments.find((s) => s.id === state.currentSegId);
   return !!seg?.monsters && !seg.monstersDefeated && !seg.sneakedPast;
+}
+
+/** Issue #82: `hasPendingRoomEntry()` plus a pending Pack-full swap (RESOLVE_PACK_SWAP) --
+ * every action already gated on the former is gated on this combined check instead, the same
+ * breadth `pendingDamage` itself already required when it was introduced. */
+function isActionBlocked(state: DungeonState): boolean {
+  return hasPendingRoomEntry(state) || state.pendingPackItem != null;
 }
 
 /** If a room the player previously moved silently through hears a noisy action (a door breaking,
@@ -834,6 +847,47 @@ function rerollMonstersIfNeeded(
   }
 }
 
+/** Issue #82: "can't use more than one identical piece" -- only these 5 real body slots are
+ * subject to it (same list `Collector`'s Advanced Class check already uses,
+ * `src/engine/advancedClasses.ts`); `ring` (a documented 0-HP dud, not one of the rulebook's own
+ * "5 pieces") and `wonderItem` (an unlimited trinket collection) are exempt. */
+const REAL_ARMOR_SLOTS = new Set<ArmorPieceKind>([
+  "bracelets",
+  "boots",
+  "shoulderpads",
+  "helm",
+  "breastplate",
+]);
+
+/** Adds a found armor piece, benching it into `spareArmor` instead of `armor` if its slot is a
+ * real one that's already occupied -- the single chokepoint every armor-granting site now funnels
+ * through, replacing what used to be a raw, unconditional `draft.armor.push(...)`. */
+function addArmorPiece(draft: Draft<DungeonState>, piece: ArmorPiece): void {
+  if (REAL_ARMOR_SLOTS.has(piece.piece) && draft.armor.some((p) => p.piece === piece.piece)) {
+    draft.spareArmor.push(piece);
+  } else {
+    draft.armor.push(piece);
+  }
+}
+
+function addArmorPieces(draft: Draft<DungeonState>, pieces: ArmorPiece[]): void {
+  for (const piece of pieces) addArmorPiece(draft, piece);
+}
+
+/** Issue #82: the single chokepoint `OPEN_TREASURE`'s `heldValue`/`heldValueRoll` cases funnel
+ * through -- pushes normally, or (Pack already at `MAX_HELD_ITEMS`) sets `pendingPackItem`
+ * instead, blocking every other action until RESOLVE_PACK_SWAP settles it. `foundText` is still
+ * logged either way (the item was still found), with a note appended when it doesn't fit yet. */
+function addHeldItem(draft: Draft<DungeonState>, item: HeldItem, foundText: string): void {
+  if (draft.heldItems.length >= MAX_HELD_ITEMS) {
+    draft.pendingPackItem = item;
+    pushLog(draft, `${foundText} Your Pack is full -- choose what to do.`);
+  } else {
+    draft.heldItems.push(item);
+    pushLog(draft, foundText);
+  }
+}
+
 /** A Wonder either grants its own HP-bearing item (Jester Hat, 2 HP) or a standing ability with
  * nothing else to attach to (Amulet of the Dead) -- both become a `draft.armor` entry (0 HP for
  * the latter, so it's never offered as a damage-absorption choice but still equipped/trackable and
@@ -850,7 +904,7 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
     return;
   }
   if (entry.grantsHp !== undefined) {
-    draft.armor.push({
+    addArmorPiece(draft, {
       piece: "wonderItem",
       hp: entry.grantsHp,
       maxHp: entry.grantsHp,
@@ -879,7 +933,7 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
     pushLog(draft, `Treasure: ${entry.text} — learned ${spellName}!`);
     return;
   } else if (entry.effect.kind !== "flavor") {
-    draft.armor.push({
+    addArmorPiece(draft, {
       piece: "wonderItem",
       hp: 0,
       maxHp: 0,
@@ -907,7 +961,7 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
     const base = ARMOR_TABLE[roll]!;
     const bonusHp = entry.effect.kind === "extraHp" ? entry.effect.amount : 0;
     const maxHp = Math.max(0, base.maxHp + bonusHp);
-    draft.armor.push({
+    addArmorPiece(draft, {
       piece: base.piece,
       hp: maxHp,
       maxHp,
@@ -1117,7 +1171,7 @@ export function dungeonReducer(
       // re-selecting the segment you're already standing in (e.g. to trigger its monster
       // re-roll after a restore, see restoreMapFromPersisted) is always allowed.
       if (action.segId != null && action.segId !== state.currentSegId) {
-        if (state.combat || hasPendingRoomEntry(state)) return state;
+        if (state.combat || isActionBlocked(state)) return state;
         const level = state.levels[state.activeLevel];
         const reachable = level ? reachableSegIds(level, state.currentSegId) : new Set<number>();
         if (!reachable.has(action.segId)) return state;
@@ -1133,7 +1187,7 @@ export function dungeonReducer(
     }
 
     case "SWITCH_LEVEL": {
-      if (state.combat || hasPendingRoomEntry(state)) return state;
+      if (state.combat || isActionBlocked(state)) return state;
       // A plain LevelTabs click (no segId) just changes which level's map is displayed -- always
       // allowed, though nothing on a level other than wherever currentSegId actually is will be
       // reachable once you get there (see reachableSegIds). Physically stepping through an
@@ -1158,7 +1212,7 @@ export function dungeonReducer(
     }
 
     case "ROLL_SECRET_PASSAGE": {
-      if (!state.alive || state.combat || hasPendingRoomEntry(state)) return state;
+      if (!state.alive || state.combat || isActionBlocked(state)) return state;
       return produce(state, (draft) => {
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
@@ -1193,7 +1247,7 @@ export function dungeonReducer(
     }
 
     case "ROLL_CHEST": {
-      if (!state.alive || state.combat || hasPendingRoomEntry(state)) return state;
+      if (!state.alive || state.combat || isActionBlocked(state)) return state;
       return produce(state, (draft) => {
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
@@ -1237,33 +1291,61 @@ export function dungeonReducer(
     }
 
     case "COLLECT_REMAINS": {
-      if (!state.alive || state.combat || hasPendingRoomEntry(state)) return state;
+      if (!state.alive || state.combat || isActionBlocked(state)) return state;
       return produce(state, (draft) => {
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (!seg?.remains) return;
-        const { names, coins, treasures, keys, heldItems, armor, weapon, weapons } = seg.remains;
+        const { names, coins, treasures, keys, heldItems, armor, spareArmor, weapon, weapons } =
+          seg.remains;
         draft.coins += coins;
         draft.treasures += treasures;
         draft.keys += keys;
-        draft.heldItems.push(...heldItems);
-        // Ogre (New Races, issue #60): "Cannot... wear armor" -- recovered armor is left behind
-        // rather than picked up (coins/Treasures/Keys/held items/weapons are all unaffected).
-        if (draft.raceName !== "Ogre") draft.armor.push(...armor);
+        // Ogre (New Races, issue #60): "Cannot... wear armor" -- recovered armor (worn or benched)
+        // is left behind rather than picked up (coins/Treasures/Keys/held items/weapons are all
+        // unaffected).
+        if (draft.raceName !== "Ogre") {
+          addArmorPieces(draft, armor);
+          addArmorPieces(draft, spareArmor);
+        }
         if (weapon) draft.spareWeapons.push(weapon);
         draft.spareWeapons.push(...weapons);
+        // Pack cap (issue #82): none of coins/treasures/keys/armor/weapons are capped, only
+        // heldItems -- take as many as currently fit, first-overflow becomes pendingPackItem, and
+        // anything past that stays behind in a shrunken remains (nothing is ever silently lost;
+        // collecting again later, once there's room, picks up the next one the same way).
+        const room = Math.max(0, MAX_HELD_ITEMS - draft.heldItems.length);
+        const fitting = heldItems.slice(0, room);
+        const overflow = heldItems.slice(room);
+        draft.heldItems.push(...fitting);
         const itemsPart =
-          heldItems.length > 0 ? `, and ${heldItems.map((item) => item.name).join(", ")}` : "";
+          fitting.length > 0 ? `, and ${fitting.map((item) => item.name).join(", ")}` : "";
         pushLog(
           draft,
           `Segment ${seg.id}: recovered ${coins} coin${coins === 1 ? "" : "s"}, ${treasures} Treasure${treasures === 1 ? "" : "s"}, and ${keys} Key${keys === 1 ? "" : "s"}${itemsPart} from the remains of ${names.join(", ")}.`,
         );
-        seg.remains = null;
+        if (overflow.length > 0) {
+          draft.pendingPackItem = overflow[0]!;
+          seg.remains = {
+            names,
+            coins: 0,
+            treasures: 0,
+            keys: 0,
+            heldItems: overflow.slice(1),
+            armor: [],
+            spareArmor: [],
+            weapon: null,
+            weapons: [],
+          };
+          pushLog(draft, `Your Pack is full -- ${overflow[0]!.name} is still waiting in the remains.`);
+        } else {
+          seg.remains = null;
+        }
       });
     }
 
     case "WIELD_WEAPON": {
-      if (!state.alive || state.combat || hasPendingRoomEntry(state)) return state;
+      if (!state.alive || state.combat || isActionBlocked(state)) return state;
       return produce(state, (draft) => {
         const chosen = draft.spareWeapons[action.index];
         if (!chosen) return;
@@ -1274,11 +1356,63 @@ export function dungeonReducer(
       });
     }
 
+    case "WIELD_ARMOR": {
+      // Issue #82: armor's own per-slot equivalent of WIELD_WEAPON -- unlike weapon's single
+      // equipped slot, this has to find-and-replace by `piece` kind, since several different
+      // slots can be worn at once.
+      if (!state.alive || state.combat || isActionBlocked(state)) return state;
+      return produce(state, (draft) => {
+        const chosen = draft.spareArmor[action.index];
+        if (!chosen) return;
+        draft.spareArmor.splice(action.index, 1);
+        const displacedIndex = draft.armor.findIndex((p) => p.piece === chosen.piece);
+        if (displacedIndex >= 0) {
+          const [displaced] = draft.armor.splice(displacedIndex, 1);
+          draft.spareArmor.push(displaced!);
+        }
+        draft.armor.push(chosen);
+        pushLog(draft, `You wear the ${chosen.itemName ?? ARMOR_PIECE_LABELS[chosen.piece]}.`);
+      });
+    }
+
+    case "DISCARD_ITEM": {
+      // Issue #82: a free, anywhere-usable Pack discard -- same minimal out-of-combat gate as
+      // WIELD_WEAPON/WIELD_ARMOR.
+      if (!state.alive || state.combat || isActionBlocked(state)) return state;
+      return produce(state, (draft) => {
+        const item = draft.heldItems[action.index];
+        if (!item) return;
+        draft.heldItems.splice(action.index, 1);
+        pushLog(draft, `You leave the ${item.name} behind.`);
+      });
+    }
+
+    case "RESOLVE_PACK_SWAP": {
+      // Unlike the other free actions above, this is the *resolution* of an already-pending
+      // choice, so it's the one case that must run even while isActionBlocked(state) is true (it
+      // IS what clears that block) -- only `state.alive`/`state.pendingPackItem` gate it.
+      if (!state.alive || state.pendingPackItem == null) return state;
+      return produce(state, (draft) => {
+        const incoming = draft.pendingPackItem;
+        if (!incoming) return;
+        draft.pendingPackItem = null;
+        if (action.discardIndex === "decline") {
+          pushLog(draft, `You leave the ${incoming.name} behind.`);
+          return;
+        }
+        const existing = draft.heldItems[action.discardIndex];
+        if (!existing) return;
+        draft.heldItems.splice(action.discardIndex, 1);
+        draft.heldItems.push(incoming);
+        pushLog(draft, `You drop the ${existing.name} to make room for the ${incoming.name}.`);
+      });
+    }
+
     case "RESOLVE_DOOR_LOCK": {
       if (
         !state.alive ||
         state.combat ||
-        hasPendingRoomEntry(state) ||
+        isActionBlocked(state) ||
         action.segId !== state.currentSegId
       ) {
         return state;
@@ -1336,7 +1470,7 @@ export function dungeonReducer(
       if (
         !state.alive ||
         state.combat ||
-        hasPendingRoomEntry(state) ||
+        isActionBlocked(state) ||
         action.segId !== state.currentSegId
       ) {
         return state;
@@ -1837,7 +1971,7 @@ export function dungeonReducer(
     }
 
     case "CAST_SPELL": {
-      if (!state.alive || state.combat?.pendingDamage != null || hasPendingRoomEntry(state))
+      if (!state.alive || state.combat?.pendingDamage != null || isActionBlocked(state))
         return state;
       const spell = SPELL_TABLE_BY_KEY[action.table]?.[action.spellRoll];
       const key = spellKey(action.table, action.spellRoll);
@@ -2096,7 +2230,7 @@ export function dungeonReducer(
         state.treasures <= 0 ||
         !state.dungeonTypeKey ||
         state.combat?.pendingDamage != null ||
-        hasPendingRoomEntry(state)
+        isActionBlocked(state)
       ) {
         return state;
       }
@@ -2117,16 +2251,22 @@ export function dungeonReducer(
 
         switch (outcome.effect.kind) {
           case "heldValue": {
-            draft.heldItems.push({ name: outcome.effect.name, worth: outcome.effect.amount });
-            pushLog(draft, `Treasure: ${outcome.text}`);
+            addHeldItem(
+              draft,
+              { name: outcome.effect.name, worth: outcome.effect.amount },
+              `Treasure: ${outcome.text}`,
+            );
             break;
           }
           case "heldValueRoll": {
             let sum = 0;
             for (let i = 0; i < outcome.effect.dice; i++) sum += rollDie(rng);
             const worth = sum * outcome.effect.multiplier;
-            draft.heldItems.push({ name: outcome.effect.name, worth });
-            pushLog(draft, `Treasure: ${outcome.text} (worth ${worth} coins)`);
+            addHeldItem(
+              draft,
+              { name: outcome.effect.name, worth },
+              `Treasure: ${outcome.text} (worth ${worth} coins)`,
+            );
             break;
           }
           case "healAll": {
@@ -2231,6 +2371,7 @@ export function dungeonReducer(
           createInitialMilestones(),
           action.maxSpellUses,
           [],
+          [],
         ),
         (draft) => {
           restoreMapFromPersisted(
@@ -2274,6 +2415,7 @@ export function dungeonReducer(
           action.milestones,
           action.maxSpellUses,
           action.buildings,
+          action.spareArmor,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

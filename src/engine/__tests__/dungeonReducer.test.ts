@@ -716,6 +716,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
       armor: [],
       weapon: null,
       weapons: [],
+      spareArmor: [],
     });
   });
 
@@ -733,6 +734,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -760,6 +762,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
       armor: [],
       weapon: null,
       weapons: [],
+      spareArmor: [],
     });
   });
 
@@ -777,6 +780,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
         armor: [],
         weapon: null,
         weapons: [{ name: "Dagger", formula: "1d6-1" }],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -1056,6 +1060,7 @@ describe("COLLECT_REMAINS", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -1085,6 +1090,7 @@ describe("COLLECT_REMAINS", () => {
         armor: [{ piece: "boots", hp: 3, maxHp: 3 }],
         weapon: { name: "Sword", formula: "1d6+1" },
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -1132,6 +1138,7 @@ describe("COLLECT_REMAINS", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -1155,6 +1162,7 @@ describe("COLLECT_REMAINS", () => {
         armor: [],
         weapon: { name: "Halberd", formula: "1d6+3", twoHanded: true },
         weapons: [{ name: "Dagger", formula: "1d6-1" }],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -2417,6 +2425,7 @@ describe("RESUME_DUNGEON", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -2487,6 +2496,7 @@ describe("RESUME_DUNGEON", () => {
       armor: [],
       weapon: null,
       weapons: [],
+      spareArmor: [],
     });
   });
 
@@ -2744,6 +2754,7 @@ describe("RETURN_TO_DUNGEON", () => {
       armor: [],
       weapon: null,
       spareWeapons: [],
+      spareArmor: [],
       weaponFormula: "1d6",
       spellUses: { "basic:1": 3 },
       maxSpellUses: { "basic:1": 3 },
@@ -2805,6 +2816,7 @@ describe("RETURN_TO_DUNGEON", () => {
       armor: [],
       weapon: null,
       spareWeapons: [],
+      spareArmor: [],
       weaponFormula: "1d6",
       spellUses: {},
       maxSpellUses: {},
@@ -2883,6 +2895,7 @@ describe("RETURN_TO_DUNGEON", () => {
       armor: [],
       weapon: null,
       spareWeapons: [],
+      spareArmor: [],
       weaponFormula: "1d6",
       spellUses: {},
       maxSpellUses: {},
@@ -2935,6 +2948,7 @@ describe("RETURN_TO_DUNGEON", () => {
       armor: [],
       weapon: null,
       spareWeapons: [],
+      spareArmor: [],
       weaponFormula: "1d6",
       spellUses: {},
       maxSpellUses: {},
@@ -2996,6 +3010,7 @@ describe("Monster table re-roll on return", () => {
         armor: [],
         weapon: null,
         spareWeapons: [],
+        spareArmor: [],
         weaponFormula: "1d6",
         spellUses: {},
         maxSpellUses: {},
@@ -3127,6 +3142,7 @@ describe("Monster table re-roll on return", () => {
       armor: [],
       weapon: null,
       spareWeapons: [],
+      spareArmor: [],
       weaponFormula: "1d6",
       spellUses: {},
       maxSpellUses: {},
@@ -3289,6 +3305,7 @@ describe("Resuming a fight abandoned via Teleport", () => {
       armor: [],
       weapon: null,
       spareWeapons: [],
+      spareArmor: [],
       weaponFormula: "1d6",
       spellUses: {},
       maxSpellUses: {},
@@ -3365,6 +3382,7 @@ describe("hasUnlootedRemains", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -3385,6 +3403,7 @@ describe("hasUnlootedRemains", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [room] };
@@ -3418,6 +3437,7 @@ describe("countUnlootedRemains", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const roomB = makeSegment({
@@ -3433,6 +3453,7 @@ describe("countUnlootedRemains", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [roomA, roomB] };
@@ -3453,6 +3474,7 @@ describe("countUnlootedRemains", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const roomB = makeSegment({
@@ -3468,6 +3490,7 @@ describe("countUnlootedRemains", () => {
         armor: [],
         weapon: null,
         weapons: [],
+        spareArmor: [],
       },
     });
     const level = { ...makeLevel(1), segments: [roomA, roomB] };
@@ -3475,5 +3498,323 @@ describe("countUnlootedRemains", () => {
 
     const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
     expect(countUnlootedRemains(next)).toBe(1);
+  });
+});
+
+describe("Armor slot uniqueness / spareArmor (issue #82)", () => {
+  it("a found armor piece whose slot is already occupied benches into spareArmor instead of stacking", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      armor: [{ piece: "boots", hp: 3, maxHp: 3 }],
+    };
+    // roll 6 (Palace treasure table) redirects to the Magic Item table; roll 1 there is
+    // "[Armor] of Royalty" (grants: "armor"); its own ARMOR_TABLE roll of 3 is Boots.
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, sequenceDie([1, 3]));
+    expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3 }]); // untouched
+    expect(next.spareArmor).toHaveLength(1);
+    expect(next.spareArmor[0]!.piece).toBe("boots");
+    expect(next.spareArmor[0]!.itemName).toBe("[Armor] of Royalty");
+  });
+
+  it("an empty slot doesn't bench -- the piece is worn directly", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      armor: [],
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, sequenceDie([1, 3]));
+    expect(next.armor).toHaveLength(1);
+    expect(next.armor[0]!.piece).toBe("boots");
+    expect(next.spareArmor).toEqual([]);
+  });
+
+  it("Ring and wonderItem are exempt from slot uniqueness -- multiples always stack in armor", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: {
+        names: ["Doomed Dara"],
+        coins: 0,
+        treasures: 0,
+        keys: 0,
+        heldItems: [],
+        armor: [{ piece: "ring", hp: 0, maxHp: 0 }],
+        weapon: null,
+        weapons: [],
+        spareArmor: [],
+      },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = {
+      ...stateWithLevel(level),
+      armor: [{ piece: "ring" as const, hp: 0, maxHp: 0 }],
+    };
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(next.armor).toEqual([
+      { piece: "ring", hp: 0, maxHp: 0 },
+      { piece: "ring", hp: 0, maxHp: 0 },
+    ]);
+    expect(next.spareArmor).toEqual([]);
+  });
+
+  it("COLLECT_REMAINS benches a recovered piece (worn or spare) whose slot is already occupied", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: {
+        names: ["Doomed Dara"],
+        coins: 0,
+        treasures: 0,
+        keys: 0,
+        heldItems: [],
+        armor: [{ piece: "boots", hp: 3, maxHp: 3, itemName: "Dara's Boots" }],
+        weapon: null,
+        weapons: [],
+        spareArmor: [{ piece: "helm", hp: 4, maxHp: 4, itemName: "Dara's Spare Helm" }],
+      },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = {
+      ...stateWithLevel(level),
+      armor: [
+        { piece: "boots" as const, hp: 3, maxHp: 3 },
+        { piece: "helm" as const, hp: 4, maxHp: 4 },
+      ],
+    };
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(next.armor).toEqual([
+      { piece: "boots", hp: 3, maxHp: 3 },
+      { piece: "helm", hp: 4, maxHp: 4 },
+    ]);
+    expect(next.spareArmor.map((p) => p.itemName)).toEqual(["Dara's Boots", "Dara's Spare Helm"]);
+  });
+});
+
+describe("WIELD_ARMOR (issue #82)", () => {
+  it("wears the chosen spare, displacing whatever already occupied that slot back into spareArmor", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      armor: [{ piece: "boots", hp: 1, maxHp: 3, itemName: "Worn Boots" }],
+      spareArmor: [{ piece: "boots", hp: 3, maxHp: 3, itemName: "Fresh Boots" }],
+    };
+    const next = dungeonReducer(state, { type: "WIELD_ARMOR", index: 0 });
+    expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3, itemName: "Fresh Boots" }]);
+    expect(next.spareArmor).toEqual([{ piece: "boots", hp: 1, maxHp: 3, itemName: "Worn Boots" }]);
+  });
+
+  it("wears the chosen spare directly when nothing already occupies that slot", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      armor: [],
+      spareArmor: [{ piece: "helm", hp: 4, maxHp: 4 }],
+    };
+    const next = dungeonReducer(state, { type: "WIELD_ARMOR", index: 0 });
+    expect(next.armor).toEqual([{ piece: "helm", hp: 4, maxHp: 4 }]);
+    expect(next.spareArmor).toEqual([]);
+  });
+
+  it("is a no-op on an invalid index", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), spareArmor: [] };
+    const next = dungeonReducer(state, { type: "WIELD_ARMOR", index: 0 });
+    expect(next).toBe(state);
+  });
+});
+
+describe("Pack cap / pendingPackItem (issue #82)", () => {
+  const tenItems = Array.from({ length: 10 }, (_, i) => ({ name: `Item ${i}`, worth: 1 }));
+
+  it("OPEN_TREASURE pushes normally when there's room", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      heldItems: [],
+    };
+    // Palace treasure roll 1 is a heldValue outcome ("Ornament").
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(next.heldItems).toHaveLength(1);
+    expect(next.pendingPackItem).toBeNull();
+  });
+
+  it("OPEN_TREASURE sets pendingPackItem instead of pushing once the Pack is full", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      heldItems: tenItems,
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(next.heldItems).toEqual(tenItems); // untouched
+    expect(next.pendingPackItem).toEqual({ name: "Ornament", worth: 5 });
+    expect(next.log[0]!.message).toContain("Pack is full");
+  });
+
+  it("COLLECT_REMAINS takes only as many heldItems as fit, pends the first overflow, and leaves the rest in a shrunken remains", () => {
+    const remainsItems = [
+      { name: "A", worth: 1 },
+      { name: "B", worth: 1 },
+      { name: "C", worth: 1 },
+    ];
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: {
+        names: ["Doomed Dara"],
+        coins: 0,
+        treasures: 0,
+        keys: 0,
+        heldItems: remainsItems,
+        armor: [],
+        weapon: null,
+        weapons: [],
+        spareArmor: [],
+      },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    // 9 slots already full -- room for exactly 1 more.
+    const state = { ...stateWithLevel(level), heldItems: tenItems.slice(0, 9) };
+
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(next.heldItems).toHaveLength(10);
+    expect(next.heldItems[9]).toEqual({ name: "A", worth: 1 });
+    expect(next.pendingPackItem).toEqual({ name: "B", worth: 1 });
+    expect(next.levels[0]!.segments[0]!.remains).toEqual({
+      names: ["Doomed Dara"],
+      coins: 0,
+      treasures: 0,
+      keys: 0,
+      heldItems: [{ name: "C", worth: 1 }],
+      armor: [],
+      weapon: null,
+      weapons: [],
+      spareArmor: [],
+    });
+  });
+
+  it("a fully-full Pack still collects coins/treasures/keys/armor/weapons in full, just not heldItems", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: {
+        names: ["Doomed Dara"],
+        coins: 5,
+        treasures: 2,
+        keys: 1,
+        heldItems: [{ name: "A", worth: 1 }],
+        armor: [],
+        weapon: { name: "Sword", formula: "1d6" },
+        weapons: [],
+        spareArmor: [],
+      },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = {
+      ...stateWithLevel(level),
+      heldItems: tenItems,
+      coins: 0,
+      treasures: 0,
+      keys: 0,
+      spareWeapons: [],
+    };
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(next.coins).toBe(5);
+    expect(next.treasures).toBe(2);
+    expect(next.keys).toBe(1);
+    expect(next.spareWeapons).toEqual([{ name: "Sword", formula: "1d6" }]);
+    expect(next.pendingPackItem).toEqual({ name: "A", worth: 1 });
+  });
+});
+
+describe("RESOLVE_PACK_SWAP (issue #82)", () => {
+  function stateWithPending(): DungeonState {
+    return {
+      ...stateWithLevel(makeLevel(1)),
+      heldItems: [
+        { name: "Old A", worth: 1 },
+        { name: "Old B", worth: 2 },
+      ],
+      pendingPackItem: { name: "New Item", worth: 9 },
+    };
+  }
+
+  it("discarding an existing index makes room and adds the incoming item", () => {
+    const next = dungeonReducer(stateWithPending(), { type: "RESOLVE_PACK_SWAP", discardIndex: 0 });
+    expect(next.heldItems).toEqual([{ name: "Old B", worth: 2 }, { name: "New Item", worth: 9 }]);
+    expect(next.pendingPackItem).toBeNull();
+  });
+
+  it("declining drops the incoming item for good, leaving the Pack untouched", () => {
+    const next = dungeonReducer(stateWithPending(), {
+      type: "RESOLVE_PACK_SWAP",
+      discardIndex: "decline",
+    });
+    expect(next.heldItems).toEqual([
+      { name: "Old A", worth: 1 },
+      { name: "Old B", worth: 2 },
+    ]);
+    expect(next.pendingPackItem).toBeNull();
+  });
+
+  it("is a no-op when there's nothing pending", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), pendingPackItem: null };
+    const next = dungeonReducer(state, { type: "RESOLVE_PACK_SWAP", discardIndex: "decline" });
+    expect(next).toBe(state);
+  });
+});
+
+describe("DISCARD_ITEM (issue #82)", () => {
+  it("removes the chosen item", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      heldItems: [{ name: "A", worth: 1 }, { name: "B", worth: 2 }],
+    };
+    const next = dungeonReducer(state, { type: "DISCARD_ITEM", index: 0 });
+    expect(next.heldItems).toEqual([{ name: "B", worth: 2 }]);
+  });
+
+  it("is a no-op on an invalid index", () => {
+    const state: DungeonState = { ...stateWithLevel(makeLevel(1)), heldItems: [] };
+    const next = dungeonReducer(state, { type: "DISCARD_ITEM", index: 0 });
+    expect(next).toBe(state);
+  });
+});
+
+describe("isActionBlocked also gates on a pending pack item (issue #82)", () => {
+  it("blocks WIELD_WEAPON while a Pack swap is pending", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      spareWeapons: [{ name: "Dagger", formula: "1d6-1" }],
+      pendingPackItem: { name: "New Item", worth: 9 },
+    };
+    const next = dungeonReducer(state, { type: "WIELD_WEAPON", index: 0 });
+    expect(next).toBe(state);
+  });
+
+  it("blocks OPEN_TREASURE while a Pack swap is pending", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      pendingPackItem: { name: "New Item", worth: 9 },
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 2 });
+    expect(next).toBe(state);
+  });
+
+  it("RESOLVE_PACK_SWAP itself is unaffected by its own pending state (it's what clears it)", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      heldItems: [],
+      pendingPackItem: { name: "New Item", worth: 9 },
+    };
+    const next = dungeonReducer(state, { type: "RESOLVE_PACK_SWAP", discardIndex: "decline" });
+    expect(next.pendingPackItem).toBeNull();
   });
 });

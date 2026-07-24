@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-07-24
+
+### Added
+
+- Armor now enforces "can't use more than one identical piece" --
+  a duplicate-slot find is benched as Spare Armor instead of
+  stacking, with its own "Wield" button to swap it in later (#82).
+- The Pack is now capped at 10 items, matching the rulebook's Load
+  Limit. A find that doesn't fit prompts an interactive swap
+  (discard something to make room, or leave the new item behind),
+  and a free "Discard" button lets you drop an item anytime, in the
+  dungeon or in Town (#82).
+
 ## [2.25.0] - 2026-07-24
 
 ### Added

@@ -100,6 +100,7 @@ export function DungeonScreen({
         armor: resources.armor,
         weapon: resources.weapon,
         spareWeapons: resources.spareWeapons,
+        spareArmor: resources.spareArmor,
         weaponFormula: character.cls.weaponDamage,
         spellUses: resources.spellUses,
         characterName: character.name,
@@ -158,6 +159,7 @@ export function DungeonScreen({
       resources.milestones,
       resources.maxSpellUses,
       resources.buildings,
+      resources.spareArmor,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -300,7 +302,7 @@ export function DungeonScreen({
   }
 
   function handleOpenTreasure() {
-    if (openingTreasure || state.treasures <= 0) return;
+    if (openingTreasure || state.treasures <= 0 || !!state.pendingPackItem) return;
     const roll = rollDie();
     setTreasureDie(roll);
     setTreasureRollToken((t) => t + 1);
@@ -482,6 +484,7 @@ export function DungeonScreen({
                           spellUses={state.spellUses}
                           isRinoceroid={character.race.name === "Rinoceroid"}
                           isSlimemen={character.race.name === "Slimemen"}
+                          hasPendingPackItem={!!state.pendingPackItem}
                           onAttack={(targetId, roll, useHorn) =>
                             dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })
                           }
@@ -516,7 +519,7 @@ export function DungeonScreen({
                 <p className={styles.dungeonEyebrow}>Level {state.activeLevel + 1}</p>
                 <h2 className={styles.dungeonName}>{state.dungeonName}</h2>
                 <p className={styles.dungeonEntrance}>{state.entranceFlavor}</p>
-                {state.alive && !state.combat && (
+                {state.alive && !state.combat && !state.pendingPackItem && (
                   <div className={styles.headerActions}>
                     <button
                       className={styles.ghostBtn}
@@ -589,7 +592,7 @@ export function DungeonScreen({
                 <button
                   className={styles.rollBtn}
                   type="button"
-                  disabled={openingTreasure}
+                  disabled={openingTreasure || !!state.pendingPackItem}
                   onClick={handleOpenTreasure}
                 >
                   Open a Treasure ({state.treasures})
@@ -603,9 +606,16 @@ export function DungeonScreen({
             weapon={state.weapon}
             spareWeapons={state.spareWeapons}
             onWield={(index) => dispatch({ type: "WIELD_WEAPON", index })}
+            spareArmor={state.spareArmor}
+            onWieldArmor={(index) => dispatch({ type: "WIELD_ARMOR", index })}
           />
 
-          <Pack items={state.heldItems} />
+          <Pack
+            items={state.heldItems}
+            pendingItem={state.pendingPackItem}
+            onDiscard={(index) => dispatch({ type: "DISCARD_ITEM", index })}
+            onResolveSwap={(discardIndex) => dispatch({ type: "RESOLVE_PACK_SWAP", discardIndex })}
+          />
 
           <Hireling hireling={state.hireling} />
 

@@ -476,6 +476,7 @@ describe("PLAYER_ATTACK", () => {
       keys: 2,
       heldItems: [],
       armor: [],
+      spareArmor: [],
       weapon: null,
       weapons: [],
     });
