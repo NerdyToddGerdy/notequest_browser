@@ -12,7 +12,7 @@ import {
   type LocationKind,
   type Terrain,
 } from "../data/hexTables.ts";
-import { CULTURE_BY_LOCATION, type CityCulture } from "../data/affinity.ts";
+import { CULTURE_BY_LOCATION, hasAffinity, type CityCulture } from "../data/affinity.ts";
 import { CITY_NAME_PREFIX, CITY_NAME_SUFFIX } from "../data/cityNames.ts";
 import type { AnimalDef, BuildingKind } from "../data/types.ts";
 
@@ -304,6 +304,65 @@ export function withPoliticalStatus(
 ): WorldState {
   const key = hexKey(coord);
   return { ...world, politicalStatus: { ...(world.politicalStatus ?? {}), [key]: status } };
+}
+
+/** Scans every currently-revealed tile for a City/Fortress whose culture `raceName` has Affinity
+ * for, returning the one nearest `home` (via `hexDistance()`) if more than one matches -- `null` if
+ * nothing qualifies yet. Issue #78's `findOrRevealCompatibleHome()` is the only caller. */
+function findCompatibleCity(
+  tiles: Record<string, HexTile>,
+  home: HexCoord,
+  raceName: string,
+): HexCoord | null {
+  let best: HexCoord | null = null;
+  let bestDist = Infinity;
+  for (const [key, tile] of Object.entries(tiles)) {
+    if (!tile.location || !CULTURE_BY_LOCATION[tile.location]) continue;
+    if (!hasAffinity(raceName, tile.location)) continue;
+    const coord = parseHexKey(key);
+    const dist = hexDistance(home, coord);
+    if (dist < bestDist) {
+      best = coord;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+/** Issue #78: a race with no Affinity for `world.home`'s own Human City (today, only Orc/Ogre --
+ * see `RACE_AFFINITY`) can never stand there, and -- since `canTravelTo()` only checks a *
+ * destination* hex's Affinity, never blocking leaving one -- would permanently lose access to it
+ * (or any other Human city) the moment they stepped off it. `App.tsx`'s `handleCharacterCreated`
+ * calls this instead of resetting straight to `world.home` whenever that's the case.
+ *
+ * Searches the already-revealed map first -- the same "the physical map, once generated, is
+ * permanent" precedent every other World system already relies on (dungeons, buildings, political
+ * status) -- placing the new character directly at an existing compatible city rather than
+ * generating a redundant one. Only if nothing qualifies yet does it generate new territory,
+ * outward, ring by ring, reusing the existing `revealNeighborsInPlace()` primitive on every
+ * currently-known hex each pass. `MAX_HOME_SEARCH_RINGS` is a safety net against a pathological RNG
+ * sequence never rolling a matching City/Fortress -- `LOCATION_TABLE`'s own row distribution puts an
+ * Orc/Goblin location on a sizeable fraction of "has a location" rolls, so a match should turn up
+ * within the first 1-3 rings almost always; this should never actually be reached, and falls back
+ * to `world.home` itself rather than looping forever if it somehow is. */
+export function findOrRevealCompatibleHome(
+  world: WorldState,
+  raceName: string,
+  rng: RNG = Math.random,
+): { world: WorldState; coord: HexCoord } {
+  const existing = findCompatibleCity(world.tiles, world.home, raceName);
+  if (existing) return { world, coord: existing };
+
+  const MAX_HOME_SEARCH_RINGS = 20;
+  const tiles: Record<string, HexTile> = { ...world.tiles };
+  for (let ring = 0; ring < MAX_HOME_SEARCH_RINGS; ring++) {
+    for (const coord of Object.keys(tiles).map(parseHexKey)) {
+      revealNeighborsInPlace(tiles, coord, world.climate, rng);
+    }
+    const found = findCompatibleCity(tiles, world.home, raceName);
+    if (found) return { world: { ...world, tiles }, coord: found };
+  }
+  return { world: { ...world, tiles }, coord: world.home };
 }
 
 /** The player starts on a human city on a plain (fixed, not rolled -- "Choose a hex to start with

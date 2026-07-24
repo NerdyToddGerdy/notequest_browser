@@ -12,10 +12,12 @@ import {
 } from "./engine/town.ts";
 import {
   createInitialWorldState,
+  findOrRevealCompatibleHome,
   hexKey,
   withDungeonRunId,
   type WorldState,
 } from "./engine/hexState.ts";
+import { hasAffinity } from "./data/affinity.ts";
 import { DUNGEON_TYPE_BY_TERRAIN } from "./data/hexTables.ts";
 import { rollDie } from "./engine/dice.ts";
 import { clearSession, loadSession, saveSession } from "./engine/session.ts";
@@ -66,6 +68,9 @@ export default function App() {
   // that's just World's home hex now, so this resets world.player back to home (world terrain,
   // discovery, and hex dungeon-ties all persist across characters; only the marker resets, so a
   // new adventurer starts fresh at the city rather than wherever the last one's body was left).
+  // Issue #78: a race with no Affinity for home's Human City (today, only Orc/Ogre) can't stand
+  // there at all -- findOrRevealCompatibleHome() finds (or generates) a compatible city instead.
+  // Every other race's behavior here is completely unchanged.
   function handleCharacterCreated(newCharacter: CreatedCharacter) {
     setCharacter(newCharacter);
     setResources({
@@ -99,7 +104,12 @@ export default function App() {
     setActiveRunId(null);
     setWorld((prev) => {
       const w = prev ?? createInitialWorldState();
-      return { ...w, player: w.home };
+      const homeTile = w.tiles[hexKey(w.home)];
+      if (hasAffinity(newCharacter.race.name, homeTile?.location ?? null)) {
+        return { ...w, player: w.home };
+      }
+      const { world: revealed, coord } = findOrRevealCompatibleHome(w, newCharacter.race.name);
+      return { ...revealed, player: coord };
     });
     setScreen("world");
   }

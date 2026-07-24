@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.30.0] - 2026-07-24
+
+### Fixed
+
+- Orc and Ogre characters no longer start at (and eventually lose
+  access to) the Human home city their race is banned from -- a
+  new character now lands at a compatible Orc/Goblin city instead,
+  found on the already-explored map or generated if none exists
+  yet (#78).
+
 ## [2.29.0] - 2026-07-24
 
 ### Changed

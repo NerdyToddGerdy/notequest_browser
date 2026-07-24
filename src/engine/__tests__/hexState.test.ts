@@ -4,6 +4,7 @@ import {
   createInitialWorldState,
   findAskedDungeonHex,
   findHexForRunId,
+  findOrRevealCompatibleHome,
   hexDistance,
   isBannedHex,
   parseHexKey,
@@ -23,7 +24,7 @@ import {
   type WorldState,
 } from "../hexState.ts";
 import { DOMESTICATED_ANIMAL_TABLE, MOUNT_TABLE } from "../../data/animals.ts";
-import { sequenceDie } from "../../test/mulberry32.ts";
+import { fixedDie, sequenceDie } from "../../test/mulberry32.ts";
 
 // HOT_TERRAIN_TABLE's "plain" column: 1->water, 2->mountain, 3->forest, 4/5/6->plain.
 // LOCATION_TABLE's "plain" column: 1..6 -> orcCity, goblinCity, ruins, humanCity, humanCity, humanFortress.
@@ -464,5 +465,88 @@ describe("withRazedToRuins (Warfare, issue #28)", () => {
       hasBoat: false,
     };
     expect(withRazedToRuins(world, { q: 5, r: 5 })).toBe(world);
+  });
+});
+
+describe("findOrRevealCompatibleHome (issue #78)", () => {
+  /** Never called -- proves a code path resolves without generating anything new. */
+  function throwingRng(): number {
+    throw new Error("rng should not be called -- no generation expected here");
+  }
+
+  it("finds an already-known compatible city without revealing anything new", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: {
+        "0,0": { terrain: "plain", location: "humanCity", name: "Haven" },
+        "1,0": { terrain: "plain", location: "orcCity", name: "Orctown" },
+      },
+      hasBoat: false,
+    };
+    const result = findOrRevealCompatibleHome(world, "Orc", throwingRng);
+    expect(result.coord).toEqual({ q: 1, r: 0 });
+    expect(result.world.tiles).toBe(world.tiles); // untouched, no new keys
+  });
+
+  it("picks the nearest match when more than one already-known city qualifies", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: {
+        "0,0": { terrain: "plain", location: "humanCity", name: "Haven" },
+        "2,0": { terrain: "plain", location: "goblinCity", name: "Far Goblintown" },
+        "1,0": { terrain: "plain", location: "orcCity", name: "Near Orctown" },
+      },
+      hasBoat: false,
+    };
+    const result = findOrRevealCompatibleHome(world, "Ogre", throwingRng);
+    expect(result.coord).toEqual({ q: 1, r: 0 });
+  });
+
+  it("generates outward, ring by ring, when nothing compatible is known yet", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: "humanCity", name: "Haven" } },
+      hasBoat: false,
+    };
+    // Ring 1 reveals home's 6 neighbors in HEX_DIRECTIONS order: {1,0} {1,-1} {0,-1} {-1,0} {-1,1}
+    // {0,1}. HOT_TERRAIN_TABLE's "plain" column: roll 4 -> plain. LOCATION_TABLE[1].plain ->
+    // orcCity. {1,0} is forced to roll a location (roll 6) that resolves to an orcCity; every other
+    // neighbor rolls "no location" (a non-6).
+    const rng = sequenceDie([
+      4, 6, 1, 1, 1, // {1,0}: plain, has a location, LOCATION_TABLE[1].plain -> orcCity, name dice
+      4, 1, // {1,-1}: plain, no location
+      4, 1, // {0,-1}: plain, no location
+      4, 1, // {-1,0}: plain, no location
+      4, 1, // {-1,1}: plain, no location
+      4, 1, // {0,1}: plain, no location
+    ]);
+    const result = findOrRevealCompatibleHome(world, "Orc", rng);
+    expect(result.coord).toEqual({ q: 1, r: 0 });
+    expect(result.world.tiles["1,0"]).toEqual({
+      terrain: "plain",
+      location: "orcCity",
+      name: "Bloodfang",
+    });
+    expect(Object.keys(result.world.tiles)).toHaveLength(7); // home + its 6 neighbors
+  });
+
+  it("falls back to world.home if no compatible city ever turns up within the safety cap", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: "humanCity", name: "Haven" } },
+      hasBoat: false,
+    };
+    // rollDie() always returns 1 -- the "has a location" check (roll === 6) can never pass, so no
+    // location is ever generated anywhere, no matter how far outward this searches.
+    const result = findOrRevealCompatibleHome(world, "Orc", fixedDie(1));
+    expect(result.coord).toEqual(world.home);
   });
 });
