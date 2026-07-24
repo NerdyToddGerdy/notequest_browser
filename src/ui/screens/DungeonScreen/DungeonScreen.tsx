@@ -23,8 +23,6 @@ import { DicePool } from "../../components/DicePool/DicePool.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
-import { Hireling } from "../../components/Hireling/Hireling.tsx";
-import { Animals } from "../../components/Animals/Animals.tsx";
 import { CombatPanel } from "../../components/CombatPanel/CombatPanel.tsx";
 import { TeleportPicker } from "../../components/TeleportPicker/TeleportPicker.tsx";
 import { RoomEntryPrompt } from "../../components/RoomEntryPrompt/RoomEntryPrompt.tsx";
@@ -551,6 +549,8 @@ export function DungeonScreen({
               onCastSpell={(table, spellRoll) => dispatch({ type: "CAST_SPELL", table, spellRoll })}
               monsterKills={state.monsterKills}
               killsByName={state.killsByName}
+              hireling={state.hireling}
+              animals={state.animals}
             />
 
             {!state.alive && state.deathCause === "combat" && (
@@ -616,10 +616,6 @@ export function DungeonScreen({
             onDiscard={(index) => dispatch({ type: "DISCARD_ITEM", index })}
             onResolveSwap={(discardIndex) => dispatch({ type: "RESOLVE_PACK_SWAP", discardIndex })}
           />
-
-          <Hireling hireling={state.hireling} />
-
-          {state.animals.length > 0 && <Animals animals={state.animals} />}
 
           {hasDungeon && (
             <div className={styles.statsCard}>

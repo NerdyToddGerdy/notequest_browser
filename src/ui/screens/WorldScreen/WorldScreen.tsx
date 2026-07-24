@@ -803,6 +803,8 @@ export function WorldScreen({
             maxSpellUses={resources.maxSpellUses}
             monsterKills={resources.monsterKills}
             killsByName={resources.killsByName}
+            hireling={resources.hireling}
+            animals={resources.animals}
             canCastOutOfCombat
             onCastSpell={(table, spellRoll) => onUpdateResources(castSpell(resources, table, spellRoll))}
           />

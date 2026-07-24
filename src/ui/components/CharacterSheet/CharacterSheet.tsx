@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { CreatedCharacter, SpellTableKey } from "../../../data/types.ts";
 import { computeSpellUses, parseSpellKey, SPELL_TABLE_BY_KEY } from "../../../engine/character.ts";
 import { COMBAT_ONLY_SPELL_NAMES, KNOWN_CASTABLE_SPELL_NAMES } from "../../../engine/combat.ts";
+import { HIRELING_BY_NAME } from "../../../data/hirelings.ts";
+import { ANIMAL_BY_NAME } from "../../../data/animals.ts";
 import { KillBreakdownModal } from "../KillBreakdownModal/KillBreakdownModal.tsx";
 import styles from "./CharacterSheet.module.css";
 
@@ -48,6 +50,14 @@ export interface CharacterSheetProps {
   /** Whether Heal/Light can be cast right now (in a dungeon, alive, not mid-fight). */
   canCastOutOfCombat?: boolean;
   onCastSpell?: (table: SpellTableKey, spellRoll: number) => void;
+  /** The currently-employed Hireling's name, if any (issue #25) -- shown as a permanent status
+   * line here (issue #77) rather than a separate card that only ever appeared in some screens
+   * (the dungeon sidebar) and disappeared in others (Town, at a hex/culture with no hiring
+   * roster of its own) or never at all (the World map). */
+  hireling?: string | null;
+  /** Owned animal/mount names (issue #26), same "permanent status line" treatment as `hireling`
+   * above. */
+  animals?: string[];
 }
 
 export function CharacterSheet({
@@ -67,8 +77,11 @@ export function CharacterSheet({
   onCastSpell,
   monsterKills,
   killsByName,
+  hireling = null,
+  animals = [],
 }: CharacterSheetProps) {
   const [showKills, setShowKills] = useState(false);
+  const hirelingDef = hireling ? HIRELING_BY_NAME[hireling] : null;
   const maxHpValue = maxHp ?? character.totalHp;
   const maxSpellUses = maxSpellUsesProp ?? computeSpellUses(character.spells, character.fixedGrants);
   const liveSpellUses = spellUses ?? maxSpellUses;
@@ -154,6 +167,25 @@ export function CharacterSheet({
           {character.cls.ability !== "None." && (
             <li>
               <strong>{character.cls.name}:</strong> {character.cls.ability}
+            </li>
+          )}
+          {hirelingDef && (
+            <li>
+              <strong>
+                Hireling ({hirelingDef.name}, {hirelingDef.hp} HP):
+              </strong>{" "}
+              {hirelingDef.equipmentText}. {hirelingDef.abilityText}
+            </li>
+          )}
+          {animals.length > 0 && (
+            <li>
+              <strong>Animals:</strong>{" "}
+              {animals
+                .map((name) => {
+                  const def = ANIMAL_BY_NAME[name];
+                  return def ? `${def.name}${def.isMount ? " (Mount)" : ""} (${def.hp} HP)` : name;
+                })
+                .join(", ")}
             </li>
           )}
         </ul>

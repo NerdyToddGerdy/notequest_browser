@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.28.0] - 2026-07-24
+
+### Changed
+
+- Hireling/Animal status now shows permanently on the Adventurer
+  card, instead of separate cards that could vanish depending on
+  the screen (or never show at all on the World map) (#77).
+
 ## [2.27.0] - 2026-07-24
 
 ### Added
