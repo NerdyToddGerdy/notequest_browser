@@ -152,6 +152,47 @@
   margin-bottom: clamp(24px, 4vw, 32px);
 }
 
+.actionTabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.actionTab,
+.actionTabActive {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  padding: 8px 16px;
+  border: 1px solid rgba(42, 32, 22, 0.35);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.actionTab {
+  color: var(--ink-soft);
+  background: rgba(42, 32, 22, 0.04);
+}
+.actionTab:hover {
+  background: rgba(42, 32, 22, 0.09);
+  color: var(--ink);
+}
+.actionTabActive {
+  color: var(--ink);
+  background: var(--parchment-2);
+  border-color: var(--gold);
+  position: relative;
+  top: 1px;
+}
+.actionTab:focus-visible,
+.actionTabActive:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .actionGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

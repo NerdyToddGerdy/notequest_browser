@@ -58,6 +58,17 @@ import { RecordsPanel } from "../../components/RecordsPanel/RecordsPanel.tsx";
 import { Footer } from "../../components/Footer/Footer.tsx";
 import styles from "./TownScreen.module.css";
 
+/** City Actions tabs (issue #76) -- see the `activeActionTab` state's own doc comment for the
+ * grouping rationale. */
+type ActionTab = "tavern" | "shop" | "jobBoard" | "underground";
+
+const ACTION_TABS: { key: ActionTab; label: string }[] = [
+  { key: "tavern", label: "Tavern" },
+  { key: "shop", label: "Shop" },
+  { key: "jobBoard", label: "Job Board" },
+  { key: "underground", label: "Underground" },
+];
+
 interface CultureAction {
   name: string;
   cost: string;
@@ -299,6 +310,16 @@ export function TownScreen({
   // the next fight overwrites it -- there's no reason to erase a just-finished fight's story).
   const [arena, setArena] = useState<ArenaState | null>(null);
   const [arenaLog, setArenaLog] = useState<string[]>([]);
+  // City Actions tabs (issue #76): the grid had grown to as many as ~14 buttons under one flat
+  // heading -- split into 4 themed tabs, always shown regardless of hex (a simpler, single
+  // render path over a threshold-based flat-grid fallback, confirmed with the user). Every tab is
+  // guaranteed at least one always-visible action for any hex TownScreen ever renders (Rest;
+  // Buy Torches/Provisions; Ask/Political Affinity; Gamble/Thug Life), so none can ever end up
+  // empty. Newer Politics/Warfare actions (Political Affinity, Recruit Troop, Attack) weren't part
+  // of the issue's own suggested grouping -- placed under Job Board as "actions that advance your
+  // position in the world," alongside Ask/Hire Boat/the Culture Action, rather than Underground,
+  // since none of them are the illicit/risky kind that group is themed around.
+  const [activeActionTab, setActiveActionTab] = useState<ActionTab>("tavern");
 
   function describeArenaRound(result: ArenaRoundResult, championName: string): string {
     if (result.events.some((e) => e.kind === "explosive")) {
@@ -456,18 +477,32 @@ export function TownScreen({
               ) : (
                 <section className={styles.actions}>
                   <h2 className={styles.trackTitle}>City Actions</h2>
+                  <div className={styles.actionTabs}>
+                    {ACTION_TABS.map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        className={activeActionTab === tab.key ? styles.actionTabActive : styles.actionTab}
+                        onClick={() => setActiveActionTab(tab.key)}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                   <div className={styles.actionGrid}>
-                    <button
-                      className={styles.actionBtn}
-                      type="button"
-                      disabled={!canRest(resources, isChampion)}
-                      onClick={() => onUpdateResources(rest(resources, isChampion))}
-                    >
-                      <span className={styles.actionName}>Rest</span>
-                      <span className={styles.actionCost}>{isChampion ? "Free (Champion)" : "1 coin"}</span>
-                      <span className={styles.actionDesc}>Recover your HP and spent spells.</span>
-                    </button>
-                    {isAlchemist && (
+                    {activeActionTab === "tavern" && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canRest(resources, isChampion)}
+                        onClick={() => onUpdateResources(rest(resources, isChampion))}
+                      >
+                        <span className={styles.actionName}>Rest</span>
+                        <span className={styles.actionCost}>{isChampion ? "Free (Champion)" : "1 coin"}</span>
+                        <span className={styles.actionDesc}>Recover your HP and spent spells.</span>
+                      </button>
+                    )}
+                    {activeActionTab === "tavern" && isAlchemist && (
                       <button
                         className={styles.actionBtn}
                         type="button"
@@ -479,60 +514,68 @@ export function TownScreen({
                         <span className={styles.actionDesc}>Heal to full HP (Alchemist).</span>
                       </button>
                     )}
-                    <button
-                      className={styles.actionBtn}
-                      type="button"
-                      disabled={!canBuyTorch(resources)}
-                      onClick={() => onUpdateResources(buyTorch(resources))}
-                    >
-                      <span className={styles.actionName}>Buy Torches</span>
-                      <span className={styles.actionCost}>1 coin</span>
-                      <span className={styles.actionDesc}>
-                        +1 torch, up to a maximum of 10 carried.
-                      </span>
-                    </button>
-                    <button
-                      className={styles.actionBtn}
-                      type="button"
-                      disabled={!canBuyProvision(resources)}
-                      onClick={() => onUpdateResources(buyProvision(resources))}
-                    >
-                      <span className={styles.actionName}>Buy Provisions</span>
-                      <span className={styles.actionCost}>1 coin</span>
-                      <span className={styles.actionDesc}>
-                        +1 provision, up to a maximum of 20 carried.
-                      </span>
-                    </button>
-                    <button
-                      className={styles.actionBtn}
-                      type="button"
-                      disabled={askedDungeonKnown}
-                      onClick={onAsk}
-                    >
-                      <span className={styles.actionName}>Ask</span>
-                      <span className={styles.actionCost}>Free</span>
-                      <span className={styles.actionDesc}>
-                        {askedDungeonKnown
-                          ? "A dungeon is already known nearby."
-                          : "Ask about the nearest dungeon."}
-                      </span>
-                    </button>
-                    <button
-                      className={styles.actionBtn}
-                      type="button"
-                      disabled={!canPoliticalAffinity}
-                      onClick={handlePoliticalAffinity}
-                    >
-                      <span className={styles.actionName}>Political Affinity</span>
-                      <span className={styles.actionCost}>Free</span>
-                      <span className={styles.actionDesc}>
-                        {politicalAffinityMessage ??
-                          (politicalStatus
-                            ? POLITICAL_STATUS_DESC[politicalStatus]
-                            : "Roll to win this place's allegiance.")}
-                      </span>
-                    </button>
-                    {politicalStatus === "vassal" && (
+                    {activeActionTab === "shop" && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canBuyTorch(resources)}
+                        onClick={() => onUpdateResources(buyTorch(resources))}
+                      >
+                        <span className={styles.actionName}>Buy Torches</span>
+                        <span className={styles.actionCost}>1 coin</span>
+                        <span className={styles.actionDesc}>
+                          +1 torch, up to a maximum of 10 carried.
+                        </span>
+                      </button>
+                    )}
+                    {activeActionTab === "shop" && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canBuyProvision(resources)}
+                        onClick={() => onUpdateResources(buyProvision(resources))}
+                      >
+                        <span className={styles.actionName}>Buy Provisions</span>
+                        <span className={styles.actionCost}>1 coin</span>
+                        <span className={styles.actionDesc}>
+                          +1 provision, up to a maximum of 20 carried.
+                        </span>
+                      </button>
+                    )}
+                    {activeActionTab === "jobBoard" && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={askedDungeonKnown}
+                        onClick={onAsk}
+                      >
+                        <span className={styles.actionName}>Ask</span>
+                        <span className={styles.actionCost}>Free</span>
+                        <span className={styles.actionDesc}>
+                          {askedDungeonKnown
+                            ? "A dungeon is already known nearby."
+                            : "Ask about the nearest dungeon."}
+                        </span>
+                      </button>
+                    )}
+                    {activeActionTab === "jobBoard" && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canPoliticalAffinity}
+                        onClick={handlePoliticalAffinity}
+                      >
+                        <span className={styles.actionName}>Political Affinity</span>
+                        <span className={styles.actionCost}>Free</span>
+                        <span className={styles.actionDesc}>
+                          {politicalAffinityMessage ??
+                            (politicalStatus
+                              ? POLITICAL_STATUS_DESC[politicalStatus]
+                              : "Roll to win this place's allegiance.")}
+                        </span>
+                      </button>
+                    )}
+                    {activeActionTab === "jobBoard" && politicalStatus === "vassal" && (
                       <button
                         className={styles.actionBtn}
                         type="button"
@@ -548,7 +591,7 @@ export function TownScreen({
                         </span>
                       </button>
                     )}
-                    {canAttack && (
+                    {activeActionTab === "jobBoard" && canAttack && (
                       <>
                         <button className={styles.actionBtn} type="button" onClick={() => onAttack(false)}>
                           <span className={styles.actionName}>Attack</span>
@@ -569,7 +612,7 @@ export function TownScreen({
                         </button>
                       </>
                     )}
-                    {cultureAction && (
+                    {activeActionTab === "jobBoard" && cultureAction && (
                       <button
                         className={styles.actionBtn}
                         type="button"
@@ -581,7 +624,7 @@ export function TownScreen({
                         <span className={styles.actionDesc}>{cultureAction.desc}</span>
                       </button>
                     )}
-                    {showHireBoat && (
+                    {activeActionTab === "jobBoard" && showHireBoat && (
                       <button
                         className={styles.actionBtn}
                         type="button"
@@ -595,7 +638,7 @@ export function TownScreen({
                         </span>
                       </button>
                     )}
-                    {!isFortress && (
+                    {activeActionTab === "underground" && !isFortress && (
                       <button
                         className={styles.actionBtn}
                         type="button"
@@ -609,26 +652,30 @@ export function TownScreen({
                         </span>
                       </button>
                     )}
-                    <button className={styles.actionBtn} type="button" onClick={handleGamble}>
-                      <span className={styles.actionName}>Gamble</span>
-                      <span className={styles.actionCost}>
-                        {resources.coins >= 1 ? "1 coin" : "Your life"}
-                      </span>
-                      <span className={styles.actionDesc}>
-                        {resources.coins >= 1
-                          ? "Roll a 6 to win 6 coins, otherwise nothing."
-                          : "No coins left -- roll a 6 to survive and earn 5, or die."}
-                      </span>
-                    </button>
-                    <button className={styles.actionBtn} type="button" onClick={handleThugLife}>
-                      <span className={styles.actionName}>Thug Life</span>
-                      <span className={styles.actionCost}>Risky</span>
-                      <span className={styles.actionDesc}>
-                        {thugLifeMessage ??
-                          `Rob a traveler (${isFortress ? "3d6" : "2d6"}) -- could pay off, or get you killed or banned.`}
-                      </span>
-                    </button>
-                    {isFortress && (
+                    {activeActionTab === "underground" && (
+                      <button className={styles.actionBtn} type="button" onClick={handleGamble}>
+                        <span className={styles.actionName}>Gamble</span>
+                        <span className={styles.actionCost}>
+                          {resources.coins >= 1 ? "1 coin" : "Your life"}
+                        </span>
+                        <span className={styles.actionDesc}>
+                          {resources.coins >= 1
+                            ? "Roll a 6 to win 6 coins, otherwise nothing."
+                            : "No coins left -- roll a 6 to survive and earn 5, or die."}
+                        </span>
+                      </button>
+                    )}
+                    {activeActionTab === "underground" && (
+                      <button className={styles.actionBtn} type="button" onClick={handleThugLife}>
+                        <span className={styles.actionName}>Thug Life</span>
+                        <span className={styles.actionCost}>Risky</span>
+                        <span className={styles.actionDesc}>
+                          {thugLifeMessage ??
+                            `Rob a traveler (${isFortress ? "3d6" : "2d6"}) -- could pay off, or get you killed or banned.`}
+                        </span>
+                      </button>
+                    )}
+                    {activeActionTab === "underground" && isFortress && (
                       <button className={styles.actionBtn} type="button" onClick={handleStartArena}>
                         <span className={styles.actionName}>Fight in the Arena</span>
                         <span className={styles.actionCost}>Deadly</span>

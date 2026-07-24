@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-07-24
+
+### Changed
+
+- The City Actions grid is now split into themed tabs (Tavern,
+  Shop, Job Board, Underground) instead of one crowded flat list
+  of up to 14 buttons (#76).
+
 ## [2.28.0] - 2026-07-24
 
 ### Changed
