@@ -1,18 +1,31 @@
-import { countUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
+import {
+  countUnlootedRemains,
+  isDungeonBeaten,
+  sortDungeonsForDisplay,
+  type PendingDungeon,
+} from "../../../engine/dungeonState.ts";
 import styles from "./DungeonsList.module.css";
 
 export interface DungeonsListProps {
   /** Every dungeon any character has touched, unbeaten or beaten -- App.tsx's own dungeonHistory,
-   * unfiltered, mirroring Graveyard's "every adventurer" scope. */
+   * unfiltered, mirroring Graveyard's "every adventurer" scope. Pre-sorted by the caller (recency
+   * for `CharacterCreationScreen`, closest-to-farthest for `WorldScreen`/`TownScreen`, issue #80) --
+   * this component only ever layers `sortDungeonsForDisplay()`'s unfinished-before-cleared grouping
+   * on top, stably, so whatever secondary order it's handed is preserved within each group. */
   dungeons: PendingDungeon[];
   /** True when rendered in Town Square's narrow Records column -- see Graveyard's own `compact`
    * doc comment, the same reasoning applies here. */
   compact?: boolean;
+  /** Issue #79: shows (does not travel to -- see CLAUDE.md's "must travel back to its hex" note,
+   * the pre-#44 warp shortcut this project deliberately removed) where a dungeon is on the hex
+   * map. Only ever provided by `WorldScreen`/`TownScreen`, which have a map to show it on --
+   * `CharacterCreationScreen` omits it, so the button simply doesn't render there. */
+  onLocate?: (id: string) => void;
 }
 
 /** A running record of every dungeon that's ever been found, styled like the Graveyard's own panel
  * (see `RecordsPanel`, which switches between the two). */
-export function DungeonsList({ dungeons, compact = false }: DungeonsListProps) {
+export function DungeonsList({ dungeons, compact = false, onLocate }: DungeonsListProps) {
   if (dungeons.length === 0) return null;
 
   return (
@@ -22,7 +35,7 @@ export function DungeonsList({ dungeons, compact = false }: DungeonsListProps) {
         {dungeons.length} dungeon{dungeons.length === 1 ? "" : "s"} found across these lands.
       </p>
       <ul className={compact ? `${styles.list} ${styles.listCompact}` : styles.list}>
-        {[...dungeons].reverse().map((pd) => {
+        {sortDungeonsForDisplay(dungeons).map((pd) => {
           const beaten = isDungeonBeaten(pd.dungeon);
           const remains = countUnlootedRemains(pd.dungeon);
           return (
@@ -38,6 +51,11 @@ export function DungeonsList({ dungeons, compact = false }: DungeonsListProps) {
                 <span className={styles.remains}>
                   {remains} unrecovered bod{remains === 1 ? "y" : "ies"}
                 </span>
+              )}
+              {onLocate && (
+                <button type="button" className={styles.locateBtn} onClick={() => onLocate(pd.id)}>
+                  Locate
+                </button>
               )}
             </li>
           );

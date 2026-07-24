@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { createInitialDungeonState, isDungeonBeaten, makeLevel, type SegmentState } from "../dungeonState.ts";
+import {
+  createInitialDungeonState,
+  isDungeonBeaten,
+  makeLevel,
+  sortDungeonsForDisplay,
+  type PendingDungeon,
+  type SegmentState,
+} from "../dungeonState.ts";
 
 function makeSegment(overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">): SegmentState {
   return {
@@ -59,5 +66,39 @@ describe("isDungeonBeaten", () => {
     const level = { ...makeLevel(1), isFinalRoomLevel: false, segments: [room, finalSeg] };
     const state = { ...createInitialDungeonState(), levels: [level] };
     expect(isDungeonBeaten(state)).toBe(true);
+  });
+});
+
+describe("sortDungeonsForDisplay (issue #80)", () => {
+  function unbeaten(id: string): PendingDungeon {
+    return { id, dungeon: createInitialDungeonState(), lastCharacterName: "Pip" };
+  }
+
+  function beaten(id: string): PendingDungeon {
+    const finalSeg = makeSegment({ id: 1, type: "final", doors: [], monstersDefeated: true });
+    const level = { ...makeLevel(3), isFinalRoomLevel: true, segments: [finalSeg] };
+    return { id, dungeon: { ...createInitialDungeonState(), levels: [level] }, lastCharacterName: "Pip" };
+  }
+
+  it("puts every unfinished dungeon before every cleared one", () => {
+    const input = [beaten("b1"), unbeaten("u1"), beaten("b2"), unbeaten("u2")];
+    const sorted = sortDungeonsForDisplay(input).map((pd) => pd.id);
+    expect(sorted).toEqual(["u1", "u2", "b1", "b2"]);
+  });
+
+  it("is a stable sort -- preserves the caller's own secondary order within each group", () => {
+    // Callers (WorldScreen's distance sort, CharacterCreationScreen's recency reversal) are
+    // responsible for the order handed in; this only ever layers the beaten/unfinished split on
+    // top without disturbing it.
+    const input = [unbeaten("far"), unbeaten("near"), beaten("old"), beaten("recent")];
+    const sorted = sortDungeonsForDisplay(input).map((pd) => pd.id);
+    expect(sorted).toEqual(["far", "near", "old", "recent"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const input = [beaten("b1"), unbeaten("u1")];
+    const copy = [...input];
+    sortDungeonsForDisplay(input);
+    expect(input).toEqual(copy);
   });
 });

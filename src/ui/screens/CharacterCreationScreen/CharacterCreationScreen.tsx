@@ -445,7 +445,10 @@ export function CharacterCreationScreen({
         </div>
       </main>
 
-      <RecordsPanel graveyardEntries={graveyard} dungeons={dungeonHistory} />
+      {/* No WorldState/player position exists here to sort dungeons by distance (issue #80) --
+          reversed for recency instead (most recently touched first), same fallback DungeonsList
+          used unconditionally before that issue. */}
+      <RecordsPanel graveyardEntries={graveyard} dungeons={[...dungeonHistory].reverse()} />
 
       <Footer screenLabel="CHARACTER CREATION" onHardReset={onHardReset} />
 

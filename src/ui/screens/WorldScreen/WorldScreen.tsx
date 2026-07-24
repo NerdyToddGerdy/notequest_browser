@@ -14,6 +14,8 @@ import {
 import { hasAffinity, CULTURE_BY_LOCATION, type CityCulture } from "../../../data/affinity.ts";
 import {
   countMatchingNeighbors,
+  findHexForRunId,
+  hexDistance,
   hexKey,
   hexNeighbors,
   isBannedHex,
@@ -408,6 +410,33 @@ export function WorldScreen({
     );
   }
 
+  /** Issue #79: shows -- doesn't travel to, see `DungeonsList`'s own doc comment for why that
+   * distinction is deliberate -- where a dungeon from the Dungeons list is, by selecting its hex
+   * the same way clicking it on the map directly would. A no-op (same defensive shape as every
+   * other handler here) if the run can't be found on the map, which shouldn't happen in practice. */
+  function handleLocateDungeon(runId: string) {
+    const coord = findHexForRunId(world, runId);
+    if (!coord) return;
+    setShowMap(true);
+    setSelectedHex(coord);
+  }
+
+  /** Issue #80: "closest to farthest," measured from the player's own current position --
+   * `DungeonsList`'s own `sortDungeonsForDisplay()` then layers its unfinished-before-cleared
+   * grouping on top of this order (a stable sort, so this ordering survives within each group). A
+   * dungeon whose hex can't be found (shouldn't happen in practice) sorts last. */
+  const sortedDungeonHistory = useMemo(
+    () =>
+      [...dungeonHistory].sort((a, b) => {
+        const coordA = findHexForRunId(world, a.id);
+        const coordB = findHexForRunId(world, b.id);
+        const distA = coordA ? hexDistance(world.player, coordA) : Infinity;
+        const distB = coordB ? hexDistance(world.player, coordB) : Infinity;
+        return distA - distB;
+      }),
+    [dungeonHistory, world],
+  );
+
   const inspectedCoord = selectedHex ?? world.player;
   const inspectedTile: HexTile | undefined = world.tiles[hexKey(inspectedCoord)];
   const isInspectingCurrentTile = inspectedCoord.q === world.player.q && inspectedCoord.r === world.player.r;
@@ -566,7 +595,7 @@ export function WorldScreen({
         // entered a dungeon on yet still offers a fresh roll, same as the old Ruins card always did.
         hasDungeon={canEnterDungeon}
         dungeonGateCopy={dungeonGateCopy}
-        dungeonHistory={dungeonHistory}
+        dungeonHistory={sortedDungeonHistory}
         culture={culture}
         cityName={currentPlaceLabel}
         showHireBoat={besideWater}
@@ -589,6 +618,7 @@ export function WorldScreen({
         onRecruitTroop={handleRecruitTroop}
         onAttack={handleAttack}
         onResolveStorming={handleResolveStorming}
+        onLocateDungeon={handleLocateDungeon}
         onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
         onExploreWorld={() => setShowMap(true)}
         onHardReset={onHardReset}
@@ -626,13 +656,27 @@ export function WorldScreen({
                 const label = tile.name ?? (tile.location ? LOCATION_LABEL[tile.location] : "");
                 const { status: dungeonStatus, hasRemains } = dungeonInfoFor(tile);
                 const political = politicalStatusFor(world, coord);
+                // Issue #81: no corner slot left uncrowded (dungeon/remains/building/political
+                // badges already claim all four) -- a forbidden hex instead gets its own dashed,
+                // danger-colored outline, visible at a glance without adding a 5th tiny glyph.
+                const noAffinityHere = !hasAffinity(character.race.name, tile.location);
                 return (
                   <g key={hexKey(coord)} className={styles.clickableHex} onClick={() => handleHexClick(coord)}>
+                    {noAffinityHere && <title>Your race is not welcome here</title>}
                     <polygon
                       points={hexPolygonPoints(pixel, HEX_SIZE - 2)}
                       fill={TERRAIN_FILL[tile.terrain]}
-                      stroke={isPlayer ? "var(--gold-bright)" : isSelected ? "var(--gold)" : "rgba(0,0,0,0.4)"}
-                      strokeWidth={isPlayer || isSelected ? 4 : 1.5}
+                      stroke={
+                        isPlayer
+                          ? "var(--gold-bright)"
+                          : isSelected
+                            ? "var(--gold)"
+                            : noAffinityHere
+                              ? "var(--danger)"
+                              : "rgba(0,0,0,0.4)"
+                      }
+                      strokeWidth={isPlayer || isSelected ? 4 : noAffinityHere ? 2.5 : 1.5}
+                      strokeDasharray={noAffinityHere && !isPlayer && !isSelected ? "4 2" : undefined}
                     />
                     {label && (
                       <text x={pixel.x} y={pixel.y + 4} textAnchor="middle" className={styles.hexLabel}>

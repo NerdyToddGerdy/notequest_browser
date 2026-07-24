@@ -3,6 +3,7 @@ import {
   countMatchingNeighbors,
   createInitialWorldState,
   findAskedDungeonHex,
+  findHexForRunId,
   hexDistance,
   isBannedHex,
   parseHexKey,
@@ -130,6 +131,33 @@ describe("withDungeonRunId", () => {
     };
     const next = withDungeonRunId(world, { q: 5, r: 5 }, "run-1");
     expect(next).toBe(world);
+  });
+});
+
+describe("findHexForRunId (issues #79/#80)", () => {
+  it("finds the coord of the tile carrying the given dungeonRunId", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: {
+        "0,0": { terrain: "plain", location: "humanCity" },
+        "3,-2": { terrain: "plain", location: "ruins", dungeonRunId: "run-1" },
+      },
+      hasBoat: false,
+    };
+    expect(findHexForRunId(world, "run-1")).toEqual({ q: 3, r: -2 });
+  });
+
+  it("is null when no tile carries the given id", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: "humanCity" } },
+      hasBoat: false,
+    };
+    expect(findHexForRunId(world, "run-1")).toBeNull();
   });
 });
 

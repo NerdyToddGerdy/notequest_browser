@@ -358,6 +358,19 @@ export function countUnlootedRemains(state: DungeonState): number {
   return count;
 }
 
+/** Issue #80: unfinished dungeons before cleared ones -- a plain stable sort (JS's `Array.sort()`
+ * has been stability-guaranteed since ES2019), so whatever order `dungeons` already arrives in is
+ * preserved within each of the two groups. `WorldScreen.tsx` uses this to layer its own
+ * closest-to-farthest ordering on top, by pre-sorting `dungeons` by distance before calling this --
+ * the two compose correctly precisely because this sort is stable. `CharacterCreationScreen`,
+ * which has no `WorldState`/player position to measure distance from, calls this directly on the
+ * raw, unsorted history instead, falling back to whatever order that arrived in within each group. */
+export function sortDungeonsForDisplay(dungeons: PendingDungeon[]): PendingDungeon[] {
+  return [...dungeons].sort(
+    (a, b) => Number(isDungeonBeaten(a.dungeon)) - Number(isDungeonBeaten(b.dungeon)),
+  );
+}
+
 export function makeLevel(depth: number): LevelState {
   return {
     depth,

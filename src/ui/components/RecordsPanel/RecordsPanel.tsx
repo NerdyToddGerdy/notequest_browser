@@ -11,6 +11,8 @@ export interface RecordsPanelProps {
   /** True when rendered in Town Square's narrow Records column, alongside Adventure, instead of
    * as its own full-width card below it -- see Graveyard's own `compact` doc comment. */
   compact?: boolean;
+  /** Issue #79: forwarded straight through to `DungeonsList` -- see its own doc comment. */
+  onLocateDungeon?: (id: string) => void;
 }
 
 /** Both the Graveyard and the Dungeons list are "running record" panels that render in the same
@@ -18,7 +20,12 @@ export interface RecordsPanelProps {
  * the same space -- a tab switcher between them, shown only once there's actually something in
  * both to switch between. With just one populated, that one renders directly, matching the
  * Graveyard's own previous (tab-less) behavior exactly. */
-export function RecordsPanel({ graveyardEntries, dungeons, compact = false }: RecordsPanelProps) {
+export function RecordsPanel({
+  graveyardEntries,
+  dungeons,
+  compact = false,
+  onLocateDungeon,
+}: RecordsPanelProps) {
   const hasGraveyard = graveyardEntries.length > 0;
   const hasDungeons = dungeons.length > 0;
   const [activeTab, setActiveTab] = useState<"graveyard" | "dungeons">(hasGraveyard ? "graveyard" : "dungeons");
@@ -48,7 +55,7 @@ export function RecordsPanel({ graveyardEntries, dungeons, compact = false }: Re
       {activeTab === "graveyard" ? (
         <Graveyard entries={graveyardEntries} compact={compact} />
       ) : (
-        <DungeonsList dungeons={dungeons} compact={compact} />
+        <DungeonsList dungeons={dungeons} compact={compact} onLocate={onLocateDungeon} />
       )}
     </div>
   );

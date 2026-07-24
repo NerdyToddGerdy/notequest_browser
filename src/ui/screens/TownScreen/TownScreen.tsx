@@ -143,8 +143,12 @@ export interface TownScreenProps {
    * distinguishes the three cases in the copy shown alongside the button. */
   hasDungeon: boolean;
   dungeonGateCopy: string;
-  /** Every dungeon any character has touched -- shown read-only via RecordsPanel's Dungeons tab. */
+  /** Every dungeon any character has touched -- shown read-only via RecordsPanel's Dungeons tab,
+   * pre-sorted by `WorldScreen` (closest-to-farthest, issue #80). */
   dungeonHistory: PendingDungeon[];
+  /** Issue #79: forwarded straight through to `RecordsPanel`/`DungeonsList` -- see their own doc
+   * comments. */
+  onLocateDungeon: (id: string) => void;
   /** Which culture (if any) the current City/Fortress hex belongs to -- `null` for Ruins, which
    * has no City Actions at all (see CLAUDE.md's Town Square unification note). */
   culture: CityCulture | null;
@@ -233,6 +237,7 @@ export function TownScreen({
   hasDungeon,
   dungeonGateCopy,
   dungeonHistory,
+  onLocateDungeon,
   culture,
   cityName,
   showHireBoat,
@@ -674,6 +679,7 @@ export function TownScreen({
                       <RecordsPanel
                         graveyardEntries={graveyard}
                         dungeons={dungeonHistory}
+                        onLocateDungeon={onLocateDungeon}
                         compact
                       />
                     </div>

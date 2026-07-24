@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.25.0] - 2026-07-24
+
+### Added
+
+- The Dungeons list now sorts unfinished dungeons before cleared
+  ones, and within each group by distance from your current
+  position (#80). Each entry also gets a "Locate" button that shows
+  where it is on the hex map, without traveling there (#79).
+- Hexes your character's race has no Affinity for now show a
+  dashed, danger-colored outline on the world map, instead of only
+  being discoverable by trying to travel there (#81).
+
 ## [2.24.0] - 2026-07-23
 
 ### Added

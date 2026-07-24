@@ -193,6 +193,17 @@ export function withDungeonRunId(world: WorldState, coord: HexCoord, runId: stri
   return { ...world, tiles: { ...world.tiles, [key]: { ...tile, dungeonRunId: runId } } };
 }
 
+/** The inverse of `withDungeonRunId()` -- issue #79's "Locate" (show, not travel to, a dungeon
+ * from the Dungeons list on the map) and #80's closest-to-farthest sort both need to turn a
+ * `PendingDungeon.id` back into a coordinate. `null` if no known tile carries it, which shouldn't
+ * happen in practice (a `PendingDungeon` only ever exists because some hex was already stamped). */
+export function findHexForRunId(world: WorldState, runId: string): HexCoord | null {
+  for (const [key, tile] of Object.entries(world.tiles)) {
+    if (tile.dungeonRunId === runId) return parseHexKey(key);
+  }
+  return null;
+}
+
 /** "Ask" City Action (`docs/game-rules-reference.md` lines 978-985) -- rolls a hex side and steps
  * clockwise through `from`'s own six neighbors for the first one that's land with no location: "In
  * this hex there will be a dungeon ... If the hex has Water or another City or Ruins, go clockwise
