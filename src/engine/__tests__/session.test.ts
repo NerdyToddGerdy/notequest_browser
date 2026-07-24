@@ -69,6 +69,7 @@ const RESOURCES: AdventurerResources = {
   hireling: null,
   animals: [],
   milestones: createInitialMilestones(),
+  buildings: [],
   travelStats: createInitialTravelStats(),
 };
 
@@ -169,6 +170,40 @@ describe("loadSession", () => {
     expect(loadSession(storage).resources).toEqual({
       ...oldResources,
       milestones: createInitialMilestones(),
+    });
+  });
+
+  it("back-fills resources.buildings (issue #27) for a session persisted before it existed", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { buildings, ...oldResources } = RESOURCES;
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
+    });
+    expect(loadSession(storage).resources).toEqual({ ...oldResources, buildings: [] });
+  });
+
+  it("merges resources.milestones field-by-field, back-filling talkedToKing/vassalCount (issue #27) onto an existing milestones object rather than replacing it wholesale", () => {
+    // A save from after issue #70 but before #27: milestones exists, but without the two new
+    // fields -- a whole-object `?? createInitialMilestones()` fallback wouldn't have caught this,
+    // since the object itself is already present.
+    const oldMilestones = {
+      hasCastSpell: true,
+      hasCastColdRay: false,
+      hasSoldItem: true,
+      hasHadArmorDestroyed: false,
+      hasFoughtInArena: false,
+      locksOpened: 4,
+    };
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({
+        ...FULL_SESSION,
+        resources: { ...RESOURCES, milestones: oldMilestones },
+      }),
+    });
+    expect(loadSession(storage).resources?.milestones).toEqual({
+      ...oldMilestones,
+      talkedToKing: false,
+      vassalCount: 0,
     });
   });
 

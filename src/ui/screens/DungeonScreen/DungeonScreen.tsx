@@ -114,6 +114,7 @@ export function DungeonScreen({
         animals: resources.animals,
         milestones: resources.milestones,
         maxSpellUses: resources.maxSpellUses,
+        buildings: resources.buildings,
       });
     }
     if (resumeDungeon) {
@@ -156,6 +157,7 @@ export function DungeonScreen({
       resources.animals,
       resources.milestones,
       resources.maxSpellUses,
+      resources.buildings,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);

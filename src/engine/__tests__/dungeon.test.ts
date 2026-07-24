@@ -219,6 +219,7 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     hireling: null,
     animals: [],
     milestones: createInitialMilestones(),
+    buildings: [],
     weaponFormula: "1d6",
     spellUses: {},
     maxSpellUses: {},

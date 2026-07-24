@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { RACE_TABLE } from "../races.ts";
-import { CULTURE_BY_LOCATION, RACE_AFFINITY, hasAffinity, type CityCulture } from "../affinity.ts";
+import {
+  CULTURE_BY_LOCATION,
+  DEFAULT_POLITICAL_AFFINITY,
+  POLITICAL_AFFINITY_TABLE,
+  RACE_AFFINITY,
+  hasAffinity,
+  politicalAffinityTarget,
+  type CityCulture,
+} from "../affinity.ts";
 import { CITY_OR_FORTRESS, type LocationKind } from "../hexTables.ts";
 
 const ALL_CULTURES: CityCulture[] = ["human", "dwarven", "elven", "gnome", "goblin", "orc"];
@@ -80,5 +88,43 @@ describe("hasAffinity", () => {
   it("a New Races addition with no explicit rulebook row (e.g. Centaur) falls to the default row, not a ban", () => {
     expect(hasAffinity("Centaur", "humanCity")).toBe(true);
     expect(hasAffinity("Centaur", "orcCity")).toBe(false);
+  });
+});
+
+describe("politicalAffinityTarget (Politics, issue #27)", () => {
+  it("defines a target number for every row the rulebook's own Political Affinity table lists", () => {
+    // Unlike the base Affinity table (14 rows, including Cat-Person/Rinoceroid/Lightbugster),
+    // "Table: Political Affinity" only lists 11 rows -- Cat-Person/Rinoceroid/Lightbugster
+    // deliberately fall back to DEFAULT_POLITICAL_AFFINITY instead (see the fallback test below),
+    // an honest reflection of the rulebook's own omission rather than an invented number.
+    const raceNames = ["Human", "Dwarf", "Elf", "Gnome", "Halfling", "Pixie", "Slimemen", "Dragonkin", "Goblin", "Orc", "Ogre"];
+    for (const name of raceNames) {
+      for (const culture of ALL_CULTURES) {
+        expect(POLITICAL_AFFINITY_TABLE[name]?.[culture], `missing ${name}/${culture}`).toBeDefined();
+      }
+    }
+  });
+
+  it("falls back to the default row for a RACE_TABLE race the Political Affinity table omits", () => {
+    const namesInTable = new Set(Object.values(RACE_TABLE).map((r) => r.name));
+    expect(namesInTable.has("Cat-Person")).toBe(true);
+    expect(politicalAffinityTarget("Cat-Person", "human")).toBe(DEFAULT_POLITICAL_AFFINITY.human);
+  });
+
+  it("reads the exact rulebook target number for a given race/culture pair", () => {
+    expect(politicalAffinityTarget("Human", "human")).toBe(4);
+    expect(politicalAffinityTarget("Human", "orc")).toBe(7);
+    expect(politicalAffinityTarget("Halfling", "gnome")).toBe(3);
+  });
+
+  it("Orc and Ogre share the rulebook's one combined row, split like RACE_AFFINITY", () => {
+    for (const raceName of ["Orc", "Ogre"]) {
+      expect(politicalAffinityTarget(raceName, "human")).toBe(7);
+      expect(politicalAffinityTarget(raceName, "orc")).toBe(4);
+    }
+  });
+
+  it("falls back to the default row for a race with no explicit entry", () => {
+    expect(politicalAffinityTarget("Centaur", "human")).toBe(DEFAULT_POLITICAL_AFFINITY.human);
   });
 });

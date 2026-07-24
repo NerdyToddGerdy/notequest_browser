@@ -17,6 +17,7 @@ import {
   hexKey,
   hexNeighbors,
   isBannedHex,
+  politicalStatusFor,
   qualifiesForBuyingMount,
   qualifiesForTraining,
   withBannedHex,
@@ -29,6 +30,13 @@ import { hasUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../
 import type { TownDeathCause } from "../../../engine/graveyard.ts";
 import { ANIMAL_BY_NAME, MOUNT_TABLE } from "../../../data/animals.ts";
 import { animalTravelCostOverride, animalTravelCostPenalty, buyMount, trainAnimal } from "../../../engine/animals.ts";
+import type { BuildingKind } from "../../../data/types.ts";
+import { buildBuilding, canBuildBuilding } from "../../../engine/buildings.ts";
+import {
+  canAttemptPoliticalAffinity,
+  resolvePoliticalAffinity,
+  type PoliticalAffinityOutcome,
+} from "../../../engine/politics.ts";
 import {
   canHireBoat,
   castSpell,
@@ -304,6 +312,34 @@ export function WorldScreen({
     onUpdateResources(buyMount(resources, mount));
   }
 
+  /** Buildings (issue #27): only ever buildable on the hex the player is standing on (an empty
+   * hex, per `qualifiesForBuilding()`), so this always targets `world.player` rather than whichever
+   * hex `HexInspector` happens to be describing. Re-validates defensively, same
+   * "handler re-checks, engine function is real authority" precedent as `handleTrainAnimal`. */
+  function handleBuildBuilding(kind: BuildingKind) {
+    if (!currentTile || !canBuildBuilding(resources, currentTile, kind, currentTile.terrain, character.race.name)) {
+      return;
+    }
+    const result = buildBuilding(resources, world, world.player, kind, currentTile.terrain, character.race.name);
+    onUpdateResources(result.resources);
+    onUpdateWorld(result.world);
+  }
+
+  /** Politics (issue #27): touches both `resources` (Lord/King Vassal-eligibility check,
+   * `talkedToKing`/`vassalCount` milestones) and `world` (the resolved status itself), same
+   * "resolved here, not in TownScreen" shape as `handleThugLife`. Returns the outcome so TownScreen
+   * can render it as message text; `null` if the action isn't actually available right now
+   * (the button is already disabled in that case, this is just defense in depth). */
+  function handlePoliticalAffinity(): PoliticalAffinityOutcome | null {
+    if (!currentTile || !culture || !canAttemptPoliticalAffinity(world, world.player, currentTile)) {
+      return null;
+    }
+    const outcome = resolvePoliticalAffinity(resources, world, character.race.name, world.player, culture, isFortress);
+    onUpdateResources(outcome.resources);
+    onUpdateWorld(outcome.world);
+    return outcome;
+  }
+
   const inspectedCoord = selectedHex ?? world.player;
   const inspectedTile: HexTile | undefined = world.tiles[hexKey(inspectedCoord)];
   const isInspectingCurrentTile = inspectedCoord.q === world.player.q && inspectedCoord.r === world.player.r;
@@ -469,12 +505,15 @@ export function WorldScreen({
         askedDungeonKnown={askedDungeonKnown}
         isFortress={isFortress}
         buyableMounts={buyableMounts}
+        politicalStatus={politicalStatusFor(world, world.player)}
+        canPoliticalAffinity={canAttemptPoliticalAffinity(world, world.player, currentTile)}
         onUpdateResources={onUpdateResources}
         onEnterDungeon={onEnterDungeon}
         onHireBoat={handleHireBoat}
         onBuyMount={handleBuyMount}
         onAsk={handleAsk}
         onThugLife={handleThugLife}
+        onPoliticalAffinity={handlePoliticalAffinity}
         onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
         onExploreWorld={() => setShowMap(true)}
         onHardReset={onHardReset}
@@ -511,6 +550,7 @@ export function WorldScreen({
                 const isSelected = !isPlayer && selectedHex != null && coord.q === selectedHex.q && coord.r === selectedHex.r;
                 const label = tile.name ?? (tile.location ? LOCATION_LABEL[tile.location] : "");
                 const { status: dungeonStatus, hasRemains } = dungeonInfoFor(tile);
+                const political = politicalStatusFor(world, coord);
                 return (
                   <g key={hexKey(coord)} className={styles.clickableHex} onClick={() => handleHexClick(coord)}>
                     <polygon
@@ -545,6 +585,20 @@ export function WorldScreen({
                       <text x={pixel.x - 17} y={pixel.y - 18} textAnchor="middle" className={styles.remainsBadge}>
                         <title>A fallen adventurer&apos;s remains are still here, unrecovered</title>
                         💀
+                      </text>
+                    )}
+                    {tile.building && (
+                      <text x={pixel.x + 17} y={pixel.y + 18} textAnchor="middle" className={styles.buildingBadge}>
+                        <title>{tile.building}</title>
+                        🏛
+                      </text>
+                    )}
+                    {political && (
+                      <text x={pixel.x - 17} y={pixel.y + 18} textAnchor="middle" className={styles.politicalBadge}>
+                        <title>
+                          {political === "ally" ? "Allied" : political === "vassal" ? "Vassal" : "Enemy"}
+                        </title>
+                        {political === "ally" ? "🤝" : political === "vassal" ? "👑" : "🗡"}
                       </text>
                     )}
                     {isPlayer && (
@@ -583,6 +637,11 @@ export function WorldScreen({
                   resources={resources}
                   onTrainAnimal={handleTrainAnimal}
                   trainResultMessage={trainResultMessage}
+                  isEmptyHex={inspectedTile.location === null}
+                  currentBuilding={inspectedTile.building}
+                  raceName={character.race.name}
+                  onBuildBuilding={handleBuildBuilding}
+                  politicalStatus={politicalStatusFor(world, inspectedCoord)}
                 />
               </div>
             )}

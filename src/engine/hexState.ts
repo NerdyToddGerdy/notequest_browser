@@ -14,7 +14,7 @@ import {
 } from "../data/hexTables.ts";
 import { CULTURE_BY_LOCATION, type CityCulture } from "../data/affinity.ts";
 import { CITY_NAME_PREFIX, CITY_NAME_SUFFIX } from "../data/cityNames.ts";
-import type { AnimalDef } from "../data/types.ts";
+import type { AnimalDef, BuildingKind } from "../data/types.ts";
 
 export interface HexCoord {
   q: number;
@@ -23,6 +23,13 @@ export interface HexCoord {
 
 export function hexKey(c: HexCoord): string {
   return `${c.q},${c.r}`;
+}
+
+/** The inverse of `hexKey()` -- needed for Politics' (issue #27) Vassal-within-3-hexes distance
+ * check, which only has an owned building's stored `hexKey` string to work from. */
+export function parseHexKey(key: string): HexCoord {
+  const [q, r] = key.split(",").map(Number);
+  return { q: q!, r: r! };
 }
 
 /** Axial neighbor offsets, pointy-top hexes. */
@@ -37,6 +44,14 @@ export const HEX_DIRECTIONS: readonly HexCoord[] = [
 
 export function hexNeighbors(c: HexCoord): HexCoord[] {
   return HEX_DIRECTIONS.map((d) => ({ q: c.q + d.q, r: c.r + d.r }));
+}
+
+/** Standard axial hex distance -- Politics' (issue #27) "within 3 hexes" Vassal-eligibility check
+ * is the only consumer today. */
+export function hexDistance(a: HexCoord, b: HexCoord): number {
+  const dq = a.q - b.q;
+  const dr = a.r - b.r;
+  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
 }
 
 export interface HexTile {
@@ -60,6 +75,10 @@ export interface HexTile {
    * this field existed still loads -- an old city with no name falls back to its generic
    * `LOCATION_LABEL` wherever this is displayed. */
   name?: string;
+  /** Buildings (issue #27) -- set once a character builds here (`withBuilding()`), replaced in
+   * place on a later upgrade. A building doesn't count as a `location` in the `LocationKind` sense
+   * -- it's a player-owned overlay on an otherwise-empty hex, so `location` stays `null`. */
+  building?: BuildingKind;
 }
 
 export interface WorldState {
@@ -84,6 +103,12 @@ export interface WorldState {
    * "Getting Money" note). Optional so a session persisted before this field existed still loads;
    * always read via `isBannedHex()`, never directly, so that default stays in one place. */
   bannedHexes?: string[];
+  /** Politics (issue #27) -- the outcome of a resolved Political Affinity roll at a City/Fortress
+   * hex, keyed by `hexKey()`. Optional so a session persisted before this field existed still
+   * loads; always read via `politicalStatusFor()`, never directly, so that default stays in one
+   * place, same "optional for back-compat" precedent as `bannedHexes`. A hex's entry, once set, is
+   * permanent -- there's no re-rolling a hex that already has a status. */
+  politicalStatus?: Record<string, "ally" | "vassal" | "enemy">;
 }
 
 /** `current` is trusted to belong to `climate`'s own terrain set (a hot-climate world only ever
@@ -211,6 +236,36 @@ export function isBannedHex(world: WorldState, coord: HexCoord): boolean {
 export function withBannedHex(world: WorldState, coord: HexCoord): WorldState {
   if (isBannedHex(world, coord)) return world;
   return { ...world, bannedHexes: [...(world.bannedHexes ?? []), hexKey(coord)] };
+}
+
+/** Buildings (issue #27) -- immutably stamps (or replaces, on an upgrade) the building at `coord`.
+ * A no-op if the hex isn't known yet, same "shouldn't happen in practice" contract as
+ * `withDungeonRunId`. */
+export function withBuilding(world: WorldState, coord: HexCoord, kind: BuildingKind): WorldState {
+  const key = hexKey(coord);
+  const tile = world.tiles[key];
+  if (!tile) return world;
+  return { ...world, tiles: { ...world.tiles, [key]: { ...tile, building: kind } } };
+}
+
+/** Politics (issue #27) -- `null` if this hex's Political Affinity roll hasn't been attempted yet,
+ * the one place the `?? {}` back-compat default for a pre-#27 persisted session lives. */
+export function politicalStatusFor(
+  world: WorldState,
+  coord: HexCoord,
+): "ally" | "vassal" | "enemy" | null {
+  return (world.politicalStatus ?? {})[hexKey(coord)] ?? null;
+}
+
+/** Immutably records a hex's Political Affinity outcome -- permanent, like `withBannedHex`; no
+ * caller re-resolves an already-decided hex (see `politics.ts`'s `canAttemptPoliticalAffinity`). */
+export function withPoliticalStatus(
+  world: WorldState,
+  coord: HexCoord,
+  status: "ally" | "vassal" | "enemy",
+): WorldState {
+  const key = hexKey(coord);
+  return { ...world, politicalStatus: { ...(world.politicalStatus ?? {}), [key]: status } };
 }
 
 /** The player starts on a human city on a plain (fixed, not rolled -- "Choose a hex to start with

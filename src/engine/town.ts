@@ -2,7 +2,7 @@ import type { MonsterAbility } from "../data/dungeonTables.ts";
 import type { Terrain } from "../data/hexTables.ts";
 import type { SpellTableKey } from "../data/types.ts";
 import { HEAL_AMOUNT, OUT_OF_COMBAT_SPELL_NAMES } from "./combat.ts";
-import type { ArmorPiece, EquippedWeapon, HeldItem } from "./dungeonState.ts";
+import type { ArmorPiece, EquippedWeapon, HeldItem, OwnedBuilding } from "./dungeonState.ts";
 import { rollSpell, spellKey, SPELL_TABLE_BY_KEY } from "./character.ts";
 import { rollDie } from "./dice.ts";
 import type { RNG } from "./rng.ts";
@@ -63,6 +63,10 @@ export interface AdventurerResources {
    * requirement checks that don't fit the existing kill-tally/graveyard-based shapes -- see
    * `AdvancedClassMilestones`. */
   milestones: AdvancedClassMilestones;
+  /** Buildings (issue #27) owned so far -- stacks freely like `advancedClasses`/`animals` (never
+   * expires the way `hireling` does). Mirrored on `DungeonState` since `finishIfVictorious()`'s
+   * Boss-kill tax credit needs to read it mid-dungeon -- see `src/engine/buildings.ts`. */
+  buildings: OwnedBuilding[];
   /** Lifetime World-map travel counters (issue #72) powering Lumberjack/Druid/Survivor/Pirate/
    * Bard/Cook's requirement checks -- see `TravelStats`. Unlike `milestones`, this is never
    * mirrored on `DungeonState`: every one of these signals only ever changes via World-map travel
@@ -131,6 +135,14 @@ export interface AdvancedClassMilestones {
    * regardless of whether Locksmith/Burglar's free-pick bypass applies (the lock was still
    * opened, just without spending a torch for it). */
   locksOpened: number;
+  /** Noble (issue #27): "Talk to the King of a Fortress" -- approximated as having *attempted* a
+   * Political Affinity roll at a Fortress hex at least once, regardless of outcome ("talking" is
+   * the act of visiting and rolling, not a required success). Set by `politics.ts`'s
+   * `resolvePoliticalAffinity()`. */
+  talkedToKing: boolean;
+  /** Emperor (issue #27): "Have 1 fortress and 3 vassals" -- incremented whenever a Political
+   * Affinity roll resolves to `"vassal"` (see `resolvePoliticalAffinity()`). */
+  vassalCount: number;
 }
 
 export function createInitialMilestones(): AdvancedClassMilestones {
@@ -141,6 +153,8 @@ export function createInitialMilestones(): AdvancedClassMilestones {
     hasHadArmorDestroyed: false,
     hasFoughtInArena: false,
     locksOpened: 0,
+    talkedToKing: false,
+    vassalCount: 0,
   };
 }
 

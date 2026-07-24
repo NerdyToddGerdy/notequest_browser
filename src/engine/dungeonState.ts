@@ -6,7 +6,7 @@ import type {
   MonsterTemplate,
   RoomContentEntry,
 } from "../data/dungeonTables.ts";
-import type { SpellTableKey } from "../data/types.ts";
+import type { BuildingKind, SpellTableKey } from "../data/types.ts";
 import { createInitialMilestones, type AdvancedClassMilestones } from "./town.ts";
 
 export type Direction = "N" | "E" | "S" | "W";
@@ -197,6 +197,14 @@ export interface HeldItem {
   worth: number;
 }
 
+/** A building (Buildings, issue #27) a character owns, tied to the hex it was built on --
+ * `hexKey` rather than a full `HexCoord` since that's how `WorldState.tiles`/`politicalStatus` are
+ * already keyed, and the Vassal-range check needs to parse it back via `parseHexKey()` regardless. */
+export interface OwnedBuilding {
+  hexKey: string;
+  kind: BuildingKind;
+}
+
 export interface DungeonState {
   dungeonTypeKey: DungeonTypeKey | null;
   dungeonName: string | null;
@@ -280,6 +288,11 @@ export interface DungeonState {
    * hasCastColdRay, hasHadArmorDestroyed, locksOpened) is ever actually written here; hasSoldItem/
    * hasFoughtInArena only ever change in Town/World and just ride along unchanged. */
   milestones: AdvancedClassMilestones;
+  /** Buildings (issue #27) owned so far, mirroring `AdventurerResources.buildings` -- threaded
+   * like `advancedClasses`/`animals` (permanent -- `RESUME_DUNGEON` resets to `[]`, a new character
+   * doesn't inherit a dead one's real estate; `RETURN_TO_DUNGEON` carries it over exactly). Only
+   * needed here for `finishIfVictorious()`'s Boss-kill tax credit. */
+  buildings: OwnedBuilding[];
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (not a
@@ -390,6 +403,7 @@ export function createInitialDungeonState(
   // (i.e. every test fixture predating issue #75), the character's current uses and their ceiling
   // are the same thing, same as before this field existed.
   maxSpellUses: Record<string, number> = spellUses,
+  buildings: OwnedBuilding[] = [],
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -426,6 +440,7 @@ export function createInitialDungeonState(
     hireling,
     animals,
     milestones,
+    buildings,
     weaponFormula,
     spellUses,
     maxSpellUses,
@@ -535,4 +550,5 @@ export type DungeonAction =
       killsByName: Record<string, number>;
       killsByAbility: Partial<Record<MonsterAbility, number>>;
       milestones: AdvancedClassMilestones;
+      buildings: OwnedBuilding[];
     };

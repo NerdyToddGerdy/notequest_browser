@@ -65,3 +65,40 @@ export function hasAffinity(raceName: string, location: LocationKind | null): bo
   if (!culture) return true;
   return (RACE_AFFINITY[raceName] ?? DEFAULT_AFFINITY)[culture];
 }
+
+/** "Table: Political Affinity" (Politics, issue #27, `docs/game-rules-reference.md` lines
+ * 1706-1720) -- a genuinely different table from `RACE_AFFINITY` above: that one is a boolean
+ * "can you even enter" gate, this one is a numeric target number for the Political Affinity roll
+ * ("go to the city or fortress and roll on the Affinity table below. If you get an equal or higher
+ * number, you got the affinity of this one"). Same race-row shape (Orc/Ogre split into two
+ * identical rows for the same reason `RACE_AFFINITY`'s own doc comment explains), reusing
+ * `CityCulture` rather than redefining it. */
+export const POLITICAL_AFFINITY_TABLE: Record<string, Record<CityCulture, number>> = {
+  Human: { human: 4, dwarven: 5, elven: 5, gnome: 5, goblin: 5, orc: 7 },
+  Dwarf: { human: 5, dwarven: 4, elven: 6, gnome: 5, goblin: 6, orc: 8 },
+  Elf: { human: 5, dwarven: 6, elven: 4, gnome: 5, goblin: 6, orc: 7 },
+  Gnome: { human: 5, dwarven: 5, elven: 5, gnome: 4, goblin: 5, orc: 7 },
+  Halfling: { human: 4, dwarven: 4, elven: 4, gnome: 3, goblin: 4, orc: 5 },
+  Pixie: { human: 5, dwarven: 6, elven: 5, gnome: 5, goblin: 5, orc: 7 },
+  Slimemen: { human: 5, dwarven: 5, elven: 5, gnome: 5, goblin: 5, orc: 5 },
+  Dragonkin: { human: 5, dwarven: 6, elven: 6, gnome: 4, goblin: 4, orc: 4 },
+  Goblin: { human: 5, dwarven: 6, elven: 5, gnome: 4, goblin: 4, orc: 4 },
+  Orc: { human: 7, dwarven: 8, elven: 7, gnome: 6, goblin: 4, orc: 4 },
+  Ogre: { human: 7, dwarven: 8, elven: 7, gnome: 6, goblin: 4, orc: 4 },
+};
+
+/** The rulebook's "Others..." catch-all row -- every New Races addition with no explicit row of
+ * its own, same fallback precedent as `DEFAULT_AFFINITY`. */
+export const DEFAULT_POLITICAL_AFFINITY: Record<CityCulture, number> = {
+  human: 5,
+  dwarven: 6,
+  elven: 5,
+  gnome: 5,
+  goblin: 5,
+  orc: 6,
+};
+
+/** The target number a Political Affinity roll must meet or beat at a `culture` hex. */
+export function politicalAffinityTarget(raceName: string, culture: CityCulture): number {
+  return (POLITICAL_AFFINITY_TABLE[raceName] ?? DEFAULT_POLITICAL_AFFINITY)[culture];
+}

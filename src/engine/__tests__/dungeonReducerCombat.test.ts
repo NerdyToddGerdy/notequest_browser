@@ -354,6 +354,30 @@ describe("PLAYER_ATTACK", () => {
     expect(next.bossKills).toBe(1);
   });
 
+  it("Buildings (issue #27): a Boss kill also credits coins from every owned Palace/Castle/City/Fortress's tax", () => {
+    const boss = makeMonster({ hp: 3, abilities: [] });
+    const state = stateWithCombat({
+      buildings: [
+        { hexKey: "0,0", kind: "Palace" }, // 150
+        { hexKey: "1,1", kind: "City" }, // 200
+        { hexKey: "2,2", kind: "House" }, // 0, no tax
+      ],
+    }, [boss]);
+    state.combat!.isBoss = true;
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: boss.id, roll: 6 }, sequenceDie([4, 5]));
+    expect(next.coins).toBe(350);
+    expect(next.log.some((entry) => entry.message.includes("350 coins in taxes"))).toBe(true);
+  });
+
+  it("Buildings: no tax log line at all when no owned building has one", () => {
+    const boss = makeMonster({ hp: 3, abilities: [] });
+    const state = stateWithCombat({ buildings: [{ hexKey: "0,0", kind: "Tower" }] }, [boss]);
+    state.combat!.isBoss = true;
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: boss.id, roll: 6 }, sequenceDie([4, 5]));
+    expect(next.coins).toBe(0);
+    expect(next.log.some((entry) => entry.message.includes("taxes"))).toBe(false);
+  });
+
   it("Loot's Treasures and Keys are credited to state, not just logged", () => {
     const monster = makeMonster({ hp: 3, abilities: ["loot"] });
     const state = stateWithCombat({}, [monster]);

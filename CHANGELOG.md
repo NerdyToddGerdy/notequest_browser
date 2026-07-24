@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-07-23
+
+### Added
+
+- Buildings and Politics (#27): spend accumulated coins to build a
+  House, Tower, Palace, Castle, City, or Fortress on an empty hex
+  (upgrading an already-built hex only costs the difference), and
+  roll Political Affinity at any City/Fortress to win it as an ally
+  or a Vassal, or make it a permanent enemy. Owning a Palace/Castle/
+  City/Fortress now credits coins whenever a Dungeon Boss falls.
+  This unlocks the Noble, Knight, Lord, King, and Emperor Advanced
+  Classes, unbuildable since #23 first shipped.
+
 ## [2.22.0] - 2026-07-23
 
 ### Added

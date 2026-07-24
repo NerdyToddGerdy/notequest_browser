@@ -3,14 +3,19 @@ import {
   countMatchingNeighbors,
   createInitialWorldState,
   findAskedDungeonHex,
+  hexDistance,
   isBannedHex,
+  parseHexKey,
+  politicalStatusFor,
   qualifiesForBuyingMount,
   qualifiesForTraining,
   revealNeighborsInPlace,
   rollCityName,
   withBannedHex,
+  withBuilding,
   withDungeonMarked,
   withDungeonRunId,
+  withPoliticalStatus,
   type HexTile,
   type WorldState,
 } from "../hexState.ts";
@@ -272,5 +277,97 @@ describe("countMatchingNeighbors / qualifiesForTraining / qualifiesForBuyingMoun
     expect(qualifiesForBuyingMount(emptyMountain, 3, griffin)).toBe(false); // not a City/Fortress
     const wrongTerrainCity: HexTile = { terrain: "forest", location: "elvenCity" };
     expect(qualifiesForBuyingMount(wrongTerrainCity, 3, griffin)).toBe(false); // wrong terrain
+  });
+});
+
+describe("parseHexKey", () => {
+  it("is the exact inverse of hexKey", () => {
+    expect(parseHexKey("3,-2")).toEqual({ q: 3, r: -2 });
+    expect(parseHexKey("0,0")).toEqual({ q: 0, r: 0 });
+  });
+});
+
+describe("hexDistance (Politics, issue #27)", () => {
+  it("is 0 for the same hex", () => {
+    expect(hexDistance({ q: 0, r: 0 }, { q: 0, r: 0 })).toBe(0);
+  });
+
+  it("is 1 for any direct neighbor", () => {
+    expect(hexDistance({ q: 0, r: 0 }, { q: 1, r: 0 })).toBe(1);
+    expect(hexDistance({ q: 0, r: 0 }, { q: -1, r: 1 })).toBe(1);
+  });
+
+  it("matches the standard axial distance formula further out", () => {
+    expect(hexDistance({ q: 0, r: 0 }, { q: 3, r: 0 })).toBe(3);
+    expect(hexDistance({ q: 0, r: 0 }, { q: 2, r: -2 })).toBe(2);
+    expect(hexDistance({ q: -2, r: 1 }, { q: 2, r: -1 })).toBe(4);
+  });
+});
+
+describe("withBuilding (Buildings, issue #27)", () => {
+  it("stamps the kind onto the tile at the given coord, immutably", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: null } },
+      hasBoat: false,
+    };
+    const next = withBuilding(world, { q: 0, r: 0 }, "House");
+    expect(next.tiles["0,0"]).toEqual({ terrain: "plain", location: null, building: "House" });
+    expect(world.tiles["0,0"]).toEqual({ terrain: "plain", location: null }); // original untouched
+  });
+
+  it("replaces an existing building on upgrade", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: null, building: "House" } },
+      hasBoat: false,
+    };
+    const next = withBuilding(world, { q: 0, r: 0 }, "Tower");
+    expect(next.tiles["0,0"]!.building).toBe("Tower");
+  });
+
+  it("is a no-op if the coord isn't a known tile", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: null } },
+      hasBoat: false,
+    };
+    expect(withBuilding(world, { q: 5, r: 5 }, "House")).toBe(world);
+  });
+});
+
+describe("politicalStatusFor / withPoliticalStatus (Politics, issue #27)", () => {
+  function bareWorld(): WorldState {
+    return {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: "humanCity" } },
+      hasBoat: false,
+    };
+  }
+
+  it("is null for an unresolved hex, including one with no politicalStatus field at all (back-compat)", () => {
+    expect(politicalStatusFor(bareWorld(), { q: 0, r: 0 })).toBeNull();
+  });
+
+  it("records and reads back a status, immutably", () => {
+    const world = bareWorld();
+    const next = withPoliticalStatus(world, { q: 0, r: 0 }, "vassal");
+    expect(politicalStatusFor(next, { q: 0, r: 0 })).toBe("vassal");
+    expect(politicalStatusFor(world, { q: 0, r: 0 })).toBeNull(); // original untouched
+  });
+
+  it("preserves an existing entry for a different hex", () => {
+    const world = withPoliticalStatus(bareWorld(), { q: 0, r: 0 }, "ally");
+    const next = withPoliticalStatus(world, { q: 5, r: 5 }, "enemy");
+    expect(politicalStatusFor(next, { q: 0, r: 0 })).toBe("ally");
+    expect(politicalStatusFor(next, { q: 5, r: 5 })).toBe("enemy");
   });
 });

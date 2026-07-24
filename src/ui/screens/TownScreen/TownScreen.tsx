@@ -44,9 +44,11 @@ import {
   type AdventurerResources,
   type ThugLifeResult,
 } from "../../../engine/town.ts";
+import type { PoliticalAffinityOutcome, PoliticalStatus } from "../../../engine/politics.ts";
 import { AdvancedClasses } from "../../components/AdvancedClasses/AdvancedClasses.tsx";
 import { Hireling } from "../../components/Hireling/Hireling.tsx";
 import { Animals } from "../../components/Animals/Animals.tsx";
+import { Buildings } from "../../components/Buildings/Buildings.tsx";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
 import { Equipment } from "../../components/Equipment/Equipment.tsx";
 import { Pack } from "../../components/Pack/Pack.tsx";
@@ -125,6 +127,12 @@ function cultureActionFor(
   }
 }
 
+const POLITICAL_STATUS_DESC: Record<PoliticalStatus, string> = {
+  ally: "Already allied with you.",
+  vassal: "Already a Vassal of your realm.",
+  enemy: "Already your enemy -- nothing more to do here.",
+};
+
 export interface TownScreenProps {
   character: CreatedCharacter;
   resources: AdventurerResources;
@@ -163,6 +171,13 @@ export interface TownScreenProps {
   /** Animals (issue #26): every Mount buyable at this specific hex right now (`WorldScreen`'s own
    * `qualifiesForBuyingMount()` check, culture-agnostic -- only the hex's own terrain matters). */
   buyableMounts: AnimalDef[];
+  /** Politics (issue #27): this hex's own resolved Political Affinity outcome, if any --
+   * `WorldScreen`'s own `politicalStatusFor(world, world.player)`. */
+  politicalStatus: PoliticalStatus | null;
+  /** Whether Political Affinity can even be attempted here right now -- `WorldScreen`'s own
+   * `canAttemptPoliticalAffinity()` check (already a City/Fortress, per `hasDungeon`'s sibling
+   * gating, so this is really just "not already resolved"). */
+  canPoliticalAffinity: boolean;
   onUpdateResources: (resources: AdventurerResources) => void;
   onEnterDungeon: () => void;
   onHireBoat: () => void;
@@ -172,6 +187,10 @@ export interface TownScreenProps {
    * `WorldState` (a permanent hex ban) -- this screen only ever sees an `AdventurerResources`, so
    * it can't apply the ban itself. Returns the result so this screen can show what happened. */
   onThugLife: () => ThugLifeResult;
+  /** Same "resolved by WorldScreen" split as `onThugLife` -- Political Affinity touches both
+   * `resources` (milestones) and `WorldState` (the resolved status). `null` if the action wasn't
+   * actually available (defense in depth; the button is already disabled in that case). */
+  onPoliticalAffinity: () => PoliticalAffinityOutcome | null;
   /** A death outside a dungeon (Gamble's life-bet, Thug Life today; Arena to follow) -- forwarded
    * up to App.tsx via WorldScreen, which supplies `place` itself (see WorldScreenProps). */
   onCharacterDied: (cause: TownDeathCause) => void;
@@ -193,12 +212,15 @@ export function TownScreen({
   askedDungeonKnown,
   isFortress,
   buyableMounts,
+  politicalStatus,
+  canPoliticalAffinity,
   onUpdateResources,
   onEnterDungeon,
   onHireBoat,
   onBuyMount,
   onAsk,
   onThugLife,
+  onPoliticalAffinity,
   onCharacterDied,
   onExploreWorld,
   onHardReset,
@@ -226,6 +248,9 @@ export function TownScreen({
   // city they can see on the map suddenly refuses to let them back in. Reset to null on a fresh
   // mount only (a new City Action outcome per hex visit, not persisted).
   const [thugLifeMessage, setThugLifeMessage] = useState<string | null>(null);
+  // Political Affinity's outcome text (issue #27) -- same always-visible-until-replaced precedent
+  // as thugLifeMessage above.
+  const [politicalAffinityMessage, setPoliticalAffinityMessage] = useState<string | null>(null);
   // "Fighting in The Arena" (issue #58, Fortress-only) -- non-null while a fight is underway;
   // `arenaLog` is a running line-per-round narration, since a fight can take several rounds unlike
   // every other City Action's single die roll. Both reset to their empty state only by starting a
@@ -308,6 +333,21 @@ export function TownScreen({
         setThugLifeMessage("You made off with a Treasure!");
         break;
     }
+  }
+
+  // Political Affinity -- resources/world are already applied by WorldScreen's
+  // onPoliticalAffinity() by the time this returns; all that's left here is turning the outcome
+  // into copy, same split as handleThugLife above.
+  function handlePoliticalAffinity() {
+    const outcome = onPoliticalAffinity();
+    if (!outcome) return;
+    setPoliticalAffinityMessage(
+      outcome.status === "vassal"
+        ? "They pledge themselves as your Vassal!"
+        : outcome.status === "ally"
+          ? "They welcome your friendship."
+          : "They have become your enemy.",
+    );
   }
 
   return (
@@ -413,6 +453,21 @@ export function TownScreen({
                         {askedDungeonKnown
                           ? "A dungeon is already known nearby."
                           : "Ask about the nearest dungeon."}
+                      </span>
+                    </button>
+                    <button
+                      className={styles.actionBtn}
+                      type="button"
+                      disabled={!canPoliticalAffinity}
+                      onClick={handlePoliticalAffinity}
+                    >
+                      <span className={styles.actionName}>Political Affinity</span>
+                      <span className={styles.actionCost}>Free</span>
+                      <span className={styles.actionDesc}>
+                        {politicalAffinityMessage ??
+                          (politicalStatus
+                            ? POLITICAL_STATUS_DESC[politicalStatus]
+                            : "Roll to win this place's allegiance.")}
                       </span>
                     </button>
                     {cultureAction && (
@@ -562,6 +617,12 @@ export function TownScreen({
                   onBuyMount={onBuyMount}
                 />
               </section>
+
+              {resources.buildings.length > 0 && (
+                <section className={styles.adventureSection}>
+                  <Buildings buildings={resources.buildings} />
+                </section>
+              )}
             </div>
           </main>
         </div>

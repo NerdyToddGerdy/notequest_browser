@@ -31,6 +31,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     hireling: null,
     animals: [],
     milestones: createInitialMilestones(),
+    buildings: [],
     travelStats: createInitialTravelStats(),
     ...overrides,
   };

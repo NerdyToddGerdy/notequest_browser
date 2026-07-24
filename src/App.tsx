@@ -90,6 +90,7 @@ export default function App() {
       hireling: null,
       animals: [],
       milestones: createInitialMilestones(),
+      buildings: [],
       travelStats: createInitialTravelStats(),
     });
     setActiveRunId(null);
@@ -178,6 +179,8 @@ export default function App() {
       animals: dungeon.animals,
       // Milestones (issue #70) persist permanently once set, same as advancedClasses/animals.
       milestones: dungeon.milestones,
+      // Buildings (issue #27) persist permanently once built, same as advancedClasses/animals.
+      buildings: dungeon.buildings,
       // Travel stats (issue #72) aren't tracked on DungeonState at all (nothing inside a dungeon
       // run needs them) -- carried over untouched, same as provisions above.
       travelStats: prev?.travelStats ?? createInitialTravelStats(),

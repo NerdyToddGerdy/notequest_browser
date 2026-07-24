@@ -4,6 +4,7 @@ import type { CreatedCharacter } from "../data/types.ts";
 import type { GraveyardEntry } from "./graveyard.ts";
 import { parseSpellKey, rollSpellFromTable, spellKey, SPELL_TABLE_BY_KEY } from "./character.ts";
 import type { AdventurerResources } from "./town.ts";
+import { activeMount, MAX_ANIMALS } from "./animals.ts";
 import type { RNG } from "./rng.ts";
 
 /** Advanced Classes (Expanded World, issue #23) -- unlike Race/Class tables, these are purchased
@@ -67,9 +68,11 @@ const BUG_MONSTER_NAMES = [
 /** Requirement predicates for the Advanced Classes this app can honestly check today -- every
  * other entry in `ADVANCED_CLASS_TABLE` is either blocked on a small counter this pass deliberately
  * doesn't add yet (opened-locks, sold-an-item, per-terrain travel counts, ...) or a whole unbuilt
- * system (Buildings/Politics/Sewers/Arena history/a prior-class death check) -- see the issue #23
- * follow-up for the full breakdown. Only classes listed here are ever acquirable; every other one
- * always reads as "not yet trackable" via `isAdvancedClassTrackable()` below. */
+ * system (Sewers/Arena history/a prior-class death check) -- see the issue #23 follow-up for the
+ * full breakdown. Buildings/Politics (issue #27) no longer belongs on that "unbuilt system" list --
+ * Noble/Lord/King/Emperor/Knight below all read real state now. Only classes listed here are ever
+ * acquirable; every other one always reads as "not yet trackable" via `isAdvancedClassTrackable()`
+ * below. */
 const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => boolean>> = {
   // Imps are always 2d6 (minimum roll 2), so a solo "Imp" kill can never happen -- no singular
   // form to sum here, unlike Goblinator below.
@@ -97,10 +100,11 @@ const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => 
   Warrior: (ctx) => ctx.resources.bossKills >= 1,
   Champion: (ctx) => ctx.resources.bossKills >= 4,
   Multidextrous: (ctx) => ctx.resources.advancedClasses.includes("Ambidextrous"),
-  // "Be a Knight or a Cleric" -- Knight itself isn't buildable yet (it needs Noble, which needs
-  // Buildings/Politics), but the Cleric half of this OR is fully checkable on its own, so the
-  // requirement as a whole is still honestly answerable.
-  Paladin: (ctx) => ctx.resources.advancedClasses.includes("Cleric"),
+  // "Be a Knight or a Cleric" -- now that Knight (below) is real too, either half of this OR
+  // satisfies the requirement, not just Cleric alone.
+  Paladin: (ctx) =>
+    ctx.resources.advancedClasses.includes("Cleric") ||
+    ctx.resources.advancedClasses.includes("Knight"),
   "Anti-Paladin": (ctx) => ctx.resources.advancedClasses.includes("Paladin"),
   Mage: (ctx) => {
     let count = 0;
@@ -161,6 +165,15 @@ const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => 
   Lich: (ctx) => ctx.graveyard.some((entry) => entry.advancedClasses?.includes("Necromancer")),
   Helsing: (ctx) => sumKillsByName(ctx.resources, VAMPIRE_MONSTER_NAMES) >= 2,
   Bugcatcher: (ctx) => sumKillsByName(ctx.resources, BUG_MONSTER_NAMES) >= 10,
+  // Buildings and Politics (issue #27): "Talk to the King of a Fortress" -- approximated as having
+  // attempted a Political Affinity roll at a Fortress at least once (see `politics.ts`).
+  Noble: (ctx) => ctx.resources.milestones.talkedToKing,
+  Lord: (ctx) => ctx.resources.buildings.some((b) => b.kind === "Castle"),
+  King: (ctx) => ctx.resources.buildings.some((b) => b.kind === "City"),
+  Emperor: (ctx) =>
+    ctx.resources.buildings.some((b) => b.kind === "Fortress") &&
+    ctx.resources.milestones.vassalCount >= 3,
+  Knight: (ctx) => ctx.resources.advancedClasses.includes("Noble"),
 };
 
 /** Whether this Advanced Class has a real requirement check at all -- every other entry in
@@ -279,6 +292,12 @@ function applyAdvancedClassAbility(
     // state every other deferred New Spell is already in.
     case "Bard":
       return grantFixedSpellUse(resources, "advanced", 5, 3); // Paralyze
+    // Knight: "Gain a Horse" -- reuses the Animals system (issue #26) directly. Silently no-ops if
+    // there's no free slot or a mount is already owned (this file has no logging mechanism at all,
+    // unlike dungeonReducer.ts, so this matches its existing style rather than a regression).
+    case "Knight":
+      if (resources.animals.length >= MAX_ANIMALS || activeMount(resources.animals)) return resources;
+      return { ...resources, animals: [...resources.animals, "Horse"] };
     default:
       return resources;
   }

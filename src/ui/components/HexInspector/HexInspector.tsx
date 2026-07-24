@@ -1,7 +1,10 @@
 import type { Terrain } from "../../../data/hexTables.ts";
-import type { AnimalDef } from "../../../data/types.ts";
+import type { AnimalDef, BuildingKind } from "../../../data/types.ts";
 import { canTrainAnimal } from "../../../engine/animals.ts";
+import { canBuildBuilding } from "../../../engine/buildings.ts";
+import { BUILDING_ORDER, BUILDING_TABLE, buildingCost } from "../../../data/buildings.ts";
 import type { AdventurerResources } from "../../../engine/town.ts";
+import type { PoliticalStatus } from "../../../engine/politics.ts";
 import styles from "./HexInspector.module.css";
 
 export interface HexInspectorProps {
@@ -36,7 +39,24 @@ export interface HexInspectorProps {
   /** The last training attempt's outcome ("You trained a Dog!" / "The Dog slipped away."), same
    * always-visible-until-replaced precedent as TownScreen's Thug Life message. */
   trainResultMessage: string | null;
+  /** Buildings (issue #27): true only for a hex with no `location` at all (a City/Fortress/Ruins/
+   * etc. hex can never be built on) -- the gate this section lives behind. */
+  isEmptyHex: boolean;
+  /** Whichever building already sits here, if any (for showing "Upgrade to X" instead of "Build"). */
+  currentBuilding?: BuildingKind;
+  raceName: string;
+  onBuildBuilding: (kind: BuildingKind) => void;
+  /** Politics (issue #27): this hex's resolved Political Affinity outcome, if any -- shown for any
+   * inspected City/Fortress hex, not gated on `isCurrentTile` (Political Affinity itself is only
+   * ever *attempted* from TownScreen, standing on the current hex; this is read-only elsewhere). */
+  politicalStatus: PoliticalStatus | null;
 }
+
+const POLITICAL_STATUS_COPY: Record<PoliticalStatus, string> = {
+  ally: "Allied with you.",
+  vassal: "A Vassal of your realm.",
+  enemy: "Hostile to you.",
+};
 
 const TERRAIN_LABEL: Record<Terrain, string> = {
   plain: "Plain",
@@ -78,6 +98,11 @@ export function HexInspector({
   resources,
   onTrainAnimal,
   trainResultMessage,
+  isEmptyHex,
+  currentBuilding,
+  raceName,
+  onBuildBuilding,
+  politicalStatus,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -115,6 +140,13 @@ export function HexInspector({
         <p>{DUNGEON_STATUS_COPY[dungeonStatus]}</p>
       </div>
 
+      {politicalStatus && (
+        <div className={styles.row}>
+          <span className={styles.label}>Politics</span>
+          <p>{POLITICAL_STATUS_COPY[politicalStatus]}</p>
+        </div>
+      )}
+
       {isCurrentTile && canEnterDungeon && (
         <div className={styles.actionRow}>
           <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
@@ -150,6 +182,45 @@ export function HexInspector({
                 </button>
               </li>
             ))}
+          </ul>
+        </div>
+      )}
+
+      {isCurrentTile && isEmptyHex && (
+        <div className={styles.row}>
+          <span className={styles.label}>Build a Building</span>
+          <ul className={styles.trainList}>
+            {BUILDING_ORDER.map((kind) => {
+              const def = BUILDING_TABLE[kind];
+              const alreadyThis = currentBuilding === kind;
+              const newCost = buildingCost(kind, terrain, raceName);
+              const oldCost = currentBuilding ? buildingCost(currentBuilding, terrain, raceName) : 0;
+              const cost = Math.max(0, newCost - oldCost);
+              return (
+                <li key={kind} className={styles.trainRow}>
+                  <span>
+                    {def.name} ({cost} coins{def.requirementText === "None." ? "" : `, ${def.requirementText}`})
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.trainBtn}
+                    disabled={
+                      alreadyThis ||
+                      !canBuildBuilding(
+                        resources,
+                        { terrain, location: null, building: currentBuilding },
+                        kind,
+                        terrain,
+                        raceName,
+                      )
+                    }
+                    onClick={() => onBuildBuilding(kind)}
+                  >
+                    {currentBuilding ? "Upgrade" : "Build"}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

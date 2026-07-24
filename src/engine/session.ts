@@ -67,20 +67,24 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
     return {
       character: p.character ?? null,
       // advancedClasses (issue #23), hireling (issue #25), animals (issue #26), milestones
-      // (issue #70), travelStats (issue #72), and maxSpellUses (issue #75) all postdate this
-      // field -- back-fill them for a session persisted before any of them existed, same
-      // "optional for back-compat" precedent as WorldState.bannedHexes.
+      // (issue #70), travelStats (issue #72), maxSpellUses (issue #75), and buildings (issue #27)
+      // all postdate this field -- back-fill them for a session persisted before any of them
+      // existed, same "optional for back-compat" precedent as WorldState.bannedHexes.
       resources: p.resources
         ? {
             ...p.resources,
             advancedClasses: p.resources.advancedClasses ?? [],
             hireling: p.resources.hireling ?? null,
             animals: p.resources.animals ?? [],
-            milestones: p.resources.milestones ?? createInitialMilestones(),
+            // Field-level merge, not just `?? createInitialMilestones()` -- a save from after
+            // issue #70 but before #27 already has a `milestones` object, just missing
+            // `talkedToKing`/`vassalCount`, which a whole-object fallback wouldn't back-fill.
+            milestones: { ...createInitialMilestones(), ...(p.resources.milestones ?? {}) },
             travelStats: p.resources.travelStats ?? createInitialTravelStats(),
             maxSpellUses:
               p.resources.maxSpellUses ??
               backfillMaxSpellUses(p.character, p.resources.spellUses ?? {}),
+            buildings: p.resources.buildings ?? [],
           }
         : null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],

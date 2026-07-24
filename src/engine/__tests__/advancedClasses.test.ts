@@ -50,6 +50,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     hireling: null,
     animals: [],
     milestones: createInitialMilestones(),
+    buildings: [],
     travelStats: createInitialTravelStats(),
     ...overrides,
   };
@@ -142,12 +143,60 @@ describe("meetsAdvancedClassRequirement", () => {
     ).toBe(true);
   });
 
-  it("Paladin chains on Cleric; Anti-Paladin chains on Paladin", () => {
+  it("Paladin chains on Cleric or Knight (issue #27 made Knight real too); Anti-Paladin chains on Paladin", () => {
     expect(meetsAdvancedClassRequirement("Paladin", makeCtx({ advancedClasses: ["Cleric"] }))).toBe(true);
+    expect(meetsAdvancedClassRequirement("Paladin", makeCtx({ advancedClasses: ["Knight"] }))).toBe(true);
     expect(meetsAdvancedClassRequirement("Paladin", makeCtx({ advancedClasses: [] }))).toBe(false);
     expect(
       meetsAdvancedClassRequirement("Anti-Paladin", makeCtx({ advancedClasses: ["Cleric", "Paladin"] })),
     ).toBe(true);
+  });
+
+  it("Buildings and Politics (issue #27): Noble/Lord/King/Emperor/Knight", () => {
+    expect(meetsAdvancedClassRequirement("Noble", makeCtx({}))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Noble", makeCtx({ milestones: { ...createInitialMilestones(), talkedToKing: true } })),
+    ).toBe(true);
+
+    expect(meetsAdvancedClassRequirement("Lord", makeCtx({ buildings: [{ hexKey: "1,1", kind: "Tower" }] }))).toBe(
+      false,
+    );
+    expect(meetsAdvancedClassRequirement("Lord", makeCtx({ buildings: [{ hexKey: "1,1", kind: "Castle" }] }))).toBe(
+      true,
+    );
+
+    expect(meetsAdvancedClassRequirement("King", makeCtx({ buildings: [{ hexKey: "1,1", kind: "Castle" }] }))).toBe(
+      false,
+    );
+    expect(meetsAdvancedClassRequirement("King", makeCtx({ buildings: [{ hexKey: "1,1", kind: "City" }] }))).toBe(
+      true,
+    );
+
+    expect(
+      meetsAdvancedClassRequirement(
+        "Emperor",
+        makeCtx({
+          buildings: [{ hexKey: "1,1", kind: "Fortress" }],
+          milestones: { ...createInitialMilestones(), vassalCount: 2 },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Emperor",
+        makeCtx({
+          buildings: [{ hexKey: "1,1", kind: "Fortress" }],
+          milestones: { ...createInitialMilestones(), vassalCount: 3 },
+        }),
+      ),
+    ).toBe(true);
+    // 3 vassals with no owned Fortress isn't enough either.
+    expect(
+      meetsAdvancedClassRequirement("Emperor", makeCtx({ milestones: { ...createInitialMilestones(), vassalCount: 3 } })),
+    ).toBe(false);
+
+    expect(meetsAdvancedClassRequirement("Knight", makeCtx({ advancedClasses: [] }))).toBe(false);
+    expect(meetsAdvancedClassRequirement("Knight", makeCtx({ advancedClasses: ["Noble"] }))).toBe(true);
   });
 
   it("Mage: knows at least 3 Basic-table spells", () => {
@@ -434,8 +483,10 @@ describe("meetsAdvancedClassRequirement", () => {
   });
 
   it("a class with no requirement check at all is never met, regardless of state", () => {
-    expect(isAdvancedClassTrackable("Noble")).toBe(false);
-    expect(meetsAdvancedClassRequirement("Noble", makeCtx({ coins: 999999 }))).toBe(false);
+    // Janitor (needs a Sewer dungeon type, issue #30) is still untrackable -- unlike Noble, which
+    // issue #27 made real.
+    expect(isAdvancedClassTrackable("Janitor")).toBe(false);
+    expect(meetsAdvancedClassRequirement("Janitor", makeCtx({ coins: 999999 }))).toBe(false);
   });
 });
 
@@ -455,7 +506,7 @@ describe("canAcquireAdvancedClass", () => {
   });
 
   it("is false for an untrackable class even with every stat maxed out", () => {
-    expect(canAcquireAdvancedClass(makeCtx({ coins: 999999 }), "Noble")).toBe(false);
+    expect(canAcquireAdvancedClass(makeCtx({ coins: 999999 }), "Janitor")).toBe(false);
   });
 });
 
@@ -631,5 +682,23 @@ describe("acquireAdvancedClass", () => {
     });
     const next = acquireAdvancedClass(ctx, "Bard");
     expect(next.spellUses["advanced:5"]).toBe(4); // 1 existing + 3 granted
+  });
+
+  it("Knight grants a Horse (issue #27), reusing the Animals system", () => {
+    const ctx = makeCtx({ coins: 400, advancedClasses: ["Noble"] });
+    const next = acquireAdvancedClass(ctx, "Knight");
+    expect(next.animals).toEqual(["Horse"]);
+  });
+
+  it("Knight's Horse grant silently no-ops with no free animal slot", () => {
+    const ctx = makeCtx({ coins: 400, advancedClasses: ["Noble"], animals: ["Cat", "Dog", "Wolf"] });
+    const next = acquireAdvancedClass(ctx, "Knight");
+    expect(next.animals).toEqual(["Cat", "Dog", "Wolf"]);
+  });
+
+  it("Knight's Horse grant silently no-ops when a Mount is already owned", () => {
+    const ctx = makeCtx({ coins: 400, advancedClasses: ["Noble"], animals: ["Camel"] });
+    const next = acquireAdvancedClass(ctx, "Knight");
+    expect(next.animals).toEqual(["Camel"]);
   });
 });

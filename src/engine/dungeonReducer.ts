@@ -21,6 +21,7 @@ import {
   type WonderEntry,
 } from "../data/dungeonTables.ts";
 import { SPELL_TABLE } from "../data/spells.ts";
+import { buildingTaxTotal } from "../data/buildings.ts";
 import { SPELL_TABLE_BY_KEY, spellKey } from "./character.ts";
 import {
   boxFromCenter,
@@ -685,6 +686,13 @@ function finishIfVictorious(
     const treasures = rollDie(rng) + rollDie(rng);
     draft.treasures += treasures;
     pushLog(draft, `The Boss falls! You find ${treasures} Treasures among the remains.`);
+    // Buildings (issue #27): "You get N coins when you kill a Dungeon Boss" -- summed across every
+    // Palace/Castle/City/Fortress owned (House/Tower have no tax).
+    const tax = buildingTaxTotal(draft.buildings.map((b) => b.kind));
+    if (tax > 0) {
+      draft.coins += tax;
+      pushLog(draft, `Your holdings collect ${tax} coins in taxes from the Boss's fall.`);
+    }
     pushLog(draft, "You have conquered the dungeon!", "descend");
     draft.combat = null;
     return;
@@ -2222,6 +2230,7 @@ export function dungeonReducer(
           [],
           createInitialMilestones(),
           action.maxSpellUses,
+          [],
         ),
         (draft) => {
           restoreMapFromPersisted(
@@ -2264,6 +2273,7 @@ export function dungeonReducer(
           action.animals,
           action.milestones,
           action.maxSpellUses,
+          action.buildings,
         ),
         (draft) => {
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);

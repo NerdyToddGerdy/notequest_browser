@@ -95,6 +95,26 @@ export interface AdvancedClassDef {
   abilityText: string;
 }
 
+/** Buildings (Expanded World, issue #27) -- structures a character can build on an empty hex,
+ * from a House up to a Fortress. Keyed by `kind` (a stable id, like `AdvancedClassDef.name`) rather
+ * than a dice roll, since these are bought, not rolled. See `src/engine/buildings.ts` for
+ * acquisition rules and `src/data/buildings.ts` for the actual table. */
+export type BuildingKind = "House" | "Tower" | "Palace" | "Castle" | "City" | "Fortress";
+
+export interface BuildingDef {
+  name: string;
+  kind: BuildingKind;
+  cost: number;
+  /** Rulebook's own requirement text ("Be a Noble", etc.), always shown -- see
+   * `src/data/buildings.ts`'s `buildingRequirementMet()` for the actual gate. */
+  requirementText: string;
+  /** Relevant to Warfare (issue #28) -- not used mechanically by anything in this pass. */
+  defense: number;
+  /** Coins credited the instant a Dungeon Boss falls, for every building of this kind owned
+   * (0 for House/Tower, which have no "Collect Taxes" row). */
+  tax: number;
+}
+
 /** Hirelings (Expanded World, issue #25) -- paid companions hired for one dungeon trip at a time
  * (see `src/engine/hirelings.ts` for exactly how "one trip" is tracked). Keyed by `name`, like
  * `AdvancedClassDef` -- hired, not rolled. No structured weapon type: a Hireling never actually
