@@ -248,6 +248,33 @@ export function withBuilding(world: WorldState, coord: HexCoord, kind: BuildingK
   return { ...world, tiles: { ...world.tiles, [key]: { ...tile, building: kind } } };
 }
 
+/** Warfare (issue #28): Declared Enemies destroying one of the player's own structures -- clears
+ * `HexTile.building` back to nothing (the hex reverts to a plain, re-buildable empty hex, not
+ * Ruins -- Ruins is specifically what a *stormed City/Fortress location* becomes, and a
+ * player-built structure was never a `location` to begin with). Same immutable-stamp shape as
+ * `withBuilding`. */
+export function withoutBuilding(world: WorldState, coord: HexCoord): WorldState {
+  const key = hexKey(coord);
+  const tile = world.tiles[key];
+  if (!tile) return world;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to omit it
+  const { building: _building, ...rest } = tile;
+  return { ...world, tiles: { ...world.tiles, [key]: rest } };
+}
+
+/** Warfare (issue #28): "Storming the Castle" 's Loot outcome -- "you destroy the place
+ * completely (mark it on the map as Ruins)." Clears the hex's generated `name` too (Ruins have no
+ * city name); `dungeonRunId`/`dungeonMarked` are left untouched, since razing the city doesn't
+ * erase an unrelated dungeon already tied to this hex. */
+export function withRazedToRuins(world: WorldState, coord: HexCoord): WorldState {
+  const key = hexKey(coord);
+  const tile = world.tiles[key];
+  if (!tile) return world;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to omit it
+  const { name: _name, ...rest } = tile;
+  return { ...world, tiles: { ...world.tiles, [key]: { ...rest, location: "ruins" } } };
+}
+
 /** Politics (issue #27) -- `null` if this hex's Political Affinity roll hasn't been attempted yet,
  * the one place the `?? {}` back-compat default for a pre-#27 persisted session lives. */
 export function politicalStatusFor(

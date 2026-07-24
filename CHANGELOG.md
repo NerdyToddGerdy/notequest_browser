@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-07-23
+
+### Added
+
+- Warfare (#28): recruit troops at an owned Castle/City/Fortress or a
+  Vassal, then march them (and optionally yourself) to attack a
+  City/Fortress hex. Winning lets you Annex it as a Vassal or Loot
+  it for a flat coin payout (razing it to Ruins); losing spends the
+  troops for nothing, and joining the battle risks dying outright on
+  a natural 1. Every attack also checks Declared Enemies -- hexes
+  that failed their Political Affinity roll can send troops to
+  destroy your own nearest building in retaliation.
+
 ## [2.23.0] - 2026-07-23
 
 ### Added

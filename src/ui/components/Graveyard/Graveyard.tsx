@@ -16,6 +16,7 @@ const CAUSE_LABELS: Record<GraveyardEntry["causeOfDeath"], string> = {
   gamble: "Bet Everything and Lost",
   "thug-life": "Killed Robbing a Traveler",
   arena: "Fallen in the Arena",
+  warfare: "Died in Battle",
 };
 
 /** The Graveyard play-sheet -- a running record of every character who died exploring these dungeons. */

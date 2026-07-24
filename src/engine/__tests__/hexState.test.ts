@@ -15,7 +15,9 @@ import {
   withBuilding,
   withDungeonMarked,
   withDungeonRunId,
+  withoutBuilding,
   withPoliticalStatus,
+  withRazedToRuins,
   type HexTile,
   type WorldState,
 } from "../hexState.ts";
@@ -369,5 +371,70 @@ describe("politicalStatusFor / withPoliticalStatus (Politics, issue #27)", () =>
     const next = withPoliticalStatus(world, { q: 5, r: 5 }, "enemy");
     expect(politicalStatusFor(next, { q: 0, r: 0 })).toBe("ally");
     expect(politicalStatusFor(next, { q: 5, r: 5 })).toBe("enemy");
+  });
+});
+
+describe("withoutBuilding (Warfare, issue #28)", () => {
+  it("clears the building field, immutably, leaving location untouched", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: null, building: "Tower" } },
+      hasBoat: false,
+    };
+    const next = withoutBuilding(world, { q: 0, r: 0 });
+    expect(next.tiles["0,0"]).toEqual({ terrain: "plain", location: null });
+    expect(world.tiles["0,0"]!.building).toBe("Tower"); // original untouched
+  });
+
+  it("is a no-op if the coord isn't a known tile", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: null } },
+      hasBoat: false,
+    };
+    expect(withoutBuilding(world, { q: 5, r: 5 })).toBe(world);
+  });
+});
+
+describe("withRazedToRuins (Warfare, issue #28)", () => {
+  it("sets location to ruins and clears the generated name, immutably", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "1,0": { terrain: "plain", location: "humanCity", name: "Ironhold" } },
+      hasBoat: false,
+    };
+    const next = withRazedToRuins(world, { q: 1, r: 0 });
+    expect(next.tiles["1,0"]).toEqual({ terrain: "plain", location: "ruins" });
+    expect(world.tiles["1,0"]!.location).toBe("humanCity"); // original untouched
+  });
+
+  it("leaves dungeonRunId/dungeonMarked untouched", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "1,0": { terrain: "plain", location: "humanFortress", dungeonRunId: "run-1" } },
+      hasBoat: false,
+    };
+    const next = withRazedToRuins(world, { q: 1, r: 0 });
+    expect(next.tiles["1,0"]!.dungeonRunId).toBe("run-1");
+    expect(next.tiles["1,0"]!.location).toBe("ruins");
+  });
+
+  it("is a no-op if the coord isn't a known tile", () => {
+    const world: WorldState = {
+      climate: "hot",
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      tiles: { "0,0": { terrain: "plain", location: null } },
+      hasBoat: false,
+    };
+    expect(withRazedToRuins(world, { q: 5, r: 5 })).toBe(world);
   });
 });

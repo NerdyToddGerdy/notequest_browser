@@ -50,7 +50,20 @@ export interface HexInspectorProps {
    * inspected City/Fortress hex, not gated on `isCurrentTile` (Political Affinity itself is only
    * ever *attempted* from TownScreen, standing on the current hex; this is read-only elsewhere). */
   politicalStatus: PoliticalStatus | null;
+  /** Warfare (issue #28): true when a troop can be recruited here right now -- `WorldScreen`'s own
+   * `canRecruitTroop()` check. Only ever passed non-`false` alongside `currentBuilding` being
+   * Castle/City/Fortress-tier (the TownScreen-reachable half of the same gate, recruiting at a
+   * Vassal hex, is handled entirely in `TownScreen` instead). */
+  canRecruitTroopHere: boolean;
+  onRecruitTroop: () => void;
+  /** Warfare (issue #28): the last Attack/Storming outcome text, for a hex the player is
+   * currently standing on -- lifted up to `WorldScreen` rather than kept as `TownScreen`-local
+   * state, since a winning Loot razes the target to Ruins, which would unmount `TownScreen`
+   * before it ever got a chance to show it (see `WorldScreen.tsx`'s own doc comment). */
+  warfareMessage?: string | null;
 }
+
+const TROOP_SOURCE_KINDS = new Set<BuildingKind>(["Castle", "City", "Fortress"]);
 
 const POLITICAL_STATUS_COPY: Record<PoliticalStatus, string> = {
   ally: "Allied with you.",
@@ -103,11 +116,15 @@ export function HexInspector({
   raceName,
   onBuildBuilding,
   politicalStatus,
+  canRecruitTroopHere,
+  onRecruitTroop,
+  warfareMessage,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
       <p className={styles.title}>{cityName || locationLabel || TERRAIN_LABEL[terrain]}</p>
       {isCurrentTile && <p className={styles.flavor}>You are here.</p>}
+      {isCurrentTile && warfareMessage && <p className={styles.flavor}>{warfareMessage}</p>}
 
       <div className={styles.row}>
         <span className={styles.label}>Terrain</span>
@@ -222,6 +239,19 @@ export function HexInspector({
               );
             })}
           </ul>
+        </div>
+      )}
+
+      {isCurrentTile && currentBuilding && TROOP_SOURCE_KINDS.has(currentBuilding) && (
+        <div className={styles.actionRow}>
+          <button
+            className={styles.rollBtn}
+            type="button"
+            disabled={!canRecruitTroopHere}
+            onClick={onRecruitTroop}
+          >
+            Recruit Troop (200 coins)
+          </button>
         </div>
       )}
     </div>

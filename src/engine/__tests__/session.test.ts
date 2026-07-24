@@ -70,6 +70,8 @@ const RESOURCES: AdventurerResources = {
   animals: [],
   milestones: createInitialMilestones(),
   buildings: [],
+  troops: 0,
+  troopSources: [],
   travelStats: createInitialTravelStats(),
 };
 

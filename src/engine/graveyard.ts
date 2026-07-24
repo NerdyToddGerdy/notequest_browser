@@ -3,11 +3,12 @@
  * player's `localStorage` from before these fields existed still parse and render without them.
  * `causeOfDeath`'s "gamble"/"thug-life"/"arena" values (issue #58's Getting Money mini-games) are the first
  * deaths that don't happen inside a dungeon run at all -- `dungeon` doubles as "where" for these, holding
- * the city/fortress's location label instead of a dungeon name. */
+ * the city/fortress's location label instead of a dungeon name. "warfare" (issue #28) is the same shape:
+ * a character who joined their troops in an Attack and rolled a 1 on a lost battle. */
 export interface GraveyardEntry {
   name: string;
   dungeon: string;
-  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena";
+  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena" | "warfare";
   race?: string;
   cls?: string;
   monsterKills?: number;

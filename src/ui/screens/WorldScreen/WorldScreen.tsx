@@ -32,11 +32,13 @@ import { ANIMAL_BY_NAME, MOUNT_TABLE } from "../../../data/animals.ts";
 import { animalTravelCostOverride, animalTravelCostPenalty, buyMount, trainAnimal } from "../../../engine/animals.ts";
 import type { BuildingKind } from "../../../data/types.ts";
 import { buildBuilding, canBuildBuilding } from "../../../engine/buildings.ts";
+import { BUILDING_TABLE } from "../../../data/buildings.ts";
 import {
   canAttemptPoliticalAffinity,
   resolvePoliticalAffinity,
   type PoliticalAffinityOutcome,
 } from "../../../engine/politics.ts";
+import { canAttack, canRecruitTroop, recruitTroop, resolveAttack, resolveStorming } from "../../../engine/warfare.ts";
 import {
   canHireBoat,
   castSpell,
@@ -162,6 +164,14 @@ export function WorldScreen({
    * HexInspector the same way TownScreen's Thug Life outcome text works -- reset on arrival, same
    * as `selectedHex`. */
   const [trainResultMessage, setTrainResultMessage] = useState<string | null>(null);
+  /** Warfare (issue #28): lifted up here (not left as TownScreen-local state, unlike
+   * thugLifeMessage/politicalAffinityMessage) because a winning Loot razes the target hex to
+   * Ruins, which flips `inCityOrFortress` false and unmounts `TownScreen` on the very next
+   * render -- state living there would vanish before ever being shown. Reset on arrival, same as
+   * `trainResultMessage`. `pendingStorm` swaps TownScreen's whole City Actions section for the
+   * Annex/Loot choice while a won Attack awaits it. */
+  const [attackMessage, setAttackMessage] = useState<string | null>(null);
+  const [pendingStorm, setPendingStorm] = useState(false);
   /** Null = today's auto-fit-everything behavior; set the instant the player zooms or drag-pans,
    * same "override until Reset View" shape DungeonMap's own `scale` state uses. */
   const [viewBoxOverride, setViewBoxOverride] = useState<ViewBox | null>(null);
@@ -288,6 +298,8 @@ export function WorldScreen({
     setShowMap(false);
     setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected
     setTrainResultMessage(null);
+    setAttackMessage(null);
+    setPendingStorm(false);
   }
 
   /** Animals (issue #26): "go to the appropriate terrain... spend 4 provisions [8 for a mount] and
@@ -338,6 +350,62 @@ export function WorldScreen({
     onUpdateResources(outcome.resources);
     onUpdateWorld(outcome.world);
     return outcome;
+  }
+
+  /** Warfare (issue #28): always targets `world.player` -- recruiting only ever happens where
+   * you're standing, same "handler re-checks, engine function is real authority" shape as
+   * `handleTrainAnimal`. Reachable from both `HexInspector` (an owned Castle/City/Fortress) and
+   * `TownScreen` (a Vassal hex) -- either way the underlying check/mutation is identical. */
+  function handleRecruitTroop() {
+    if (!currentTile || !canRecruitTroop(resources, world, world.player, currentTile)) return;
+    onUpdateResources(recruitTroop(resources, world, world.player, currentTile));
+  }
+
+  /** Warfare (issue #28): touches both `resources` (troops spent, Declared Enemies possibly
+   * destroying an owned building) and `world` (that building's tile, if any) -- same "resolved
+   * here, not in TownScreen" shape as `handlePoliticalAffinity`/`handleThugLife`. A `"lost-death"`
+   * result still applies everything (troops/retaliation already happened) before handing off to
+   * the death flow, mirroring `handleThugLife`'s own die-mid-action precedent. The outcome message
+   * is computed and stored here (not left to `TownScreen`) since a winning Loot razes the target
+   * to Ruins, unmounting `TownScreen` before it could ever show a message of its own. */
+  function handleAttack(joinBattle: boolean) {
+    if (!currentTile || !canAttack(world, world.player, currentTile)) return;
+    const outcome = resolveAttack(resources, world, world.player, isFortress, joinBattle);
+    onUpdateResources(outcome.resources);
+    onUpdateWorld(outcome.world);
+    if (outcome.status === "lost-death") {
+      onCharacterDied("warfare", currentPlaceLabel);
+      return;
+    }
+    const retaliationNote =
+      outcome.retaliation.length > 0
+        ? ` Meanwhile, an enemy destroyed your ${outcome.retaliation.map((r) => BUILDING_TABLE[r.kind].name).join(", ")}.`
+        : "";
+    if (outcome.status === "won") {
+      setPendingStorm(true);
+      setAttackMessage(`Victory! Choose what to do with the conquered place.${retaliationNote}`);
+    } else {
+      setPendingStorm(false);
+      setAttackMessage(`The attack failed.${retaliationNote}`);
+    }
+  }
+
+  /** Warfare (issue #28): the Storming follow-up choice after a won Attack -- always resolves
+   * against `world.player` too, since the character can't have moved between winning the battle
+   * and picking Annex/Loot. */
+  function handleResolveStorming(choice: "annex" | "loot") {
+    if (!culture) return;
+    const outcome = resolveStorming(resources, world, character.race.name, world.player, culture, choice);
+    onUpdateResources(outcome.resources);
+    onUpdateWorld(outcome.world);
+    setPendingStorm(false);
+    setAttackMessage(
+      choice === "annex"
+        ? outcome.annexed
+          ? "They pledge themselves as your Vassal!"
+          : "The people refused -- you looted the place instead."
+        : "You razed the place to Ruins.",
+    );
   }
 
   const inspectedCoord = selectedHex ?? world.player;
@@ -507,6 +575,10 @@ export function WorldScreen({
         buyableMounts={buyableMounts}
         politicalStatus={politicalStatusFor(world, world.player)}
         canPoliticalAffinity={canAttemptPoliticalAffinity(world, world.player, currentTile)}
+        canRecruitTroop={canRecruitTroop(resources, world, world.player, currentTile)}
+        canAttack={canAttack(world, world.player, currentTile)}
+        attackMessage={attackMessage}
+        pendingStorm={pendingStorm}
         onUpdateResources={onUpdateResources}
         onEnterDungeon={onEnterDungeon}
         onHireBoat={handleHireBoat}
@@ -514,6 +586,9 @@ export function WorldScreen({
         onAsk={handleAsk}
         onThugLife={handleThugLife}
         onPoliticalAffinity={handlePoliticalAffinity}
+        onRecruitTroop={handleRecruitTroop}
+        onAttack={handleAttack}
+        onResolveStorming={handleResolveStorming}
         onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
         onExploreWorld={() => setShowMap(true)}
         onHardReset={onHardReset}
@@ -642,6 +717,11 @@ export function WorldScreen({
                   raceName={character.race.name}
                   onBuildBuilding={handleBuildBuilding}
                   politicalStatus={politicalStatusFor(world, inspectedCoord)}
+                  canRecruitTroopHere={
+                    isInspectingCurrentTile && canRecruitTroop(resources, world, inspectedCoord, inspectedTile)
+                  }
+                  onRecruitTroop={handleRecruitTroop}
+                  warfareMessage={isInspectingCurrentTile ? attackMessage : null}
                 />
               </div>
             )}

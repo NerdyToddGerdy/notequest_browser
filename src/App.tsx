@@ -91,6 +91,8 @@ export default function App() {
       animals: [],
       milestones: createInitialMilestones(),
       buildings: [],
+      troops: 0,
+      troopSources: [],
       travelStats: createInitialTravelStats(),
     });
     setActiveRunId(null);
@@ -181,6 +183,10 @@ export default function App() {
       milestones: dungeon.milestones,
       // Buildings (issue #27) persist permanently once built, same as advancedClasses/animals.
       buildings: dungeon.buildings,
+      // Warfare (issue #28) troops aren't tracked on DungeonState at all (nothing inside a dungeon
+      // run needs them) -- carried over untouched, same as provisions/travelStats below.
+      troops: prev?.troops ?? 0,
+      troopSources: prev?.troopSources ?? [],
       // Travel stats (issue #72) aren't tracked on DungeonState at all (nothing inside a dungeon
       // run needs them) -- carried over untouched, same as provisions above.
       travelStats: prev?.travelStats ?? createInitialTravelStats(),

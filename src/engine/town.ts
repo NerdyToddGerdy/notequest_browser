@@ -67,6 +67,13 @@ export interface AdventurerResources {
    * expires the way `hireling` does). Mirrored on `DungeonState` since `finishIfVictorious()`'s
    * Boss-kill tax credit needs to read it mid-dungeon -- see `src/engine/buildings.ts`. */
   buildings: OwnedBuilding[];
+  /** Warfare (issue #28) -- total currently-available recruited troops, and which hex keys already
+   * have an unspent one recruited (gating re-recruiting from the same source until that troop is
+   * actually spent on an attack). Neither is mirrored on `DungeonState` -- same "World/Town-only,
+   * nothing inside a dungeon run needs it" shape as `travelStats` below, not `buildings`'s own
+   * mid-dungeon-readable one. */
+  troops: number;
+  troopSources: string[];
   /** Lifetime World-map travel counters (issue #72) powering Lumberjack/Druid/Survivor/Pirate/
    * Bard/Cook's requirement checks -- see `TravelStats`. Unlike `milestones`, this is never
    * mirrored on `DungeonState`: every one of these signals only ever changes via World-map travel

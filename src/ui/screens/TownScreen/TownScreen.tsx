@@ -178,6 +178,22 @@ export interface TownScreenProps {
    * `canAttemptPoliticalAffinity()` check (already a City/Fortress, per `hasDungeon`'s sibling
    * gating, so this is really just "not already resolved"). */
   canPoliticalAffinity: boolean;
+  /** Warfare (issue #28): true only when the current hex is a Vassal -- recruiting at the
+   * player's own built Castle/City/Fortress instead lives on an empty hex, reached via
+   * `HexInspector`, never here. */
+  canRecruitTroop: boolean;
+  /** Warfare (issue #28): true whenever the current City/Fortress hex isn't already the player's
+   * own Vassal -- `WorldScreen`'s own `canAttack()` check. */
+  canAttack: boolean;
+  /** Warfare (issue #28): the last Attack/Storming outcome text -- lifted up to and owned by
+   * `WorldScreen` (not local state here, unlike `thugLifeMessage`/`politicalAffinityMessage`)
+   * since a winning Loot razes the target to Ruins, which unmounts this screen on the very next
+   * render, before any locally-held message could ever be shown. */
+  attackMessage: string | null;
+  /** True while a won Attack awaits its Annex/Loot choice -- swaps the whole City Actions section
+   * for that choice, mirroring the Arena panel's own "swap the whole section" precedent. Also
+   * owned by `WorldScreen` for the same reason `attackMessage` is. */
+  pendingStorm: boolean;
   onUpdateResources: (resources: AdventurerResources) => void;
   onEnterDungeon: () => void;
   onHireBoat: () => void;
@@ -191,6 +207,17 @@ export interface TownScreenProps {
    * `resources` (milestones) and `WorldState` (the resolved status). `null` if the action wasn't
    * actually available (defense in depth; the button is already disabled in that case). */
   onPoliticalAffinity: () => PoliticalAffinityOutcome | null;
+  /** Warfare (issue #28): always targets the current hex -- recruiting only ever happens where
+   * you're standing. */
+  onRecruitTroop: () => void;
+  /** Warfare (issue #28): resolved by `WorldScreen` -- unlike `onPoliticalAffinity`/`onThugLife`,
+   * this doesn't return the outcome, since `WorldScreen` already turns it into `attackMessage`/
+   * `pendingStorm` itself (see those props' own doc comments for why). A `"lost-death"` result
+   * means App.tsx's death flow has already fired and this screen is about to unmount, same as
+   * `onThugLife`'s own `died: true` case. */
+  onAttack: (joinBattle: boolean) => void;
+  /** The Storming follow-up choice after a won Attack -- same "resolved by WorldScreen" shape. */
+  onResolveStorming: (choice: "annex" | "loot") => void;
   /** A death outside a dungeon (Gamble's life-bet, Thug Life today; Arena to follow) -- forwarded
    * up to App.tsx via WorldScreen, which supplies `place` itself (see WorldScreenProps). */
   onCharacterDied: (cause: TownDeathCause) => void;
@@ -214,6 +241,10 @@ export function TownScreen({
   buyableMounts,
   politicalStatus,
   canPoliticalAffinity,
+  canRecruitTroop,
+  canAttack,
+  attackMessage,
+  pendingStorm,
   onUpdateResources,
   onEnterDungeon,
   onHireBoat,
@@ -221,6 +252,9 @@ export function TownScreen({
   onAsk,
   onThugLife,
   onPoliticalAffinity,
+  onRecruitTroop,
+  onAttack,
+  onResolveStorming,
   onCharacterDied,
   onExploreWorld,
   onHardReset,
@@ -391,6 +425,27 @@ export function TownScreen({
                     )}
                   </div>
                 </section>
+              ) : pendingStorm ? (
+                <section className={styles.actions}>
+                  <h2 className={styles.trackTitle}>Storming the Castle</h2>
+                  <div className={styles.arenaCard}>
+                    <p className={styles.gateCopy}>{attackMessage}</p>
+                    <button
+                      className={styles.rollBtn}
+                      type="button"
+                      onClick={() => onResolveStorming("annex")}
+                    >
+                      Annex (Affinity +2)
+                    </button>
+                    <button
+                      className={styles.rollBtn}
+                      type="button"
+                      onClick={() => onResolveStorming("loot")}
+                    >
+                      Loot &amp; Raze
+                    </button>
+                  </div>
+                </section>
               ) : (
                 <section className={styles.actions}>
                   <h2 className={styles.trackTitle}>City Actions</h2>
@@ -470,6 +525,43 @@ export function TownScreen({
                             : "Roll to win this place's allegiance.")}
                       </span>
                     </button>
+                    {politicalStatus === "vassal" && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canRecruitTroop}
+                        onClick={onRecruitTroop}
+                      >
+                        <span className={styles.actionName}>Recruit Troop</span>
+                        <span className={styles.actionCost}>200 coins</span>
+                        <span className={styles.actionDesc}>
+                          {resources.troops > 0
+                            ? `${resources.troops} troop${resources.troops === 1 ? "" : "s"} ready for war.`
+                            : "Muster a troop from this Vassal."}
+                        </span>
+                      </button>
+                    )}
+                    {canAttack && (
+                      <>
+                        <button className={styles.actionBtn} type="button" onClick={() => onAttack(false)}>
+                          <span className={styles.actionName}>Attack</span>
+                          <span className={styles.actionCost}>
+                            {resources.troops} troop{resources.troops === 1 ? "" : "s"}
+                          </span>
+                          <span className={styles.actionDesc}>
+                            {attackMessage ?? `Send your troops to war (Defense ${isFortress ? 12 : 6}).`}
+                          </span>
+                        </button>
+                        <button className={styles.actionBtn} type="button" onClick={() => onAttack(true)}>
+                          <span className={styles.actionName}>Attack (Join Battle)</span>
+                          <span className={styles.actionCost}>Risky</span>
+                          <span className={styles.actionDesc}>
+                            Fight alongside your troops for one bonus die -- a natural 1 kills you
+                            if the battle is lost.
+                          </span>
+                        </button>
+                      </>
+                    )}
                     {cultureAction && (
                       <button
                         className={styles.actionBtn}
