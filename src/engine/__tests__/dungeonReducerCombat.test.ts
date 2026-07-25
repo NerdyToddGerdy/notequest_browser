@@ -65,6 +65,8 @@ function stateWithCombat(
     shields: [],
     absorbSoulActive: false,
     fireOfTheDeadActive: false,
+    hireling: null,
+    hirelingAttackedThisRound: false,
   };
   return {
     ...createInitialDungeonState(),
@@ -72,6 +74,24 @@ function stateWithCombat(
     levels: [level],
     combat,
     ...overrides,
+  };
+}
+
+/** A state with combat underway and a "Mercenary" (14 HP, "1d6-2" weaponFormula) employed --
+ * issue #84. */
+function stateWithHireling(
+  hirelingOverrides: Partial<{ name: string; hp: number; maxHp: number }> = {},
+  monsters: CombatMonsterState[] = [makeMonster()],
+  dungeonOverrides: Partial<DungeonState> = {},
+): DungeonState {
+  const base = stateWithCombat(dungeonOverrides, monsters);
+  return {
+    ...base,
+    hireling: "Mercenary",
+    combat: {
+      ...base.combat!,
+      hireling: { name: "Mercenary", hp: 14, maxHp: 14, ...hirelingOverrides },
+    },
   };
 }
 
@@ -1762,5 +1782,222 @@ describe("Slimemen: engulf a fallen enemy's body", () => {
     const state = stateWithCombat({ raceName: "Slimemen", hp: 5, maxHp: 20 }, [monster]);
     const next = dungeonReducer(state, { type: "ENGULF_BODY" });
     expect(next).toBe(state);
+  });
+});
+
+describe("startCombat seeds combat.hireling (issue #84)", () => {
+  function twoDoorEntranceState(hireling: string | null): DungeonState {
+    const entrance = makeSegment({
+      id: 1,
+      type: "corridor",
+      doors: [
+        { dir: "E", opened: false, childId: null, leadsToLevel: null },
+        { dir: "N", opened: false, childId: null, leadsToLevel: null },
+      ],
+    });
+    const level = { ...makeLevel(1), segments: [entrance], doorsRemaining: 2 };
+    return {
+      ...createInitialDungeonState(),
+      dungeonTypeKey: "palace",
+      levels: [level],
+      nextSegmentId: 100,
+      currentSegId: entrance.id,
+      hireling,
+    };
+  }
+
+  it("seeds combat.hireling from the employed Hireling's own hp when combat starts", () => {
+    const rng = sequenceDie([1, 1, 2, 2]); // content sum 2, monster sum 4 -> a single Orc
+    const next = dungeonReducer(
+      twoDoorEntranceState("Mercenary"),
+      { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 2, wasNoisy: true },
+      rng,
+    );
+    expect(next.combat!.hireling).toEqual({ name: "Mercenary", hp: 14, maxHp: 14 });
+  });
+
+  it("is null when no Hireling is employed", () => {
+    const rng = sequenceDie([1, 1, 2, 2]);
+    const next = dungeonReducer(
+      twoDoorEntranceState(null),
+      { type: "OPEN_DOOR", segId: 1, doorIdx: 0, roll: 2, wasNoisy: true },
+      rng,
+    );
+    expect(next.combat!.hireling).toBeNull();
+  });
+});
+
+describe("HIRELING_ATTACK (issue #84)", () => {
+  it("deals damage to the target monster and doesn't end the round (no monster counter-attack)", () => {
+    const monster = makeMonster({ hp: 6, damage: 3 });
+    const state = stateWithHireling({}, [monster]);
+    // Mercenary's "1d6-2" formula: roll 6 -> 4 damage.
+    const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 6 });
+    expect(next.combat!.monsters[0]!.hp).toBe(2);
+    expect(next.combat!.hirelingAttackedThisRound).toBe(true);
+    expect(next.hp).toBe(next.maxHp); // no monster counter-attack happened
+    expect(next.log[0]!.message).toContain("Mercenary hits");
+  });
+
+  it("Stoneskin blocks 3-or-less damage the same way it blocks a weapon attack", () => {
+    const monster = makeMonster({ hp: 10, abilities: ["stoneskin"] });
+    const state = stateWithHireling({}, [monster]);
+    // roll 4 -> 4-2=2 damage, blocked (<=3).
+    const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+    expect(next.combat!.monsters[0]!.hp).toBe(10);
+    expect(next.log[0]!.message).toContain("fails to harm");
+  });
+
+  it("defeats the monster and finishes the fight if it was the last one", () => {
+    const monster = makeMonster({ hp: 2, damage: 3 });
+    const state = stateWithHireling({}, [monster]);
+    const next = dungeonReducer(
+      state,
+      { type: "HIRELING_ATTACK", targetId: monster.id, roll: 6 },
+      fixedDie(1),
+    );
+    expect(next.combat).toBeNull();
+    expect(next.log.some((e) => e.message.includes("victorious"))).toBe(true);
+  });
+
+  it("is NOT blocked by the player's own paralysis", () => {
+    const monster = makeMonster({ hp: 6, damage: 3 });
+    const state = stateWithHireling({}, [monster]);
+    state.combat!.paralyzedTurns = 2;
+    const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 6 });
+    expect(next.combat!.monsters[0]!.hp).toBe(2); // damage still landed
+    expect(next.combat!.paralyzedTurns).toBe(2); // untouched -- not the player's own turn
+  });
+
+  it("can be used the same round as the player's own Attack, with only one monster counter-attack total", () => {
+    const monster = makeMonster({ hp: 20, damage: 3 });
+    const state = stateWithHireling({}, [monster]);
+    const afterHireling = dungeonReducer(state, {
+      type: "HIRELING_ATTACK",
+      targetId: monster.id,
+      roll: 6,
+    });
+    expect(afterHireling.hp).toBe(afterHireling.maxHp); // no counter-attack yet
+    expect(afterHireling.combat!.monsters[0]!.hp).toBe(16); // Mercenary's 4 damage landed
+
+    const afterPlayer = dungeonReducer(afterHireling, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 3,
+    });
+    expect(afterPlayer.combat!.monsters[0]!.hp).toBe(13); // 16 - 3 (default "1d6" weapon)
+    // Exactly one counter-attack fired (not two) -- with a living Hireling present it defers to
+    // pendingDamage rather than applying immediately (see the "pendingDamage defers..." describe
+    // block below), so this confirms a single round's worth of damage is pending, not double.
+    expect(afterPlayer.combat!.pendingDamage).toBe(3);
+    expect(afterPlayer.hp).toBe(afterPlayer.maxHp);
+    expect(afterPlayer.combat!.hirelingAttackedThisRound).toBe(false); // reset for next round
+  });
+
+  describe("gating", () => {
+    it("no-op with no Hireling employed", () => {
+      const monster = makeMonster();
+      const state = stateWithCombat({}, [monster]);
+      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once the Hireling has already died", () => {
+      const monster = makeMonster();
+      const state = stateWithHireling({ hp: 0 }, [monster]);
+      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      expect(next).toBe(state);
+    });
+
+    it("no-op for a Hireling with no weaponFormula (e.g. Torchbearer)", () => {
+      const monster = makeMonster();
+      const base = stateWithCombat({}, [monster]);
+      const state: DungeonState = {
+        ...base,
+        hireling: "Torchbearer",
+        combat: { ...base.combat!, hireling: { name: "Torchbearer", hp: 10, maxHp: 10 } },
+      };
+      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once already used this round", () => {
+      const monster = makeMonster();
+      const state = stateWithHireling({}, [monster]);
+      state.combat!.hirelingAttackedThisRound = true;
+      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      expect(next).toBe(state);
+    });
+
+    it("no-op while an armor-absorption choice is pending", () => {
+      const monster = makeMonster();
+      const state = stateWithHireling({}, [monster]);
+      state.combat!.pendingDamage = 5;
+      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once the character is dead", () => {
+      const monster = makeMonster();
+      const state = { ...stateWithHireling({}, [monster]), alive: false };
+      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once the fight is no longer ongoing", () => {
+      const monster = makeMonster();
+      const state = stateWithHireling({}, [monster]);
+      state.combat!.outcome = "victory";
+      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      expect(next).toBe(state);
+    });
+  });
+});
+
+describe("pendingDamage defers to a living Hireling too, not just armor (issue #84)", () => {
+  it("defers instead of applying HP loss immediately when only a Hireling (no armor) is present", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithHireling({}, [monster], { armor: [] });
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+    expect(next.combat!.pendingDamage).toBe(5);
+    expect(next.hp).toBe(next.maxHp); // not yet applied
+  });
+
+  it("still applies HP loss immediately with neither armor nor a Hireling (unregressed baseline)", () => {
+    const monster = makeMonster({ hp: 20, damage: 5 });
+    const state = stateWithCombat({ armor: [] }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+    expect(next.combat!.pendingDamage).toBeNull();
+    expect(next.hp).toBe(next.maxHp - 5);
+  });
+});
+
+describe("RESOLVE_DAMAGE with absorbWith: \"hireling\" (issue #84)", () => {
+  it("absorbs damage into the Hireling's own HP, up to what it has", () => {
+    const monster = makeMonster();
+    const state = stateWithHireling({ hp: 10, maxHp: 14 }, [monster]);
+    state.combat!.pendingDamage = 6;
+    const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: "hireling" });
+    expect(next.combat!.hireling).toEqual({ name: "Mercenary", hp: 4, maxHp: 14 });
+    expect(next.hp).toBe(next.maxHp); // no overflow
+  });
+
+  it("spills overflow onto the player's own HP once the Hireling's HP runs out, and clears the employed Hireling on death", () => {
+    const monster = makeMonster();
+    const state = stateWithHireling({ hp: 3, maxHp: 14 }, [monster]);
+    state.combat!.pendingDamage = 10;
+    const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: "hireling" });
+    expect(next.combat!.hireling).toEqual({ name: "Mercenary", hp: 0, maxHp: 14 });
+    expect(next.hp).toBe(next.maxHp - 7); // 10 - 3 absorbed = 7 overflow
+    expect(next.hireling).toBeNull(); // gone for good
+  });
+
+  it("clears pendingDamage without applying it anywhere if dispatched with no Hireling present -- same as an invalid armor index's existing behavior", () => {
+    const monster = makeMonster();
+    const state = stateWithCombat({}, [monster]);
+    state.combat!.pendingDamage = 5;
+    const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: "hireling" });
+    expect(next.combat!.pendingDamage).toBeNull();
+    expect(next.hp).toBe(next.maxHp);
   });
 });

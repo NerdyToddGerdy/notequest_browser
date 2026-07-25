@@ -23,6 +23,7 @@ import {
 } from "../data/dungeonTables.ts";
 import { SPELL_TABLE } from "../data/spells.ts";
 import { buildingTaxTotal } from "../data/buildings.ts";
+import { HIRELING_BY_NAME } from "../data/hirelings.ts";
 import { SPELL_TABLE_BY_KEY, spellKey } from "./character.ts";
 import {
   boxFromCenter,
@@ -250,6 +251,9 @@ function startCombat(
     },
     rng,
   );
+  // Issue #84: a copy of the employed Hireling's own hp, not a reference -- combat is the only
+  // place a Hireling's HP is ever tracked, since it's purely cosmetic everywhere else.
+  const hirelingDef = draft.hireling ? HIRELING_BY_NAME[draft.hireling] : undefined;
   draft.combat = {
     segId,
     monsters,
@@ -264,6 +268,8 @@ function startCombat(
     shields: [],
     absorbSoulActive: false,
     fireOfTheDeadActive: false,
+    hireling: hirelingDef ? { name: hirelingDef.name, hp: hirelingDef.hp, maxHp: hirelingDef.hp } : null,
+    hirelingAttackedThisRound: false,
   };
   pushLog(
     draft,
@@ -539,6 +545,10 @@ function hasUsableArmor(draft: Draft<DungeonState>): boolean {
 }
 
 function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>, rng: RNG): void {
+  // Issue #84: this is the one chokepoint every round-ending action already calls, so it's where
+  // HIRELING_ATTACK's once-per-round cap resets for whatever round comes next.
+  combat.hirelingAttackedThisRound = false;
+
   // Poison: "All damage from this creature cannot be absorbed by armor or other means" -- tallied
   // apart from every other monster's damage, which the player may still choose to absorb.
   // Pirate (Advanced Class, issue #72): "Ignores Poison" -- the damage still lands, but no longer
@@ -609,8 +619,9 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
 
   if (draft.hp > 0 && absorbableDamage > 0) {
     // "Reduce this value from your HP (or armor's HP, if you're using one -- your call)": with
-    // usable armor equipped, defer to RESOLVE_DAMAGE instead of subtracting HP immediately.
-    if (hasUsableArmor(draft)) {
+    // usable armor equipped -- or, issue #84, a living Hireling -- defer to RESOLVE_DAMAGE instead
+    // of subtracting HP immediately.
+    if (hasUsableArmor(draft) || (combat.hireling && combat.hireling.hp > 0)) {
       combat.pendingDamage = absorbableDamage;
       pushLog(
         draft,
@@ -1956,6 +1967,57 @@ export function dungeonReducer(
       });
     }
 
+    case "HIRELING_ATTACK": {
+      // Deliberately not gated on the player's own paralysis (Paralyze's rulebook effect is on
+      // the player specifically) or combat.paralyzedTurns at all -- and never calls
+      // applyMonsterTurn(), since this is a free action that doesn't end the round (issue #84).
+      if (
+        !state.alive ||
+        !state.combat ||
+        state.combat.outcome !== "ongoing" ||
+        state.combat.pendingDamage !== null ||
+        !state.combat.hireling ||
+        state.combat.hireling.hp <= 0 ||
+        state.combat.hirelingAttackedThisRound
+      ) {
+        return state;
+      }
+      const hirelingDef = HIRELING_BY_NAME[state.combat.hireling.name];
+      if (!hirelingDef?.weaponFormula) return state;
+      return produce(state, (draft) => {
+        const combat = draft.combat;
+        if (!combat || !combat.hireling) return;
+        const monster = combat.monsters.find((m) => m.id === action.targetId);
+        if (!monster) return;
+        combat.hirelingAttackedThisRound = true;
+
+        // Same "fixed/rolled damage, Stoneskin/Intangible defense applies, no roll-of-1/6 special
+        // abilities trigger" shape as spell damage -- the Hireling swings its own mundane weapon,
+        // unaffected by the player's own gear.
+        const { modifier } = parseWeaponFormula(hirelingDef.weaponFormula!);
+        const total = Math.max(0, action.roll + modifier);
+        const result = resolveSpellDamage(monster, total);
+        monster.hp = Math.max(0, monster.hp - result.damageDealt);
+        if (result.damageDealt > 0) {
+          pushLog(draft, `${combat.hireling.name} hits ${monster.name} for ${result.damageDealt} damage.`);
+        } else {
+          pushLog(
+            draft,
+            result.blocked
+              ? `${combat.hireling.name}'s attack fails to harm ${monster.name} (${result.blocked}).`
+              : `${combat.hireling.name}'s attack fails to harm ${monster.name}.`,
+          );
+        }
+
+        if (result.monsterDefeated) {
+          handleMonsterDefeat(draft, combat, monster, rng);
+        }
+        // In case the Hireling's own blow was the finishing one -- this action never calls
+        // applyMonsterTurn(), but a won fight still needs to resolve Loot/close out combat.
+        finishIfVictorious(draft, combat, rng);
+      });
+    }
+
     case "RESOLVE_DAMAGE": {
       if (!state.alive || !state.combat || state.combat.pendingDamage === null) return state;
       return produce(state, (draft) => {
@@ -1966,6 +2028,25 @@ export function dungeonReducer(
 
         if (action.absorbWith === "hp") {
           draft.hp = Math.max(0, draft.hp - amount);
+        } else if (action.absorbWith === "hireling") {
+          // Issue #84: mirrors the armor-piece branch's exact overflow-to-HP shape. A Hireling
+          // reduced to 0 HP is gone for good -- clears the top-level `hireling` field too (not
+          // just this fight's own copy), so CharacterSheet's status line and any future room's
+          // fresh combat correctly show no Hireling anymore, matching "you pay to face just one
+          // dungeon" rather than a temporary knockout.
+          const h = combat.hireling;
+          if (!h) return;
+          const absorbed = Math.min(amount, h.hp);
+          h.hp -= absorbed;
+          const overflow = amount - absorbed;
+          if (overflow > 0) draft.hp = Math.max(0, draft.hp - overflow);
+          pushLog(
+            draft,
+            h.hp <= 0
+              ? `${h.name} absorbs ${absorbed} damage and falls!`
+              : `${h.name} absorbs ${absorbed} damage (${h.hp}/${h.maxHp} HP left).`,
+          );
+          if (h.hp <= 0) draft.hireling = null;
         } else {
           const piece = draft.armor[action.absorbWith];
           if (!piece) return;

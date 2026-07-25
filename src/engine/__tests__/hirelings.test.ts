@@ -162,3 +162,33 @@ describe("canHireHireling / hireHireling", () => {
     expect(next.hireling).toBe("Torchbearer");
   });
 });
+
+describe("HirelingDef.weaponFormula data shape (issue #84)", () => {
+  const NO_WEAPON_NAMES = new Set([
+    "Torchbearer",
+    "Gnome Helper",
+    "Goblin Helper",
+    "Cargo Ogre",
+    "Jester",
+    "Minstrel", // Mandolin -- a passive +2 damage bonus, not a weapon swing of its own
+  ]);
+
+  const allHirelings = [...Object.values(HIRELING_ROSTERS).flat(), ...HUMAN_FORTRESS_HIRELINGS];
+
+  it("every Hireling either has a weaponFormula or is one of the documented non-combatants", () => {
+    for (const def of allHirelings) {
+      if (NO_WEAPON_NAMES.has(def.name)) {
+        expect(def.weaponFormula, `${def.name} should have no weaponFormula`).toBeUndefined();
+      } else {
+        expect(def.weaponFormula, `${def.name} should have a weaponFormula`).toBeDefined();
+      }
+    }
+  });
+
+  it("every weaponFormula matches the damage named in its own equipmentText", () => {
+    for (const def of allHirelings) {
+      if (!def.weaponFormula) continue;
+      expect(def.equipmentText, def.name).toContain(`(${def.weaponFormula} damage)`);
+    }
+  });
+});

@@ -1247,6 +1247,8 @@ describe("WIELD_WEAPON", () => {
         shields: [],
         absorbSoulActive: false,
         fireOfTheDeadActive: false,
+        hireling: null,
+        hirelingAttackedThisRound: false,
       },
     });
     const next = dungeonReducer(state, { type: "WIELD_WEAPON", index: 0 });
@@ -1978,6 +1980,8 @@ describe("CAST_SPELL guards", () => {
       shields: [],
       absorbSoulActive: false,
       fireOfTheDeadActive: false,
+      hireling: null,
+      hirelingAttackedThisRound: false,
     };
     const state: DungeonState = {
       ...stateWithLevel(level),
@@ -2281,6 +2285,8 @@ describe("OPEN_TREASURE", () => {
         shields: [],
         absorbSoulActive: false,
         fireOfTheDeadActive: false,
+        hireling: null,
+        hirelingAttackedThisRound: false,
       },
     };
     const next = dungeonReducer(
@@ -2414,6 +2420,8 @@ describe("OPEN_TREASURE", () => {
         shields: [],
         absorbSoulActive: false,
         fireOfTheDeadActive: false,
+        hireling: null,
+        hirelingAttackedThisRound: false,
       },
     };
     const next = dungeonReducer(
@@ -2695,6 +2703,8 @@ describe("RESUME_DUNGEON", () => {
       shields: [],
       absorbSoulActive: false,
       fireOfTheDeadActive: false,
+      hireling: null,
+      hirelingAttackedThisRound: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -2795,6 +2805,8 @@ describe("RESUME_DUNGEON", () => {
       shields: [],
       absorbSoulActive: false,
       fireOfTheDeadActive: false,
+      hireling: null,
+      hirelingAttackedThisRound: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -2994,6 +3006,8 @@ describe("RETURN_TO_DUNGEON", () => {
       shields: [],
       absorbSoulActive: false,
       fireOfTheDeadActive: false,
+      hireling: null,
+      hirelingAttackedThisRound: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -3241,6 +3255,8 @@ describe("Monster table re-roll on return", () => {
       shields: [],
       absorbSoulActive: false,
       fireOfTheDeadActive: false,
+      hireling: null,
+      hirelingAttackedThisRound: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),

@@ -191,6 +191,15 @@ export interface CombatState {
   /** Fire of the Dead (New Spells, issue #61): "after a fight, you get 2 torches for every monster
    * killed" -- same shape as `absorbSoulActive` above, the other deferred-to-victory Death spell. */
   fireOfTheDeadActive: boolean;
+  /** Issue #84: the employed Hireling's live combat HP, seeded from `HirelingDef.hp` the moment
+   * combat starts -- `null` if no Hireling is employed. A copy, not a reference into `DungeonState.hireling`
+   * (that field stays just the bare name) -- combat is the only place a Hireling's HP is tracked at
+   * all, since it's purely cosmetic everywhere else. */
+  hireling: { name: string; hp: number; maxHp: number } | null;
+  /** Issue #84: HIRELING_ATTACK is a free action that doesn't end the round (unlike every other
+   * combat action), capped at once per round by this flag -- set when used, reset back to `false`
+   * at the top of `applyMonsterTurn()`, the one chokepoint every round-ending action already calls. */
+  hirelingAttackedThisRound: boolean;
 }
 
 /** A "worth N Coins in the town" item found by opening a Treasure -- held until there's a town to sell it in. */
@@ -534,6 +543,12 @@ export type DungeonAction =
    * `CombatState.engulfableBodies` (set by `handleMonsterDefeat` whenever a monster is actually
    * removed, not revived) and heals to full, same as a full round (the monsters still counter-attack). */
   | { type: "ENGULF_BODY" }
+  /** Issue #84: an employed Hireling's own attack -- unlike every other combat action, this is a
+   * free extra action that does *not* end the round (no monster counter-attack), capped at once
+   * per round by `CombatState.hirelingAttackedThisRound`. `roll` is the client-rolled raw die
+   * (against the Hireling's own `weaponFormula`), same "client rolls for the animation, the reducer
+   * re-derives the real modifier/total" split `PLAYER_ATTACK` already uses. */
+  | { type: "HIRELING_ATTACK"; targetId: number; roll: number }
   /** `destLevel`/`destSegId`: required for Teleport (basic table, spellRoll 3) -- the
    * already-discovered, empty room the player chose to reappear in (see `isTeleportDestination`).
    * Unused by every other spell. `table` distinguishes which New Spells table (issue #24)
@@ -547,9 +562,10 @@ export type DungeonAction =
       destLevel?: number;
       destSegId?: number;
     }
-  /** Resolves a CombatState.pendingDamage from a monster counter-attack: onto the player's HP, or
-   * onto one of `armor`'s indices ("your call" per the rulebook). */
-  | { type: "RESOLVE_DAMAGE"; absorbWith: "hp" | number }
+  /** Resolves a CombatState.pendingDamage from a monster counter-attack: onto the player's HP,
+   * onto one of `armor`'s indices, or (issue #84) the employed Hireling ("your call" per the
+   * rulebook, generalized one step further). */
+  | { type: "RESOLVE_DAMAGE"; absorbWith: "hp" | "hireling" | number }
   | {
       type: "RESUME_DUNGEON";
       dungeon: DungeonState;

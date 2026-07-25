@@ -128,4 +128,11 @@ export interface HirelingDef {
   /** Rulebook's own "Extra Service" text, always shown even when flavor-only for now -- see
    * `src/engine/hirelings.ts` for which of these have a real mechanical effect today. */
   abilityText: string;
+  /** Issue #84: the weapon formula behind `equipmentText`'s flavor text (e.g. "Club (1d6-2
+   * damage)" -> `"1d6-2"`), parsed out into real, roll-able data -- `equipmentText` alone was
+   * never structured for that. Omitted entirely for a Hireling with no weapon capable of attacking
+   * (own `abilityText`/`equipmentText` already say as much -- "None," "Can't use anything," "Can
+   * clown," "doesn't know how to fight") or whose combat contribution is already a passive bonus
+   * to the player's own attacks rather than a swing of its own (Minstrel's Mandolin). */
+  weaponFormula?: string;
 }

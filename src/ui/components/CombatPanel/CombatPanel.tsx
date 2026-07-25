@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ArmorPiece, CombatState } from "../../../engine/dungeonState.ts";
 import { ARMOR_PIECE_LABELS, type MonsterAbility } from "../../../data/dungeonTables.ts";
 import type { SpellTableKey } from "../../../data/types.ts";
+import { HIRELING_BY_NAME } from "../../../data/hirelings.ts";
 import { parseSpellKey, SPELL_TABLE_BY_KEY } from "../../../engine/character.ts";
 import {
   HEAL_AMOUNT,
@@ -38,8 +39,11 @@ export interface CombatPanelProps {
   /** Teleport needs a destination room first -- the parent screen owns that picker, so this just
    * signals "the player wants to flee" instead of dispatching CAST_SPELL directly. */
   onFlee: () => void;
-  onResolveDamage: (absorbWith: "hp" | number) => void;
+  onResolveDamage: (absorbWith: "hp" | "hireling" | number) => void;
   onEngulfBody: () => void;
+  /** Issue #84: an employed Hireling's own attack -- a free action that doesn't end the round,
+   * dispatched separately from onAttack. */
+  onHirelingAttack: (targetId: number, roll: number) => void;
 }
 
 const HORN_FORMULA = "1d6";
@@ -116,6 +120,7 @@ export function CombatPanel({
   onFlee,
   onResolveDamage,
   onEngulfBody,
+  onHirelingAttack,
 }: CombatPanelProps) {
   const [dieValue, setDieValue] = useState(1);
   const [rollToken, setRollToken] = useState(0);
@@ -133,6 +138,21 @@ export function CombatPanel({
   // actually stops this panel from rendering at all, but this guards the actions directly too in
   // case a future death path forgets to clear it.
   const canAct = !rolling && !paralyzed && !awaitingDamageChoice && !hasPendingPackItem && hp > 0;
+  // Issue #84: deliberately not gated on `paralyzed` -- Paralyze's rulebook effect is on the
+  // player specifically, and the reducer's own HIRELING_ATTACK gating agrees. `weaponFormula` is
+  // absent for a Hireling with no weapon capable of attacking (see HirelingDef's own doc comment).
+  const hirelingWeaponFormula = combat.hireling
+    ? HIRELING_BY_NAME[combat.hireling.name]?.weaponFormula
+    : undefined;
+  const hirelingCanAct =
+    !rolling &&
+    !awaitingDamageChoice &&
+    !hasPendingPackItem &&
+    hp > 0 &&
+    !!combat.hireling &&
+    combat.hireling.hp > 0 &&
+    !combat.hirelingAttackedThisRound &&
+    !!hirelingWeaponFormula;
   // Only spells `KNOWN_CASTABLE_SPELL_NAMES` actually has a real CAST_SPELL case for render a
   // button at all -- see that set's own doc comment (combat.ts). Matched by name, not (table,
   // roll), so Elemental's Cold Ray/Lightning/Fireball reuse the same button/handler as Basic's.
@@ -157,6 +177,18 @@ export function CombatPanel({
     window.setTimeout(() => {
       setRolling(false);
       onAttack(targetId, rawRoll, useHorn);
+    }, revealDelay(1));
+  }
+
+  function rollAndHirelingAttack(targetId: number) {
+    if (!hirelingCanAct || !hirelingWeaponFormula) return;
+    const { rawRoll } = rollWeaponDamage(hirelingWeaponFormula);
+    setDieValue(rawRoll);
+    setRollToken((t) => t + 1);
+    setRolling(true);
+    window.setTimeout(() => {
+      setRolling(false);
+      onHirelingAttack(targetId, rawRoll);
     }, revealDelay(1));
   }
 
@@ -193,6 +225,18 @@ export function CombatPanel({
           {healPreviewHp ?? hp} / {maxHp} HP
         </span>
       </div>
+
+      {combat.hireling && (
+        <div className={styles.playerRow}>
+          <div className={styles.playerLabel}>
+            <span>{combat.hireling.name}</span>
+          </div>
+          <HpBar value={combat.hireling.hp} max={combat.hireling.maxHp} kind="player" />
+          <span className={styles.hpText}>
+            {combat.hireling.hp} / {combat.hireling.maxHp} HP
+          </span>
+        </div>
+      )}
 
       {rolling && (
         <div className={styles.dieRow}>
@@ -236,6 +280,16 @@ export function CombatPanel({
                   onClick={() => rollAndAttack(monster.id, true)}
                 >
                   Horn ({HORN_FORMULA})
+                </button>
+              )}
+              {combat.hireling && hirelingWeaponFormula && (
+                <button
+                  type="button"
+                  className={styles.attackBtn}
+                  disabled={!hirelingCanAct}
+                  onClick={() => rollAndHirelingAttack(monster.id)}
+                >
+                  {combat.hireling.name} Attacks
                 </button>
               )}
               {targetedSpells.map((s) => (
@@ -296,6 +350,11 @@ export function CombatPanel({
             <button type="button" className={styles.attackBtn} onClick={() => onResolveDamage("hp")}>
               HP ({hp}/{maxHp})
             </button>
+            {combat.hireling && combat.hireling.hp > 0 && (
+              <button type="button" className={styles.attackBtn} onClick={() => onResolveDamage("hireling")}>
+                {combat.hireling.name} ({combat.hireling.hp}/{combat.hireling.maxHp})
+              </button>
+            )}
             {armor.map((piece, index) =>
               piece.hp > 0 ? (
                 <button key={index} type="button" className={styles.attackBtn} onClick={() => onResolveDamage(index)}>

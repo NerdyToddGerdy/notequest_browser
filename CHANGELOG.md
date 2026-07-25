@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-07-24
+
+### Added
+
+- Hirelings now actually fight: a hired companion has real HP shown
+  in combat, and a free "Attacks" action usable alongside your own
+  Attack each round -- it can also absorb a monster's counter-attack
+  as a third option next to HP and armor (#84).
+
 ## [2.30.0] - 2026-07-24
 
 ### Fixed

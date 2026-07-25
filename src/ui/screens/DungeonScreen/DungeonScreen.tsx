@@ -494,6 +494,9 @@ export function DungeonScreen({
                             dispatch({ type: "RESOLVE_DAMAGE", absorbWith })
                           }
                           onEngulfBody={() => dispatch({ type: "ENGULF_BODY" })}
+                          onHirelingAttack={(targetId, roll) =>
+                            dispatch({ type: "HIRELING_ATTACK", targetId, roll })
+                          }
                         />
                       )}
                     </div>
