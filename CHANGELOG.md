@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-07-25
+
+### Added
+
+- "Buy Max Torches" and "Buy Max Provisions" buttons in Town Square's
+  Shop tab, filling up to the cap (10/20) in one click instead of
+  buying one at a time -- limited by the cap or your coin purse,
+  whichever runs out first (#90).
+
 ## [2.34.0] - 2026-07-25
 
 ### Changed

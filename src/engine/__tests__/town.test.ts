@@ -3,6 +3,8 @@ import {
   brewHealthPotion,
   buyElvenBoots,
   buyLamp,
+  buyMaxProvisions,
+  buyMaxTorches,
   buyOrcGladio,
   buyProvision,
   buyTorch,
@@ -192,6 +194,28 @@ describe("canBuyTorch / buyTorch", () => {
 
     const capped = buyTorch(makeResources({ coins: 2, torches: 10 }));
     expect(capped.torches).toBe(10);
+  });
+});
+
+describe("buyMaxTorches", () => {
+  it("fills up to the cap when coins are plentiful", () => {
+    const next = buyMaxTorches(makeResources({ coins: 20, torches: 5 }));
+    expect(next.torches).toBe(10);
+    expect(next.coins).toBe(15);
+  });
+
+  it("spends only as many coins as available when coin-limited", () => {
+    const next = buyMaxTorches(makeResources({ coins: 3, torches: 5 }));
+    expect(next.torches).toBe(8);
+    expect(next.coins).toBe(0);
+  });
+
+  it("is a no-op when already at the cap or broke", () => {
+    const atCap = buyMaxTorches(makeResources({ coins: 5, torches: 10 }));
+    expect(atCap).toEqual(makeResources({ coins: 5, torches: 10 }));
+
+    const broke = buyMaxTorches(makeResources({ coins: 0, torches: 5 }));
+    expect(broke).toEqual(makeResources({ coins: 0, torches: 5 }));
   });
 });
 
@@ -436,6 +460,28 @@ describe("canBuyProvision / buyProvision", () => {
 
     const capped = buyProvision(makeResources({ coins: 2, provisions: 20 }));
     expect(capped.provisions).toBe(20);
+  });
+});
+
+describe("buyMaxProvisions", () => {
+  it("fills up to the cap when coins are plentiful", () => {
+    const next = buyMaxProvisions(makeResources({ coins: 30, provisions: 10 }));
+    expect(next.provisions).toBe(20);
+    expect(next.coins).toBe(20);
+  });
+
+  it("spends only as many coins as available when coin-limited", () => {
+    const next = buyMaxProvisions(makeResources({ coins: 3, provisions: 10 }));
+    expect(next.provisions).toBe(13);
+    expect(next.coins).toBe(0);
+  });
+
+  it("is a no-op when already at the cap or broke", () => {
+    const atCap = buyMaxProvisions(makeResources({ coins: 5, provisions: 20 }));
+    expect(atCap).toEqual(makeResources({ coins: 5, provisions: 20 }));
+
+    const broke = buyMaxProvisions(makeResources({ coins: 0, provisions: 10 }));
+    expect(broke).toEqual(makeResources({ coins: 0, provisions: 10 }));
   });
 });
 

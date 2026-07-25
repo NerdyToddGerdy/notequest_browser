@@ -264,6 +264,13 @@ export function buyTorch(resources: AdventurerResources): AdventurerResources {
   };
 }
 
+/** Issue #90: fills up to whichever is the real limiting factor -- the MAX_TORCHES cap or the
+ * player's own coin purse -- in one call, spending min(coins, room left before cap) coins. */
+export function buyMaxTorches(resources: AdventurerResources): AdventurerResources {
+  const bought = Math.max(0, Math.min(resources.coins, MAX_TORCHES - resources.torches));
+  return { ...resources, coins: resources.coins - bought, torches: resources.torches + bought };
+}
+
 /** "Sell Items: Sell any item in any city for [its worth in] coins." Each HeldItem already
  * carries the sale price it was found with (e.g. "Ornament, worth 5 Coins in the town").
  * `isCatPerson`: "You can sell equipment in the town for twice the price." */
@@ -358,6 +365,13 @@ export function buyProvision(resources: AdventurerResources): AdventurerResource
     coins: resources.coins - 1,
     provisions: Math.min(resources.provisions + 1, MAX_PROVISIONS),
   };
+}
+
+/** Issue #90: `buyMaxTorches()`'s sibling for Provisions -- spends min(coins, room left before
+ * MAX_PROVISIONS) coins in one call. */
+export function buyMaxProvisions(resources: AdventurerResources): AdventurerResources {
+  const bought = Math.max(0, Math.min(resources.coins, MAX_PROVISIONS - resources.provisions));
+  return { ...resources, coins: resources.coins - bought, provisions: resources.provisions + bought };
 }
 
 /** "Every day of travel consumes 1 Provision ... If you run out of provisions and have to move,

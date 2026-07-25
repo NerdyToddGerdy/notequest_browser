@@ -17,6 +17,8 @@ import {
   buyElvenBoots,
   buyLamp,
   buyOrcGladio,
+  buyMaxProvisions,
+  buyMaxTorches,
   buyProvision,
   buyTorch,
   canBrewHealthPotion,
@@ -572,6 +574,20 @@ export function TownScreen({
                       <button
                         className={styles.actionBtn}
                         type="button"
+                        disabled={!canBuyTorch(resources)}
+                        onClick={() => onUpdateResources(buyMaxTorches(resources))}
+                      >
+                        <span className={styles.actionName}>Buy Max Torches</span>
+                        <span className={styles.actionCost}>1 coin each</span>
+                        <span className={styles.actionDesc}>
+                          Fill up to 10 torches, coin purse allowing.
+                        </span>
+                      </button>
+                    )}
+                    {activeActionTab === "shop" && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
                         disabled={!canBuyProvision(resources)}
                         onClick={() => onUpdateResources(buyProvision(resources))}
                       >
@@ -579,6 +595,20 @@ export function TownScreen({
                         <span className={styles.actionCost}>1 coin</span>
                         <span className={styles.actionDesc}>
                           +1 provision, up to a maximum of 20 carried.
+                        </span>
+                      </button>
+                    )}
+                    {activeActionTab === "shop" && (
+                      <button
+                        className={styles.actionBtn}
+                        type="button"
+                        disabled={!canBuyProvision(resources)}
+                        onClick={() => onUpdateResources(buyMaxProvisions(resources))}
+                      >
+                        <span className={styles.actionName}>Buy Max Provisions</span>
+                        <span className={styles.actionCost}>1 coin each</span>
+                        <span className={styles.actionDesc}>
+                          Fill up to 20 provisions, coin purse allowing.
                         </span>
                       </button>
                     )}
