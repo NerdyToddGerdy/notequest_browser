@@ -60,9 +60,23 @@ import { Footer } from "../../components/Footer/Footer.tsx";
 import styles from "./TownScreen.module.css";
 
 /** City Actions tabs (issue #76) -- see the `activeActionTab` state's own doc comment for the
- * grouping rationale. */
-type ActionTab = "tavern" | "shop" | "jobBoard" | "underground";
+ * grouping rationale. Issue #88 extended the same mechanism to the City Square content that used
+ * to sit in its own always-rendered, stacked sections below (Advanced Classes/Hireling/Animals/
+ * Buildings) -- see `allTabs` below for how those four are conditionally appended. */
+type ActionTab =
+  | "tavern"
+  | "shop"
+  | "jobBoard"
+  | "underground"
+  | "advancedClasses"
+  | "hireling"
+  | "animals"
+  | "buildings";
 
+/** The 4 original City Actions tabs -- always present, unlike the 4 issue #88 appended (some of
+ * which are conditional on the current hex/character, see `allTabs`). Also used to decide whether
+ * to render the button-grid area (`.actionGrid`) and its own `.sellNote`, since those only apply
+ * to this original group. */
 const ACTION_TABS: { key: ActionTab; label: string }[] = [
   { key: "tavern", label: "Tavern" },
   { key: "shop", label: "Shop" },
@@ -321,6 +335,29 @@ export function TownScreen({
   // position in the world," alongside Ask/Hire Boat/the Culture Action, rather than Underground,
   // since none of them are the illicit/risky kind that group is themed around.
   const [activeActionTab, setActiveActionTab] = useState<ActionTab>("tavern");
+  // Issue #88: Advanced Classes is always present (matching its own previously-unconditional
+  // section rendering); Hireling/Animals/Buildings are appended only when there's actually a
+  // roster/a buyable mount/an owned building here, matching each one's own previous
+  // `{... > 0 && (...)}` gate exactly -- just moved from "is this section rendered at all" to
+  // "is this tab in the list at all".
+  const allTabs: { key: ActionTab; label: string }[] = [
+    ...ACTION_TABS,
+    { key: "advancedClasses", label: "Advanced Classes" },
+    ...(hirelingRoster.length > 0 ? [{ key: "hireling" as const, label: "Hireling" }] : []),
+    // Issue #85 stripped the ownership list out of Animals -- it's Town-only "Buy a Mount" UI now,
+    // so (unlike before) it renders nothing at all with no buyable mounts here, and its tab is
+    // gated the same way Hireling/Buildings' already are, rather than always being present.
+    ...(buyableMounts.length > 0 ? [{ key: "animals" as const, label: "Animals" }] : []),
+    ...(resources.buildings.length > 0 ? [{ key: "buildings" as const, label: "Buildings" }] : []),
+  ];
+  // Adjusting state during render (same pattern CharacterCreationScreen's own spellsResetFor
+  // already uses) rather than an effect -- if the previously-active tab disappeared (e.g. the
+  // player traveled to a hex with no Hireling roster while that tab was open), fall back to the
+  // default rather than rendering nothing with no tab visually selected.
+  if (!allTabs.some((tab) => tab.key === activeActionTab)) {
+    setActiveActionTab("tavern");
+  }
+  const isOriginalActionTab = ACTION_TABS.some((tab) => tab.key === activeActionTab);
 
   function describeArenaRound(result: ArenaRoundResult, championName: string): string {
     if (result.events.some((e) => e.kind === "explosive")) {
@@ -477,9 +514,9 @@ export function TownScreen({
                 </section>
               ) : (
                 <section className={styles.actions}>
-                  <h2 className={styles.trackTitle}>City Actions</h2>
+                  <h2 className={styles.trackTitle}>City Square</h2>
                   <div className={styles.actionTabs}>
-                    {ACTION_TABS.map((tab) => (
+                    {allTabs.map((tab) => (
                       <button
                         key={tab.key}
                         type="button"
@@ -490,6 +527,8 @@ export function TownScreen({
                       </button>
                     ))}
                   </div>
+                  {isOriginalActionTab && (
+                  <>
                   <div className={styles.actionGrid}>
                     {activeActionTab === "tavern" && (
                       <button
@@ -697,6 +736,32 @@ export function TownScreen({
                       : "1 coin"}
                     .
                   </p>
+                  </>
+                  )}
+
+                  {activeActionTab === "advancedClasses" && (
+                    <AdvancedClasses
+                      character={character}
+                      resources={resources}
+                      graveyard={graveyard}
+                      onAcquire={handleAcquireAdvancedClass}
+                    />
+                  )}
+
+                  {activeActionTab === "hireling" && (
+                    <Hireling
+                      hireling={resources.hireling}
+                      roster={hirelingRoster}
+                      canHire={(name) => canHireHireling(resources, name, culture, isFortress)}
+                      onHire={handleHireHireling}
+                    />
+                  )}
+
+                  {activeActionTab === "animals" && (
+                    <Animals buyableMounts={buyableMounts} resources={resources} onBuyMount={onBuyMount} />
+                  )}
+
+                  {activeActionTab === "buildings" && <Buildings buildings={resources.buildings} />}
                 </section>
               )}
 
@@ -736,41 +801,6 @@ export function TownScreen({
                   )}
                 </div>
               </section>
-
-              <section className={styles.adventureSection}>
-                <AdvancedClasses
-                  character={character}
-                  resources={resources}
-                  graveyard={graveyard}
-                  onAcquire={handleAcquireAdvancedClass}
-                />
-              </section>
-
-              {hirelingRoster.length > 0 && (
-                <section className={styles.adventureSection}>
-                  <Hireling
-                    hireling={resources.hireling}
-                    roster={hirelingRoster}
-                    canHire={(name) => canHireHireling(resources, name, culture, isFortress)}
-                    onHire={handleHireHireling}
-                  />
-                </section>
-              )}
-
-              <section className={styles.adventureSection}>
-                <Animals
-                  animals={resources.animals}
-                  buyableMounts={buyableMounts}
-                  resources={resources}
-                  onBuyMount={onBuyMount}
-                />
-              </section>
-
-              {resources.buildings.length > 0 && (
-                <section className={styles.adventureSection}>
-                  <Buildings buildings={resources.buildings} />
-                </section>
-              )}
             </div>
           </main>
         </div>

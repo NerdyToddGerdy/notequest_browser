@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-07-25
+
+### Changed
+
+- Removed the redundant "My Animals" list -- current animals are
+  already shown on the Adventurer card. The Animals tab in Town
+  Square is now just "Buy a Mount," and only appears where one is
+  actually buyable (#85).
+
+## [2.33.0] - 2026-07-25
+
+### Changed
+
+- Advanced Classes, Hireling, Animals, and Buildings are now tabs
+  in Town Square's City Square area instead of separate sections
+  stacked below it, cutting scroll length and fixing "Hire a
+  Hireling" reading as grouped with the Tavern tab (#88).
+
 ## [2.32.0] - 2026-07-24
 
 ### Added

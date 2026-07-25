@@ -21,24 +21,6 @@
   padding-bottom: 8px;
 }
 
-.empty {
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-  margin: 0;
-}
-
-.subheading {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin: 10px 0 4px;
-}
-
 .list {
   list-style: none;
   margin: 0;
@@ -61,15 +43,6 @@
   font-family: var(--font-body);
   font-size: 0.85rem;
   color: var(--ink);
-}
-
-.hp {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 0.78rem;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .buyBtn {
