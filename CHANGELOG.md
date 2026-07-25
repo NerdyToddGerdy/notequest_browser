@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-07-24
+
+### Added
+
+- Cargo Ogre now actually raises your Pack capacity to 40 items
+  while employed, instead of the usual 10 (#63).
+- Goblin Helper can now be detonated mid-fight, dealing 5 damage to
+  every monster in the room -- a one-time ability that destroys the
+  Hireling in the process (#63).
+
 ## [2.31.0] - 2026-07-24
 
 ### Added

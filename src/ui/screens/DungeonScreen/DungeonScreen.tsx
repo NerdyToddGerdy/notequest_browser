@@ -16,7 +16,7 @@ function reduceDungeon(state: DungeonState, action: DungeonAction): DungeonState
   return dungeonReducer(state, action);
 }
 import { rollDie } from "../../../engine/dice.ts";
-import type { AdventurerResources } from "../../../engine/town.ts";
+import { maxHeldItemsFor, type AdventurerResources } from "../../../engine/town.ts";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import { Die } from "../../components/Die/Die.tsx";
 import { DicePool } from "../../components/DicePool/DicePool.tsx";
@@ -497,6 +497,7 @@ export function DungeonScreen({
                           onHirelingAttack={(targetId, roll) =>
                             dispatch({ type: "HIRELING_ATTACK", targetId, roll })
                           }
+                          onHirelingExplode={() => dispatch({ type: "HIRELING_EXPLODE" })}
                         />
                       )}
                     </div>
@@ -618,6 +619,7 @@ export function DungeonScreen({
             pendingItem={state.pendingPackItem}
             onDiscard={(index) => dispatch({ type: "DISCARD_ITEM", index })}
             onResolveSwap={(discardIndex) => dispatch({ type: "RESOLVE_PACK_SWAP", discardIndex })}
+            maxItems={maxHeldItemsFor(state.hireling)}
           />
 
           {hasDungeon && (

@@ -8,16 +8,27 @@ export interface PackProps {
   onSell?: (index: number) => void;
   /** Free discard, available anywhere -- renders a Discard button per row (issue #82). */
   onDiscard?: (index: number) => void;
-  /** An item that didn't fit when the Pack was already at MAX_HELD_ITEMS (issue #82, dungeon-only --
+  /** An item that didn't fit when the Pack was already at `maxItems` (issue #82, dungeon-only --
    * only OPEN_TREASURE/COLLECT_REMAINS can ever trigger this). */
   pendingItem?: HeldItem | null;
   /** Resolves the swap prompt: a number discards that existing row to make room for the incoming
    * item; "decline" leaves the incoming item behind for good. */
   onResolveSwap?: (discardIndex: number | "decline") => void;
+  /** The Pack's current capacity -- `MAX_HELD_ITEMS` (10) normally, or 40 with a Cargo Ogre
+   * employed (issue #63, `town.ts`'s `maxHeldItemsFor()`). Callers compute this from whichever
+   * Hireling is currently employed rather than Pack importing the raw constant itself. */
+  maxItems?: number;
 }
 
 /** Coin-valued items found by opening Treasures -- held until there's a town to sell them in. */
-export function Pack({ items, onSell, onDiscard, pendingItem = null, onResolveSwap }: PackProps) {
+export function Pack({
+  items,
+  onSell,
+  onDiscard,
+  pendingItem = null,
+  onResolveSwap,
+  maxItems = MAX_HELD_ITEMS,
+}: PackProps) {
   if (items.length === 0 && !pendingItem) return null;
 
   const totalWorth = items.reduce((sum, item) => sum + item.worth, 0);
@@ -30,7 +41,7 @@ export function Pack({ items, onSell, onDiscard, pendingItem = null, onResolveSw
         {onSell
           ? `Worth ${totalWorth} coins total.`
           : `Worth ${totalWorth} coins once there's a town to sell them in.`}{" "}
-        ({items.length}/{MAX_HELD_ITEMS})
+        ({items.length}/{maxItems})
       </p>
 
       {swapping && (

@@ -3868,6 +3868,61 @@ describe("Pack cap / pendingPackItem (issue #82)", () => {
   });
 });
 
+describe("Cargo Ogre raises the Pack cap to 40 (issue #63)", () => {
+  const tenItems = Array.from({ length: 10 }, (_, i) => ({ name: `Item ${i}`, worth: 1 }));
+
+  it("OPEN_TREASURE still pushes normally past the usual 10-item cap with Cargo Ogre employed", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      heldItems: tenItems, // already at the usual cap
+      hireling: "Cargo Ogre",
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(next.heldItems).toHaveLength(11);
+    expect(next.pendingPackItem).toBeNull();
+  });
+
+  it("OPEN_TREASURE still pends once Cargo Ogre's own 40-item cap is reached", () => {
+    const fortyItems = Array.from({ length: 40 }, (_, i) => ({ name: `Item ${i}`, worth: 1 }));
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      heldItems: fortyItems,
+      hireling: "Cargo Ogre",
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(next.heldItems).toEqual(fortyItems); // untouched
+    expect(next.pendingPackItem).toEqual({ name: "Ornament", worth: 5 });
+  });
+
+  it("COLLECT_REMAINS uses the raised cap too", () => {
+    const room = makeSegment({
+      id: 1,
+      type: "room-small",
+      doors: [],
+      remains: {
+        names: ["Doomed Dara"],
+        coins: 0,
+        treasures: 0,
+        keys: 0,
+        heldItems: [{ name: "A", worth: 1 }],
+        armor: [],
+        weapon: null,
+        weapons: [],
+        spareArmor: [],
+      },
+    });
+    const level = { ...makeLevel(1), segments: [room] };
+    const state = { ...stateWithLevel(level), heldItems: tenItems, hireling: "Cargo Ogre" };
+    const next = dungeonReducer(state, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(next.heldItems).toHaveLength(11);
+    expect(next.pendingPackItem).toBeNull();
+  });
+});
+
 describe("RESOLVE_PACK_SWAP (issue #82)", () => {
   function stateWithPending(): DungeonState {
     return {

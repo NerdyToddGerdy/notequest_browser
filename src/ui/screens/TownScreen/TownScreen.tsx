@@ -43,6 +43,7 @@ import {
   wieldWeapon,
   wieldArmor,
   discardItem,
+  maxHeldItemsFor,
   type AdventurerResources,
   type ThugLifeResult,
 } from "../../../engine/town.ts";
@@ -809,6 +810,7 @@ export function TownScreen({
             items={resources.heldItems}
             onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson))}
             onDiscard={(index) => onUpdateResources(discardItem(resources, index))}
+            maxItems={maxHeldItemsFor(resources.hireling)}
           />
         </aside>
       </div>

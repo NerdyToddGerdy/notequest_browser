@@ -68,7 +68,7 @@ import {
   type LevelState,
   type SegmentState,
 } from "./dungeonState.ts";
-import { createInitialMilestones, MAX_HELD_ITEMS } from "./town.ts";
+import { createInitialMilestones, maxHeldItemsFor } from "./town.ts";
 import type { RNG } from "./rng.ts";
 
 function bumpStatsForNewSegment(
@@ -886,11 +886,12 @@ function addArmorPieces(draft: Draft<DungeonState>, pieces: ArmorPiece[]): void 
 }
 
 /** Issue #82: the single chokepoint `OPEN_TREASURE`'s `heldValue`/`heldValueRoll` cases funnel
- * through -- pushes normally, or (Pack already at `MAX_HELD_ITEMS`) sets `pendingPackItem`
- * instead, blocking every other action until RESOLVE_PACK_SWAP settles it. `foundText` is still
- * logged either way (the item was still found), with a note appended when it doesn't fit yet. */
+ * through -- pushes normally, or (Pack already at `maxHeldItemsFor(draft.hireling)`, 40 instead of
+ * the usual 10 with a Cargo Ogre employed -- issue #63) sets `pendingPackItem` instead, blocking
+ * every other action until RESOLVE_PACK_SWAP settles it. `foundText` is still logged either way
+ * (the item was still found), with a note appended when it doesn't fit yet. */
 function addHeldItem(draft: Draft<DungeonState>, item: HeldItem, foundText: string): void {
-  if (draft.heldItems.length >= MAX_HELD_ITEMS) {
+  if (draft.heldItems.length >= maxHeldItemsFor(draft.hireling)) {
     draft.pendingPackItem = item;
     pushLog(draft, `${foundText} Your Pack is full -- choose what to do.`);
   } else {
@@ -1349,7 +1350,7 @@ export function dungeonReducer(
         // heldItems -- take as many as currently fit, first-overflow becomes pendingPackItem, and
         // anything past that stays behind in a shrunken remains (nothing is ever silently lost;
         // collecting again later, once there's room, picks up the next one the same way).
-        const room = Math.max(0, MAX_HELD_ITEMS - draft.heldItems.length);
+        const room = Math.max(0, maxHeldItemsFor(draft.hireling) - draft.heldItems.length);
         const fitting = heldItems.slice(0, room);
         const overflow = heldItems.slice(room);
         draft.heldItems.push(...fitting);
@@ -2014,6 +2015,43 @@ export function dungeonReducer(
         }
         // In case the Hireling's own blow was the finishing one -- this action never calls
         // applyMonsterTurn(), but a won fight still needs to resolve Loot/close out combat.
+        finishIfVictorious(draft, combat, rng);
+      });
+    }
+
+    case "HIRELING_EXPLODE": {
+      // Only Goblin Helper has this ability -- matched by name, same "no formal taxonomy"
+      // precedent every other named-ability check in this file already uses.
+      if (
+        !state.alive ||
+        !state.combat ||
+        state.combat.outcome !== "ongoing" ||
+        state.combat.pendingDamage !== null ||
+        state.combat.hireling?.name !== "Goblin Helper" ||
+        state.combat.hireling.hp <= 0
+      ) {
+        return state;
+      }
+      return produce(state, (draft) => {
+        const combat = draft.combat;
+        if (!combat || combat.hireling?.name !== "Goblin Helper") return;
+        pushLog(draft, "Goblin Helper explodes!");
+        // Same room-wide "fixed damage, Stoneskin/Intangible defense applies" shape Fireball/
+        // Insect Rain already use -- spread into a snapshot since handleMonsterDefeat mutates
+        // combat.monsters by filtering as it goes.
+        for (const monster of [...combat.monsters]) {
+          const result = resolveSpellDamage(monster, 5);
+          monster.hp = Math.max(0, monster.hp - result.damageDealt);
+          if (result.blocked) {
+            pushLog(draft, `${monster.name} is unharmed (${result.blocked}).`);
+          } else if (result.damageDealt > 0) {
+            pushLog(draft, `${monster.name} takes ${result.damageDealt} damage.`);
+          }
+          handleMonsterDefeat(draft, combat, monster, rng);
+        }
+        // A genuine self-destruct -- gone for good, not just this fight's own copy.
+        combat.hireling = null;
+        draft.hireling = null;
         finishIfVictorious(draft, combat, rng);
       });
     }

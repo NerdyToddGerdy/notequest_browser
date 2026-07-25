@@ -95,6 +95,24 @@ function stateWithHireling(
   };
 }
 
+/** A state with combat underway and a "Goblin Helper" (1 HP, no weaponFormula) employed --
+ * issue #63. */
+function stateWithGoblinHelper(
+  hirelingOverrides: Partial<{ hp: number; maxHp: number }> = {},
+  monsters: CombatMonsterState[] = [makeMonster()],
+  dungeonOverrides: Partial<DungeonState> = {},
+): DungeonState {
+  const base = stateWithCombat(dungeonOverrides, monsters);
+  return {
+    ...base,
+    hireling: "Goblin Helper",
+    combat: {
+      ...base.combat!,
+      hireling: { name: "Goblin Helper", hp: 1, maxHp: 1, ...hirelingOverrides },
+    },
+  };
+}
+
 describe("combat auto-start on OPEN_DOOR", () => {
   function twoDoorEntranceState(): DungeonState {
     const entrance = makeSegment({
@@ -1999,5 +2017,82 @@ describe("RESOLVE_DAMAGE with absorbWith: \"hireling\" (issue #84)", () => {
     const next = dungeonReducer(state, { type: "RESOLVE_DAMAGE", absorbWith: "hireling" });
     expect(next.combat!.pendingDamage).toBeNull();
     expect(next.hp).toBe(next.maxHp);
+  });
+});
+
+describe("HIRELING_EXPLODE (issue #63)", () => {
+  it("deals 5 damage to every monster in the fight and self-destructs the Goblin Helper", () => {
+    const monsters = [
+      makeMonster({ id: 1, hp: 10, damage: 0 }),
+      makeMonster({ id: 2, hp: 3, damage: 0 }),
+    ];
+    const state = stateWithGoblinHelper({}, monsters);
+    const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" });
+    expect(next.combat!.monsters).toHaveLength(1); // the 3-HP one died
+    expect(next.combat!.monsters[0]).toMatchObject({ id: 1, hp: 5 });
+    expect(next.combat!.hireling).toBeNull();
+    expect(next.hireling).toBeNull();
+    expect(next.log.some((e) => e.message.includes("explodes"))).toBe(true);
+  });
+
+  it("finishes the fight if the explosion kills every monster", () => {
+    const monster = makeMonster({ hp: 5, damage: 0 });
+    const state = stateWithGoblinHelper({}, [monster]);
+    const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" }, fixedDie(1));
+    expect(next.combat).toBeNull();
+    expect(next.log.some((e) => e.message.includes("victorious"))).toBe(true);
+  });
+
+  it("is a free action -- no monster counter-attack fires by itself", () => {
+    const monster = makeMonster({ hp: 20, damage: 4 });
+    const state = stateWithGoblinHelper({}, [monster]);
+    const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" });
+    expect(next.hp).toBe(next.maxHp);
+  });
+
+  describe("gating", () => {
+    it("no-op for any Hireling other than Goblin Helper", () => {
+      const monster = makeMonster();
+      const state = stateWithHireling({}, [monster]); // Mercenary
+      const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" });
+      expect(next).toBe(state);
+    });
+
+    it("no-op with no Hireling employed", () => {
+      const monster = makeMonster();
+      const state = stateWithCombat({}, [monster]);
+      const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once the Goblin Helper has already died", () => {
+      const monster = makeMonster();
+      const state = stateWithGoblinHelper({ hp: 0 }, [monster]);
+      const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" });
+      expect(next).toBe(state);
+    });
+
+    it("no-op while an armor-absorption choice is pending", () => {
+      const monster = makeMonster();
+      const state = stateWithGoblinHelper({}, [monster]);
+      state.combat!.pendingDamage = 5;
+      const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once the character is dead", () => {
+      const monster = makeMonster();
+      const state = { ...stateWithGoblinHelper({}, [monster]), alive: false };
+      const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once the fight is no longer ongoing", () => {
+      const monster = makeMonster();
+      const state = stateWithGoblinHelper({}, [monster]);
+      state.combat!.outcome = "victory";
+      const next = dungeonReducer(state, { type: "HIRELING_EXPLODE" });
+      expect(next).toBe(state);
+    });
   });
 });

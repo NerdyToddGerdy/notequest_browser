@@ -44,6 +44,9 @@ export interface CombatPanelProps {
   /** Issue #84: an employed Hireling's own attack -- a free action that doesn't end the round,
    * dispatched separately from onAttack. */
   onHirelingAttack: (targetId: number, roll: number) => void;
+  /** Issue #63: Goblin Helper's own "explode, dealing 5 damage to every monster" -- a one-time,
+   * room-wide, free action that self-destructs the Hireling. */
+  onHirelingExplode: () => void;
 }
 
 const HORN_FORMULA = "1d6";
@@ -121,6 +124,7 @@ export function CombatPanel({
   onResolveDamage,
   onEngulfBody,
   onHirelingAttack,
+  onHirelingExplode,
 }: CombatPanelProps) {
   const [dieValue, setDieValue] = useState(1);
   const [rollToken, setRollToken] = useState(0);
@@ -153,6 +157,16 @@ export function CombatPanel({
     combat.hireling.hp > 0 &&
     !combat.hirelingAttackedThisRound &&
     !!hirelingWeaponFormula;
+  // Issue #63: Goblin Helper's own explode -- fixed damage, no die roll needed, so this doesn't
+  // share hirelingCanAct's weaponFormula requirement (Goblin Helper has none) or the once-per-
+  // round cap (it only ever fires once, period -- the Hireling is gone afterward).
+  const canExplode =
+    !rolling &&
+    !awaitingDamageChoice &&
+    !hasPendingPackItem &&
+    hp > 0 &&
+    combat.hireling?.name === "Goblin Helper" &&
+    combat.hireling.hp > 0;
   // Only spells `KNOWN_CASTABLE_SPELL_NAMES` actually has a real CAST_SPELL case for render a
   // button at all -- see that set's own doc comment (combat.ts). Matched by name, not (table,
   // roll), so Elemental's Cold Ray/Lightning/Fireball reuse the same button/handler as Basic's.
@@ -339,6 +353,20 @@ export function CombatPanel({
             onClick={onEngulfBody}
           >
             Engulf Body ({combat.engulfableBodies})
+          </button>
+        </div>
+      )}
+
+      {combat.hireling?.name === "Goblin Helper" && combat.hireling.hp > 0 && (
+        <div className={styles.spellRow}>
+          <button
+            type="button"
+            className={styles.spellBtn}
+            disabled={!canExplode}
+            title="Goblin Helper detonates, dealing 5 damage to every monster -- then it's gone for good."
+            onClick={onHirelingExplode}
+          >
+            Goblin Helper Explodes
           </button>
         </div>
       )}

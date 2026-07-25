@@ -178,6 +178,14 @@ export const MAX_PROVISIONS = 20;
  * `MAX_TORCHES`, previously never enforced anywhere. */
 export const MAX_HELD_ITEMS = 10;
 
+/** Cargo Ogre (Hireling, issue #63): "Can carry 40 items (return it to you at the end)" -- raises
+ * the Pack cap for as long as it's employed, reverting the moment the trip ends (`hireling`'s own
+ * per-trip expiry already handles the "return it to you at the end" half automatically, since
+ * `resources.hireling`/`DungeonState.hireling` are never carried past one dungeon trip). */
+export function maxHeldItemsFor(hireling: string | null): number {
+  return hireling === "Cargo Ogre" ? 40 : MAX_HELD_ITEMS;
+}
+
 /** Resting only helps if it would actually recover something -- full HP and every spell already
  * at its max uses means the coin buys nothing. `isChampion`: Advanced Class Champion's "You don't
  * need to spend money to recover" waives the coin cost entirely, same optional-flag shape as

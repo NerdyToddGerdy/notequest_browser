@@ -549,6 +549,12 @@ export type DungeonAction =
    * (against the Hireling's own `weaponFormula`), same "client rolls for the animation, the reducer
    * re-derives the real modifier/total" split `PLAYER_ATTACK` already uses. */
   | { type: "HIRELING_ATTACK"; targetId: number; roll: number }
+  /** Issue #63: Goblin Helper's own "It can explode at any time, dealing 5 damage" -- a genuine
+   * one-time detonation (unlike the repeatable HIRELING_ATTACK above), dealing 5 damage to every
+   * monster in the fight (near-identical wording to the Goblin race's own "explode, dealing 5
+   * damage to everyone in the room") and self-destructing the Hireling for good. Free, doesn't end
+   * the round, same shape HIRELING_ATTACK already established. */
+  | { type: "HIRELING_EXPLODE" }
   /** `destLevel`/`destSegId`: required for Teleport (basic table, spellRoll 3) -- the
    * already-discovered, empty room the player chose to reappear in (see `isTeleportDestination`).
    * Unused by every other spell. `table` distinguishes which New Spells table (issue #24)
