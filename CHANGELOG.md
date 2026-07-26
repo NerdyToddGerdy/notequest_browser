@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.35.1] - 2026-07-26
+
+### Changed
+
+- Condensed `CLAUDE.md` to stay under the editor's 150k-character
+  limit -- consolidated recurring per-feature justifications into a
+  single reference list instead of restating them inline throughout.
+  No app behavior change.
+
 ## [2.35.0] - 2026-07-25
 
 ### Added
