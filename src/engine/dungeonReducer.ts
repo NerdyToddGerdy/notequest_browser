@@ -1816,6 +1816,32 @@ export function dungeonReducer(
         const monster = combat.monsters.find((m) => m.id === action.targetId);
         if (!monster) return;
 
+        // Goblin (New Races, issue #60): "If you roll 1 on the damage die, you explode. Dealing 5
+        // damage to everyone in the room." Confirmed with the user: monsters only, the Goblin
+        // themselves isn't harmed -- mirroring the Hireling Goblin Helper's own explosion (#84,
+        // `HIRELING_EXPLODE`) rather than the Explosive monster ability's player-facing precedent.
+        // Replaces the normal single-target attack entirely for this roll, reusing the identical
+        // room-wide "fixed damage, Stoneskin/Intangible defense applies" shape Fireball/Insect
+        // Rain/Goblin Helper's own explosion already use.
+        if (draft.raceName === "Goblin" && action.roll === 1) {
+          pushLog(draft, "You roll a 1 and explode, dealing 5 damage to everyone in the room!");
+          for (const m of [...combat.monsters]) {
+            const result = resolveSpellDamage(m, 5);
+            m.hp = Math.max(0, m.hp - result.damageDealt);
+            if (result.blocked) {
+              pushLog(draft, `${m.name} is unharmed (${result.blocked}).`);
+            } else if (result.damageDealt > 0) {
+              pushLog(draft, `${m.name} takes ${result.damageDealt} damage.`);
+            }
+            handleMonsterDefeat(draft, combat, m, rng);
+          }
+          finishIfVictorious(draft, combat, rng);
+          if (draft.combat && draft.combat.outcome === "ongoing") {
+            applyMonsterTurn(draft, draft.combat, rng);
+          }
+          return;
+        }
+
         const useHorn = action.useHorn === true && draft.raceName === "Rinoceroid";
         const weaponBonus = useHorn ? undefined : draft.weapon?.bonusEffect;
         if (weaponBonus?.kind === "instantKillOnRoll" && action.roll === weaponBonus.roll) {

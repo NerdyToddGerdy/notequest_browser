@@ -1774,6 +1774,58 @@ describe("Ogre (New Races, issue #22): +2 damage, unconditional", () => {
   });
 });
 
+describe("Goblin (New Races, issue #60): roll-of-1 self-destruct", () => {
+  it("deals 5 damage to every monster in the room instead of a normal single-target hit", () => {
+    const monsters = [
+      makeMonster({ id: 1, hp: 10, damage: 0 }),
+      makeMonster({ id: 2, hp: 3, damage: 0 }),
+    ];
+    const state = stateWithCombat({ raceName: "Goblin" }, monsters);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: 1, roll: 1 });
+    expect(next.combat!.monsters).toHaveLength(1); // the 3-HP one died
+    expect(next.combat!.monsters[0]).toMatchObject({ id: 1, hp: 5 });
+    expect(next.log.some((e) => e.message.includes("explode"))).toBe(true);
+  });
+
+  it("does not damage the Goblin themselves (confirmed with the user, unlike the Explosive monster ability)", () => {
+    const monster = makeMonster({ hp: 5, damage: 0 });
+    const state = stateWithCombat({ raceName: "Goblin", hp: 3 }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+    expect(next.hp).toBe(3);
+    expect(next.alive).toBe(true);
+  });
+
+  it("finishes the fight in victory if the explosion kills every monster", () => {
+    const monster = makeMonster({ hp: 5, damage: 0 });
+    const state = stateWithCombat({ raceName: "Goblin" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+    expect(next.combat).toBeNull();
+    expect(next.log.some((e) => e.message.includes("victorious"))).toBe(true);
+  });
+
+  it("still ends the round -- surviving monsters counter-attack normally", () => {
+    const monster = makeMonster({ hp: 20, damage: 4 });
+    const state = stateWithCombat({ raceName: "Goblin" }, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+    expect(next.hp).toBe(next.maxHp - 4);
+  });
+
+  it("a non-Goblin rolling a 1 gets a normal attack instead", () => {
+    const monster = makeMonster({ hp: 10, damage: 0 });
+    const state = stateWithCombat({}, [monster]);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 });
+    expect(next.combat!.monsters[0]!.hp).toBe(9); // ordinary 1-damage hit, no explosion
+  });
+
+  it("a Goblin rolling anything other than 1 attacks normally, single-target", () => {
+    const monsters = [makeMonster({ id: 1, hp: 10, damage: 0 }), makeMonster({ id: 2, hp: 10, damage: 0 })];
+    const state = stateWithCombat({ raceName: "Goblin" }, monsters);
+    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: 1, roll: 3 });
+    expect(next.combat!.monsters[0]!.hp).toBe(7); // only the targeted monster took damage
+    expect(next.combat!.monsters[1]!.hp).toBe(10);
+  });
+});
+
 describe("Cook: +1 coin per kill (except Undead)", () => {
   it("gains 1 coin when a non-Undead monster is killed", () => {
     const monster = makeMonster({ hp: 3, abilities: [] });

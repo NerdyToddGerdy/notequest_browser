@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.41.0] - 2026-07-26
+
+### Added
+
+- Goblin's race ability is now real: rolling a 1 on your damage die
+  makes you explode, dealing 5 damage to every monster in the room
+  instead of a normal single-target hit (confirmed with the user:
+  monsters only, not the Goblin themselves, mirroring the Hireling
+  Goblin Helper's own explosion) (part of #60).
+
 ## [2.40.0] - 2026-07-26
 
 ### Added

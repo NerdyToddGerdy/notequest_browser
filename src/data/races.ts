@@ -88,12 +88,14 @@ export const RACE_TABLE: Record<number, RaceDef> = {
  * Monstrous) -- those reuse the existing entry directly under this table's own 1d6 roll number,
  * rather than re-authoring identical data a second time.
  *
- * A few abilities here still reference systems this codebase doesn't have (a real
- * self-destruct-in-combat mechanic for Goblin, ambiguous besides on whether it also hurts the
- * Goblin; provisions existing inside a dungeon run at all, for Fungoid's "at any time" heal; an
- * armor/potion/scroll restriction system for Ogre) -- those resolve as flavor-only text for now,
- * the same "documented, deliberate simplification" precedent as `bladeTrap`'s roll-of-2 or
- * `WeaponEntry.twoHanded`, rather than inventing rules the rulebook doesn't fully specify.
+ * A couple of abilities here still reference systems this codebase doesn't have (provisions
+ * existing inside a dungeon run at all, for Fungoid's "at any time" heal; an armor/potion/scroll
+ * restriction system for Ogre) -- those resolve as flavor-only text for now, the same "documented,
+ * deliberate simplification" precedent as `bladeTrap`'s roll-of-2 or `WeaponEntry.twoHanded`,
+ * rather than inventing rules the rulebook doesn't fully specify. Goblin's own "roll 1, explode"
+ * ability was in that same bucket (ambiguous whether it also hurts the Goblin) until confirmed
+ * with the user (issue #60) -- monsters only, mirroring the Hireling Goblin Helper's own explosion
+ * (issue #84) -- see `dungeonReducer.ts`'s `PLAYER_ATTACK` case for the real implementation.
  * Pumpkinkin's "Vimes spell" and Corvino's "5 random Advanced Spells" were originally in that same
  * bucket, blocked on an Advanced/Nature Spells table not existing -- now real grants (`fixedSpell`/
  * `randomSpells`+`randomSpellsTable`) now that issue #24 built `NATURE_SPELL_TABLE`/
