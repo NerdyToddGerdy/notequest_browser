@@ -174,6 +174,9 @@ const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => 
     ctx.resources.buildings.some((b) => b.kind === "Fortress") &&
     ctx.resources.milestones.vassalCount >= 3,
   Knight: (ctx) => ctx.resources.advancedClasses.includes("Noble"),
+  // "Have survived two dungeons" -- see AdventurerResources.survivedRunIds for why this is a
+  // deduplicated runId list rather than a bare counter.
+  Miner: (ctx) => ctx.resources.survivedRunIds.length >= 2,
 };
 
 /** Whether this Advanced Class has a real requirement check at all -- every other entry in

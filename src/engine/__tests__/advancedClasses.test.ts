@@ -55,6 +55,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     troops: 0,
     troopSources: [],
     travelStats: createInitialTravelStats(),
+    survivedRunIds: [],
     ...overrides,
   };
 }
@@ -410,6 +411,13 @@ describe("meetsAdvancedClassRequirement", () => {
     ).toBe(false);
     expect(
       meetsAdvancedClassRequirement("Bard", makeCtx({ travelStats: { ...createInitialTravelStats(), citiesVisited: ["a", "b", "c"] } })),
+    ).toBe(true);
+  });
+
+  it("Miner: 2 distinct dungeon runs survived (a deduplicated-by-runId length check)", () => {
+    expect(meetsAdvancedClassRequirement("Miner", makeCtx({ survivedRunIds: ["a"] }))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Miner", makeCtx({ survivedRunIds: ["a", "b"] })),
     ).toBe(true);
   });
 

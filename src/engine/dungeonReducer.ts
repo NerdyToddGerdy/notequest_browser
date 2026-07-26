@@ -168,10 +168,12 @@ function spendTorches(
   rng: RNG = Math.random,
 ): boolean {
   if (draft.torches < cost) {
-    if (draft.className === "Miner") {
-      // "If you run out of torches, you can leave the dungeon" -- the Darkness spares a Miner
-      // outright rather than killing them; the action they were attempting still fails (they're
-      // still out of torches), but they're free to use the existing Retreat to Town button.
+    if (draft.className === "Miner" || draft.advancedClasses.includes("Miner")) {
+      // "If you run out of torches, you can leave the dungeon" -- the base Class and the Advanced
+      // Class (issue #62) share the identical ability text, same "two rulebook entries, one bonus"
+      // OR'd-condition precedent as Grave Digger/Gravedigger. The Darkness spares a Miner outright
+      // rather than killing them; the action they were attempting still fails (they're still out
+      // of torches), but they're free to use the existing Retreat to Town button.
       pushLog(
         draft,
         "You're out of torches, but a lifetime underground taught you the way out. Retreat to Town before the Darkness finds you.",

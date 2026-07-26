@@ -32,6 +32,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     troops: 0,
     troopSources: [],
     travelStats: createInitialTravelStats(),
+    survivedRunIds: [],
     ...overrides,
   };
 }

@@ -100,6 +100,7 @@ export default function App() {
       troops: 0,
       troopSources: [],
       travelStats: createInitialTravelStats(),
+      survivedRunIds: [],
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -202,6 +203,15 @@ export default function App() {
       // Travel stats (issue #72) aren't tracked on DungeonState at all (nothing inside a dungeon
       // run needs them) -- carried over untouched, same as provisions above.
       travelStats: prev?.travelStats ?? createInitialTravelStats(),
+      // Miner (issue #62): a live retreat -- whether voluntary or after beating the Boss -- counts
+      // as having survived this run, so long as a dungeon actually existed here (dungeon.levels.length
+      // > 0 excludes clicking "Back to Town" straight off the pre-roll screen). Deduplicated by
+      // runId so repeatedly retreating from (and re-entering) the very same still-unfinished run
+      // can't inflate this -- same reasoning as `travelStats.citiesVisited`'s own dedup.
+      survivedRunIds:
+        dungeon.levels.length > 0 && !(prev?.survivedRunIds ?? []).includes(runId)
+          ? [...(prev?.survivedRunIds ?? []), runId]
+          : (prev?.survivedRunIds ?? []),
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,

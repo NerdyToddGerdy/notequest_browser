@@ -1493,6 +1493,21 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.log[0]!.message).toContain("Retreat to Town");
   });
 
+  it("Miner (Advanced Class, issue #62): also spared from the Darkness, same as the base Class", () => {
+    const state = { ...doorState(0), advancedClasses: ["Miner"] };
+    const next = dungeonReducer(state, {
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 3,
+      trapRoll: null,
+      lockChoice: "pickLock",
+    });
+    expect(next.alive).toBe(true);
+    expect(next.torches).toBe(0);
+    expect(next.log[0]!.message).toContain("Retreat to Town");
+  });
+
   it("trap (roll 1) with no torch cost deals its flat damage instead", () => {
     const state = doorState(5);
     const next = dungeonReducer(state, {

@@ -83,6 +83,12 @@ export interface AdventurerResources {
    * (`WorldScreen.tsx`'s `handleTravel()`) or Town's Rest/Buy actions, nothing inside a dungeon
    * run needs to read it mid-fight. */
   travelStats: TravelStats;
+  /** Miner (Advanced Class, issue #62): distinct dungeon runs retreated-from-alive or beaten, by
+   * runId -- deduplicated the same way `TravelStats.citiesVisited` is, so retreating from (and
+   * re-entering) the same still-unfinished run over and over can't trivially inflate this the way
+   * a bare counter would. Not mirrored on `DungeonState`: it only ever changes in Town, at
+   * `App.tsx`'s `handleReturnToTown`, the same "World/Town-only" shape as `travelStats` above. */
+  survivedRunIds: string[];
 }
 
 /** Lifetime World-map travel counters (issue #72) -- bundled into one object for the same reason

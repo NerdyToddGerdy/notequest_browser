@@ -68,9 +68,9 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
       character: p.character ?? null,
       // advancedClasses (issue #23), hireling (issue #25), animals (issue #26), milestones
       // (issue #70), travelStats (issue #72), maxSpellUses (issue #75), buildings (issue #27),
-      // troops/troopSources (issue #28), and spareArmor (issue #82) all postdate this field --
-      // back-fill them for a session persisted before any of them existed, same "optional for
-      // back-compat" precedent as WorldState.bannedHexes.
+      // troops/troopSources (issue #28), spareArmor (issue #82), and survivedRunIds (issue #62)
+      // all postdate this field -- back-fill them for a session persisted before any of them
+      // existed, same "optional for back-compat" precedent as WorldState.bannedHexes.
       resources: p.resources
         ? {
             ...p.resources,
@@ -89,6 +89,7 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
             troops: p.resources.troops ?? 0,
             troopSources: p.resources.troopSources ?? [],
             spareArmor: p.resources.spareArmor ?? [],
+            survivedRunIds: p.resources.survivedRunIds ?? [],
           }
         : null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],

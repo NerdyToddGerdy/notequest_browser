@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.36.0] - 2026-07-26
+
+### Added
+
+- The Miner Advanced Class is now acquirable -- "survived two dungeons"
+  tracks distinct dungeon runs retreated-from-alive or beaten, so the
+  requirement can no longer be farmed by repeatedly leaving and
+  re-entering the same unfinished run. Acquiring it grants the
+  identical "leave the dungeon instead of dying to the Darkness"
+  ability the base Miner Class already had (#62).
+
 ## [2.35.1] - 2026-07-26
 
 ### Changed
