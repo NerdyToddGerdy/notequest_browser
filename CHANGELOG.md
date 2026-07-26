@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.39.0] - 2026-07-26
+
+### Added
+
+- Monkey now has a real ability: "it can carry an extra item" raises
+  the Pack's capacity by 1, stacking with Cargo Ogre's own raised cap
+  (41 total, not 40) rather than replacing it (part of #67).
+
 ## [2.38.0] - 2026-07-26
 
 ### Added

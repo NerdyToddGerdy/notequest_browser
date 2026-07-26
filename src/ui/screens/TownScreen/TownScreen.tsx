@@ -870,7 +870,7 @@ export function TownScreen({
             items={resources.heldItems}
             onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson))}
             onDiscard={(index) => onUpdateResources(discardItem(resources, index))}
-            maxItems={maxHeldItemsFor(resources.hireling)}
+            maxItems={maxHeldItemsFor(resources.hireling, resources.animals)}
           />
         </aside>
       </div>

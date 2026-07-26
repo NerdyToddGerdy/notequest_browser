@@ -619,7 +619,7 @@ export function DungeonScreen({
             pendingItem={state.pendingPackItem}
             onDiscard={(index) => dispatch({ type: "DISCARD_ITEM", index })}
             onResolveSwap={(discardIndex) => dispatch({ type: "RESOLVE_PACK_SWAP", discardIndex })}
-            maxItems={maxHeldItemsFor(state.hireling)}
+            maxItems={maxHeldItemsFor(state.hireling, state.animals)}
           />
 
           {hasDungeon && (

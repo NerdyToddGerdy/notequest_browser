@@ -187,9 +187,13 @@ export const MAX_HELD_ITEMS = 10;
 /** Cargo Ogre (Hireling, issue #63): "Can carry 40 items (return it to you at the end)" -- raises
  * the Pack cap for as long as it's employed, reverting the moment the trip ends (`hireling`'s own
  * per-trip expiry already handles the "return it to you at the end" half automatically, since
- * `resources.hireling`/`DungeonState.hireling` are never carried past one dungeon trip). */
-export function maxHeldItemsFor(hireling: string | null): number {
-  return hireling === "Cargo Ogre" ? 40 : MAX_HELD_ITEMS;
+ * `resources.hireling`/`DungeonState.hireling` are never carried past one dungeon trip). Monkey
+ * (Animals, issue #67): "It can carry an extra item" -- a flat +1 on top of whichever base cap
+ * applies, since Monkey persists permanently once acquired (unlike Hirelings) rather than
+ * replacing the base cap outright the way Cargo Ogre's own much larger number does. */
+export function maxHeldItemsFor(hireling: string | null, animals: string[] = []): number {
+  const base = hireling === "Cargo Ogre" ? 40 : MAX_HELD_ITEMS;
+  return animals.includes("Monkey") ? base + 1 : base;
 }
 
 /** Resting only helps if it would actually recover something -- full HP and every spell already

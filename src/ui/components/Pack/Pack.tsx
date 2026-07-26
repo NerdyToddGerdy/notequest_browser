@@ -14,9 +14,10 @@ export interface PackProps {
   /** Resolves the swap prompt: a number discards that existing row to make room for the incoming
    * item; "decline" leaves the incoming item behind for good. */
   onResolveSwap?: (discardIndex: number | "decline") => void;
-  /** The Pack's current capacity -- `MAX_HELD_ITEMS` (10) normally, or 40 with a Cargo Ogre
-   * employed (issue #63, `town.ts`'s `maxHeldItemsFor()`). Callers compute this from whichever
-   * Hireling is currently employed rather than Pack importing the raw constant itself. */
+  /** The Pack's current capacity -- `MAX_HELD_ITEMS` (10) normally, 40 with a Cargo Ogre employed
+   * (issue #63), +1 with a Monkey owned (issue #67) -- see `town.ts`'s `maxHeldItemsFor()`.
+   * Callers compute this from whichever Hireling/Animals are currently employed/owned rather than
+   * Pack importing the raw constant itself. */
   maxItems?: number;
 }
 

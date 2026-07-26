@@ -905,12 +905,13 @@ function addArmorPieces(draft: Draft<DungeonState>, pieces: ArmorPiece[]): void 
 }
 
 /** Issue #82: the single chokepoint `OPEN_TREASURE`'s `heldValue`/`heldValueRoll` cases funnel
- * through -- pushes normally, or (Pack already at `maxHeldItemsFor(draft.hireling)`, 40 instead of
- * the usual 10 with a Cargo Ogre employed -- issue #63) sets `pendingPackItem` instead, blocking
- * every other action until RESOLVE_PACK_SWAP settles it. `foundText` is still logged either way
- * (the item was still found), with a note appended when it doesn't fit yet. */
+ * through -- pushes normally, or (Pack already at `maxHeldItemsFor(draft.hireling, draft.animals)`,
+ * 40 instead of the usual 10 with a Cargo Ogre employed (#63), +1 with a Monkey owned (#67)) sets
+ * `pendingPackItem` instead, blocking every other action until RESOLVE_PACK_SWAP settles it.
+ * `foundText` is still logged either way (the item was still found), with a note appended when it
+ * doesn't fit yet. */
 function addHeldItem(draft: Draft<DungeonState>, item: HeldItem, foundText: string): void {
-  if (draft.heldItems.length >= maxHeldItemsFor(draft.hireling)) {
+  if (draft.heldItems.length >= maxHeldItemsFor(draft.hireling, draft.animals)) {
     draft.pendingPackItem = item;
     pushLog(draft, `${foundText} Your Pack is full -- choose what to do.`);
   } else {
@@ -1369,7 +1370,7 @@ export function dungeonReducer(
         // heldItems -- take as many as currently fit, first-overflow becomes pendingPackItem, and
         // anything past that stays behind in a shrunken remains (nothing is ever silently lost;
         // collecting again later, once there's room, picks up the next one the same way).
-        const room = Math.max(0, maxHeldItemsFor(draft.hireling) - draft.heldItems.length);
+        const room = Math.max(0, maxHeldItemsFor(draft.hireling, draft.animals) - draft.heldItems.length);
         const fitting = heldItems.slice(0, room);
         const overflow = heldItems.slice(room);
         draft.heldItems.push(...fitting);

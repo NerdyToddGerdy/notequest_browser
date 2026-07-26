@@ -4019,6 +4019,52 @@ describe("Cargo Ogre raises the Pack cap to 40 (issue #63)", () => {
   });
 });
 
+describe("Monkey raises the Pack cap by 1 (issue #67)", () => {
+  const tenItems = Array.from({ length: 10 }, (_, i) => ({ name: `Item ${i}`, worth: 1 }));
+
+  it("OPEN_TREASURE still pushes normally past the usual 10-item cap with a Monkey owned", () => {
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      heldItems: tenItems, // already at the usual cap
+      animals: ["Monkey"],
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(next.heldItems).toHaveLength(11);
+    expect(next.pendingPackItem).toBeNull();
+  });
+
+  it("OPEN_TREASURE still pends once the Monkey's own 11-item cap is reached", () => {
+    const elevenItems = Array.from({ length: 11 }, (_, i) => ({ name: `Item ${i}`, worth: 1 }));
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      heldItems: elevenItems,
+      animals: ["Monkey"],
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(next.heldItems).toEqual(elevenItems); // untouched
+    expect(next.pendingPackItem).toEqual({ name: "Ornament", worth: 5 });
+  });
+
+  it("stacks with Cargo Ogre's own raised cap (41 total, not 40)", () => {
+    const fortyItems = Array.from({ length: 40 }, (_, i) => ({ name: `Item ${i}`, worth: 1 }));
+    const state: DungeonState = {
+      ...stateWithLevel(makeLevel(1)),
+      dungeonTypeKey: "palace",
+      treasures: 1,
+      heldItems: fortyItems,
+      hireling: "Cargo Ogre",
+      animals: ["Monkey"],
+    };
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(next.heldItems).toHaveLength(41);
+    expect(next.pendingPackItem).toBeNull();
+  });
+});
+
 describe("RESOLVE_PACK_SWAP (issue #82)", () => {
   function stateWithPending(): DungeonState {
     return {
