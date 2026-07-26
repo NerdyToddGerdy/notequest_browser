@@ -159,6 +159,18 @@ function trySamambroSurvival(draft: Draft<DungeonState>, rng: RNG): boolean {
   return true;
 }
 
+/** Raven (Animals, issue #67): "If you die, roll a die. If it's 4 or more, you come back." Identical
+ * in shape to Samambro's race ability above -- same 7 death sites, checked immediately after
+ * trySamambroSurvival() at each so a character who somehow has both gets two independent chances
+ * rather than one shadowing the other. Only rolls with a Raven actually owned. */
+function tryRavenSurvival(draft: Draft<DungeonState>, rng: RNG): boolean {
+  if (!draft.animals.includes("Raven")) return false;
+  if (rollDie(rng) < 4) return false;
+  draft.hp = 1;
+  pushLog(draft, "Your Raven circles back with an omen -- you survive with 1 HP!");
+  return true;
+}
+
 /** Spends `cost` torches, logging `message`; if there aren't enough, the Darkness kills the character instead. */
 function spendTorches(
   draft: Draft<DungeonState>,
@@ -181,6 +193,7 @@ function spendTorches(
       return false;
     }
     if (trySamambroSurvival(draft, rng)) return false; // still out of torches, but alive
+    if (tryRavenSurvival(draft, rng)) return false; // still out of torches, but alive
     draft.alive = false;
     pushLog(draft, DARKNESS_MESSAGE, "descend");
     leaveRemains(draft, segId);
@@ -360,6 +373,7 @@ function applyTrapEffect(
     if (rollDie(rng) === 1) {
       draft.hp = 0;
       if (trySamambroSurvival(draft, rng)) return;
+      if (tryRavenSurvival(draft, rng)) return;
       draft.alive = false;
       draft.deathCause = "combat";
       pushLog(draft, "The blade finds its mark. The dungeon keeps what it took.", "descend");
@@ -375,6 +389,7 @@ function applyTrapEffect(
     pushLog(draft, `The trap deals ${trap.damage} damage.`);
     if (draft.hp <= 0) {
       if (trySamambroSurvival(draft, rng)) return;
+      if (tryRavenSurvival(draft, rng)) return;
       draft.alive = false;
       draft.deathCause = "combat";
       pushLog(draft, "The trap finishes you. The dungeon keeps what it took.", "descend");
@@ -588,6 +603,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
   if (deathtouchKill) {
     draft.hp = 0;
     if (trySamambroSurvival(draft, rng)) return;
+    if (tryRavenSurvival(draft, rng)) return;
     draft.alive = false;
     draft.deathCause = "combat";
     pushLog(draft, "A deathly touch stops your heart instantly.", "descend");
@@ -636,6 +652,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
   }
   if (draft.hp <= 0) {
     if (trySamambroSurvival(draft, rng)) return;
+    if (tryRavenSurvival(draft, rng)) return;
     draft.alive = false;
     draft.deathCause = "combat";
     pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
@@ -1872,6 +1889,7 @@ export function dungeonReducer(
 
           if (draft.hp <= 0) {
             if (trySamambroSurvival(draft, rng)) return;
+            if (tryRavenSurvival(draft, rng)) return;
             draft.alive = false;
             draft.deathCause = "combat";
             pushLog(draft, "The explosion kills you instantly.", "descend");
@@ -2106,6 +2124,7 @@ export function dungeonReducer(
 
         if (draft.hp <= 0) {
           if (trySamambroSurvival(draft, rng)) return;
+          if (tryRavenSurvival(draft, rng)) return;
           draft.alive = false;
           draft.deathCause = "combat";
           pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");

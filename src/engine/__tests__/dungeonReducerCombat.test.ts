@@ -471,6 +471,20 @@ describe("PLAYER_ATTACK", () => {
     expect(next.combat).not.toBeNull();
   });
 
+  it("Raven (Animals, issue #67): survives a lethal counter-attack at 1 HP, fight continues", () => {
+    const monster = makeMonster({ hp: 10, damage: 4 });
+    const state = stateWithCombat({ hp: 3, animals: ["Raven"] }, [monster]);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 },
+      fixedDie(4),
+    );
+
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.combat).not.toBeNull();
+  });
+
   it("kills the player outright on a pending Deathtouch, bypassing armor entirely", () => {
     const monster = makeMonster({ hp: 10, damage: 0, deathtouchPending: true });
     const state = stateWithCombat({ hp: 5, armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }] }, [
@@ -487,6 +501,20 @@ describe("PLAYER_ATTACK", () => {
   it("Samambro (New Races, issue #60): survives a Deathtouch kill at 1 HP, fight continues", () => {
     const monster = makeMonster({ hp: 10, damage: 0, deathtouchPending: true });
     const state = stateWithCombat({ hp: 5, raceName: "Samambro" }, [monster]);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 },
+      fixedDie(4),
+    );
+
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.combat).not.toBeNull(); // the fight isn't over just because the player survived
+  });
+
+  it("Raven (Animals, issue #67): survives a Deathtouch kill at 1 HP, fight continues", () => {
+    const monster = makeMonster({ hp: 10, damage: 0, deathtouchPending: true });
+    const state = stateWithCombat({ hp: 5, animals: ["Raven"] }, [monster]);
     const next = dungeonReducer(
       state,
       { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 },
@@ -546,6 +574,19 @@ describe("PLAYER_ATTACK", () => {
       state,
       { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 },
       fixedDie(3),
+    );
+
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+  });
+
+  it("Raven (Animals, issue #67): survives an Explosive self-destruct kill at 1 HP", () => {
+    const monster = makeMonster({ hp: 20, abilities: ["explosive"] });
+    const state = stateWithCombat({ hp: 5, animals: ["Raven"] }, [monster]);
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: monster.id, roll: 1 },
+      fixedDie(4),
     );
 
     expect(next.alive).toBe(true);
@@ -1335,6 +1376,34 @@ describe("Armor: damage-absorption choice", () => {
       afterAttack,
       { type: "RESOLVE_DAMAGE", absorbWith: 0 },
       fixedDie(5),
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.levels[0]!.segments[0]!.remains).toBeUndefined();
+  });
+
+  it("Raven (Animals, issue #67): survives the deferred armor-choice death at 1 HP, no remains left behind", () => {
+    const monster = makeMonster({ hp: 10, damage: 4 });
+    const state = stateWithCombat(
+      {
+        hp: 3,
+        armor: [{ piece: "boots", hp: 1, maxHp: 3 }],
+        characterName: "Lucky",
+        animals: ["Raven"],
+      },
+      [monster],
+    );
+    const afterAttack = dungeonReducer(state, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 3,
+    });
+    expect(afterAttack.combat!.pendingDamage).toBe(4);
+
+    const next = dungeonReducer(
+      afterAttack,
+      { type: "RESOLVE_DAMAGE", absorbWith: 0 },
+      fixedDie(4),
     );
     expect(next.alive).toBe(true);
     expect(next.hp).toBe(1);

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.0] - 2026-07-26
+
+### Added
+
+- Raven now has a real ability: "if you die, roll a die -- 4 or more
+  and you come back with 1 HP," reusing the Samambro race ability's
+  exact death-survival mechanism at all 7 death sites (#67).
+
 ## [2.37.0] - 2026-07-26
 
 ### Changed

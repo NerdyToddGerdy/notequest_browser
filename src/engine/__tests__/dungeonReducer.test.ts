@@ -1348,6 +1348,43 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.alive).toBe(false);
   });
 
+  it("Raven (Animals, issue #67): survives the Darkness at 1 HP on a roll of 4+, but the action still fails", () => {
+    const state = { ...doorState(0), animals: ["Raven"] };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 3,
+        trapRoll: null,
+        lockChoice: "pickLock",
+      },
+      fixedDie(4),
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.log[0]!.message).toContain("survive with 1 HP");
+    expect(next.levels[0]!.segments[0]!.doors[0]!.opened).toBe(false); // still locked -- the pick still failed
+  });
+
+  it("Raven doesn't survive a roll below 4 -- dies to the Darkness as normal", () => {
+    const state = { ...doorState(0), animals: ["Raven"] };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 3,
+        trapRoll: null,
+        lockChoice: "pickLock",
+      },
+      fixedDie(3),
+    );
+    expect(next.alive).toBe(false);
+  });
+
   it("locked + break door: free, but no darkness risk regardless of torches", () => {
     const state = doorState(0);
     const next = dungeonReducer(state, {
@@ -1592,6 +1629,25 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.log.some((entry) => entry.message.includes("survive with 1 HP"))).toBe(true);
   });
 
+  it("Raven (Animals, issue #67): survives the Blade Trap's silent roll-of-1 death at 1 HP", () => {
+    const state = { ...doorState(5), animals: ["Raven"] };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 1,
+        lockChoice: null,
+      },
+      sequenceDie([1, 4]), // the trap's own death roll, then the Raven's survival roll
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.log.some((entry) => entry.message.includes("survive with 1 HP"))).toBe(true);
+  });
+
   it("the Blade Trap does nothing mechanical on any other roll (losing an arm is flavor only)", () => {
     const state = doorState(5);
     const next = dungeonReducer(
@@ -1645,6 +1701,31 @@ describe("RESOLVE_DOOR_LOCK", () => {
         lockChoice: null,
       },
       fixedDie(3),
+    );
+    expect(next.alive).toBe(true);
+    expect(next.hp).toBe(1);
+    expect(next.levels[0]!.segments[0]!.remains).toBeUndefined();
+  });
+
+  it("Raven (Animals, issue #67): survives a fatal flat-damage trap at 1 HP, no remains left behind", () => {
+    const state = {
+      ...doorState(5),
+      hp: 3,
+      coins: 4,
+      characterName: "Lucky",
+      animals: ["Raven"],
+    };
+    const next = dungeonReducer(
+      state,
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 2, // palace trap 2: Acid Spout, 5 damage
+        lockChoice: null,
+      },
+      fixedDie(4),
     );
     expect(next.alive).toBe(true);
     expect(next.hp).toBe(1);
