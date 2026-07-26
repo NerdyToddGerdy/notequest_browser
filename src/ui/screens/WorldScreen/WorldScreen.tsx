@@ -766,19 +766,12 @@ export function WorldScreen({
                   }
                   onRecruitTroop={handleRecruitTroop}
                   warfareMessage={isInspectingCurrentTile ? attackMessage : null}
+                  inCityOrFortress={inCityOrFortress}
+                  onReturnToCity={() => setShowMap(false)}
                 />
               </div>
             )}
           </div>
-
-          {inCityOrFortress && (
-            <div className={styles.actionCard}>
-              <p className={styles.gateCopy}>You're viewing the map from within the city.</p>
-              <button className={styles.rollBtn} type="button" onClick={() => setShowMap(false)}>
-                Return to the City
-              </button>
-            </div>
-          )}
 
           <p className={styles.scopeNote}>
             Click a neighboring hex to travel there. Click any other known hex to inspect it. Rocks

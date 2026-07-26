@@ -61,6 +61,15 @@ export interface HexInspectorProps {
    * state, since a winning Loot razes the target to Ruins, which would unmount `TownScreen`
    * before it ever got a chance to show it (see `WorldScreen.tsx`'s own doc comment). */
   warfareMessage?: string | null;
+  /** Issue #89: true when the player's own current tile is a City/Fortress -- the one remaining
+   * current-tile action that hadn't been folded into this panel yet (unlike Enter Dungeon/Train an
+   * Animal/Build a Building/Recruit Troop above), still living in `WorldScreen.tsx`'s own separate
+   * action card. Only ever relevant while voluntarily viewing the map from inside a city at all
+   * (this whole panel doesn't render otherwise -- see `WorldScreen.tsx`'s `showMap` gate), combined
+   * with `isCurrentTile` below the same way `canEnterDungeon` already is. Mutually exclusive with
+   * `canEnterDungeon` by construction (`WorldScreen` passes `canEnterDungeon && !inCityOrFortress`). */
+  inCityOrFortress: boolean;
+  onReturnToCity: () => void;
 }
 
 const TROOP_SOURCE_KINDS = new Set<BuildingKind>(["Castle", "City", "Fortress"]);
@@ -119,6 +128,8 @@ export function HexInspector({
   canRecruitTroopHere,
   onRecruitTroop,
   warfareMessage,
+  inCityOrFortress,
+  onReturnToCity,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -161,6 +172,15 @@ export function HexInspector({
         <div className={styles.row}>
           <span className={styles.label}>Politics</span>
           <p>{POLITICAL_STATUS_COPY[politicalStatus]}</p>
+        </div>
+      )}
+
+      {isCurrentTile && inCityOrFortress && (
+        <div className={styles.actionRow}>
+          <p className={styles.flavor}>You&apos;re viewing the map from within the city.</p>
+          <button className={styles.rollBtn} type="button" onClick={onReturnToCity}>
+            Return to the City
+          </button>
         </div>
       )}
 

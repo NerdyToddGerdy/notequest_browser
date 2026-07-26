@@ -165,21 +165,6 @@
   stroke-width: 2.5px;
 }
 
-.actionCard {
-  background: var(--parchment);
-  border-radius: 3px;
-  border: 1px solid var(--gold);
-  padding: 16px 18px;
-}
-
-.gateCopy {
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 0.92rem;
-  color: var(--ink-soft);
-  margin: 0 0 14px;
-}
-
 .scopeNote {
   font-family: var(--font-body);
   font-size: 0.78rem;

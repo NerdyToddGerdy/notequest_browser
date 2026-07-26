@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.37.0] - 2026-07-26
+
+### Changed
+
+- Moved "Return to the City" from its own standalone card below the
+  World map into `HexInspector`, alongside every other current-tile
+  action (Enter Dungeon, Train an Animal, Build a Building, Recruit
+  Troop) -- it now lives right next to the Dungeon status row it was
+  previously disconnected from (#89).
+
 ## [2.36.0] - 2026-07-26
 
 ### Added
