@@ -67,6 +67,7 @@ function stateWithCombat(
     fireOfTheDeadActive: false,
     hireling: null,
     hirelingAttackedThisRound: false,
+    animalAttackedThisRound: false,
   };
   return {
     ...createInitialDungeonState(),
@@ -2088,6 +2089,100 @@ describe("HIRELING_ATTACK (issue #84)", () => {
       const state = stateWithHireling({}, [monster]);
       state.combat!.outcome = "victory";
       const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      expect(next).toBe(state);
+    });
+  });
+});
+
+describe("ANIMAL_ATTACK (Snake, issue #26/#29/#67)", () => {
+  it("deals its flat 1 damage to the target monster and doesn't end the round", () => {
+    const monster = makeMonster({ hp: 6, damage: 3 });
+    const state = stateWithCombat({ animals: ["Snake"] }, [monster]);
+    const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+    expect(next.combat!.monsters[0]!.hp).toBe(5);
+    expect(next.combat!.animalAttackedThisRound).toBe(true);
+    expect(next.hp).toBe(next.maxHp); // no monster counter-attack happened
+    expect(next.log[0]!.message).toContain("Snake bites");
+  });
+
+  it("Stoneskin blocks the Snake's 1 damage entirely", () => {
+    const monster = makeMonster({ hp: 10, abilities: ["stoneskin"] });
+    const state = stateWithCombat({ animals: ["Snake"] }, [monster]);
+    const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+    expect(next.combat!.monsters[0]!.hp).toBe(10);
+    expect(next.log[0]!.message).toContain("fails to harm");
+  });
+
+  it("defeats the monster and finishes the fight if it was the last one", () => {
+    const monster = makeMonster({ hp: 1, damage: 3 });
+    const state = stateWithCombat({ animals: ["Snake"] }, [monster]);
+    const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+    expect(next.combat).toBeNull();
+    expect(next.log.some((e) => e.message.includes("victorious"))).toBe(true);
+  });
+
+  it("is NOT blocked by the player's own paralysis", () => {
+    const monster = makeMonster({ hp: 6, damage: 3 });
+    const state = stateWithCombat({ animals: ["Snake"] }, [monster]);
+    state.combat!.paralyzedTurns = 2;
+    const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+    expect(next.combat!.monsters[0]!.hp).toBe(5); // damage still landed
+    expect(next.combat!.paralyzedTurns).toBe(2); // untouched -- not the player's own turn
+  });
+
+  it("can be used the same round as the player's own Attack, with only one monster counter-attack total", () => {
+    const monster = makeMonster({ hp: 20, damage: 3 });
+    const state = stateWithCombat({ animals: ["Snake"] }, [monster]);
+    const afterAnimal = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+    expect(afterAnimal.hp).toBe(afterAnimal.maxHp); // no counter-attack yet
+    expect(afterAnimal.combat!.monsters[0]!.hp).toBe(19); // Snake's 1 damage landed
+
+    const afterPlayer = dungeonReducer(afterAnimal, {
+      type: "PLAYER_ATTACK",
+      targetId: monster.id,
+      roll: 3,
+    });
+    expect(afterPlayer.combat!.monsters[0]!.hp).toBe(16); // 19 - 3 (default "1d6" weapon)
+    expect(afterPlayer.hp).toBe(afterPlayer.maxHp - 3); // exactly one counter-attack fired
+    expect(afterPlayer.combat!.animalAttackedThisRound).toBe(false); // reset for next round
+  });
+
+  describe("gating", () => {
+    it("no-op with no Snake owned", () => {
+      const monster = makeMonster();
+      const state = stateWithCombat({}, [monster]);
+      const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once already used this round", () => {
+      const monster = makeMonster();
+      const state = stateWithCombat({ animals: ["Snake"] }, [monster]);
+      state.combat!.animalAttackedThisRound = true;
+      const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+      expect(next).toBe(state);
+    });
+
+    it("no-op while an armor-absorption choice is pending", () => {
+      const monster = makeMonster();
+      const state = stateWithCombat({ animals: ["Snake"] }, [monster]);
+      state.combat!.pendingDamage = 5;
+      const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once the character is dead", () => {
+      const monster = makeMonster();
+      const state = { ...stateWithCombat({ animals: ["Snake"] }, [monster]), alive: false };
+      const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
+      expect(next).toBe(state);
+    });
+
+    it("no-op once the fight is no longer ongoing", () => {
+      const monster = makeMonster();
+      const state = stateWithCombat({ animals: ["Snake"] }, [monster]);
+      state.combat!.outcome = "victory";
+      const next = dungeonReducer(state, { type: "ANIMAL_ATTACK", targetId: monster.id });
       expect(next).toBe(state);
     });
   });

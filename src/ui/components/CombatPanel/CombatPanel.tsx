@@ -30,6 +30,8 @@ export interface CombatPanelProps {
   isRinoceroid?: boolean;
   /** Slimemen: "If you engulf the body of an enemy, you regain all HP." */
   isSlimemen?: boolean;
+  /** Snake (Animals, issue #26/#29/#67): "Attack deals Poison" -- true once the player owns one. */
+  isSnakeOwner?: boolean;
   /** OPEN_TREASURE can be dispatched mid-fight and can itself fill the Pack (issue #82) -- while a
    * swap choice is pending (resolved from the sidebar Pack card, not this panel), every action
    * here is blocked the same way a pending armor-absorption choice already is. */
@@ -47,6 +49,9 @@ export interface CombatPanelProps {
   /** Issue #63: Goblin Helper's own "explode, dealing 5 damage to every monster" -- a one-time,
    * room-wide, free action that self-destructs the Hireling. */
   onHirelingExplode: () => void;
+  /** Snake's own attack -- a free action that doesn't end the round, same shape as
+   * `onHirelingAttack` but with no die to roll (Snake's damage is a flat 1, not a formula). */
+  onAnimalAttack: (targetId: number) => void;
 }
 
 const HORN_FORMULA = "1d6";
@@ -117,6 +122,7 @@ export function CombatPanel({
   spellUses,
   isRinoceroid = false,
   isSlimemen = false,
+  isSnakeOwner = false,
   hasPendingPackItem = false,
   onAttack,
   onCastSpell,
@@ -125,6 +131,7 @@ export function CombatPanel({
   onEngulfBody,
   onHirelingAttack,
   onHirelingExplode,
+  onAnimalAttack,
 }: CombatPanelProps) {
   const [dieValue, setDieValue] = useState(1);
   const [rollToken, setRollToken] = useState(0);
@@ -167,6 +174,16 @@ export function CombatPanel({
     hp > 0 &&
     combat.hireling?.name === "Goblin Helper" &&
     combat.hireling.hp > 0;
+  // Snake (Animals, issue #26/#29/#67): deliberately not gated on `paralyzed`, same reasoning as
+  // hirelingCanAct -- and no weaponFormula/HP-of-its-own check, since a Snake can't be harmed or
+  // lost, only ever a bonus attack.
+  const canAnimalAttack =
+    !rolling &&
+    !awaitingDamageChoice &&
+    !hasPendingPackItem &&
+    hp > 0 &&
+    isSnakeOwner &&
+    !combat.animalAttackedThisRound;
   // Only spells `KNOWN_CASTABLE_SPELL_NAMES` actually has a real CAST_SPELL case for render a
   // button at all -- see that set's own doc comment (combat.ts). Matched by name, not (table,
   // roll), so Elemental's Cold Ray/Lightning/Fireball reuse the same button/handler as Basic's.
@@ -304,6 +321,16 @@ export function CombatPanel({
                   onClick={() => rollAndHirelingAttack(monster.id)}
                 >
                   {combat.hireling.name} Attacks
+                </button>
+              )}
+              {isSnakeOwner && (
+                <button
+                  type="button"
+                  className={styles.attackBtn}
+                  disabled={!canAnimalAttack}
+                  onClick={() => onAnimalAttack(monster.id)}
+                >
+                  Snake Attacks
                 </button>
               )}
               {targetedSpells.map((s) => (

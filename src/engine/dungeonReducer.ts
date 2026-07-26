@@ -24,6 +24,7 @@ import {
 import { SPELL_TABLE } from "../data/spells.ts";
 import { buildingTaxTotal } from "../data/buildings.ts";
 import { HIRELING_BY_NAME } from "../data/hirelings.ts";
+import { ANIMAL_BY_NAME } from "../data/animals.ts";
 import { SPELL_TABLE_BY_KEY, spellKey } from "./character.ts";
 import {
   boxFromCenter,
@@ -285,6 +286,7 @@ function startCombat(
     fireOfTheDeadActive: false,
     hireling: hirelingDef ? { name: hirelingDef.name, hp: hirelingDef.hp, maxHp: hirelingDef.hp } : null,
     hirelingAttackedThisRound: false,
+    animalAttackedThisRound: false,
   };
   pushLog(
     draft,
@@ -563,8 +565,10 @@ function hasUsableArmor(draft: Draft<DungeonState>): boolean {
 
 function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>, rng: RNG): void {
   // Issue #84: this is the one chokepoint every round-ending action already calls, so it's where
-  // HIRELING_ATTACK's once-per-round cap resets for whatever round comes next.
+  // HIRELING_ATTACK's once-per-round cap resets for whatever round comes next. ANIMAL_ATTACK
+  // (issue #67/#29) reuses the identical shape for Snake.
   combat.hirelingAttackedThisRound = false;
+  combat.animalAttackedThisRound = false;
 
   // Poison: "All damage from this creature cannot be absorbed by armor or other means" -- tallied
   // apart from every other monster's damage, which the player may still choose to absorb.
@@ -2062,6 +2066,50 @@ export function dungeonReducer(
         }
         // In case the Hireling's own blow was the finishing one -- this action never calls
         // applyMonsterTurn(), but a won fight still needs to resolve Loot/close out combat.
+        finishIfVictorious(draft, combat, rng);
+      });
+    }
+
+    case "ANIMAL_ATTACK": {
+      // Snake (Animals, issue #26/#29/#67): same free-action, once-per-round shape as
+      // HIRELING_ATTACK -- deliberately not gated on the player's own paralysis, and never calls
+      // applyMonsterTurn(). Unlike a Hireling, the Snake has no HP of its own to check here -- it
+      // can't be harmed or lost, only ever a bonus attack.
+      if (
+        !state.alive ||
+        !state.combat ||
+        state.combat.outcome !== "ongoing" ||
+        state.combat.pendingDamage !== null ||
+        !state.animals.includes("Snake") ||
+        state.combat.animalAttackedThisRound
+      ) {
+        return state;
+      }
+      return produce(state, (draft) => {
+        const combat = draft.combat;
+        if (!combat) return;
+        const monster = combat.monsters.find((m) => m.id === action.targetId);
+        if (!monster) return;
+        combat.animalAttackedThisRound = true;
+
+        // Same "fixed damage, Stoneskin/Intangible defense applies, no roll-of-1/6 special
+        // abilities trigger" shape as spell damage/HIRELING_ATTACK -- Snake's own flat Dmg 1.
+        const result = resolveSpellDamage(monster, ANIMAL_BY_NAME.Snake!.damage);
+        monster.hp = Math.max(0, monster.hp - result.damageDealt);
+        if (result.damageDealt > 0) {
+          pushLog(draft, `Your Snake bites ${monster.name} for ${result.damageDealt} damage.`);
+        } else {
+          pushLog(
+            draft,
+            result.blocked
+              ? `Your Snake's bite fails to harm ${monster.name} (${result.blocked}).`
+              : `Your Snake's bite fails to harm ${monster.name}.`,
+          );
+        }
+
+        if (result.monsterDefeated) {
+          handleMonsterDefeat(draft, combat, monster, rng);
+        }
         finishIfVictorious(draft, combat, rng);
       });
     }

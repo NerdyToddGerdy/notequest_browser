@@ -1249,6 +1249,7 @@ describe("WIELD_WEAPON", () => {
         fireOfTheDeadActive: false,
         hireling: null,
         hirelingAttackedThisRound: false,
+        animalAttackedThisRound: false,
       },
     });
     const next = dungeonReducer(state, { type: "WIELD_WEAPON", index: 0 });
@@ -2078,6 +2079,7 @@ describe("CAST_SPELL guards", () => {
       fireOfTheDeadActive: false,
       hireling: null,
       hirelingAttackedThisRound: false,
+      animalAttackedThisRound: false,
     };
     const state: DungeonState = {
       ...stateWithLevel(level),
@@ -2383,6 +2385,7 @@ describe("OPEN_TREASURE", () => {
         fireOfTheDeadActive: false,
         hireling: null,
         hirelingAttackedThisRound: false,
+        animalAttackedThisRound: false,
       },
     };
     const next = dungeonReducer(
@@ -2518,6 +2521,7 @@ describe("OPEN_TREASURE", () => {
         fireOfTheDeadActive: false,
         hireling: null,
         hirelingAttackedThisRound: false,
+        animalAttackedThisRound: false,
       },
     };
     const next = dungeonReducer(
@@ -2801,6 +2805,7 @@ describe("RESUME_DUNGEON", () => {
       fireOfTheDeadActive: false,
       hireling: null,
       hirelingAttackedThisRound: false,
+      animalAttackedThisRound: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -2903,6 +2908,7 @@ describe("RESUME_DUNGEON", () => {
       fireOfTheDeadActive: false,
       hireling: null,
       hirelingAttackedThisRound: false,
+      animalAttackedThisRound: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -3104,6 +3110,7 @@ describe("RETURN_TO_DUNGEON", () => {
       fireOfTheDeadActive: false,
       hireling: null,
       hirelingAttackedThisRound: false,
+      animalAttackedThisRound: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),
@@ -3353,6 +3360,7 @@ describe("Monster table re-roll on return", () => {
       fireOfTheDeadActive: false,
       hireling: null,
       hirelingAttackedThisRound: false,
+      animalAttackedThisRound: false,
     };
     const persisted: DungeonState = {
       ...createInitialDungeonState(),

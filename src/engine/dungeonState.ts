@@ -200,6 +200,12 @@ export interface CombatState {
    * combat action), capped at once per round by this flag -- set when used, reset back to `false`
    * at the top of `applyMonsterTurn()`, the one chokepoint every round-ending action already calls. */
   hirelingAttackedThisRound: boolean;
+  /** Snake (Animals, issue #26/#29/#67): ANIMAL_ATTACK's own once-per-round cap, same shape as
+   * `hirelingAttackedThisRound` -- unlike a Hireling, no HP/absorption slot exists for the animal
+   * itself (the rulebook never describes an Animal being harmed or dying in combat, so this is a
+   * pure bonus attack rather than a second combatant that can be lost). Reset alongside
+   * `hirelingAttackedThisRound` at the top of `applyMonsterTurn()`. */
+  animalAttackedThisRound: boolean;
 }
 
 /** A "worth N Coins in the town" item found by opening a Treasure -- held until there's a town to sell it in. */
@@ -549,6 +555,14 @@ export type DungeonAction =
    * (against the Hireling's own `weaponFormula`), same "client rolls for the animation, the reducer
    * re-derives the real modifier/total" split `PLAYER_ATTACK` already uses. */
   | { type: "HIRELING_ATTACK"; targetId: number; roll: number }
+  /** Snake (Animals, issue #26/#29/#67): "Attack deals Poison" -- approximated as an ordinary flat
+   * hit (poison's rulebook significance is specifically about bypassing the *player's* armor,
+   * meaningless when an animal is attacking a monster instead -- a documented simplification, same
+   * tier as `bladeTrap`'s roll-of-2). No `roll` field, unlike `HIRELING_ATTACK` -- Snake's own
+   * `AnimalDef.damage` is a flat number (1), not a dice formula, so there's no die to animate. A
+   * free action that doesn't end the round, capped at once per round by
+   * `CombatState.animalAttackedThisRound`, same shape as `HIRELING_ATTACK`. */
+  | { type: "ANIMAL_ATTACK"; targetId: number }
   /** Issue #63: Goblin Helper's own "It can explode at any time, dealing 5 damage" -- a genuine
    * one-time detonation (unlike the repeatable HIRELING_ATTACK above), dealing 5 damage to every
    * monster in the fight (near-identical wording to the Goblin race's own "explode, dealing 5

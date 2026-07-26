@@ -482,6 +482,7 @@ export function DungeonScreen({
                           spellUses={state.spellUses}
                           isRinoceroid={character.race.name === "Rinoceroid"}
                           isSlimemen={character.race.name === "Slimemen"}
+                          isSnakeOwner={state.animals.includes("Snake")}
                           hasPendingPackItem={!!state.pendingPackItem}
                           onAttack={(targetId, roll, useHorn) =>
                             dispatch({ type: "PLAYER_ATTACK", targetId, roll, useHorn })
@@ -498,6 +499,7 @@ export function DungeonScreen({
                             dispatch({ type: "HIRELING_ATTACK", targetId, roll })
                           }
                           onHirelingExplode={() => dispatch({ type: "HIRELING_EXPLODE" })}
+                          onAnimalAttack={(targetId) => dispatch({ type: "ANIMAL_ATTACK", targetId })}
                         />
                       )}
                     </div>

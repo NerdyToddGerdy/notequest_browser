@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.42.0] - 2026-07-26
+
+### Added
+
+- Snake now actually fights: "Attack deals Poison" is a real free
+  action ("Snake Attacks" in the Combat panel, once per round,
+  alongside your own Attack) dealing its flat 1 damage to a monster
+  -- reusing the same free-action pattern Hirelings got in #84,
+  generalized to Animals for the first time (part of #29 and #67).
+
 ## [2.41.0] - 2026-07-26
 
 ### Added
