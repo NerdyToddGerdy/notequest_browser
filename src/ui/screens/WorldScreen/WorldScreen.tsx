@@ -42,7 +42,9 @@ import {
 } from "../../../engine/politics.ts";
 import { canAttack, canRecruitTroop, recruitTroop, resolveAttack, resolveStorming } from "../../../engine/warfare.ts";
 import {
+  canCastFly,
   canHireBoat,
+  castFly,
   castSpell,
   hasElvenBoots,
   hireBoat,
@@ -273,6 +275,30 @@ export function WorldScreen({
   function handleTravel(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
     if (!tile || !canTravelTo(tile, coord)) return;
+    // Fly (New Spells, Advanced 6, issue #61): "without spending any Provision" -- read literally,
+    // a true free move that bypasses every other cost consideration below (Elven Boots/Animal
+    // overrides, the Mammoth penalty, the Pandakhan/Centaur multiplier, and the Hireling surcharge)
+    // rather than just becoming the cheapest of several competing overrides.
+    if (resources.flyActive) {
+      const afterCost = payTravelCost(resources, 0, false);
+      const isCity = tile.location != null && CITY_OR_FORTRESS.has(tile.location);
+      onUpdateResources(
+        recordTravelStats(
+          { ...afterCost, flyActive: false },
+          tile.terrain,
+          isCity,
+          hexKey(coord),
+          world.hasBoat,
+        ),
+      );
+      onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
+      setShowMap(false);
+      setSelectedHex(null);
+      setTrainResultMessage(null);
+      setAttackMessage(null);
+      setPendingStorm(false);
+      return;
+    }
     // Elven Boots: "you can only spend 1 provision to move through forests." Combined with any
     // owned Animal/Mount's own per-terrain cap (issue #26) -- Griffin's unconditional "1 for any
     // land" always wins (checked first inside animalTravelCostOverride), otherwise the cheapest
@@ -768,6 +794,9 @@ export function WorldScreen({
                   warfareMessage={isInspectingCurrentTile ? attackMessage : null}
                   inCityOrFortress={inCityOrFortress}
                   onReturnToCity={() => setShowMap(false)}
+                  canCastFly={canCastFly(resources)}
+                  flyActive={resources.flyActive}
+                  onCastFly={() => onUpdateResources(castFly(resources))}
                 />
               </div>
             )}

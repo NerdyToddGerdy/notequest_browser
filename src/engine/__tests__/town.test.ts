@@ -14,6 +14,7 @@ import {
   canBuyOrcGladio,
   canBuyProvision,
   canBuyTorch,
+  canCastFly,
   canCastSpell,
   canDrinkVerdosaPotion,
   canFixArmor,
@@ -22,6 +23,7 @@ import {
   canLearnRandomSpell,
   canRemoveCurse,
   canRest,
+  castFly,
   castSpell,
   drinkVerdosaPotion,
   fixArmor,
@@ -74,6 +76,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     troopSources: [],
     travelStats: createInitialTravelStats(),
     survivedRunIds: [],
+    flyActive: false,
     ...overrides,
   };
 }
@@ -443,6 +446,36 @@ describe("canCastSpell / castSpell", () => {
   it("is a no-op for a combat-only spell", () => {
     const resources = makeResources({ spellUses: { "basic:5": 1 } });
     const next = castSpell(resources, "basic", 5);
+    expect(next).toEqual(resources);
+  });
+});
+
+describe("canCastFly / castFly (New Spells, Advanced 6, issue #61)", () => {
+  it("requires an unspent use of Fly (advanced:6) and not already armed", () => {
+    expect(canCastFly(makeResources({ spellUses: { "advanced:6": 1 } }))).toBe(true);
+    expect(canCastFly(makeResources({ spellUses: { "advanced:6": 0 } }))).toBe(false);
+    expect(canCastFly(makeResources({ spellUses: {} }))).toBe(false);
+    expect(
+      canCastFly(makeResources({ spellUses: { "advanced:6": 1 }, flyActive: true })),
+    ).toBe(false);
+  });
+
+  it("arms flyActive and spends the use", () => {
+    const resources = makeResources({ spellUses: { "advanced:6": 2 } });
+    const next = castFly(resources);
+    expect(next.flyActive).toBe(true);
+    expect(next.spellUses).toEqual({ "advanced:6": 1 });
+  });
+
+  it("is a no-op with no uses remaining", () => {
+    const resources = makeResources({ spellUses: { "advanced:6": 0 } });
+    const next = castFly(resources);
+    expect(next).toEqual(resources);
+  });
+
+  it("is a no-op if already armed", () => {
+    const resources = makeResources({ spellUses: { "advanced:6": 1 }, flyActive: true });
+    const next = castFly(resources);
     expect(next).toEqual(resources);
   });
 });

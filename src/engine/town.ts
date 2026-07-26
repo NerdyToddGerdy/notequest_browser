@@ -89,6 +89,16 @@ export interface AdventurerResources {
    * a bare counter would. Not mirrored on `DungeonState`: it only ever changes in Town, at
    * `App.tsx`'s `handleReturnToTown`, the same "World/Town-only" shape as `travelStats` above. */
   survivedRunIds: string[];
+  /** Fly (New Spells, Advanced 6, issue #61): "Can move through any land without spending any
+   * Provision" -- armed by `castFly()` and consumed by `WorldScreen.tsx`'s `handleTravel()` on the
+   * next move, then cleared back to `false`. Deliberately not routed through the shared
+   * `CAST_SPELL`/`KNOWN_CASTABLE_SPELL_NAMES` pipeline (`combat.ts`) the way Heal/Light/Natural Cure
+   * are: that pipeline's "Cast" button also renders inside a dungeon (`DungeonScreen`'s own
+   * `canCastOutOfCombat`), where Fly's effect (Provisions, a World-map-only resource) means
+   * nothing -- a bespoke `canCastFly()`/`castFly()` pair confined to World/Town avoids ever needing
+   * a meaningless dungeon-side case. World/Town-only, not mirrored on `DungeonState`, same shape as
+   * `travelStats`/`troops` above. */
+  flyActive: boolean;
 }
 
 /** Lifetime World-map travel counters (issue #72) -- bundled into one object for the same reason
@@ -259,6 +269,27 @@ export function castSpell(
   }
   const gained = Math.min(1, MAX_TORCHES - resources.torches);
   return { ...resources, torches: resources.torches + gained, spellUses };
+}
+
+const FLY_SPELL_KEY = spellKey("advanced", 6);
+
+/** Fly (New Spells, Advanced 6, issue #61): known, has an unspent use, and isn't already armed for
+ * an upcoming move. Deliberately its own bespoke pair rather than routing through `canCastSpell()`/
+ * `castSpell()` -- see `AdventurerResources.flyActive`'s own doc comment for why. */
+export function canCastFly(resources: AdventurerResources): boolean {
+  return (resources.spellUses[FLY_SPELL_KEY] ?? 0) > 0 && !resources.flyActive;
+}
+
+/** Arms `flyActive` and spends the use immediately (matching every other spell here, which spends
+ * on cast regardless of whether its effect is realized right away) -- `WorldScreen.tsx`'s
+ * `handleTravel()` is what actually consumes the armed flag, on the very next move. */
+export function castFly(resources: AdventurerResources): AdventurerResources {
+  if (!canCastFly(resources)) return resources;
+  return {
+    ...resources,
+    spellUses: { ...resources.spellUses, [FLY_SPELL_KEY]: resources.spellUses[FLY_SPELL_KEY]! - 1 },
+    flyActive: true,
+  };
 }
 
 export function canBuyTorch(resources: AdventurerResources): boolean {

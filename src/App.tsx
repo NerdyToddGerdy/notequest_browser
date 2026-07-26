@@ -101,6 +101,7 @@ export default function App() {
       troopSources: [],
       travelStats: createInitialTravelStats(),
       survivedRunIds: [],
+      flyActive: false,
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -212,6 +213,9 @@ export default function App() {
         dungeon.levels.length > 0 && !(prev?.survivedRunIds ?? []).includes(runId)
           ? [...(prev?.survivedRunIds ?? []), runId]
           : (prev?.survivedRunIds ?? []),
+      // Fly (issue #61) isn't tracked on DungeonState at all (nothing inside a dungeon run needs
+      // it) -- carried over untouched, same as provisions/travelStats/troops above.
+      flyActive: prev?.flyActive ?? false,
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,

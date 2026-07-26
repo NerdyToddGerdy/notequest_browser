@@ -70,6 +70,16 @@ export interface HexInspectorProps {
    * `canEnterDungeon` by construction (`WorldScreen` passes `canEnterDungeon && !inCityOrFortress`). */
   inCityOrFortress: boolean;
   onReturnToCity: () => void;
+  /** Fly (New Spells, Advanced 6, issue #61): true when the spell is known, has an unspent use, and
+   * isn't already armed -- combined with `isCurrentTile` the same way every other current-tile
+   * action here is. Usable from any hex, city or wilderness, unlike Hire Boat/Political Affinity
+   * (which need a specific location) -- Fly is a personal ability, not a place-bound one. */
+  canCastFly: boolean;
+  /** True once Fly has been cast and is waiting to apply to the player's next move -- shown as a
+   * flavor line in place of the "Cast Fly" button while armed, since there's nothing left to click
+   * until `WorldScreen.tsx`'s `handleTravel()` consumes it. */
+  flyActive: boolean;
+  onCastFly: () => void;
 }
 
 const TROOP_SOURCE_KINDS = new Set<BuildingKind>(["Castle", "City", "Fortress"]);
@@ -130,6 +140,9 @@ export function HexInspector({
   warfareMessage,
   inCityOrFortress,
   onReturnToCity,
+  canCastFly,
+  flyActive,
+  onCastFly,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -188,6 +201,21 @@ export function HexInspector({
         <div className={styles.actionRow}>
           <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
             Enter Dungeon
+          </button>
+        </div>
+      )}
+
+      {isCurrentTile && flyActive && (
+        <div className={styles.row}>
+          <span className={styles.label}>Fly</span>
+          <p>You are ready to fly -- your next move costs no Provisions.</p>
+        </div>
+      )}
+
+      {isCurrentTile && !flyActive && canCastFly && (
+        <div className={styles.actionRow}>
+          <button className={styles.rollBtn} type="button" onClick={onCastFly}>
+            Cast Fly
           </button>
         </div>
       )}

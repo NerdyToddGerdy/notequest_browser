@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.40.0] - 2026-07-26
+
+### Added
+
+- The Fly spell (Advanced 6) is now castable -- "your next move costs
+  no Provisions," armed by a new "Cast Fly" action in the World map's
+  hex inspector and consumed by the very next move, bypassing every
+  other travel-cost modifier (Elven Boots, Animals, race multipliers,
+  Hireling surcharge) for a truly free hex (part of #61).
+
 ## [2.39.0] - 2026-07-26
 
 ### Added

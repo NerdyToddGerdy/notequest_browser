@@ -75,6 +75,7 @@ const RESOURCES: AdventurerResources = {
   troopSources: [],
   travelStats: createInitialTravelStats(),
   survivedRunIds: [],
+  flyActive: false,
 };
 
 const WORLD: WorldState = createInitialWorldState(fixedDie(3));
@@ -230,6 +231,15 @@ describe("loadSession", () => {
       "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
     });
     expect(loadSession(storage).resources).toEqual({ ...oldResources, survivedRunIds: [] });
+  });
+
+  it("back-fills resources.flyActive (issue #61) for a session persisted before it existed", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { flyActive, ...oldResources } = RESOURCES;
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
+    });
+    expect(loadSession(storage).resources).toEqual({ ...oldResources, flyActive: false });
   });
 
   it("back-fills resources.maxSpellUses (issue #75) from character.spells/fixedGrants for a session persisted before it existed", () => {
