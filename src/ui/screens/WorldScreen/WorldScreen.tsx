@@ -44,13 +44,16 @@ import { canAttack, canRecruitTroop, recruitTroop, resolveAttack, resolveStormin
 import {
   canCastFly,
   canHireBoat,
+  canUseForgottenGods,
   castFly,
   castSpell,
   hasElvenBoots,
+  hasFeatheredBoots,
   hireBoat,
   payTravelCost,
   recordTravelStats,
   resolveThugLife,
+  resolveForgottenGods,
   type AdventurerResources,
 } from "../../../engine/town.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
@@ -168,6 +171,9 @@ export function WorldScreen({
    * HexInspector the same way TownScreen's Thug Life outcome text works -- reset on arrival, same
    * as `selectedHex`. */
   const [trainResultMessage, setTrainResultMessage] = useState<string | null>(null);
+  /** Ziggurat's Effect of the Forgotten Gods (issue #30) -- same always-visible-until-replaced
+   * precedent as trainResultMessage, reset on arrival alongside it. */
+  const [forgottenGodsMessage, setForgottenGodsMessage] = useState<string | null>(null);
   /** Warfare (issue #28): lifted up here (not left as TownScreen-local state, unlike
    * thugLifeMessage/politicalAffinityMessage) because a winning Loot razes the target hex to
    * Ruins, which flips `inCityOrFortress` false and unmounts `TownScreen` on the very next
@@ -213,6 +219,15 @@ export function WorldScreen({
     return { status: "none", hasRemains: false };
   }
   const currentDungeonStatus = dungeonInfoFor(currentTile).status;
+  // Ziggurat's Effect of the Forgotten Gods (issue #30): only meaningful once this hex's own
+  // dungeon has actually been entered at least once (dungeonHistory only gets an entry via
+  // handleLeaveDungeon) -- "in the hexagon of this dungeon, but outside the dungeon" already
+  // implies having been inside and left, so a hex merely `dungeonMarked` (Ask, never entered)
+  // correctly never qualifies either.
+  function dungeonTypeKeyFor(tile: HexTile | undefined) {
+    if (!tile?.dungeonRunId) return null;
+    return dungeonHistory.find((pd) => pd.id === tile.dungeonRunId)?.dungeon.dungeonTypeKey ?? null;
+  }
   // Nothing left to do in an already-beaten dungeon -- RETURN_TO_DUNGEON/RESUME_DUNGEON would just
   // redisplay the existing victory panel, not let the Boss be re-fought or re-looted. A hex "Ask"
   // marked (dungeonMarked) offers the same button as a City/Fortress/Ruins hex does, even though it
@@ -295,6 +310,7 @@ export function WorldScreen({
       setShowMap(false);
       setSelectedHex(null);
       setTrainResultMessage(null);
+      setForgottenGodsMessage(null);
       setAttackMessage(null);
       setPendingStorm(false);
       return;
@@ -304,8 +320,13 @@ export function WorldScreen({
     // land" always wins (checked first inside animalTravelCostOverride), otherwise the cheapest
     // applicable override wins.
     const elvenBootsOverride = tile.terrain === "forest" && hasElvenBoots(resources) ? 1 : null;
+    // Feathered Boots (Ziggurat Wonder, issue #30): "Spend 1 provision on swamps" -- identical
+    // shape to Elven Boots, just swamp instead of forest.
+    const featheredBootsOverride = tile.terrain === "swamp" && hasFeatheredBoots(resources) ? 1 : null;
     const animalOverride = animalTravelCostOverride(resources.animals, tile.terrain);
-    const overrides = [elvenBootsOverride, animalOverride].filter((v): v is number => v != null);
+    const overrides = [elvenBootsOverride, featheredBootsOverride, animalOverride].filter(
+      (v): v is number => v != null,
+    );
     const baseCost = overrides.length > 0 ? Math.min(...overrides) : travelCost(tile.terrain);
     // Mammoth: "you spend 1 extra provision per hex" -- a penalty, not a discount, so it's added on
     // top of whatever override/base cost above rather than competing with them.
@@ -326,6 +347,7 @@ export function WorldScreen({
     setShowMap(false);
     setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected
     setTrainResultMessage(null);
+    setForgottenGodsMessage(null);
     setAttackMessage(null);
     setPendingStorm(false);
   }
@@ -341,6 +363,16 @@ export function WorldScreen({
     const result = trainAnimal(resources, animal);
     onUpdateResources(result.resources);
     setTrainResultMessage(result.trained ? `You trained a ${name}!` : `The ${name} slipped away.`);
+  }
+
+  /** Ziggurat's Effect of the Forgotten Gods (issue #30) -- re-validates the hex still qualifies
+   * (defense in depth, same "reducer/handler re-checks, UI is only a convenience" precedent every
+   * other hex action here already establishes) before spending anything. */
+  function handleForgottenGods() {
+    if (dungeonTypeKeyFor(currentTile) !== "ziggurat") return;
+    const result = resolveForgottenGods(resources);
+    onUpdateResources(result.resources);
+    setForgottenGodsMessage(result.message);
   }
 
   /** "You can buy mounts in a city that is on the appropriate terrain" -- always succeeds if
@@ -797,6 +829,10 @@ export function WorldScreen({
                   canCastFly={canCastFly(resources)}
                   flyActive={resources.flyActive}
                   onCastFly={() => onUpdateResources(castFly(resources))}
+                  showForgottenGods={isInspectingCurrentTile && dungeonTypeKeyFor(inspectedTile) === "ziggurat"}
+                  canUseForgottenGodsHere={canUseForgottenGods(resources)}
+                  onForgottenGods={handleForgottenGods}
+                  forgottenGodsMessage={isInspectingCurrentTile ? forgottenGodsMessage : null}
                 />
               </div>
             )}

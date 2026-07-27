@@ -486,7 +486,7 @@ describe("OPEN_DOOR: staircases", () => {
     );
 
     const finalSeg = next.levels[1]!.segments[0]!;
-    expect(finalSeg.monsters).toEqual(DUNGEON_TABLES.palace.boss[6]);
+    expect(finalSeg.monsters).toEqual(DUNGEON_TABLES.palace.boss![6]);
     expect(next.combat).not.toBeNull();
     expect(next.combat!.isBoss).toBe(true);
     expect(next.combat!.monsters[0]).toMatchObject({ name: "Orc King", hp: 24, damage: 5 });
@@ -539,7 +539,7 @@ describe("OPEN_DOOR: staircases", () => {
     );
 
     const finalSeg = next.levels[0]!.segments[1]!;
-    expect(finalSeg.monsters).toEqual(DUNGEON_TABLES.palace.boss[1]);
+    expect(finalSeg.monsters).toEqual(DUNGEON_TABLES.palace.boss![1]);
     expect(next.combat).not.toBeNull();
     expect(next.combat!.isBoss).toBe(true);
   });

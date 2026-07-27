@@ -80,6 +80,15 @@ export interface HexInspectorProps {
    * until `WorldScreen.tsx`'s `handleTravel()` consumes it. */
   flyActive: boolean;
   onCastFly: () => void;
+  /** Ziggurat's Effect of the Forgotten Gods (issue #30): true only when the tile being inspected
+   * is the player's own current tile AND its own dungeon (if any has been entered at least once)
+   * is a Ziggurat -- `WorldScreen.tsx`'s `dungeonTypeKeyFor()` resolves that from `dungeonHistory`.
+   * Usable "in the hexagon of this dungeon, but outside the dungeon," so unlike Enter Dungeon this
+   * has no `!inCityOrFortress`-style exclusion -- a Ziggurat is never a City/Fortress location. */
+  showForgottenGods: boolean;
+  canUseForgottenGodsHere: boolean;
+  onForgottenGods: () => void;
+  forgottenGodsMessage?: string | null;
 }
 
 const TROOP_SOURCE_KINDS = new Set<BuildingKind>(["Castle", "City", "Fortress"]);
@@ -143,6 +152,10 @@ export function HexInspector({
   canCastFly,
   flyActive,
   onCastFly,
+  showForgottenGods,
+  canUseForgottenGodsHere,
+  onForgottenGods,
+  forgottenGodsMessage,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -216,6 +229,20 @@ export function HexInspector({
         <div className={styles.actionRow}>
           <button className={styles.rollBtn} type="button" onClick={onCastFly}>
             Cast Fly
+          </button>
+        </div>
+      )}
+
+      {showForgottenGods && (
+        <div className={styles.actionRow}>
+          {forgottenGodsMessage && <p className={styles.flavor}>{forgottenGodsMessage}</p>}
+          <button
+            className={styles.rollBtn}
+            type="button"
+            disabled={!canUseForgottenGodsHere}
+            onClick={onForgottenGods}
+          >
+            Effect of the Forgotten Gods (1 provision)
           </button>
         </div>
       )}

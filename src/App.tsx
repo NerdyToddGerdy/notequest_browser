@@ -102,6 +102,7 @@ export default function App() {
       travelStats: createInitialTravelStats(),
       survivedRunIds: [],
       flyActive: false,
+      nextDungeonDamageBonus: 0,
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -216,6 +217,10 @@ export default function App() {
       // Fly (issue #61) isn't tracked on DungeonState at all (nothing inside a dungeon run needs
       // it) -- carried over untouched, same as provisions/travelStats/troops above.
       flyActive: prev?.flyActive ?? false,
+      // Ziggurat's Effect of the Forgotten Gods (issue #30): already consumed into
+      // dungeon.runDamageBonus the moment this trip started (see DungeonScreen.tsx), so this is
+      // always 0 by the time a retreat/return happens -- carried over the same way flyActive is.
+      nextDungeonDamageBonus: prev?.nextDungeonDamageBonus ?? 0,
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,

@@ -99,6 +99,12 @@ export interface AdventurerResources {
    * a meaningless dungeon-side case. World/Town-only, not mirrored on `DungeonState`, same shape as
    * `travelStats`/`troops` above. */
   flyActive: boolean;
+  /** Ziggurat's "Effect of the Forgotten Gods" Special Rule (issue #30): "A divine light
+   * illuminates you and you gain +1 damage on all attacks on the next dungeon exploration you
+   * make" -- armed here, consumed into `DungeonState.runDamageBonus` the moment a genuinely fresh
+   * dungeon is entered (mirroring `hireling`'s own per-trip consumption in `DungeonScreen.tsx`),
+   * then cleared back to 0. World/Town-only otherwise. */
+  nextDungeonDamageBonus: number;
 }
 
 /** Lifetime World-map travel counters (issue #72) -- bundled into one object for the same reason
@@ -475,6 +481,63 @@ export function recordTravelStats(
   };
 }
 
+/** Ziggurat's "Effect of the Forgotten Gods" Special Rule (issue #30): "When you are in the
+ * hexagon of this dungeon (but outside the dungeon), you can spend 1 provision and roll a die in
+ * the table below." Requires standing on the current tile with a known Ziggurat-type dungeon --
+ * `WorldScreen.tsx` computes that from `dungeonHistory`/`HexTile.dungeonRunId`, since neither this
+ * function nor `AdventurerResources` has any notion of "which hex" on its own. */
+export function canUseForgottenGods(resources: AdventurerResources): boolean {
+  return resources.provisions >= 1;
+}
+
+export interface ForgottenGodsResult {
+  resources: AdventurerResources;
+  message: string;
+}
+
+export function resolveForgottenGods(
+  resources: AdventurerResources,
+  rng: RNG = Math.random,
+): ForgottenGodsResult {
+  if (!canUseForgottenGods(resources)) return { resources, message: "" };
+  const spent = { ...resources, provisions: resources.provisions - 1 };
+  const roll = rollDie(rng);
+  if (roll === 1) {
+    // "A big storm hits and lightning strikes you for 1d6 points of damage" -- floored at 1 HP,
+    // same "can hurt but not kill" precedent payTravelCost()'s own provisions-shortfall damage
+    // already established for environmental World-map effects outside a dungeon.
+    const damage = rollDie(rng);
+    return {
+      resources: { ...spent, hp: Math.max(1, spent.hp - damage) },
+      message: `Lightning strikes you for ${damage} damage!`,
+    };
+  }
+  if (roll === 2) {
+    return { resources: spent, message: "Nothing happens..." };
+  }
+  if (roll === 3) {
+    // "An owl follows you... it doesn't count towards the limit of animals you can have" --
+    // pushed unconditionally, bypassing MAX_ANIMALS entirely (unlike Knight's "Gain a Horse",
+    // which silently no-ops if the cap is already full -- this Owl is explicitly cap-exempt).
+    return {
+      resources: { ...spent, animals: [...spent.animals, "Owl"] },
+      message: "An owl follows you, unbound by the usual limit on animals.",
+    };
+  }
+  if (roll === 4 || roll === 5) {
+    // "+1 damage on all attacks on the next dungeon exploration you make" -- stacks if rolled more
+    // than once before that next exploration actually starts (no cap mentioned in the rulebook).
+    return {
+      resources: { ...spent, nextDungeonDamageBonus: spent.nextDungeonDamageBonus + 1 },
+      message: "A divine light illuminates you -- your next dungeon exploration deals +1 damage.",
+    };
+  }
+  return {
+    resources: { ...spent, hp: spent.hp + 4, maxHp: spent.maxHp + 4 },
+    message: "A light descends from the sky. You permanently gain +4 HP.",
+  };
+}
+
 // -- "Different Cultures" (docs/game-rules-reference.md lines 941-952): one bonus City Action per
 // culture, on top of the base Rest/Buy/Sell/Fix set above. Several of these reference systems this
 // codebase doesn't have (Curses, hand-economy, day-passage) -- per the project's own established
@@ -530,6 +593,13 @@ export function buyElvenBoots(resources: AdventurerResources): AdventurerResourc
  * World-map-only concern, not a dungeon-combat `ItemEffect` one). */
 export function hasElvenBoots(resources: AdventurerResources): boolean {
   return resources.armor.some((p) => p.itemName?.toLowerCase().includes("elven boots"));
+}
+
+/** Ziggurat's "Feathered Boots" Wonder (issue #30): "Spend 1 provision on swamps" -- a dungeon-found
+ * item rather than a Town purchase, but the identical travel-cost-override shape Elven Boots
+ * already established (checked by `WorldScreen.tsx`'s travel-cost caller the same way). */
+export function hasFeatheredBoots(resources: AdventurerResources): boolean {
+  return resources.armor.some((p) => p.itemName?.toLowerCase().includes("feathered boots"));
 }
 
 const GNOME_SPELL_COST = 80;

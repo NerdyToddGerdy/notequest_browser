@@ -324,6 +324,13 @@ export interface DungeonState {
    * doesn't inherit a dead one's real estate; `RETURN_TO_DUNGEON` carries it over exactly). Only
    * needed here for `finishIfVictorious()`'s Boss-kill tax credit. */
   buildings: OwnedBuilding[];
+  /** Ziggurat's "Effect of the Forgotten Gods" (issue #30): "+1 damage on all attacks" for this
+   * *entire* run (not just one fight, unlike `CombatState.playerDamageBonus`) -- consumed from
+   * `AdventurerResources.nextDungeonDamageBonus` the moment a genuinely fresh dungeon is entered
+   * (mirroring `hireling`'s own per-trip consumption), added into every `attackBonus()` call for
+   * the rest of this run. Not reset by `RETURN_TO_DUNGEON` (same trip); `RESUME_DUNGEON` doesn't
+   * carry it either, same as every other character-specific field. */
+  runDamageBonus: number;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (not a
@@ -449,6 +456,11 @@ export function createInitialDungeonState(
   maxSpellUses: Record<string, number> = spellUses,
   buildings: OwnedBuilding[] = [],
   spareArmor: ArmorPiece[] = [],
+  // Ziggurat's Effect of the Forgotten Gods (issue #30) -- consumed from
+  // AdventurerResources.nextDungeonDamageBonus only at a genuinely fresh entry (DungeonScreen.tsx),
+  // defaulting to 0 for every other caller (RESUME_DUNGEON/RETURN_TO_DUNGEON/tests) exactly like
+  // `spellUses` etc. above.
+  runDamageBonus = 0,
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -488,6 +500,7 @@ export function createInitialDungeonState(
     animals,
     milestones,
     buildings,
+    runDamageBonus,
     weaponFormula,
     spellUses,
     maxSpellUses,

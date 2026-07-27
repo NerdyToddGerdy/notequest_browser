@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.43.0] - 2026-07-27
+
+### Added
+
+- Deadly Dungeons (part of #30): 4 new dungeon types -- Citadel,
+  Pyramid, Ziggurat, and Necropolis -- each with its own full set of
+  Trap/Room Content/Monster/Reward/Boss tables, reachable via the
+  World map's terrain-based dungeon roll (Mountain, Desert,
+  Tundra/Glacier, and Swamp hexes respectively).
+- Citadel and Necropolis bosses guard a bonus "Hallows" item the
+  instant they fall.
+- Necropolis's Boss is assembled from three combined dice tables
+  (a modifier, a creature, and a second modifier) rather than a flat
+  roll, per its own "Table: Boss."
+- Ziggurat's "Effect of the Forgotten Gods" is a new standing action
+  usable at the Ziggurat's own hex on the World map (1 provision,
+  1d6 for a random effect: lightning damage, nothing, an Owl
+  companion, a damage bonus for your next dungeon run, or a
+  permanent HP boost).
+
 ## [2.42.0] - 2026-07-26
 
 ### Added

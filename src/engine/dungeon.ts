@@ -1,5 +1,17 @@
-import { SEGMENTS_TABLE, type DungeonTypeKey, type SegmentType } from "../data/dungeonTypes.ts";
-import { DUNGEON_TABLES, type MonsterTemplate, type RoomContentEntry } from "../data/dungeonTables.ts";
+import {
+  SEGMENTS_TABLE,
+  SEGMENTS_TABLE_BY_TYPE,
+  type DungeonTypeKey,
+  type SegmentType,
+} from "../data/dungeonTypes.ts";
+import {
+  DUNGEON_TABLES,
+  NECROPOLIS_BOSS_PART1,
+  NECROPOLIS_BOSS_PART2,
+  NECROPOLIS_BOSS_PART3,
+  type MonsterTemplate,
+  type RoomContentEntry,
+} from "../data/dungeonTables.ts";
 import type { Box, Direction, DungeonState, LevelState, SegmentState } from "./dungeonState.ts";
 import { rollDie } from "./dice.ts";
 import type { RNG } from "./rng.ts";
@@ -33,6 +45,8 @@ export function sizeFor(type: SegmentType, dir: Direction | null): { w: number; 
       return { w: 5 * UNIT, h: 5 * UNIT };
     case "room-wide":
       return { w: 7 * UNIT, h: 4 * UNIT };
+    case "room-big":
+      return { w: 7 * UNIT, h: 5 * UNIT };
     case "room-large":
       return { w: 8 * UNIT, h: 6 * UNIT };
     case "staircase":
@@ -119,8 +133,12 @@ export function columnFor(type: SegmentType): SegmentsColumn {
   return "room";
 }
 
-export function rollSegment(fromType: SegmentType, roll: number) {
-  const row = SEGMENTS_TABLE[roll];
+/** Deadly Dungeons (issue #30): unlike the Core 6, several new dungeon types print their own
+ * Segments table -- `SEGMENTS_TABLE_BY_TYPE` is checked first, falling back to the shared
+ * `SEGMENTS_TABLE` for the Core 6 (and any new type whose own table happens to match it exactly). */
+export function rollSegment(fromType: SegmentType, roll: number, dungeonKey: DungeonTypeKey) {
+  const table = SEGMENTS_TABLE_BY_TYPE[dungeonKey] ?? SEGMENTS_TABLE;
+  const row = table[roll];
   if (!row) throw new Error(`No Segments row for roll ${roll}`);
   return row[columnFor(fromType)];
 }
@@ -150,9 +168,31 @@ export function resolveRoomExtras(
 }
 
 /** Rolls the Dungeon Boss (1d6) for a newly-placed Final Room -- no Content or Monsters roll, per the rulebook. */
+/** Necropolis (issue #30): "roll three dice and compare each column... combine Part 1 + Part 2 +
+ * Part 3 to build the boss's full name, HP, damage, and abilities" -- Part 2 is the base creature
+ * (its own HP/damage/abilities), Part 1/3 are modifiers layered on top (an HP or damage delta, or
+ * an extra ability). Abilities are deduplicated (e.g. rolling Lich, already "necromancy"+"undead,"
+ * alongside a Part 1/3 modifier that also grants one of those would otherwise list it twice). */
+function resolveNecropolisBoss(rng: RNG): MonsterTemplate {
+  const part1 = NECROPOLIS_BOSS_PART1[rollDie(rng)]!;
+  const part2 = NECROPOLIS_BOSS_PART2[rollDie(rng)]!;
+  const part3 = NECROPOLIS_BOSS_PART3[rollDie(rng)]!;
+  const abilities = Array.from(
+    new Set([...(part1.abilities ?? []), ...part2.abilities, ...(part3.abilities ?? [])]),
+  );
+  return {
+    name: `${part1.name} ${part2.name} ${part3.name}`,
+    hp: Math.max(1, part2.hp + (part1.hpBonus ?? 0) + (part3.hpBonus ?? 0)),
+    damage: Math.max(0, part2.damage + (part1.damageBonus ?? 0) + (part3.damageBonus ?? 0)),
+    abilities,
+    count: 1,
+  };
+}
+
 export function resolveBoss(dungeonKey: DungeonTypeKey, rng: RNG = Math.random): MonsterTemplate {
+  if (dungeonKey === "necropolis") return resolveNecropolisBoss(rng);
   const roll = rollDie(rng);
-  const boss = DUNGEON_TABLES[dungeonKey].boss[roll];
+  const boss = DUNGEON_TABLES[dungeonKey].boss?.[roll];
   if (!boss) throw new Error(`Missing Boss entry for ${dungeonKey} roll=${roll}`);
   return boss;
 }

@@ -5,6 +5,7 @@ import {
   DUNGEON_TYPES,
   OPEN_DOOR_TABLE,
   SECRET_PASSAGE_TABLE,
+  SECRET_PASSAGE_TABLE_BY_TYPE,
   TYPE_LABELS,
   type SegmentType,
 } from "../data/dungeonTypes.ts";
@@ -13,6 +14,7 @@ import {
   ARMOR_TABLE,
   DUNGEON_TABLES,
   type ArmorPieceKind,
+  type BonusLootEntry,
   type ItemEffect,
   type MagicItemEntry,
   type MonsterAbility,
@@ -25,7 +27,7 @@ import { SPELL_TABLE } from "../data/spells.ts";
 import { buildingTaxTotal } from "../data/buildings.ts";
 import { HIRELING_BY_NAME } from "../data/hirelings.ts";
 import { ANIMAL_BY_NAME } from "../data/animals.ts";
-import { SPELL_TABLE_BY_KEY, spellKey } from "./character.ts";
+import { SPELL_TABLE_BY_KEY, parseSpellKey, spellKey } from "./character.ts";
 import {
   boxFromCenter,
   buildConnector,
@@ -400,6 +402,30 @@ function applyTrapEffect(
     return;
   }
 
+  if (trap.destroysArmor) {
+    const usable = draft.armor.filter((piece) => piece.maxHp > 0);
+    if (usable.length > 0) {
+      const piece = usable[(rollDie(rng) - 1) % usable.length]!;
+      piece.hp = 0;
+      draft.milestones.hasHadArmorDestroyed = true; // Blacksmith (issue #70)
+      pushLog(draft, `Acid destroys your ${ARMOR_PIECE_LABELS[piece.piece]}!`);
+    } else {
+      pushLog(draft, "Acid squirts from the ceiling, but you have no armor to destroy.");
+    }
+    return;
+  }
+
+  if (trap.rollsMonsterTable) {
+    const sum = rollDie(rng) + rollDie(rng);
+    const monsters = draft.dungeonTypeKey ? DUNGEON_TABLES[draft.dungeonTypeKey].monsters[sum] : null;
+    if (monsters) {
+      startCombat(draft, segId, monsters, true, rng);
+    } else {
+      pushLog(draft, "A passage opens, but nothing emerges.");
+    }
+    return;
+  }
+
   if (trap.monsters) {
     startCombat(draft, segId, trap.monsters, true, rng);
   }
@@ -426,6 +452,18 @@ function resolveTrapOutcome(
     pushLog(
       draft,
       `Your ${item.itemName ?? "trinket"} shields you from the trap and crumbles to dust.`,
+    );
+    return;
+  }
+  if (trap.torchCostDice) {
+    let rolled = 0;
+    for (let i = 0; i < trap.torchCostDice.dice; i++) rolled += rollDie(rng);
+    spendTorches(
+      draft,
+      rolled,
+      `Spent ${rolled} torch${rolled > 1 ? "es" : ""} climbing out of the cage.`,
+      segId,
+      rng,
     );
     return;
   }
@@ -473,7 +511,9 @@ function attackBonus(
   monster: Draft<CombatMonsterState>,
   isHorn = false,
 ): number {
-  let bonus = draft.combat?.playerDamageBonus ?? 0;
+  // Ziggurat's Effect of the Forgotten Gods (issue #30): "+1 damage on all attacks" for the whole
+  // run, unlike combat.playerDamageBonus's per-fight scope.
+  let bonus = (draft.combat?.playerDamageBonus ?? 0) + draft.runDamageBonus;
   // Grave Digger (base Class) and Gravedigger (Advanced Class, issue #23) are two separate
   // rulebook entries that happen to grant the identical "+2 damage to Undead" bonus -- either one
   // (or both) applies the same single +2, not stacked.
@@ -701,6 +741,39 @@ function handleMonsterDefeat(
   }
 }
 
+/** Citadel's Dwarf Hallows / Necropolis's Forgotten Hallows (issue #30) -- a post-Boss bonus item,
+ * always concrete/named, granted directly rather than through the Wonders/Magic Item tables' own
+ * roll-then-layer-a-bonus shape. */
+function grantBonusLoot(draft: Draft<DungeonState>, entry: BonusLootEntry): void {
+  if (entry.kind === "weapon") {
+    draft.spareWeapons.push({
+      name: entry.name,
+      formula: entry.formula,
+      twoHanded: entry.twoHanded,
+      bonusEffect: entry.bonusEffect,
+    });
+    pushLog(draft, `The fallen Boss guarded a Hallow: ${entry.name} (${entry.formula} damage).`);
+  } else if (entry.kind === "armor") {
+    addArmorPiece(draft, {
+      piece: entry.piece,
+      hp: entry.maxHp,
+      maxHp: entry.maxHp,
+      itemName: entry.name,
+      effect: entry.effect,
+    });
+    pushLog(draft, `The fallen Boss guarded a Hallow: ${entry.name} (${entry.maxHp} HP).`);
+  } else {
+    addArmorPiece(draft, {
+      piece: "wonderItem",
+      hp: entry.grantsHp ?? 0,
+      maxHp: entry.grantsHp ?? 0,
+      itemName: entry.name,
+      effect: entry.effect,
+    });
+    pushLog(draft, `The fallen Boss guarded a Hallow: ${entry.name}.`);
+  }
+}
+
 /** If every monster is gone, resolves Loot (or the Boss's flat 2d6 Treasures), marks the room cleared, and closes out combat. */
 function finishIfVictorious(
   draft: Draft<DungeonState>,
@@ -739,6 +812,13 @@ function finishIfVictorious(
     if (tax > 0) {
       draft.coins += tax;
       pushLog(draft, `Your holdings collect ${tax} coins in taxes from the Boss's fall.`);
+    }
+    // Citadel's Dwarf Hallows / Necropolis's Forgotten Hallows (issue #30): "in addition to the 2d6
+    // Treasures, you've found one of the Hallows" -- only these two types define bossBonusLoot.
+    const bonusLoot = DUNGEON_TABLES[draft.dungeonTypeKey!].bossBonusLoot;
+    if (bonusLoot) {
+      const entry = bonusLoot[rollDie(rng)]!;
+      grantBonusLoot(draft, entry);
     }
     pushLog(draft, "You have conquered the dungeon!", "descend");
     draft.combat = null;
@@ -944,14 +1024,33 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
   // where it has one (a worn trinket), else a flat placeholder matching this dungeon type's other
   // small heldValue Treasures (Religious Object/Sinister Idol, 3 coins) for the potion/scroll-shaped
   // outcomes that never had a coin value of their own to draw on. A pure-flavor Wonder with no
-  // `grantsHp` (e.g. "Lamp") grants nothing to anyone, Ogre included, so it's excluded here.
-  if (draft.raceName === "Ogre" && (entry.grantsHp !== undefined || entry.effect.kind !== "flavor")) {
+  // `grantsHp` (e.g. "Lamp") grants nothing to anyone, Ogre included, so it's excluded here. Pyramid's
+  // (issue #30) `rerollBaseTable: "weapon"` and Citadel's `grantsWeapon` are also excluded -- Ogre
+  // "still fully benefits from [Weapon] of X items... since the restriction never mentions weapons,"
+  // same as Magic Items.
+  const isOgreUnusable =
+    draft.raceName === "Ogre" &&
+    entry.grantsWeapon === undefined &&
+    (entry.grantsHp !== undefined || entry.effect.kind !== "flavor") &&
+    !(entry.effect.kind === "rerollBaseTable" && entry.effect.table === "weapon");
+  if (isOgreUnusable) {
     const worth = entry.grantsHp !== undefined ? Math.max(1, entry.grantsHp) : OGRE_UNUSABLE_TREASURE_WORTH;
     addHeldItem(
       draft,
       { name: entry.name, worth },
       `Treasure: ${entry.text} Ogres cannot use this -- sold instead.`,
     );
+    return;
+  }
+  if (entry.grantsWeapon) {
+    // Citadel's Reward table (issue #30): "Orc Machete (1d6+1 Damage)" -- the one Wonders-column
+    // row that's a plain weapon rather than a wearable trinket.
+    draft.spareWeapons.push({
+      name: entry.grantsWeapon.name,
+      formula: entry.grantsWeapon.formula,
+      twoHanded: entry.grantsWeapon.twoHanded,
+    });
+    pushLog(draft, `Treasure: ${entry.text}`);
     return;
   }
   if (entry.grantsHp !== undefined) {
@@ -975,6 +1074,26 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
   } else if (entry.effect.kind === "grantsTorches") {
     const gained = Math.min(entry.effect.amount, 10 - draft.torches);
     draft.torches += gained;
+  } else if (entry.effect.kind === "healAmount") {
+    // Ziggurat's "Addictive Sweet Drink" (issue #30): "Recovers 1 HP" -- applied immediately, same
+    // shape as grantsTorches above, not banked as a worn item.
+    const healed = Math.min(entry.effect.amount, draft.maxHp - draft.hp);
+    draft.hp += healed;
+  } else if (entry.effect.kind === "rerollBaseTable") {
+    // Pyramid's Wonders column (issue #30): "[Roll in the 'Armor'/'Weapon' table]" -- an ordinary
+    // find, no bonus layered on (unlike a Magic Item's own "[Armor] of X" shape).
+    if (entry.effect.table === "armor") {
+      const roll = rollDie(rng);
+      const base = ARMOR_TABLE[roll]!;
+      addArmorPiece(draft, { piece: base.piece, hp: base.maxHp, maxHp: base.maxHp });
+      pushLog(draft, `Treasure: ${entry.text} (${ARMOR_PIECE_LABELS[base.piece]}, ${base.maxHp} HP)`);
+    } else {
+      const roll = rollDie(rng);
+      const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
+      draft.spareWeapons.push({ name: base.name, formula: base.formula, twoHanded: base.twoHanded });
+      pushLog(draft, `Treasure: ${entry.text} — a ${base.name} (${base.formula} damage).`);
+    }
+    return;
   } else if (entry.effect.kind === "randomSpell") {
     // Always a random *Basic* Spell per the rulebook's own wording for every Wonder/Magic
     // Scroll/Mana Potion that grants one -- New Spells (issue #24) tables are never rolled here.
@@ -1000,14 +1119,34 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
  * the piece's HP if it's `extraHp`, or attached as `effect` for anything else the piece grants;
  * a weapon bonus always rides along as `bonusEffect`, applied during combat). */
 function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng: RNG): void {
+  if (entry.grantsSpells) {
+    // Necropolis's "Fool's Potion" (issue #30): "Learn 3 Random Basic Spells" -- no physical item
+    // at all, so this short-circuits before the armor/weapon roll entirely. Ogre's restriction
+    // doesn't apply (this isn't the armor half of the table, and "potions/scrolls" here is really
+    // just this item's own flavor name, not a mechanical potion/scroll grant).
+    const names: string[] = [];
+    for (let i = 0; i < entry.grantsSpells; i++) {
+      const spellRoll = rollDie(rng);
+      const key = spellKey("basic", spellRoll);
+      draft.spellUses[key] = (draft.spellUses[key] ?? 0) + 1;
+      draft.maxSpellUses[key] = (draft.maxSpellUses[key] ?? 0) + 1;
+      names.push(SPELL_TABLE[spellRoll]?.name ?? "a spell");
+    }
+    draft.milestones.hasCastSpell = true; // Scholar (issue #70): "used a spell or scroll"
+    pushLog(draft, `Treasure: ${entry.text} — learned ${names.join(", ")}!`);
+    return;
+  }
   if (entry.grants === "armor") {
     // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor" -- only the armor
     // half of this table is blocked; Ogre still fully benefits from "[Weapon] of X" items below,
     // since the restriction never mentions weapons. The base Armor table is still rolled (same RNG
     // consumption as anyone else), since its `maxHp` is what gives the unusable piece a worth once
-    // it becomes a sellable HeldItem instead of vanishing outright (issue #83).
-    const roll = rollDie(rng);
-    const base = ARMOR_TABLE[roll]!;
+    // it becomes a sellable HeldItem instead of vanishing outright (issue #83). `fixedArmor` (issue
+    // #30) skips this roll entirely -- a uniquely-named piece (e.g. "Dwarven breastplate (10 HP)")
+    // isn't roll-dependent, so there's no RNG to consume here for it.
+    const base = entry.fixedArmor
+      ? { piece: entry.fixedArmor.piece, maxHp: entry.fixedArmor.maxHp }
+      : ARMOR_TABLE[rollDie(rng)]!;
     if (draft.raceName === "Ogre") {
       addHeldItem(
         draft,
@@ -1030,6 +1169,7 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
     draft.spareWeapons.push({
       name: entry.name,
       formula: entry.fixedFormula,
+      twoHanded: entry.twoHanded,
       bonusEffect: entry.effect.kind !== "flavor" ? entry.effect : undefined,
     });
     pushLog(draft, `Treasure: ${entry.text} (${entry.fixedFormula} damage)`);
@@ -1291,7 +1431,13 @@ export function dungeonReducer(
         }
 
         seg.secretPassageSearched = true;
-        seg.secretPassageResult = SECRET_PASSAGE_TABLE[action.roll] ?? null;
+        // Deadly Dungeons (issue #30): Pyramid/Necropolis print their own distinct Secret Passage
+        // table; every other type (including Citadel/Ziggurat, whose own printed tables happen to
+        // match this one exactly) falls back to the shared table.
+        const secretPassageTable = draft.dungeonTypeKey
+          ? (SECRET_PASSAGE_TABLE_BY_TYPE[draft.dungeonTypeKey] ?? SECRET_PASSAGE_TABLE)
+          : SECRET_PASSAGE_TABLE;
+        seg.secretPassageResult = secretPassageTable[action.roll] ?? null;
         if (action.roll === 1 && action.trapRoll != null && draft.dungeonTypeKey) {
           const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
           if (trap) {
@@ -1673,7 +1819,7 @@ export function dungeonReducer(
 
           case "descend-normal": {
             if (action.roll == null) throw new Error("descend-normal requires a roll");
-            const row = rollSegment(seg.type, action.roll);
+            const row = rollSegment(seg.type, action.roll, draft.dungeonTypeKey!);
             const newLevel = makeLevel(level.depth + 1);
             const box = boxFromCenter(0, 0, sizeFor(row.type, null));
             const rootSeg = buildSegment(
@@ -1714,7 +1860,7 @@ export function dungeonReducer(
 
           case "normal": {
             if (action.roll == null) throw new Error("normal requires a roll");
-            const row = rollSegment(seg.type, action.roll);
+            const row = rollSegment(seg.type, action.roll, draft.dungeonTypeKey!);
             const box = placeChild(seg, door.dir, row.type, level.segments);
             const childSeg = buildSegment(
               draft,
@@ -2560,6 +2706,24 @@ export function dungeonReducer(
             const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
             draft.milestones.hasCastSpell = true; // Scholar (issue #70): "used a spell or scroll"
             pushLog(draft, `Treasure: ${outcome.text} — learned ${spellName}!`);
+            break;
+          }
+          case "restoreRandomSpellUse": {
+            // Ziggurat's "Strange Fruit" (issue #30): "recover 1 use of a spell" -- a random
+            // currently-known spell, unlike Reload Mana (still deferred), which lets the player
+            // choose. Not one of Ogre's three restricted categories (potions/scrolls/armor), so no
+            // Ogre check here.
+            const knownKeys = Object.keys(draft.spellUses);
+            if (knownKeys.length === 0) {
+              pushLog(draft, `Treasure: ${outcome.text} You don't know any spells yet.`);
+              break;
+            }
+            const key = knownKeys[rollDie(rng) % knownKeys.length]!;
+            const max = draft.maxSpellUses[key] ?? draft.spellUses[key]!;
+            draft.spellUses[key] = Math.min(max, (draft.spellUses[key] ?? 0) + 1);
+            const { table, roll: spellRoll } = parseSpellKey(key);
+            const spellName = SPELL_TABLE_BY_KEY[table]?.[spellRoll]?.name ?? "a spell";
+            pushLog(draft, `Treasure: ${outcome.text} — recovers a use of ${spellName}.`);
             break;
           }
           case "flavor": {

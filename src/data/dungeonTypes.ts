@@ -1,4 +1,19 @@
-export type DungeonTypeKey = "palace" | "crypt" | "tomb" | "sanctuary" | "temple" | "prison";
+/** Deadly Dungeons (Expanded World, issue #30): "citadel"/"pyramid"/"ziggurat"/"necropolis" are the
+ * first 4 of 12 new dungeon types, chosen because -- per the rulebook's own per-type Segments/
+ * Trap/Room Content/Monsters/Reward/Boss tables -- they fit this app's existing data-driven shape
+ * directly, unlike Sewers/Entrails/Cave (which use a different Tunnel-based Segments concept) or
+ * Mega Dungeon (which needs a Faction-reskinning system this app doesn't have). */
+export type DungeonTypeKey =
+  | "palace"
+  | "crypt"
+  | "tomb"
+  | "sanctuary"
+  | "temple"
+  | "prison"
+  | "citadel"
+  | "pyramid"
+  | "ziggurat"
+  | "necropolis";
 
 export type SegmentType =
   | "corridor"
@@ -7,6 +22,10 @@ export type SegmentType =
   | "room-medium"
   | "room-wide"
   | "room-large"
+  /** Citadel/Pyramid/Necropolis (issue #30): "Big room," a distinct size the rulebook prints
+   * between "Wide room" and "Large hall with pillars" in these 3 types' own Segments tables --
+   * genuinely new, not a reskin of an existing size (see `sizeFor()` in `dungeon.ts`). */
+  | "room-big"
   | "final";
 
 export type DoorRollOutcome = "trap" | "locked" | "unlocked";
@@ -92,7 +111,173 @@ export const SECRET_PASSAGE_TABLE: Record<number, string> = {
   6: "A secret door to a Staircase.",
 };
 
-/** Table: Dungeon Name, "first part" column (1d6) -- also selects the dungeon type. */
+/** Deadly Dungeons (issue #30): unlike the Core 6, each new dungeon type prints its own Segments
+ * table -- some genuinely differ from `SEGMENTS_TABLE` (room-size progression, door counts), so
+ * this can't reuse the "one shared table" precedent the way Secret Passage mostly still can (see
+ * `SECRET_PASSAGE_TABLE_BY_TYPE` below). `rollSegment()` (`dungeon.ts`) checks this map first,
+ * falling back to `SEGMENTS_TABLE` for the Core 6 (and for any new type that turns out to match it
+ * exactly, sparing a redundant copy). Citadel and Pyramid's own printed tables are byte-for-byte
+ * identical, so they share one object. */
+const CITADEL_PYRAMID_SEGMENTS: Record<number, SegmentsRow> = {
+  1: {
+    staircase: { type: "corridor", doors: 1, text: "Corridor with another door." },
+    corridor: { type: "room-small", doors: 1, text: "Small room with another door." },
+    room: { type: "room-small", doors: 0, text: "Small room." },
+  },
+  2: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-medium", doors: 1, text: "Medium size room with another door." },
+    room: { type: "room-medium", doors: 0, text: "Medium size room." },
+  },
+  3: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-medium", doors: 1, text: "Medium size room with another door." },
+    room: { type: "room-medium", doors: 0, text: "Medium size room." },
+  },
+  4: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-wide", doors: 2, text: "Wide room with two other doors." },
+    room: { type: "room-big", doors: 0, text: "Big room." },
+  },
+  5: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "room-wide", doors: 2, text: "Wide room with two other doors." },
+    room: {
+      type: "room-large",
+      doors: 0,
+      text: "Large hall with pillars.",
+      flavor: "Pillars line the walls.",
+    },
+  },
+  6: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+    room: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+  },
+};
+
+const ZIGGURAT_SEGMENTS: Record<number, SegmentsRow> = {
+  1: {
+    staircase: { type: "corridor", doors: 1, text: "Corridor with another door." },
+    corridor: { type: "room-small", doors: 1, text: "Small room with another door." },
+    room: {
+      type: "room-large",
+      doors: 0,
+      text: "Large hall with pillars.",
+      flavor: "Pillars line the walls.",
+    },
+  },
+  2: {
+    staircase: { type: "corridor", doors: 1, text: "Corridor with another door." },
+    corridor: { type: "room-medium", doors: 1, text: "Medium size room with another door." },
+    room: {
+      type: "room-large",
+      doors: 0,
+      text: "Large hall with pillars.",
+      flavor: "Pillars line the walls.",
+    },
+  },
+  3: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-medium", doors: 1, text: "Medium size room with another door." },
+    room: { type: "corridor", doors: 1, text: "Corridor with a door at the end." },
+  },
+  4: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-medium", doors: 1, text: "Medium size room with another door." },
+    room: { type: "corridor", doors: 1, text: "Corridor with a door at the end." },
+  },
+  5: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "room-wide", doors: 2, text: "Wide room with two other doors." },
+    room: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+  },
+  6: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "room-wide", doors: 2, text: "Wide room with two other doors." },
+    room: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+  },
+};
+
+const NECROPOLIS_SEGMENTS: Record<number, SegmentsRow> = {
+  1: {
+    staircase: { type: "corridor", doors: 1, text: "Corridor with another door." },
+    corridor: { type: "room-small", doors: 1, text: "Small room with another door." },
+    room: { type: "room-small", doors: 0, text: "Small room." },
+  },
+  2: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-medium", doors: 1, text: "Medium size room with another door." },
+    room: { type: "room-medium", doors: 0, text: "Medium size room." },
+  },
+  3: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-wide", doors: 2, text: "Wide room with two other doors." },
+    room: { type: "room-big", doors: 0, text: "Big room." },
+  },
+  4: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "room-wide", doors: 2, text: "Wide room with two other doors." },
+    room: {
+      type: "room-large",
+      doors: 0,
+      text: "Large hall with pillars.",
+      flavor: "Pillars line the walls.",
+    },
+  },
+  5: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+    room: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+  },
+  6: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+    room: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+  },
+};
+
+export const SEGMENTS_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, SegmentsRow>>> = {
+  citadel: CITADEL_PYRAMID_SEGMENTS,
+  pyramid: CITADEL_PYRAMID_SEGMENTS,
+  ziggurat: ZIGGURAT_SEGMENTS,
+  necropolis: NECROPOLIS_SEGMENTS,
+};
+
+/** Deadly Dungeons (issue #30): Citadel's own Secret Passage table is explicitly printed in the
+ * rulebook as "identical shape to Palace's" and Ziggurat's own printed table is byte-for-byte the
+ * same as `SECRET_PASSAGE_TABLE` too -- both reuse it directly (no entry needed here). Pyramid and
+ * Necropolis each print a genuinely different distribution (extra Trap/Chest/Staircase rows in
+ * place of "There's nothing here"), so only those two need their own table. */
+const PYRAMID_SECRET_PASSAGE: Record<number, string> = {
+  1: "You have activated a Trap!",
+  2: "You have activated a Trap!",
+  3: "You have found a hidden Chest!",
+  4: "You have found a hidden Chest!",
+  5: "You have found a hidden Chest!",
+  6: "A secret door to a Staircase.",
+};
+
+const NECROPOLIS_SECRET_PASSAGE: Record<number, string> = {
+  1: "You have activated a Trap!",
+  2: "You have activated a Trap!",
+  3: "You have found a hidden Chest!",
+  4: "You have found a hidden Chest!",
+  5: "A secret door to a Staircase.",
+  6: "A secret door to a Staircase.",
+};
+
+export const SECRET_PASSAGE_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, string>>> = {
+  pyramid: PYRAMID_SECRET_PASSAGE,
+  necropolis: NECROPOLIS_SECRET_PASSAGE,
+};
+
+/** Table: Dungeon Name, "first part" column (1d6) -- also selects the dungeon type. Keys 1-6 are
+ * the real rulebook's own "Dungeon Name" table (Core Book, genuinely capped at 6 rows); keys 7+
+ * are Deadly Dungeons types (issue #30), reachable only via `DUNGEON_TYPE_BY_TERRAIN`'s wider
+ * per-terrain roll (`hexTables.ts`) -- every dungeon entry in this app is terrain-fated now (see
+ * CLAUDE.md's "Terrain-based Dungeon Type" note), so a bare key beyond 6 is never reached by the
+ * "Roll for Dungeon" ritual's own free first die, only by `forcedTypeRoll`. */
 export const DUNGEON_TYPES: Record<number, DungeonTypeDef> = {
   1: {
     key: "palace",
@@ -148,6 +333,42 @@ export const DUNGEON_TYPES: Record<number, DungeonTypeDef> = {
     entrance:
       "Beneath a pile of rubble, a reinforced trapdoor opens onto a staircase down. At the end of it, a door.",
   },
+  7: {
+    key: "citadel",
+    roll: 7,
+    name: "The Citadel",
+    entranceType: "room-large",
+    doors: 6,
+    entrance:
+      "Two statues of dwarfs brandishing their axes stand outside the heavy stone door. Inside, a huge, long room holds a dry fountain, 3 doors on each side.",
+  },
+  8: {
+    key: "pyramid",
+    roll: 8,
+    name: "The Pyramid",
+    entranceType: "staircase",
+    doors: 1,
+    entrance:
+      "A large carved rock covers the entrance. Inside, a long staircase descends into darkness, a metal door waiting at the bottom.",
+  },
+  9: {
+    key: "ziggurat",
+    roll: 9,
+    name: "The Ziggurat",
+    entranceType: "room-large",
+    doors: 4,
+    entrance:
+      "A dark well leads into darkness, a rope on its side. You descend for more than twenty meters until you reach a large square room, one door on each wall.",
+  },
+  10: {
+    key: "necropolis",
+    roll: 10,
+    name: "The Necropolis",
+    entranceType: "staircase",
+    doors: 1,
+    entrance:
+      "Beyond the heavy metal double doors, the smell of death grows stronger. A long, dark staircase leads straight down to a metal door.",
+  },
 };
 
 /** Table: Dungeon Name, "second part" and "third part" columns (1d6 each) -- flavor only. */
@@ -176,5 +397,6 @@ export const TYPE_LABELS: Record<SegmentType, string> = {
   "room-medium": "Medium Room",
   "room-wide": "Wide Room",
   "room-large": "Large Room",
+  "room-big": "Big Room",
   final: "Final Room",
 };

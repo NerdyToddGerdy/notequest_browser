@@ -31,7 +31,18 @@ describe("table completeness", () => {
   });
 
   it("every dungeon type has full Trap (1-6) and Room Content/Monsters (2-12) tables", () => {
-    for (const key of ["palace", "crypt", "tomb", "sanctuary", "temple", "prison"] as const) {
+    for (const key of [
+      "palace",
+      "crypt",
+      "tomb",
+      "sanctuary",
+      "temple",
+      "prison",
+      "citadel",
+      "pyramid",
+      "ziggurat",
+      "necropolis",
+    ] as const) {
       const tables = DUNGEON_TABLES[key];
       for (let roll = 1; roll <= 6; roll++) {
         expect(tables.trap[roll], `${key} trap ${roll}`).toBeDefined();
@@ -44,10 +55,22 @@ describe("table completeness", () => {
   });
 
   it("every dungeon type has a full Boss (1-6) table, and no boss carries the Loot ability", () => {
-    for (const key of ["palace", "crypt", "tomb", "sanctuary", "temple", "prison"] as const) {
+    // Necropolis is deliberately excluded -- its own Boss is a 3-dice combinator
+    // (resolveNecropolisBoss(), see the dedicated describe block below), not a flat table.
+    for (const key of [
+      "palace",
+      "crypt",
+      "tomb",
+      "sanctuary",
+      "temple",
+      "prison",
+      "citadel",
+      "pyramid",
+      "ziggurat",
+    ] as const) {
       const tables = DUNGEON_TABLES[key];
       for (let roll = 1; roll <= 6; roll++) {
-        const boss = tables.boss[roll];
+        const boss = tables.boss![roll];
         expect(boss, `${key} boss ${roll}`).toBeDefined();
         expect(boss!.hp).toBeGreaterThan(0);
         // Boss victory always grants a flat 2d6 Treasures (see finishIfVictorious); the
@@ -58,7 +81,18 @@ describe("table completeness", () => {
   });
 
   it("every dungeon type has a full Treasure (1-6) table", () => {
-    for (const key of ["palace", "crypt", "tomb", "sanctuary", "temple", "prison"] as const) {
+    for (const key of [
+      "palace",
+      "crypt",
+      "tomb",
+      "sanctuary",
+      "temple",
+      "prison",
+      "citadel",
+      "pyramid",
+      "ziggurat",
+      "necropolis",
+    ] as const) {
       const tables = DUNGEON_TABLES[key];
       for (let roll = 1; roll <= 6; roll++) {
         expect(tables.treasure[roll], `${key} treasure ${roll}`).toBeDefined();
@@ -84,14 +118,23 @@ describe("assignDirections", () => {
 
 describe("rollSegment", () => {
   it("reads the Staircase column when standing on a staircase", () => {
-    const result = rollSegment("staircase", 1);
+    const result = rollSegment("staircase", 1, "palace");
     expect(result).toEqual(SEGMENTS_TABLE[1]!.staircase);
   });
 
   it("reads the Room column for any room type", () => {
-    const result = rollSegment("room-wide", 6);
+    const result = rollSegment("room-wide", 6, "palace");
     expect(result).toEqual(SEGMENTS_TABLE[6]!.room);
     expect(result.type).toBe("staircase"); // rolling a 6 from a room always finds a staircase
+  });
+
+  it("falls back to the shared SEGMENTS_TABLE for a Core 6 type, but uses a new type's own table when it has one (issue #30)", () => {
+    const shared = rollSegment("room-wide", 4, "palace");
+    const citadel = rollSegment("room-wide", 4, "citadel");
+    // Citadel's own Segments table differs from the shared one at this exact row (Big Room vs Wide
+    // Room) -- confirms the per-type lookup actually took effect, not silently falling through.
+    expect(shared.type).toBe("room-wide");
+    expect(citadel.type).toBe("room-big");
   });
 });
 
@@ -148,8 +191,38 @@ describe("resolveRoomExtras", () => {
 
 describe("resolveBoss", () => {
   it("rolls a single die and returns the matching Boss entry for that dungeon type", () => {
-    expect(resolveBoss("palace", sequenceDie([6]))).toEqual(DUNGEON_TABLES.palace.boss[6]);
-    expect(resolveBoss("prison", sequenceDie([1]))).toEqual(DUNGEON_TABLES.prison.boss[1]);
+    expect(resolveBoss("palace", sequenceDie([6]))).toEqual(DUNGEON_TABLES.palace.boss![6]);
+    expect(resolveBoss("prison", sequenceDie([1]))).toEqual(DUNGEON_TABLES.prison.boss![1]);
+  });
+
+  it("Necropolis (issue #30): combines 3 independent dice into one boss, not a flat table lookup", () => {
+    // Part 1 roll 1 (Colossal, +30 HP), Part 2 roll 2 (Skeleton, 12 HP/4 dmg/Undead), Part 3
+    // roll 1 (of Death, Deathtouch).
+    const boss = resolveBoss("necropolis", sequenceDie([1, 2, 1]));
+    expect(boss.name).toBe("Colossal Skeleton of Death");
+    expect(boss.hp).toBe(42); // 12 base + 30 from Colossal
+    expect(boss.damage).toBe(4); // Part 2's own damage, no Part 1/3 damage modifier this roll
+    expect(boss.abilities).toEqual(["undead", "deathtouch"]);
+    expect(boss.count).toBe(1);
+  });
+
+  it("Necropolis: a damage-modifying Part combines correctly and abilities from multiple parts don't duplicate", () => {
+    // Part 1 roll 6 (Stone, Stoneskin), Part 2 roll 6 (Lich, 25 HP/6 dmg/Necromancy+Undead),
+    // Part 3 roll 2 (of the Blades, +2 damage).
+    const boss = resolveBoss("necropolis", sequenceDie([6, 6, 2]));
+    expect(boss.name).toBe("Stone Lich of the Blades");
+    expect(boss.hp).toBe(25);
+    expect(boss.damage).toBe(8); // 6 base + 2 from "of the Blades"
+    expect(boss.abilities).toEqual(["stoneskin", "necromancy", "undead"]);
+  });
+
+  it("Necropolis: HP never drops below 1 even on the 'Dying' modifier against a low-HP creature", () => {
+    // Part 1 roll 5 (Dying, -5 HP), Part 2 roll 1 (Animal, 20 HP/3 dmg), Part 3 roll 3 (from Hell,
+    // Firebreath) -- 20 - 5 = 15, well above 1, just confirming the floor logic doesn't misfire
+    // on an ordinary case.
+    const boss = resolveBoss("necropolis", sequenceDie([5, 1, 3]));
+    expect(boss.hp).toBe(15);
+    expect(boss.abilities).toEqual(["firebreath"]);
   });
 });
 
@@ -222,6 +295,7 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     animals: [],
     milestones: createInitialMilestones(),
     buildings: [],
+    runDamageBonus: 0,
     weaponFormula: "1d6",
     spellUses: {},
     maxSpellUses: {},

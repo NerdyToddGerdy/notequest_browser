@@ -22,6 +22,11 @@ export interface TrapEntry {
   text: string;
   /** Set for traps that mechanically cost torches (e.g. the ditch trap) rather than being flavor-only. */
   torchCost?: number;
+  /** Necropolis's "A cage falls on you. You are trapped and need to spend 1d6 torches to get out"
+   * (issue #30) -- unlike `torchCost`'s flat number, this is rolled fresh at the moment the trap
+   * fires (`resolveTrapOutcome()`), same as any other dice-based amount. Mutually exclusive with
+   * `torchCost`. */
+  torchCostDice?: { dice: number; sides: number };
   /** Flat HP damage this trap deals when it fires (e.g. "Acid Spout (5 Damage)"). */
   damage?: number;
   /** The Blade Trap (identical row 1 across every dungeon type): rolls a die when it fires --
@@ -31,6 +36,15 @@ export interface TrapEntry {
   /** Monsters that ambush the player when this trap fires (Crypt's Bats, Tomb's Skeletons) --
    * ordinary combat, spawned exactly like a room's own Monster-table roll. */
   monsters?: MonsterTemplate;
+  /** Ziggurat (issue #30): "Acid squirts from the ceiling, destroying a piece of armor you're
+   * wearing" -- picks one equipped piece at random and zeroes its HP (a no-op if nothing is
+   * equipped, rather than inventing a piece to destroy). */
+  destroysArmor?: boolean;
+  /** Ziggurat (issue #30): "A passage opens and a Monster emerges (roll in the table below)" --
+   * unlike `monsters` above (a fixed ambush template), this rolls a fresh 2d6 into the dungeon's
+   * own Monster table at the moment the trap fires, same as an ordinary room would (including the
+   * possibility of rolling "no monsters," rows 7-8). */
+  rollsMonsterTable?: boolean;
 }
 
 export type MonsterAbility =
@@ -82,6 +96,11 @@ export type RewardEffect =
   | { kind: "healAll" }
   | { kind: "restoreAllSpells" }
   | { kind: "randomSpell" }
+  /** Ziggurat's "Strange Fruit" (issue #30): "If eating, recover 1 use of a spell" -- unlike
+   * Reload Mana (New Spells, still deferred), this picks a random currently-known spell rather
+   * than letting the player choose, so it needs no picker UI. A no-op (flavor log only) if the
+   * character knows no spells at all yet. */
+  | { kind: "restoreRandomSpellUse" }
   | { kind: "rerollColumn"; column: "wonders" | "magicItem" | "weapon" }
   | { kind: "flavor" };
 
@@ -156,6 +175,15 @@ export type ItemEffect =
   | { kind: "randomSpell" }
   | { kind: "lifesteal"; amount: number }
   | { kind: "instantKillOnRoll"; roll: number }
+  /** Pyramid's Wonders column (issue #30): "[Roll in the 'Armor'/'Weapon' table]" -- a genuinely
+   * new shape, distinct from `RewardEffect.rerollColumn` (which redirects the Treasure column into
+   * Wonders/Magic Item/Weapon): this is a *Wonders-column row itself* redirecting one level further,
+   * into the *base* Armor/Weapon table directly, with no bonus layered on top (an ordinary find,
+   * not a Magic Item). Handled in `resolveWonder()`. */
+  | { kind: "rerollBaseTable"; table: "armor" | "weapon" }
+  /** Ziggurat's "Addictive Sweet Drink" (issue #30): "Recovers 1 HP" -- a Wonder-column heal, unlike
+   * Treasure's own `healAll` (which heals fully); applied immediately, same as `grantsTorches`. */
+  | { kind: "healAmount"; amount: number }
   | { kind: "flavor" };
 
 export interface WonderEntry {
@@ -164,6 +192,11 @@ export interface WonderEntry {
   /** Set only for Wonders that are themselves a wearable item with its own HP (e.g. "Jester Hat
    * (2 HP)") -- granted as a `"wonderItem"` ArmorPiece, not rolled on the Armor table. */
   grantsHp?: number;
+  /** Citadel's Reward table (issue #30) has one Wonders row that's a plain, uniquely-named weapon
+   * rather than a wearable trinket ("Orc Machete (1d6+1 Damage)") -- granted directly to
+   * `spareWeapons`, bypassing the `grantsHp`/`wonderItem` shape entirely. Mutually exclusive with
+   * `grantsHp` (a Wonder is never both). */
+  grantsWeapon?: { name: string; formula: string; twoHanded?: boolean };
   effect: ItemEffect;
 }
 
@@ -179,6 +212,19 @@ export interface MagicItemEntry {
    * own name directly -- for uniquely-named weapons (e.g. "Boatman's Oar (1d6+1 Dmg)") that don't
    * fit the usual "roll the dungeon's Weapon table, then layer a bonus on top" shape. */
   fixedFormula?: string;
+  /** `fixedFormula`'s Armor-side sibling (issue #30) -- for uniquely-named armor pieces (e.g.
+   * "Dwarven breastplate (10 HP)") whose text names a specific piece/HP directly instead of the
+   * literal "[Armor] of X" bracket template that rolls the base table fresh. */
+  fixedArmor?: { piece: ArmorPieceKind; maxHp: number };
+  /** Necropolis's "Vampiric Trident" (issue #30) -- `fixedFormula` alone had no way to carry
+   * Two-handed through to the granted weapon (unlike the base Weapon table's own `WeaponEntry`,
+   * which already has this). */
+  twoHanded?: boolean;
+  /** Necropolis's "Fool's Potion" (issue #30): "Learn 3 Random Basic Spells" -- a Magic Item with
+   * no physical item at all, unlike every other entry here. Short-circuits `resolveMagicItem()`
+   * before the armor/weapon roll entirely; `grants` is still set (required) but unused when this
+   * is present. */
+  grantsSpells?: number;
 }
 
 export interface DungeonTypeTables {
@@ -188,8 +234,10 @@ export interface DungeonTypeTables {
   roomContent: Record<number, RoomContentEntry>;
   /** Table: Monsters (2d6). Rows 7 and 8 are both null ("no monsters in this room"). */
   monsters: Record<number, MonsterTemplate | null>;
-  /** Table: Boss (1d6). Rolled once when the Final Room is placed; no Content/Monsters roll alongside it. */
-  boss: Record<number, MonsterTemplate>;
+  /** Table: Boss (1d6). Rolled once when the Final Room is placed; no Content/Monsters roll alongside it.
+   * Optional only for Necropolis (issue #30), whose Boss is instead a 3-dice combinator --
+   * `NECROPOLIS_BOSS_PART1/2/3` below, resolved by `dungeon.ts`'s `resolveBoss()` -- not a flat table. */
+  boss?: Record<number, MonsterTemplate>;
   /** Table: Reward (1d6), "Treasure" column. */
   treasure: Record<number, RewardOutcome>;
   /** Table: Weapon (1d6). */
@@ -198,7 +246,26 @@ export interface DungeonTypeTables {
   wonders: Record<number, WonderEntry>;
   /** Table: Reward's "Magic Item" column (1d6). */
   magicItem: Record<number, MagicItemEntry>;
+  /** Citadel's "Dwarf Hallows" / Necropolis's "Forgotten Hallows" (issue #30): "Once you defeat the
+   * Dungeon Boss, in addition to the 2d6 Treasures, you've found one of the Hallows (roll below)."
+   * Optional -- only these two types have this Special Rule; `finishIfVictorious()` rolls it (1d6)
+   * right after crediting the usual Boss Treasures, whenever present. */
+  bossBonusLoot?: Record<number, BonusLootEntry>;
 }
+
+/** A post-Boss bonus item (Citadel/Necropolis's own Hallows tables, issue #30) -- always a
+ * concrete, named item, so it's granted directly rather than routed through the Wonders/Magic Item
+ * tables' own roll-then-layer-a-bonus shape. Several Hallows rows describe a stateful or
+ * ability-conditioned effect this codebase's small `ItemEffect` vocabulary doesn't cover (e.g. "+2
+ * damage to the next creature of the same type killed," "+3 against creatures with Firebreath" --
+ * ability-gated, not name-gated, so `damageBonusVsTag`'s substring match wouldn't reliably fire) --
+ * those items are still granted with their real HP/formula, just with `effect: { kind: "flavor" }`
+ * for the part that isn't mechanically enforced, the same "documented, deliberate simplification"
+ * tier as `bladeTrap`'s roll-of-2. */
+export type BonusLootEntry =
+  | { kind: "weapon"; name: string; formula: string; twoHanded?: boolean; bonusEffect?: ItemEffect }
+  | { kind: "armor"; name: string; piece: ArmorPieceKind; maxHp: number; effect?: ItemEffect }
+  | { kind: "trinket"; name: string; grantsHp?: number; effect: ItemEffect };
 
 const ABILITY_LABELS: Record<MonsterAbility, string> = {
   stoneskin: "Stoneskin",
@@ -255,6 +322,10 @@ export function describeItemEffect(effect: ItemEffect): string | null {
       return `Recovers ${effect.amount} HP with each attack`;
     case "instantKillOnRoll":
       return `Kills instantly on a roll of ${effect.roll}`;
+    case "rerollBaseTable":
+      return `Grants a plain ${effect.table === "armor" ? "Armor piece" : "Weapon"}`;
+    case "healAmount":
+      return `Recovers ${effect.amount} HP`;
     case "extraHp":
     case "flavor":
       return null;
@@ -309,6 +380,60 @@ const SKELETON_SOLDIERS_SWARM: MonsterTemplate = {
   abilities: ["undead"],
   count: { dice: 1, sides: 6 },
 };
+// Pyramid (issue #30): its own Trap table raises this same swarm at rows 2-3 -- no other dungeon
+// type has a mummy-type monster, so this is new (not shared with any Core 6 type).
+const MUMMIFIED_SOLDIERS_SWARM: MonsterTemplate = {
+  name: "Mummified Soldiers",
+  singularName: "Mummified Soldier",
+  hp: 5,
+  damage: 2,
+  abilities: ["undead"],
+  count: { dice: 1, sides: 6 },
+};
+/** Necropolis's own "Table: Boss" (issue #30) isn't a flat 1d6 table like every other type -- "roll
+ * three dice and compare each column... combine Part 1 + Part 2 + Part 3 to build the boss's full
+ * name, HP, damage, and abilities." Resolved by `dungeon.ts`'s `resolveBoss()`. */
+export interface NecropolisBossModifier {
+  name: string;
+  hpBonus?: number;
+  damageBonus?: number;
+  abilities?: MonsterAbility[];
+}
+
+export interface NecropolisBossCreature {
+  name: string;
+  hp: number;
+  damage: number;
+  abilities: MonsterAbility[];
+}
+
+export const NECROPOLIS_BOSS_PART1: Record<number, NecropolisBossModifier> = {
+  1: { name: "Colossal", hpBonus: 30 },
+  2: { name: "Giant", hpBonus: 15 },
+  3: { name: "Monstrous", damageBonus: 2 },
+  4: { name: "Poisonous", abilities: ["poison"] },
+  5: { name: "Dying", hpBonus: -5 },
+  6: { name: "Stone", abilities: ["stoneskin"] },
+};
+
+export const NECROPOLIS_BOSS_PART2: Record<number, NecropolisBossCreature> = {
+  1: { name: "Animal", hp: 20, damage: 3, abilities: [] },
+  2: { name: "Skeleton", hp: 12, damage: 4, abilities: ["undead"] },
+  3: { name: "Zombie", hp: 15, damage: 5, abilities: ["undead"] },
+  4: { name: "Ghost", hp: 12, damage: 4, abilities: ["intangible"] },
+  5: { name: "Necromancer", hp: 20, damage: 4, abilities: ["necromancy"] },
+  6: { name: "Lich", hp: 25, damage: 6, abilities: ["necromancy", "undead"] },
+};
+
+export const NECROPOLIS_BOSS_PART3: Record<number, NecropolisBossModifier> = {
+  1: { name: "of Death", abilities: ["deathtouch"] },
+  2: { name: "of the Blades", damageBonus: 2 },
+  3: { name: "from Hell", abilities: ["firebreath"] },
+  4: { name: "from the Ice", abilities: ["paralyze"] },
+  5: { name: "of Ancient Times", hpBonus: 30 },
+  6: { name: "Forgotten by the Gods", hpBonus: 40 },
+};
+
 export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   palace: {
     trap: {
@@ -1182,6 +1307,710 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         text: "Vorpal [Weapon] (Kills instantly when get '6' on the die).",
         grants: "weapon",
         effect: { kind: "instantKillOnRoll", roll: 6 },
+      },
+    },
+  },
+  citadel: {
+    trap: {
+      1: BLADE_TRAP,
+      2: { text: "A giant hammer comes out of the ceiling (5 dmg).", damage: 5 },
+      3: { text: "You fall into a hole with stakes (3 damage).", damage: 3 },
+      4: DART_TRAP,
+      5: DART_TRAP,
+      6: CLICK_NOTHING,
+    },
+    roomContent: {
+      2: { text: "Underground Monster Hunting Trophies.", secretPassage: false },
+      3: {
+        text: "Destroyed kitchen and 1d6 coins on the floor.",
+        secretPassage: true,
+        reward: { kind: "coins", count: { dice: 1, sides: 6 } },
+      },
+      4: { text: "Bed with a Chest beside it.", secretPassage: true, hasChest: true },
+      5: {
+        text: "Wardrobe with 2 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: 2 },
+      },
+      6: { text: "Desk with a Chest below.", secretPassage: false, hasChest: true },
+      7: { text: "Dusted war banners.", secretPassage: true },
+      8: {
+        text: "Training Room with a Treasure.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: 1 },
+      },
+      9: { text: "Trash deposit.", secretPassage: true },
+      10: {
+        text: "Arsenal. 2d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 2, sides: 6 } },
+      },
+      11: { text: "Large table with papers and maps.", secretPassage: true },
+      12: { text: "Torture room with bones of orcs.", secretPassage: true },
+    },
+    monsters: {
+      2: { name: "Orc Leader", hp: 12, damage: 5, abilities: ["loot", "horde"], count: 1 },
+      3: { name: "Orcs", hp: 6, damage: 3, abilities: ["loot"], count: 3 },
+      4: { name: "Orcs", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
+      5: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 },
+      6: GOBLINS,
+      7: null,
+      8: null,
+      9: {
+        name: "Dwarf Skeletons",
+        singularName: "Dwarf Skeleton",
+        hp: 4,
+        damage: 3,
+        abilities: ["undead"],
+        count: 2,
+      },
+      10: { name: "Dwarf Ghost", hp: 6, damage: 4, abilities: ["intangible"], count: 1 },
+      11: { name: "Golem Bones and Stone", hp: 15, damage: 6, abilities: ["undead"], count: 1 },
+      12: { name: "Walking Slime", hp: 10, damage: 1, abilities: ["loot", "regeneration"], count: 1 },
+    },
+    boss: {
+      1: { name: "Grim Reaper", hp: 50, damage: 3, abilities: ["deathtouch"], count: 1 },
+      2: { name: "Bolrag", hp: 40, damage: 6, abilities: ["firebreath"], count: 1 },
+      3: { name: "The Minotaur", hp: 30, damage: 7, abilities: ["horde"], count: 1 },
+      4: { name: "Ghost of the Dwarf King", hp: 20, damage: 5, abilities: ["intangible"], count: 1 },
+      5: { name: "Orc Shaman Leader", hp: 20, damage: 2, abilities: ["sorcery", "horde"], count: 1 },
+      6: { name: "The Cursed King", hp: 30, damage: 7, abilities: ["necromancy"], count: 1 },
+    },
+    treasure: {
+      1: {
+        text: "Dwarf Statuette (worth 6 Coins in the town).",
+        effect: { kind: "heldValue", name: "Dwarf Statuette", amount: 6 },
+      },
+      2: { text: "Dwarf Beer Barrel (Recovers 5 HP).", effect: { kind: "healAll" } },
+      3: VALUABLE_JEWEL,
+      4: {
+        text: "A very valuable jewel (worth 150 Coins in the town).",
+        effect: { kind: "heldValue", name: "Very Valuable Jewel", amount: 150 },
+      },
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Pickaxe", formula: "1d6-1" },
+      2: { name: "Warhammer", formula: "1d6" },
+      3: { name: "Battle Axe", formula: "1d6+1" },
+      4: { name: "War Pick", formula: "1d6+1" },
+      5: { name: "Machete", formula: "1d6+1" },
+      6: { name: "Dwarven Great Axe", formula: "1d6+3", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Dwarven Bracelets",
+        text: "Dwarven Bracelets (3 HP).",
+        grantsHp: 3,
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Dwarven Shoulderpads",
+        text: "Dwarven Shoulderpads (4 HP).",
+        grantsHp: 4,
+        effect: { kind: "flavor" },
+      },
+      3: {
+        name: "Torch Helmet",
+        text: "Torch Helmet (3 HP; Fits torches).",
+        grantsHp: 3,
+        effect: { kind: "flavor" },
+      },
+      4: {
+        name: "Orc Machete",
+        text: "Orc Machete (1d6+1 Damage).",
+        grantsWeapon: { name: "Orc Machete", formula: "1d6+1" },
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Horn of War",
+        text: "Horn of War (Increase your damage +1).",
+        effect: { kind: "weaponDamageBonus", amount: 1 },
+      },
+      6: {
+        name: "Beheaded Head of the Orc Prince",
+        text: "Beheaded Head of the Orc Prince (Orcs deal -1 damage).",
+        effect: { kind: "flavor" },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "Ring of the Dead Man",
+        text: "Ring of the Dead Man (Cursed; Cannot wear Armor).",
+        grants: "armor",
+        fixedArmor: { piece: "ring", maxHp: 0 },
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Dwarven Hammer",
+        text: "Dwarven Hammer (1d6 dmg; +2 against orcs).",
+        grants: "weapon",
+        fixedFormula: "1d6",
+        effect: { kind: "damageBonusVsTag", tags: ["orc"], amount: 2 },
+      },
+      3: {
+        name: "Dwarven Battle Axe",
+        text: "Dwarven Battle Axe (1d6+1 dmg; +2 against orcs).",
+        grants: "weapon",
+        fixedFormula: "1d6+1",
+        effect: { kind: "damageBonusVsTag", tags: ["orc"], amount: 2 },
+      },
+      4: {
+        name: "Dwarf Guard Cloak",
+        text: "Dwarf Guard Cloak (+1 damage against orcs).",
+        grants: "armor",
+        effect: { kind: "damageBonusVsTag", tags: ["orc"], amount: 1 },
+      },
+      5: {
+        name: "Dwarf War Pick",
+        text: "Dwarf War Pick (1d6+2 Damage).",
+        grants: "weapon",
+        fixedFormula: "1d6+2",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Dwarven Breastplate",
+        text: "Dwarven Breastplate (10 HP; ignores Poison).",
+        grants: "armor",
+        fixedArmor: { piece: "breastplate", maxHp: 10 },
+        effect: { kind: "ignoresMonsterAbility", ability: "poison" },
+      },
+    },
+    bossBonusLoot: {
+      1: {
+        kind: "trinket",
+        name: "Standard of the Dwarf Empire",
+        effect: { kind: "weaponDamageBonus", amount: 1 },
+      },
+      2: {
+        kind: "weapon",
+        name: "Annihilation Pick",
+        formula: "1d6+2",
+      },
+      3: {
+        kind: "weapon",
+        name: "Heavy Axe of the Deeps",
+        formula: "1d6+4",
+        twoHanded: true,
+        bonusEffect: { kind: "damageBonusVsTag", tags: ["demon"], amount: 3 },
+      },
+      4: {
+        kind: "weapon",
+        name: "Dwarf God's Sledgehammer",
+        formula: "1d6+5",
+        twoHanded: true,
+      },
+      5: {
+        kind: "armor",
+        name: "Dwarf King's Helm",
+        piece: "helm",
+        maxHp: 11,
+      },
+      6: {
+        kind: "weapon",
+        name: "Dwarf King's Ax",
+        formula: "1d6+3",
+        bonusEffect: { kind: "damageBonusVsTag", tags: ["orc"], amount: 1 },
+      },
+    },
+  },
+  pyramid: {
+    trap: {
+      // "A huge block of stone falls over you. You died." -- an unconditional instant death, unlike
+      // BLADE_TRAP's own roll-of-1-or-2 shape. Modeled as a flat, absurdly large `damage` instead of
+      // a new "always fatal" flag -- this reuses every existing death-handling path (Samambro/Raven
+      // survival rolls, remains, deathCause) for free, since no realistic HP total could survive it.
+      1: { text: "A huge block of stone falls over you. You died.", damage: 999 },
+      2: { text: "Raise 1d6 Mummified Soldiers (5 HP; 2 dmg; Undead).", monsters: MUMMIFIED_SOLDIERS_SWARM },
+      3: { text: "Raise 1d6 Mummified Soldiers (5 HP; 2 dmg; Undead).", monsters: MUMMIFIED_SOLDIERS_SWARM },
+      4: {
+        text: "Raise 1 Mummy (4 HP; 1 dmg; Undead).",
+        monsters: { name: "Mummy", hp: 4, damage: 1, abilities: ["undead"], count: 1 },
+      },
+      5: { text: "Gas cloud makes you pass out (spend 1 torch).", torchCost: 1 },
+      6: CLICK_NOTHING,
+    },
+    roomContent: {
+      2: {
+        text: "Sarcophagus with 2d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 2, sides: 6 } },
+      },
+      3: { text: "Statues of animal gods.", secretPassage: false },
+      4: { text: "A well in the center of the room.", secretPassage: true },
+      5: { text: "Wall covered with drawings of animal gods.", secretPassage: true },
+      6: { text: "Broken statue of some animal god.", secretPassage: false },
+      7: { text: "Sarcophagus with Chest inside.", secretPassage: false, hasChest: true },
+      8: { text: "Vases with drawings of animal gods.", secretPassage: true },
+      9: { text: "Wall covered with drawings of animal gods.", secretPassage: true },
+      10: { text: "Dozens of melted candles everywhere.", secretPassage: true },
+      11: { text: "Statue of a god with a crocodile head.", secretPassage: true },
+      12: {
+        text: "Sarcophagus with 2d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 2, sides: 6 } },
+      },
+    },
+    monsters: {
+      2: { name: "Mummified Priestess", hp: 7, damage: 2, abilities: ["sorcery"], count: 1 },
+      3: { name: "Mummified Soldiers", singularName: "Mummified Soldier", hp: 5, damage: 2, abilities: ["undead"], count: 3 },
+      4: { name: "Mummified Soldiers", singularName: "Mummified Soldier", hp: 5, damage: 2, abilities: ["undead"], count: 2 },
+      5: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
+      6: {
+        name: "Giant Scarabs",
+        singularName: "Giant Scarab",
+        hp: 3,
+        damage: 2,
+        abilities: [],
+        count: { dice: 1, sides: 6 },
+      },
+      7: null,
+      8: null,
+      9: {
+        name: "Scorpions",
+        singularName: "Scorpion",
+        hp: 2,
+        damage: 1,
+        abilities: ["poison"],
+        count: { dice: 1, sides: 6 },
+      },
+      10: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 3 },
+      11: { name: "Jackal God Living Statue", hp: 10, damage: 3, abilities: ["stoneskin"], count: 1 },
+      12: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
+    },
+    boss: {
+      1: { name: "Emperor Scorpio", hp: 30, damage: 3, abilities: ["poison"], count: 1 },
+      2: { name: "Desert King", hp: 20, damage: 7, abilities: ["undead"], count: 1 },
+      // "The Eternal Queen (12 HP; 1 dmg; Sorcery) and her 10 Mummified Soldiers (5 HP; 2 dmg;
+      // Undead)" -- a two-monster boss encounter the single-MonsterTemplate Boss architecture can't
+      // represent directly (unlike an ordinary room, a Boss fight is always exactly one template).
+      // Documented simplification: the Queen alone, her entourage dropped rather than folded into
+      // an inflated, inaccurate stat-hack.
+      3: { name: "Eternal Queen", hp: 12, damage: 1, abilities: ["sorcery"], count: 1 },
+      4: { name: "Evil Mirage", hp: 12, damage: 5, abilities: ["intangible"], count: 1 },
+      5: { name: "Giant Winged Scarab", hp: 60, damage: 3, abilities: ["firebreath"], count: 1 },
+      6: { name: "Jackal God", hp: 50, damage: 7, abilities: ["necromancy"], count: 1 },
+    },
+    treasure: {
+      1: {
+        text: "Golden statuette (worth 3d6 Coins in the town).",
+        effect: { kind: "heldValueRoll", name: "Golden statuette", dice: 3, sides: 6, multiplier: 1 },
+      },
+      2: { text: "Health Potion (Recovers all HP).", effect: { kind: "healAll" } },
+      3: MAGIC_SCROLL,
+      4: VALUABLE_JEWEL,
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Scepter", formula: "1d6-1" },
+      2: { name: "Kukri", formula: "1d6" },
+      3: { name: "Katar", formula: "1d6" },
+      4: { name: "Kopesh", formula: "1d6+1" },
+      5: { name: "Scythe", formula: "1d6+1" },
+      6: { name: "Staff", formula: "1d6+1", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Mummified Cat",
+        text: "Mummified Cat (Can reroll Traps once).",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Old King's Necklace",
+        text: "Old King's Necklace (Same as 3 provisions).",
+        effect: { kind: "flavor" },
+      },
+      3: {
+        name: "Scarab amulet",
+        text: "Scarab amulet (Ignores traps in chests).",
+        effect: { kind: "trapImmunity" },
+      },
+      4: {
+        name: "Sacred Sun Hat",
+        text: "Sacred Sun Hat (Gain 1 torch every killed scorpion).",
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "[Roll in the Armor table]",
+        text: "You find a plain piece of armor.",
+        effect: { kind: "rerollBaseTable", table: "armor" },
+      },
+      6: {
+        name: "[Roll in the Weapon table]",
+        text: "You find a plain weapon.",
+        effect: { kind: "rerollBaseTable", table: "weapon" },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "Jackal God's [Armor]",
+        text: "Jackal God's [Armor] (Cursed; Cannot recover HP).",
+        grants: "armor",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Owl God's [Armor]",
+        text: "Owl God's [Armor] (Gain an Advanced Spell).",
+        grants: "armor",
+        effect: { kind: "flavor" },
+      },
+      3: {
+        name: "Desert King's [Armor]",
+        text: "Desert King's [Armor] (+2 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 2 },
+      },
+      4: {
+        name: "Beltramic Belt",
+        text: "Beltramic Belt (Drives away scorpions).",
+        grants: "armor",
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Desert King's [Weapon]",
+        text: "Desert King's [Weapon] (Deals +4 against Stoneskin).",
+        grants: "weapon",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Seventy Nights [Weapon]",
+        text: "Seventy Nights [Weapon] (Paralyzes the target for 2 turns on the '6').",
+        grants: "weapon",
+        effect: { kind: "flavor" },
+      },
+    },
+  },
+  ziggurat: {
+    trap: {
+      1: BLADE_TRAP,
+      2: {
+        text: "Acid squirts from the ceiling, destroying a piece of armor you're wearing.",
+        destroysArmor: true,
+      },
+      3: { text: "You fall into a hole with stakes (3 damage).", damage: 3 },
+      4: { text: "A passage opens and a Monster emerges.", rollsMonsterTable: true },
+      5: { text: "A passage opens and a Monster emerges.", rollsMonsterTable: true },
+      6: CLICK_NOTHING,
+    },
+    roomContent: {
+      2: { text: "Corpses of different races hung on the walls.", secretPassage: false },
+      3: { text: "Bone of a giant snake.", secretPassage: true },
+      4: { text: "Bed with a Chest beside it.", secretPassage: false, hasChest: true },
+      5: { text: "Cabinets with a lot of garments made of colored feathers.", secretPassage: false },
+      6: { text: "Altar of sacrifice.", secretPassage: true },
+      7: { text: "Empty room.", secretPassage: false },
+      8: { text: "Ceiling covered with star designs.", secretPassage: false },
+      9: { text: "Two sarcophagi.", secretPassage: true },
+      10: {
+        text: "Room of ornaments. 1d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
+      },
+      11: { text: "Large table with a rotten banquet.", secretPassage: true },
+      12: { text: "Torture room with goblin bones.", secretPassage: true },
+    },
+    monsters: {
+      2: { name: "Boar Tribe Leader", hp: 15, damage: 5, abilities: ["loot"], count: 1 },
+      3: { name: "Boar Soldiers", singularName: "Boar Soldier", hp: 6, damage: 3, abilities: ["loot"], count: 3 },
+      4: { name: "Boar Soldiers", singularName: "Boar Soldier", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
+      5: { name: "Goblin Assassin", hp: 3, damage: 3, abilities: ["explosive"], count: 1 },
+      6: GOBLINS,
+      7: null,
+      8: null,
+      9: { name: "Pantera", hp: 5, damage: 4, abilities: [], count: 1 },
+      10: { name: "Giant Bat", hp: 10, damage: 4, abilities: ["poison"], count: 1 },
+      11: { name: "Sun God Living Statue", hp: 15, damage: 6, abilities: ["stoneskin"], count: 1 },
+      12: { name: "Giant Feathered Serpent", hp: 12, damage: 3, abilities: [], count: 1 },
+    },
+    boss: {
+      1: { name: "Medusa", hp: 20, damage: 7, abilities: ["paralyze"], count: 1 },
+      2: { name: "Sacred Skull", hp: 20, damage: 6, abilities: ["regeneration"], count: 1 },
+      3: { name: "Hagork, God of Orcs", hp: 30, damage: 7, abilities: ["horde"], count: 1 },
+      4: { name: "Mysterious Peacock", hp: 17, damage: 5, abilities: ["sorcery"], count: 1 },
+      5: { name: "Feathered Priestess", hp: 50, damage: 2, abilities: ["sorcery"], count: 1 },
+      6: { name: "Sun God of the Feathered Spear", hp: 80, damage: 8, abilities: ["weakness"], count: 1 },
+    },
+    treasure: {
+      1: {
+        text: "Strange Fruit (If eating, recover 1 use of a spell).",
+        effect: { kind: "restoreRandomSpellUse" },
+      },
+      2: { text: "Health Potion (Recovers all HP).", effect: { kind: "healAll" } },
+      3: MAGIC_SCROLL,
+      4: {
+        text: "Gold Ornament and Jewelry (worth 100 Coins in the town).",
+        effect: { kind: "heldValue", name: "Gold Ornament and Jewelry", amount: 100 },
+      },
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Sacrificial Dagger", formula: "1d6-1" },
+      2: { name: "Kopesh", formula: "1d6" },
+      3: { name: "Obsidian Blade", formula: "1d6+1" },
+      4: { name: "War Club", formula: "1d6+1" },
+      5: { name: "Feathered Spear", formula: "1d6+1" },
+      6: { name: "Sun Idol Maul", formula: "1d6+3", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Addictive Sweet Drink",
+        text: "Addictive Sweet Drink (Recovers 1 HP).",
+        effect: { kind: "healAmount", amount: 1 },
+      },
+      2: {
+        name: "Feathered Breastplate",
+        text: "Feathered Breastplate (8 HP).",
+        grantsHp: 8,
+        effect: { kind: "flavor" },
+      },
+      3: {
+        // Elven Boots' own precedent (town.ts's hasElvenBoots()) -- a dungeon-found item this time,
+        // so the travel-cost hook lives in WorldScreen.tsx's hasFeatheredBoots() check instead.
+        name: "Feathered Boots",
+        text: "Feathered Boots (3 HP; Spend 1 provision on swamps).",
+        grantsHp: 3,
+        effect: { kind: "flavor" },
+      },
+      4: {
+        name: "Crocodile Helmet",
+        text: "Crocodile Helmet (5 HP).",
+        grantsHp: 5,
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Star Stone",
+        text: "Star Stone (Spend 1 Provision to Reroll an Event).",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Purification Potion",
+        text: "Purification Potion (Removes a Curse).",
+        effect: { kind: "flavor" },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "Crocodile Ring",
+        text: "Crocodile Ring (Cursed; You get scales).",
+        grants: "armor",
+        fixedArmor: { piece: "ring", maxHp: 0 },
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Feathered Ring",
+        text: "Feathered Ring (Cursed; Hairs become feathers).",
+        grants: "armor",
+        fixedArmor: { piece: "ring", maxHp: 0 },
+        effect: { kind: "flavor" },
+      },
+      3: {
+        name: "Owl Mask",
+        text: "Owl Mask (1 HP; Ignores Intangible).",
+        grants: "armor",
+        fixedArmor: { piece: "helm", maxHp: 1 },
+        effect: { kind: "ignoresMonsterAbility", ability: "intangible" },
+      },
+      4: {
+        name: "Sun God's Sacrifice Dagger",
+        text: "Sun God's Sacrifice Dagger (1d6 dmg; +2 inside Sanctuaries).",
+        grants: "weapon",
+        fixedFormula: "1d6",
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Crocodile Sword",
+        text: "Crocodile Sword (1d6+2 Damage).",
+        grants: "weapon",
+        fixedFormula: "1d6+2",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Helmet of the Sun God",
+        text: "Helmet of the Sun God.",
+        grants: "armor",
+        effect: { kind: "flavor" },
+      },
+    },
+  },
+  necropolis: {
+    trap: {
+      1: BLADE_TRAP,
+      2: { text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 dmg; Undead).", monsters: SKELETON_SOLDIERS_SWARM },
+      3: { text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 dmg; Undead).", monsters: SKELETON_SOLDIERS_SWARM },
+      4: {
+        text: "A cage falls on you. You are trapped and need to spend 1d6 torches to get out.",
+        torchCostDice: { dice: 1, sides: 6 },
+      },
+      5: DART_TRAP,
+      6: CLICK_NOTHING,
+    },
+    roomContent: {
+      2: { text: "Empty sarcophagus with your name on it.", secretPassage: false },
+      3: { text: "Several pots with dead plants.", secretPassage: false },
+      4: { text: "Texts carved across the floor.", secretPassage: true },
+      5: { text: "Human bones everywhere.", secretPassage: true },
+      6: {
+        text: "Bone pile and 1d6 coins on the floor.",
+        secretPassage: false,
+        reward: { kind: "coins", count: { dice: 1, sides: 6 } },
+      },
+      7: { text: "Sarcophagus with Chest inside.", secretPassage: false, hasChest: true },
+      8: { text: "Various wooden coffins.", secretPassage: true },
+      9: { text: "Skulls walls.", secretPassage: true },
+      10: { text: "Dozens of melted candles everywhere.", secretPassage: true },
+      11: { text: "Broken statue of a person.", secretPassage: true },
+      12: {
+        text: "Treasure Room with 2d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 2, sides: 6 } },
+      },
+    },
+    monsters: {
+      2: { name: "Lich", hp: 22, damage: 6, abilities: ["necromancy", "undead"], count: 1 },
+      3: { name: "Ghost King", hp: 10, damage: 4, abilities: ["intangible"], count: 1 },
+      4: { name: "Bone Golem", hp: 20, damage: 5, abilities: ["undead"], count: 1 },
+      5: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
+      6: { name: "Skeleton Soldiers", singularName: "Skeleton Soldier", hp: 4, damage: 2, abilities: ["undead"], count: 2 },
+      7: null,
+      8: null,
+      9: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
+      10: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
+      11: { name: "Giant Spiders", singularName: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 2 },
+      12: { name: "Queen of the Blade Hands", hp: 18, damage: 10, abilities: [], count: 1 },
+    },
+    // Necropolis's own Boss is a 3-dice combinator (dungeon.ts's resolveNecropolisBoss()), not a
+    // flat table -- `boss` is deliberately omitted (see DungeonTypeTables' own doc comment).
+    treasure: {
+      1: { text: "Mana Potion (Recovers all Spells).", effect: { kind: "restoreAllSpells" } },
+      2: { text: "Health Potion (Recovers all HP).", effect: { kind: "healAll" } },
+      3: MAGIC_SCROLL,
+      4: VALUABLE_JEWEL,
+      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
+      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+    },
+    weapon: {
+      1: { name: "Bone Shard", formula: "1d6-1" },
+      2: { name: "Rusted Sword", formula: "1d6" },
+      3: { name: "Grave Digger's Shovel", formula: "1d6" },
+      4: { name: "Sacrificial Blade", formula: "1d6+1" },
+      5: { name: "Skeletal Claymore", formula: "1d6+1" },
+      6: { name: "Executioner's Axe", formula: "1d6+3", twoHanded: true },
+    },
+    wonders: {
+      1: {
+        name: "Crown of the Beheaded Prince",
+        text: "Crown of the Beheaded Prince (Don't die in blade traps).",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Luck Potion",
+        text: "Luck Potion (Ignores the next activated Trap).",
+        effect: { kind: "trapImmunity" },
+      },
+      3: {
+        name: "Fury Potion",
+        text: "Fury Potion (+2 damage until the end of the fight).",
+        effect: { kind: "combatDamageBonus", amount: 2 },
+      },
+      4: {
+        name: "Sapphire of Magic",
+        text: "Sapphire of Magic (Learn a Random Basic Spell).",
+        effect: { kind: "randomSpell" },
+      },
+      5: {
+        name: "Durability Ruby",
+        text: "Durability Ruby (Attach to an armor for +2 HP).",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Enchantment Ruby",
+        text: "Enchantment Ruby (Attach to Armor for +1 Damage).",
+        effect: { kind: "flavor" },
+      },
+    },
+    magicItem: {
+      1: {
+        name: "Fool's Potion",
+        text: "Fool's Potion (Learn 3 Random Basic Spells).",
+        grants: "weapon", // unused -- grantsSpells short-circuits before any roll
+        grantsSpells: 3,
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Dwarf King's Helm",
+        text: "Dwarf King's Helm (11 HP).",
+        grants: "armor",
+        fixedArmor: { piece: "helm", maxHp: 11 },
+        effect: { kind: "flavor" },
+      },
+      3: {
+        name: "Breastplate of the Little Ones",
+        text: "Breastplate of the Little Ones (13 HP).",
+        grants: "armor",
+        fixedArmor: { piece: "breastplate", maxHp: 13 },
+        effect: { kind: "flavor" },
+      },
+      4: {
+        name: "Scythe of Destruction",
+        text: "Scythe of Destruction (1d6+2 Damage).",
+        grants: "weapon",
+        fixedFormula: "1d6+2",
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Vampiric Trident",
+        text: "Vampiric Trident (1d6+2 Damage; Two-handed; Restores 1 HP with each attack).",
+        grants: "weapon",
+        fixedFormula: "1d6+2",
+        twoHanded: true,
+        effect: { kind: "lifesteal", amount: 1 },
+      },
+      6: {
+        name: "Vorpal Battle Ax",
+        text: "Vorpal Battle Ax (1d6+1 Damage; Kills instantly on the '6').",
+        grants: "weapon",
+        fixedFormula: "1d6+1",
+        effect: { kind: "instantKillOnRoll", roll: 6 },
+      },
+    },
+    bossBonusLoot: {
+      1: {
+        kind: "trinket",
+        name: "Magic Stone Dog",
+        grantsHp: 4,
+        effect: { kind: "weaponDamageBonus", amount: 2 },
+      },
+      2: {
+        kind: "weapon",
+        name: "Dagger of Souls",
+        formula: "1d6-1",
+      },
+      3: {
+        kind: "armor",
+        name: "Giant King's Shoulderpads",
+        piece: "shoulderpads",
+        maxHp: 10,
+      },
+      4: {
+        kind: "armor",
+        name: "Monster Tamer Boots",
+        piece: "boots",
+        maxHp: 6,
+      },
+      5: {
+        kind: "weapon",
+        name: "Halberd of the Infernal Soldiers",
+        formula: "1d6+4",
+        twoHanded: true,
+      },
+      6: {
+        kind: "weapon",
+        name: "Sword of the Nameless Gods",
+        formula: "1d6+4",
+        bonusEffect: { kind: "lifesteal", amount: 1 },
       },
     },
   },

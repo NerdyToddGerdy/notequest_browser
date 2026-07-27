@@ -23,6 +23,7 @@ import {
   canLearnRandomSpell,
   canRemoveCurse,
   canRest,
+  canUseForgottenGods,
   castFly,
   castSpell,
   drinkVerdosaPotion,
@@ -30,6 +31,7 @@ import {
   gamble,
   hardWork,
   hasElvenBoots,
+  hasFeatheredBoots,
   hireBoat,
   learnRandomSpell,
   payTravelCost,
@@ -37,6 +39,7 @@ import {
   resolveThugLife,
   rest,
   sellItem,
+  resolveForgottenGods,
   wieldWeapon,
   wieldArmor,
   discardItem,
@@ -45,7 +48,7 @@ import {
   recordTravelStats,
   type AdventurerResources,
 } from "../town.ts";
-import { sequenceDie } from "../../test/mulberry32.ts";
+import { fixedDie, sequenceDie } from "../../test/mulberry32.ts";
 
 function makeResources(overrides: Partial<AdventurerResources> = {}): AdventurerResources {
   return {
@@ -77,6 +80,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     travelStats: createInitialTravelStats(),
     survivedRunIds: [],
     flyActive: false,
+    nextDungeonDamageBonus: 0,
     ...overrides,
   };
 }
@@ -646,6 +650,77 @@ describe("Different Cultures: Elf -- Buy Elven Boots / hasElvenBoots", () => {
     expect(hasElvenBoots(makeResources({ armor: [{ piece: "helm", hp: 4, maxHp: 4 }] }))).toBe(
       false,
     );
+  });
+});
+
+describe("Ziggurat's Feathered Boots (issue #30): hasFeatheredBoots", () => {
+  it("matches case-insensitively by itemName, the same shape as hasElvenBoots", () => {
+    expect(hasFeatheredBoots(makeResources({ armor: [] }))).toBe(false);
+    expect(
+      hasFeatheredBoots(
+        makeResources({ armor: [{ piece: "boots", hp: 3, maxHp: 3, itemName: "Feathered Boots" }] }),
+      ),
+    ).toBe(true);
+    expect(
+      hasFeatheredBoots(makeResources({ armor: [{ piece: "boots", hp: 2, maxHp: 2, itemName: "Elven Boots" }] })),
+    ).toBe(false);
+  });
+});
+
+describe("Ziggurat's Effect of the Forgotten Gods (issue #30): canUseForgottenGods / resolveForgottenGods", () => {
+  it("requires at least 1 provision", () => {
+    expect(canUseForgottenGods(makeResources({ provisions: 0 }))).toBe(false);
+    expect(canUseForgottenGods(makeResources({ provisions: 1 }))).toBe(true);
+  });
+
+  it("spends 1 provision regardless of outcome", () => {
+    const result = resolveForgottenGods(makeResources({ provisions: 5 }), fixedDie(2));
+    expect(result.resources.provisions).toBe(4);
+  });
+
+  it("roll 1: lightning strikes for 1d6 damage, floored at 1 HP", () => {
+    const result = resolveForgottenGods(makeResources({ provisions: 5, hp: 3 }), sequenceDie([1, 6]));
+    expect(result.resources.hp).toBe(1); // floored, not negative
+    expect(result.message).toContain("Lightning strikes");
+  });
+
+  it("roll 1: ordinary damage that doesn't drop below 1 HP applies normally", () => {
+    const result = resolveForgottenGods(makeResources({ provisions: 5, hp: 10 }), sequenceDie([1, 3]));
+    expect(result.resources.hp).toBe(7);
+  });
+
+  it("roll 2: nothing happens beyond spending the provision", () => {
+    const result = resolveForgottenGods(makeResources({ provisions: 5, hp: 10 }), fixedDie(2));
+    expect(result.resources.hp).toBe(10);
+    expect(result.message).toBe("Nothing happens...");
+  });
+
+  it("roll 3: an Owl joins, bypassing MAX_ANIMALS entirely (unlike Knight's Horse, which no-ops when full)", () => {
+    const result = resolveForgottenGods(
+      makeResources({ provisions: 5, animals: ["Cat", "Dog", "Snake"] }), // already at the cap
+      fixedDie(3),
+    );
+    expect(result.resources.animals).toEqual(["Cat", "Dog", "Snake", "Owl"]);
+  });
+
+  it("rolls 4 and 5: +1 damage on the next dungeon exploration, stacking across multiple rolls", () => {
+    const first = resolveForgottenGods(makeResources({ provisions: 5 }), fixedDie(4));
+    expect(first.resources.nextDungeonDamageBonus).toBe(1);
+    const second = resolveForgottenGods(first.resources, fixedDie(5));
+    expect(second.resources.nextDungeonDamageBonus).toBe(2);
+  });
+
+  it("roll 6: a permanent +4 HP", () => {
+    const result = resolveForgottenGods(makeResources({ provisions: 5, hp: 10, maxHp: 20 }), fixedDie(6));
+    expect(result.resources.hp).toBe(14);
+    expect(result.resources.maxHp).toBe(24);
+  });
+
+  it("is a no-op with no provisions", () => {
+    const resources = makeResources({ provisions: 0 });
+    const result = resolveForgottenGods(resources);
+    expect(result.resources).toEqual(resources);
+    expect(result.message).toBe("");
   });
 });
 

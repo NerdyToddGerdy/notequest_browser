@@ -158,6 +158,7 @@ export function DungeonScreen({
       resources.maxSpellUses,
       resources.buildings,
       resources.spareArmor,
+      resources.nextDungeonDamageBonus,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -221,10 +222,11 @@ export function DungeonScreen({
   // createInitialDungeonState branch) spends whatever's in resources.hireling into this run's
   // own state.hireling, so it can't be reused to enter a *later*, different dungeon without
   // paying again. Runs once on mount only -- RETURN_TO_DUNGEON's resumed trip already carries
-  // its own hireling through the reducer, so this must not fire for that case.
+  // its own hireling through the reducer, so this must not fire for that case. Ziggurat's
+  // Effect of the Forgotten Gods (issue #30) is consumed the same way, into state.runDamageBonus.
   useEffect(() => {
-    if (!activeDungeon && !resumeDungeon && resources.hireling) {
-      onUpdateResources({ ...resources, hireling: null });
+    if (!activeDungeon && !resumeDungeon && (resources.hireling || resources.nextDungeonDamageBonus > 0)) {
+      onUpdateResources({ ...resources, hireling: null, nextDungeonDamageBonus: 0 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
