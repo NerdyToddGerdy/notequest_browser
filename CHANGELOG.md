@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.44.0] - 2026-07-27
+
+### Added
+
+- Events on Travel (#91): entering a wilderness hex now rolls 2d6, and
+  on a 6 or less something happens -- a monster to fight, weather that
+  costs you provisions or HP, a storm that carries you to another hex,
+  or (on a glacier) the ice giving way. Each terrain has its own set of
+  outcomes, straight from the rulebook's Events table.
+- Event fights are real, interactive fights out on the World map,
+  reusing the same combat rules as the Arena.
+- Five abilities that were previously decorative now work, because
+  there are finally Events for them to act on: the Camouflage spell
+  (ignore an Event in a forest or swamp), the Star Stone (spend 1
+  provision to reroll an Event), the Elf Ranger hireling and the
+  Patovsky race (never have Events at all), and the second half of the
+  Fly spell (a Fly move skips its Event).
+- A new Graveyard cause of death, "Lost on the Road," for a character
+  who dies to an Event.
+
+### Changed
+
+- Both travel paths (ordinary and Fly) now share one arrival routine
+  instead of duplicating it, so they can't drift apart.
+
 ## [2.43.0] - 2026-07-27
 
 ### Added

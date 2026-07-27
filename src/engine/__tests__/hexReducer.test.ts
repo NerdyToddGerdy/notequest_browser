@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createInitialWorldState } from "../hexState.ts";
+import { createInitialWorldState, hexKey } from "../hexState.ts";
 import { hexReducer } from "../hexReducer.ts";
-import { sequenceDie } from "../../test/mulberry32.ts";
+import { hasAffinity } from "../../data/affinity.ts";
+import { isImpassable } from "../../data/hexTables.ts";
+import { mulberry32, sequenceDie } from "../../test/mulberry32.ts";
 
 const HOME_REVEAL_ROLLS = [
   2, 3, // {1,0}: mountain, no location
@@ -153,5 +155,54 @@ describe("hexReducer MOVE onto a Thug-Life-banned hex", () => {
     const world = { ...homeWorld(), bannedHexes: ["1,0"] };
     const next = hexReducer(world, { type: "MOVE", to: { q: 1, r: 0 }, raceName: "Human" }, sequenceDie([3, 4]));
     expect(next).toBe(world);
+  });
+});
+
+describe("hexReducer STORM_RELOCATE (Events on Travel, issue #91)", () => {
+  it("moves the player to some other known hex, not a neighbor-only one", () => {
+    const world = homeWorld();
+    const next = hexReducer(world, { type: "STORM_RELOCATE", raceName: "Human" }, sequenceDie([3, 4]));
+    expect(next.player).not.toEqual(world.player);
+    expect(next.tiles[hexKey(next.player)]).toBeDefined(); // always somewhere already on the map
+  });
+
+  it("never strands the player somewhere they could not legally stand", () => {
+    const world = homeWorld();
+    // Every candidate must be passable for the race and un-banned -- exercised across many rolls
+    // rather than one, since the destination is picked at random from all known tiles.
+    for (let seed = 1; seed <= 12; seed++) {
+      const next = hexReducer(world, { type: "STORM_RELOCATE", raceName: "Human" }, mulberry32(seed));
+      const tile = next.tiles[hexKey(next.player)]!;
+      expect(isImpassable(tile.terrain, tile.location, false)).toBe(false);
+      expect(hasAffinity("Human", tile.location)).toBe(true);
+    }
+  });
+
+  it("respects a Thug-Life ban when picking a destination", () => {
+    const world = homeWorld();
+    const allButOne = Object.keys(world.tiles).filter((k) => k !== "0,0" && k !== "-1,0");
+    const banned = { ...world, bannedHexes: allButOne };
+    // "-1,0" (a plain, no location) is the only legal destination left.
+    for (let seed = 1; seed <= 6; seed++) {
+      const next = hexReducer(banned, { type: "STORM_RELOCATE", raceName: "Human" }, mulberry32(seed));
+      expect(hexKey(next.player)).toBe("-1,0");
+    }
+  });
+
+  it("is a no-op when there is nowhere legal to be carried to", () => {
+    const world = homeWorld();
+    const everywhereElse = Object.keys(world.tiles).filter((k) => k !== "0,0");
+    const banned = { ...world, bannedHexes: everywhereElse };
+    const next = hexReducer(banned, { type: "STORM_RELOCATE", raceName: "Human" }, sequenceDie([3]));
+    expect(next).toBe(banned);
+  });
+
+  it("drops a hired boat on landing anywhere that isn't water", () => {
+    const world = { ...homeWorld(), hasBoat: true };
+    const allButLand = Object.keys(world.tiles).filter((k) => k !== "0,0" && k !== "-1,0");
+    const forced = { ...world, bannedHexes: allButLand };
+    const next = hexReducer(forced, { type: "STORM_RELOCATE", raceName: "Human" }, sequenceDie([3, 4]));
+    expect(hexKey(next.player)).toBe("-1,0");
+    expect(next.hasBoat).toBe(false);
   });
 });

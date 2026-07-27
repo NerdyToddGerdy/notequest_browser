@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ArmorPiece, CombatState } from "../../../engine/dungeonState.ts";
-import { ARMOR_PIECE_LABELS, type MonsterAbility } from "../../../data/dungeonTables.ts";
+import { ABILITY_DESCRIPTIONS, ARMOR_PIECE_LABELS, type MonsterAbility } from "../../../data/dungeonTables.ts";
 import type { SpellTableKey } from "../../../data/types.ts";
 import { HIRELING_BY_NAME } from "../../../data/hirelings.ts";
 import { parseSpellKey, SPELL_TABLE_BY_KEY } from "../../../engine/character.ts";
@@ -82,25 +82,6 @@ const ABILITY_LABELS: Record<MonsterAbility, string> = {
   regeneration: "Regeneration",
   paralyze: "Paralyze",
   poison: "Poison",
-};
-
-/** Summarized from `docs/game-rules-reference.md`'s Monster Abilities table, for the hover
- * tooltip on each ability tag -- not new copy, just condensed to a sentence. */
-const ABILITY_DESCRIPTIONS: Record<MonsterAbility, string> = {
-  stoneskin: "Ignores any damage of 3 or less.",
-  loot: "After the fight, rolls for a coin, a Key, or a Treasure.",
-  explosive: "On a roll of 1, self-destructs for damage equal to its current HP.",
-  firebreath: "On a roll of 1, its next attack deals +10 damage.",
-  horde: "On a roll of 1, an Orc (6 HP; 3 Damage) joins the fight.",
-  intangible: "Takes no damage from an even-numbered hit.",
-  sorcery: "On a roll of 1, its next attack gets a bonus die of damage.",
-  deathtouch: "On a roll of 1, its next attack kills you outright.",
-  undead: "On defeat, a roll of 1 revives it with 1 HP.",
-  necromancy: "On a roll of 1, a Skeleton (4 HP; 1 Damage; Undead) joins the fight.",
-  weakness: "On a roll of 6, it takes double damage.",
-  regeneration: "On a roll of 1, it recovers 6 HP.",
-  paralyze: "On a roll of 1, its next attack paralyzes you for 1d6 turns.",
-  poison: "Its damage always bypasses armor.",
 };
 
 function HpBar({ value, max, kind }: { value: number; max: number; kind: "player" | "monster" }) {

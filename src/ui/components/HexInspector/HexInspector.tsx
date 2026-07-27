@@ -89,6 +89,10 @@ export interface HexInspectorProps {
   canUseForgottenGodsHere: boolean;
   onForgottenGods: () => void;
   forgottenGodsMessage?: string | null;
+  /** Events on Travel (issue #91): set only when an ability *suppressed* an Event on arrival
+   * (Patovsky, Elf Ranger) -- a real Event takes over the whole overlay via `EventPanel` instead, and
+   * an ordinary "nothing happened" arrival says nothing at all. Read-only flavor, no action. */
+  eventNote?: string | null;
 }
 
 const TROOP_SOURCE_KINDS = new Set<BuildingKind>(["Castle", "City", "Fortress"]);
@@ -156,6 +160,7 @@ export function HexInspector({
   canUseForgottenGodsHere,
   onForgottenGods,
   forgottenGodsMessage,
+  eventNote,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -244,6 +249,13 @@ export function HexInspector({
           >
             Effect of the Forgotten Gods (1 provision)
           </button>
+        </div>
+      )}
+
+      {eventNote && (
+        <div className={styles.row}>
+          <span className={styles.label}>Travel</span>
+          <p>{eventNote}</p>
         </div>
       )}
 

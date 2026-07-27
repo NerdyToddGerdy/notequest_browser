@@ -184,6 +184,13 @@ export type ItemEffect =
   /** Ziggurat's "Addictive Sweet Drink" (issue #30): "Recovers 1 HP" -- a Wonder-column heal, unlike
    * Treasure's own `healAll` (which heals fully); applied immediately, same as `grantsTorches`. */
   | { kind: "healAmount"; amount: number }
+  /** Ziggurat's "Star Stone" (issue #91): "Spend 1 Provision to Reroll an Event." A pure marker,
+   * like `trapImmunity`/`doubleChestCoins` -- it carries no numbers, it exists so the item is
+   * *kept* as a `wonderItem` (a `flavor` Wonder with no `grantsHp` is discarded outright by
+   * `resolveWonder()`) and so `events.ts`'s `hasStarStone()` has something to find. Unlike
+   * `trapImmunity` it is not one-shot: the rulebook gives it no use limit, and the provision is the
+   * cost that bounds it. */
+  | { kind: "rerollEvent" }
   | { kind: "flavor" };
 
 export interface WonderEntry {
@@ -284,6 +291,27 @@ const ABILITY_LABELS: Record<MonsterAbility, string> = {
   poison: "Poison",
 };
 
+/** Summarized from `docs/game-rules-reference.md`'s Monster Abilities table, for the hover tooltip
+ * on each ability tag -- not new copy, just condensed to a sentence. Lives here beside
+ * `ABILITY_LABELS` rather than in a component, since both `CombatPanel` (dungeon fights) and
+ * `EventPanel` (Events on Travel, issue #91) render the same tags. */
+export const ABILITY_DESCRIPTIONS: Record<MonsterAbility, string> = {
+  stoneskin: "Ignores any damage of 3 or less.",
+  loot: "After the fight, rolls for a coin, a Key, or a Treasure.",
+  explosive: "On a roll of 1, self-destructs for damage equal to its current HP.",
+  firebreath: "On a roll of 1, its next attack deals +10 damage.",
+  horde: "On a roll of 1, an Orc (6 HP; 3 Damage) joins the fight.",
+  intangible: "Takes no damage from an even-numbered hit.",
+  sorcery: "On a roll of 1, its next attack gets a bonus die of damage.",
+  deathtouch: "On a roll of 1, its next attack kills you outright.",
+  undead: "On defeat, a roll of 1 revives it with 1 HP.",
+  necromancy: "On a roll of 1, a Skeleton (4 HP; 1 Damage; Undead) joins the fight.",
+  weakness: "On a roll of 6, it takes double damage.",
+  regeneration: "On a roll of 1, it recovers 6 HP.",
+  paralyze: "On a roll of 1, its next attack paralyzes you for 1d6 turns.",
+  poison: "Its damage always bypasses armor.",
+};
+
 export function formatMonsterCount(count: MonsterCount): string {
   return typeof count === "number" ? String(count) : `${count.dice}d${count.sides}`;
 }
@@ -326,6 +354,8 @@ export function describeItemEffect(effect: ItemEffect): string | null {
       return `Grants a plain ${effect.table === "armor" ? "Armor piece" : "Weapon"}`;
     case "healAmount":
       return `Recovers ${effect.amount} HP`;
+    case "rerollEvent":
+      return "Spend 1 provision to reroll a travel Event";
     case "extraHp":
     case "flavor":
       return null;
@@ -1783,7 +1813,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: {
         name: "Star Stone",
         text: "Star Stone (Spend 1 Provision to Reroll an Event).",
-        effect: { kind: "flavor" },
+        effect: { kind: "rerollEvent" },
       },
       6: {
         name: "Purification Potion",

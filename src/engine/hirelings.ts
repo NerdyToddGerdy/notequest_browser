@@ -25,11 +25,12 @@ export function canHireHireling(
 
 /** Applies whichever Hireling ability is mechanically real today (see CLAUDE.md's Hirelings note
  * for the full list) -- every other one either has no ability ("None.") or is left flavor-only
- * (Torchbearer, Jester, Elf Ranger, Cargo Ogre, Goblin Helper), so falls through untouched. Burglar
- * (no-torch lock-picking), Minstrel (+2 combat damage), and Dwarf Soldier (+1 vs. Orcs/Goblins) are
- * checked directly against `DungeonState.hireling`/`resources.hireling` at their own use sites
- * (`dungeonReducer.ts`'s `attackBonus()`/`RESOLVE_DOOR_LOCK`, `RoomInspector.tsx`) rather than here,
- * since they're passive checks, not one-time grants applied at hire time. */
+ * (Torchbearer, Jester, Cargo Ogre, Goblin Helper), so falls through untouched. Burglar (no-torch
+ * lock-picking), Minstrel (+2 combat damage), Dwarf Soldier (+1 vs. Orcs/Goblins), and Elf Ranger
+ * ("Ignores Travel Events," issue #91 -- see `events.ts`'s `eventSkipReason()`) are checked directly
+ * against `DungeonState.hireling`/`resources.hireling` at their own use sites (`dungeonReducer.ts`'s
+ * `attackBonus()`/`RESOLVE_DOOR_LOCK`, `RoomInspector.tsx`, `WorldScreen.tsx`'s travel handler)
+ * rather than here, since they're passive checks, not one-time grants applied at hire time. */
 function applyHirelingAbility(name: string, resources: AdventurerResources, rng: RNG): AdventurerResources {
   switch (name) {
     case "Rent Wizard":

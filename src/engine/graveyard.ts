@@ -4,11 +4,13 @@
  * `causeOfDeath`'s "gamble"/"thug-life"/"arena" values (issue #58's Getting Money mini-games) are the first
  * deaths that don't happen inside a dungeon run at all -- `dungeon` doubles as "where" for these, holding
  * the city/fortress's location label instead of a dungeon name. "warfare" (issue #28) is the same shape:
- * a character who joined their troops in an Attack and rolled a 1 on a lost battle. */
+ * a character who joined their troops in an Attack and rolled a 1 on a lost battle. "event" (issue #91,
+ * Events on Travel) is the same shape again, and the only one that happens out in the wilderness rather
+ * than at a City/Fortress -- either losing an Event fight or Glacier's Cracked Ice. */
 export interface GraveyardEntry {
   name: string;
   dungeon: string;
-  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena" | "warfare";
+  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena" | "warfare" | "event";
   race?: string;
   cls?: string;
   monsterKills?: number;

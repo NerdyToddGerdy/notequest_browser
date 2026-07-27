@@ -56,7 +56,22 @@ import {
   resolveForgottenGods,
   type AdventurerResources,
 } from "../../../engine/town.ts";
+import {
+  applyEventEffect,
+  applyEventVictory,
+  camouflageSpellName,
+  canIgnoreEvent,
+  canRerollEvent,
+  ignoreEvent,
+  rerollEvent,
+  resolveEventRound,
+  rollTravelEvent,
+  startEventCombat,
+  type EventCombatState,
+  type TravelEventRoll,
+} from "../../../engine/events.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
+import { EventPanel } from "../../components/EventPanel/EventPanel.tsx";
 import { HexInspector } from "../../components/HexInspector/HexInspector.tsx";
 import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
 import { TownScreen } from "../TownScreen/TownScreen.tsx";
@@ -182,6 +197,23 @@ export function WorldScreen({
    * Annex/Loot choice while a won Attack awaits it. */
   const [attackMessage, setAttackMessage] = useState<string | null>(null);
   const [pendingStorm, setPendingStorm] = useState(false);
+  /** Events on Travel (issue #91) -- non-null from the moment an arrival roll turns up an Event until
+   * the player dismisses its outcome, and rendered as a modal-ish overlay over the map rather than a
+   * HexInspector row, since it genuinely blocks: the effect isn't applied and the fight isn't joined
+   * until the player chooses (Camouflage/Star Stone both need that window). `combat` is null during
+   * the choice stage and set once the player commits to fighting; `resolvedMessage` switches the
+   * panel to its final outcome line. Deliberately *not* persisted -- reloading mid-Event drops it,
+   * the same call `DungeonState.pendingPackItem`'s resume path makes. */
+  const [travelEvent, setTravelEvent] = useState<{
+    roll: Extract<TravelEventRoll, { kind: "event" }>;
+    combat: EventCombatState | null;
+    resolvedMessage: string | null;
+  } | null>(null);
+  /** The skip reason ("You slip through unnoticed...") or nothing -- shown as a quiet HexInspector
+   * line rather than a blocking panel, since a suppressed Event needs no decision. Deliberately not
+   * used for the ordinary "nothing happened" 7+ result, which is the common case on most moves and
+   * would be pure noise. */
+  const [eventNote, setEventNote] = useState<string | null>(null);
   /** Null = today's auto-fit-everything behavior; set the instant the player zooms or drag-pans,
    * same "override until Reset View" shape DungeonMap's own `scale` state uses. */
   const [viewBoxOverride, setViewBoxOverride] = useState<ViewBox | null>(null);
@@ -287,6 +319,33 @@ export function WorldScreen({
     );
   }
 
+  /** Everything that happens on arrival regardless of what the move cost -- extracted so the Fly
+   * path and the ordinary path can't drift apart (they were duplicated line-for-line before Events
+   * on Travel gave them a third thing to keep in sync). `rollEvent` is false only for a Fly move:
+   * "Can move through any land without spending any Provision and activate Event" is read as the
+   * `without` distributing across both clauses, i.e. Fly skips the Event too (issue #91 documents
+   * why -- a limited-use spell burying a drawback in its own text is the less coherent reading, and
+   * the rulebook is a translation where that elision is idiomatic). */
+  function arriveAt(coord: HexCoord, tile: HexTile, updated: AdventurerResources, rollEvent: boolean) {
+    onUpdateResources(updated);
+    onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
+    setShowMap(false);
+    setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected
+    setTrainResultMessage(null);
+    setForgottenGodsMessage(null);
+    setAttackMessage(null);
+    setPendingStorm(false);
+    setTravelEvent(null);
+    setEventNote(null);
+
+    // "Whenever you enter a hex that doesn't have a location, roll 2d6."
+    if (!rollEvent || tile.location !== null) return;
+    const roll = rollTravelEvent(updated, character.race.name, tile.terrain);
+    if (roll.kind === "skipped") setEventNote(roll.reason);
+    else if (roll.kind === "event") setTravelEvent({ roll, combat: null, resolvedMessage: null });
+    // "none" (7+) is the common case and deliberately silent -- see `eventNote`.
+  }
+
   function handleTravel(coord: HexCoord) {
     const tile = world.tiles[hexKey(coord)];
     if (!tile || !canTravelTo(tile, coord)) return;
@@ -297,22 +356,12 @@ export function WorldScreen({
     if (resources.flyActive) {
       const afterCost = payTravelCost(resources, 0, false);
       const isCity = tile.location != null && CITY_OR_FORTRESS.has(tile.location);
-      onUpdateResources(
-        recordTravelStats(
-          { ...afterCost, flyActive: false },
-          tile.terrain,
-          isCity,
-          hexKey(coord),
-          world.hasBoat,
-        ),
+      arriveAt(
+        coord,
+        tile,
+        recordTravelStats({ ...afterCost, flyActive: false }, tile.terrain, isCity, hexKey(coord), world.hasBoat),
+        false,
       );
-      onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
-      setShowMap(false);
-      setSelectedHex(null);
-      setTrainResultMessage(null);
-      setForgottenGodsMessage(null);
-      setAttackMessage(null);
-      setPendingStorm(false);
       return;
     }
     // Elven Boots: "you can only spend 1 provision to move through forests." Combined with any
@@ -340,16 +389,12 @@ export function WorldScreen({
     // `world.hasBoat` *before* MOVE potentially clears it (hexReducer.ts drops the boat the
     // instant the player lands on non-water terrain) -- true only while sailing onto more water.
     const isCity = tile.location != null && CITY_OR_FORTRESS.has(tile.location);
-    onUpdateResources(
+    arriveAt(
+      coord,
+      tile,
       recordTravelStats(afterCost, tile.terrain, isCity, hexKey(coord), world.hasBoat),
+      true,
     );
-    onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
-    setShowMap(false);
-    setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected
-    setTrainResultMessage(null);
-    setForgottenGodsMessage(null);
-    setAttackMessage(null);
-    setPendingStorm(false);
   }
 
   /** Animals (issue #26): "go to the appropriate terrain... spend 4 provisions [8 for a mount] and
@@ -373,6 +418,96 @@ export function WorldScreen({
     const result = resolveForgottenGods(resources);
     onUpdateResources(result.resources);
     setForgottenGodsMessage(result.message);
+  }
+
+  // --- Events on Travel (issue #91) -------------------------------------------------------------
+
+  /** The player accepts the Event: a monster row becomes a fight, anything else applies immediately.
+   * Nothing was spent or applied before this point, which is exactly what makes Camouflage and the
+   * Star Stone meaningful. */
+  function handleAcceptEvent() {
+    if (!travelEvent) return;
+    const row = travelEvent.roll.row;
+
+    if (row.monsters) {
+      setTravelEvent({ ...travelEvent, combat: startEventCombat(row) });
+      return;
+    }
+
+    const result = applyEventEffect(resources, row.effect!);
+    if (result.died) {
+      onCharacterDied("event", currentPlaceLabel);
+      return;
+    }
+    onUpdateResources(result.resources);
+    if (result.relocate) {
+      onUpdateWorld(hexReducer(world, { type: "STORM_RELOCATE", raceName: character.race.name }));
+    }
+    setTravelEvent({ ...travelEvent, resolvedMessage: `${row.text} ${result.message}` });
+  }
+
+  /** Camouflage (Nature 3): "Can ignore an Event generated in a forest or swamp territory." */
+  function handleIgnoreEvent() {
+    if (!travelEvent) return;
+    const terrain = travelEvent.roll.terrain;
+    if (!canIgnoreEvent(resources, terrain)) return;
+    onUpdateResources(ignoreEvent(resources, terrain));
+    setTravelEvent({
+      ...travelEvent,
+      resolvedMessage: `You melt into the ${terrain} and the danger passes you by.`,
+    });
+  }
+
+  /** Star Stone (Ziggurat Wonder): "Spend 1 Provision to Reroll an Event." A reroll into 7+ ends the
+   * Event outright; a reroll into another Event simply replaces the pending one (and can be rerolled
+   * again, as long as provisions last). */
+  function handleRerollEvent() {
+    if (!travelEvent) return;
+    const result = rerollEvent(resources, character.race.name, travelEvent.roll.terrain);
+    onUpdateResources(result.resources);
+    if (result.roll.kind === "event") {
+      setTravelEvent({ roll: result.roll, combat: null, resolvedMessage: null });
+    } else {
+      setTravelEvent({ ...travelEvent, resolvedMessage: "The Star Stone flares, and the moment passes." });
+    }
+  }
+
+  /** One round of an Event fight. Resources are only written on a decisive outcome (victory credits
+   * loot/kills, defeat kills the character) -- mid-fight HP lives in the panel's own state until
+   * then, mirroring how `TownScreen` owns an Arena fight's rounds. */
+  function handleEventAttack(targetId: number, roll: number) {
+    if (!travelEvent?.combat || !resources.weapon) return;
+    const combat = travelEvent.combat;
+    const result = resolveEventRound(combat, resources.hp, resources.weapon.formula, targetId, roll);
+
+    if (result.died) {
+      onCharacterDied("event", currentPlaceLabel);
+      return;
+    }
+    if (result.state.outcome === "victory") {
+      const template = travelEvent.roll.row.monsters!;
+      const killCount = result.state.monsters.length;
+      onUpdateResources(
+        applyEventVictory(resources, result.state, result.hp, template.name, killCount),
+      );
+      const loot = result.state.loot;
+      const lootParts = [
+        loot?.coins ? `${loot.coins} coin${loot.coins === 1 ? "" : "s"}` : null,
+        loot?.treasures ? `${loot.treasures} Treasure${loot.treasures === 1 ? "" : "s"}` : null,
+        loot?.keys ? `${loot.keys} Key${loot.keys === 1 ? "" : "s"}` : null,
+      ].filter((p): p is string => p != null);
+      setTravelEvent({
+        ...travelEvent,
+        combat: result.state,
+        resolvedMessage:
+          lootParts.length > 0
+            ? `You survive the encounter and take ${lootParts.join(", ")}.`
+            : "You survive the encounter.",
+      });
+      return;
+    }
+    onUpdateResources({ ...resources, hp: result.hp });
+    setTravelEvent({ ...travelEvent, combat: result.state });
   }
 
   /** "You can buy mounts in a city that is on the appropriate terrain" -- always succeeds if
@@ -794,7 +929,32 @@ export function WorldScreen({
               </button>
             )}
 
-            {inspectedTile && (
+            {/* Events on Travel (issue #91) -- takes the overlay slot outright while pending, since
+                it's a genuine interruption (nothing is spent or applied until it's resolved) and
+                inspecting other hexes mid-Event would only invite dispatching actions into it. */}
+            {travelEvent ? (
+              <div className={styles.eventOverlay}>
+                <EventPanel
+                  row={travelEvent.roll.row}
+                  dice={travelEvent.roll.dice}
+                  combat={travelEvent.combat}
+                  hp={resources.hp}
+                  maxHp={resources.maxHp}
+                  weaponName={resources.weapon?.name}
+                  weaponFormula={resources.weapon?.formula}
+                  resolvedMessage={travelEvent.resolvedMessage}
+                  canIgnore={canIgnoreEvent(resources, travelEvent.roll.terrain)}
+                  ignoreLabel={camouflageSpellName()}
+                  canReroll={canRerollEvent(resources)}
+                  onAccept={handleAcceptEvent}
+                  onIgnore={handleIgnoreEvent}
+                  onReroll={handleRerollEvent}
+                  onAttack={handleEventAttack}
+                  onDismiss={() => setTravelEvent(null)}
+                />
+              </div>
+            ) : (
+              inspectedTile && (
               <div className={styles.hexInspectorOverlay}>
                 <HexInspector
                   terrain={inspectedTile.terrain}
@@ -833,8 +993,10 @@ export function WorldScreen({
                   canUseForgottenGodsHere={canUseForgottenGods(resources)}
                   onForgottenGods={handleForgottenGods}
                   forgottenGodsMessage={isInspectingCurrentTile ? forgottenGodsMessage : null}
+                  eventNote={isInspectingCurrentTile ? eventNote : null}
                 />
               </div>
+              )
             )}
           </div>
 

@@ -159,8 +159,9 @@ export function travelCost(terrain: Terrain): number {
 
 /** Patovsky/Sharkin (New Races, issue #22): "You can walk in water territories." Checked alongside
  * `WorldState.hasBoat` wherever water passability matters (`WorldScreen.tsx`'s `canTravelTo()`,
- * `hexReducer.ts`'s `MOVE` case) -- a real mechanical effect, unlike these races' "skip travel
- * events" clause, which has nothing to skip (Events on Travel doesn't exist yet). */
+ * `hexReducer.ts`'s `MOVE` case). Patovsky's *other* clause ("and can skip travel events" -- Sharkin
+ * has no such clause) is now real too, but lives with the rest of the Events machinery in
+ * `events.ts`'s `eventSkipReason()` rather than here (issue #91). */
 export function hasWaterWalk(raceName: string): boolean {
   return raceName === "Patovsky" || raceName === "Sharkin";
 }
