@@ -64,6 +64,12 @@ export interface DungeonScreenProps {
   onReturnToTown: (runId: string, dungeon: DungeonState) => void;
   /** Fires whenever this run ends (death, retreat, or beating the Final Room) so it can be resumed later if unbeaten. */
   onLeaveDungeon: (runId: string, dungeon: DungeonState, characterName: string) => void;
+  /** Portals (issue #21) roll of 7: this run has "no door to exit," so Retreat to Town is withheld
+   * entirely until the Boss falls. Only ever true for a genuinely fresh, portal-created run. */
+  noExit?: boolean;
+  /** The Boss's-room Portal out of a `noExit` run -- replaces "Return to Town" on the victory panel,
+   * and sends the player back to the World with another portal roll waiting. */
+  onExitViaPortal: (runId: string, dungeon: DungeonState) => void;
   onHardReset: () => void;
 }
 
@@ -78,6 +84,8 @@ export function DungeonScreen({
   onUpdateResources,
   onReturnToTown,
   onLeaveDungeon,
+  noExit = false,
+  onExitViaPortal,
   onHardReset,
 }: DungeonScreenProps) {
   const [runId] = useState(
@@ -159,6 +167,7 @@ export function DungeonScreen({
       resources.buildings,
       resources.spareArmor,
       resources.nextDungeonDamageBonus,
+      noExit,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
@@ -367,13 +376,26 @@ export function DungeonScreen({
                       {character.name} stands victorious over the dungeon&apos;s master. The depths
                       grow quiet.
                     </p>
-                    <button
-                      className={styles.deathBtn}
-                      type="button"
-                      onClick={() => onReturnToTown(runId, state)}
-                    >
-                      Return to Town
-                    </button>
+                    {state.noExit ? (
+                      <>
+                        <p>A Portal stands open where the Boss fell — the only way out of this place.</p>
+                        <button
+                          className={styles.deathBtn}
+                          type="button"
+                          onClick={() => onExitViaPortal(runId, state)}
+                        >
+                          Step through the Portal
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className={styles.deathBtn}
+                        type="button"
+                        onClick={() => onReturnToTown(runId, state)}
+                      >
+                        Return to Town
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -525,7 +547,7 @@ export function DungeonScreen({
                 <p className={styles.dungeonEyebrow}>Level {state.activeLevel + 1}</p>
                 <h2 className={styles.dungeonName}>{state.dungeonName}</h2>
                 <p className={styles.dungeonEntrance}>{state.entranceFlavor}</p>
-                {state.alive && !state.combat && !state.pendingPackItem && (
+                {state.alive && !state.combat && !state.pendingPackItem && !state.noExit && (
                   <div className={styles.headerActions}>
                     <button
                       className={styles.ghostBtn}
@@ -535,6 +557,13 @@ export function DungeonScreen({
                       Retreat to Town
                     </button>
                   </div>
+                )}
+                {/* Portals (issue #21): "no door to exit" -- the way out is the Boss's room, so there
+                    is deliberately no Retreat here, only an explanation of why. */}
+                {state.alive && state.noExit && !bossDefeated && (
+                  <p className={styles.dungeonEntrance}>
+                    The portal left no door behind it. The only way out is through the Boss.
+                  </p>
                 )}
               </section>
             </div>

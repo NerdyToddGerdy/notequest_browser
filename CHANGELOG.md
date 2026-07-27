@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.45.0] - 2026-07-27
+
+### Added
+
+- Portals (#21, stage 1): a Portal hex can now be entered. Going
+  through rolls 3d6 on the rulebook's "Going through the Portal"
+  table -- there is no turning back, and a portal remembers where it
+  leads once you've been through it.
+- Twelve of the sixteen outcomes are live: vanishing from existence,
+  a future where every city lies in ruins, a dungeon with no way out
+  but the Boss's room, the nearest town or nearest human city, any
+  hex you choose, a whole new reality, a world where every plain you
+  find turns out to be water, the Slimemen's city in the clouds, and
+  a golden room with 300 coins and a second portal in it.
+- The four Other Worlds (Hell, Pesadelum, Underworld, Candy World)
+  are written down but not yet reachable -- a portal that pulls
+  toward one says so and searches again. They arrive in stage 2.
+- A new Graveyard cause of death, "Vanished from Existence."
+
 ## [2.44.0] - 2026-07-27
 
 ### Added

@@ -149,6 +149,20 @@ export function isImpassable(terrain: Terrain, location: LocationKind | null, ha
   return (terrain === "water" && !hasBoat) || location === "rocks";
 }
 
+/** Display names for each terrain -- lives here beside the terrain tables rather than in a component,
+ * since both `HexInspector` (a hex's own description) and `WorldScreen` (Portals' destination picker,
+ * issue #21) label terrain. */
+export const TERRAIN_LABEL: Record<Terrain, string> = {
+  plain: "Plain",
+  mountain: "Mountain",
+  forest: "Forest",
+  swamp: "Swamp",
+  desert: "Desert",
+  water: "Water",
+  glacier: "Glacier",
+  tundra: "Tundra",
+};
+
 /** "Plains take 1 day (1 provision); Mountains take 3 days (3 provisions); any other land type
  * takes 2 days (2 provisions)." */
 export function travelCost(terrain: Terrain): number {

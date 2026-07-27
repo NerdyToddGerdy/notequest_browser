@@ -6,6 +6,7 @@ import {
   isFortressLocation,
   isImpassable,
   locationHasDungeon,
+  TERRAIN_LABEL,
   travelCost,
   travelCostMultiplier,
   type LocationKind,
@@ -23,15 +24,26 @@ import {
   qualifiesForBuyingMount,
   qualifiesForTraining,
   withBannedHex,
+  withPlayerMovedTo,
+  withPortalTotal,
   type HexCoord,
   type HexTile,
   type WorldState,
 } from "../../../engine/hexState.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
-import { hasUnlootedRemains, isDungeonBeaten, type PendingDungeon } from "../../../engine/dungeonState.ts";
+import {
+  hasUnlootedRemains,
+  isDungeonBeaten,
+  type PendingDungeon,
+} from "../../../engine/dungeonState.ts";
 import type { TownDeathCause } from "../../../engine/graveyard.ts";
 import { ANIMAL_BY_NAME, MOUNT_TABLE } from "../../../data/animals.ts";
-import { animalTravelCostOverride, animalTravelCostPenalty, buyMount, trainAnimal } from "../../../engine/animals.ts";
+import {
+  animalTravelCostOverride,
+  animalTravelCostPenalty,
+  buyMount,
+  trainAnimal,
+} from "../../../engine/animals.ts";
 import type { BuildingKind } from "../../../data/types.ts";
 import { buildBuilding, canBuildBuilding } from "../../../engine/buildings.ts";
 import { BUILDING_TABLE } from "../../../data/buildings.ts";
@@ -40,7 +52,13 @@ import {
   resolvePoliticalAffinity,
   type PoliticalAffinityOutcome,
 } from "../../../engine/politics.ts";
-import { canAttack, canRecruitTroop, recruitTroop, resolveAttack, resolveStorming } from "../../../engine/warfare.ts";
+import {
+  canAttack,
+  canRecruitTroop,
+  recruitTroop,
+  resolveAttack,
+  resolveStorming,
+} from "../../../engine/warfare.ts";
 import {
   canCastFly,
   canHireBoat,
@@ -70,9 +88,17 @@ import {
   type EventCombatState,
   type TravelEventRoll,
 } from "../../../engine/events.ts";
+import {
+  establishedPortal,
+  resolvePortalOutcome,
+  rollPortal,
+  type PortalRoll,
+} from "../../../engine/portals.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
+import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog.tsx";
 import { EventPanel } from "../../components/EventPanel/EventPanel.tsx";
 import { HexInspector } from "../../components/HexInspector/HexInspector.tsx";
+import { PortalPanel } from "../../components/PortalPanel/PortalPanel.tsx";
 import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
 import { TownScreen } from "../TownScreen/TownScreen.tsx";
 import { Footer } from "../../components/Footer/Footer.tsx";
@@ -84,6 +110,11 @@ interface ViewBox {
   w: number;
   h: number;
 }
+
+/** How many chained portals (roll 15's golden room, whose only exit is a second portal) are resolved
+ * before the chain simply stops and reports where it left the player. A guard, not a rule -- the
+ * chance of stacking even three is under 1%. */
+const MAX_PORTAL_CHAIN = 4;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -100,6 +131,16 @@ export interface WorldScreenProps {
   onUpdateResources: (resources: AdventurerResources) => void;
   onUpdateWorld: (world: WorldState) => void;
   onEnterDungeon: () => void;
+  /** Portals (issue #21), the 3d6 roll of 7: "You appeared at the beginning of a new Dungeon but no
+   * door to exit. In the Boss's room there will be a Portal." A separate entry point from
+   * `onEnterDungeon` because it isn't tied to the hex the player is standing on at all -- the portal
+   * drops them into a fresh run that App.tsx has to mint outside the normal per-hex flow. */
+  onEnterNoExitDungeon: () => void;
+  /** Portals (issue #21): true when the player just stepped through a no-exit dungeon's Boss-room
+   * Portal, so a fresh portal roll fires the moment this screen mounts rather than dumping them back
+   * on the map with nothing happening. `onAutoPortalConsumed` clears it so it fires exactly once. */
+  autoPortalOnMount?: boolean;
+  onAutoPortalConsumed?: () => void;
   /** A death outside a dungeon (Getting Money's Gamble/Thug Life/Arena, issue #58) -- App.tsx's own
    * Graveyard-recording + session-clearing handler, mirroring DungeonScreen's death effect. This
    * screen supplies `place` (the current hex's location label) so App.tsx doesn't need its own copy
@@ -137,9 +178,9 @@ const TERRAIN_FILL: Record<Terrain, string> = {
   tundra: "#8fa3ab",
 };
 
-/** Only City/Fortress/Ruins/Rocks are interactive in this pass -- everything else (Portal/Oasis/
- * Volcano/Reef/Thin Ice/"nothing") renders as an inert flavor label, see CLAUDE.md's Hexploring
- * the World note. */
+/** City/Fortress/Ruins/Rocks and (since issue #21) Portal are interactive -- everything else
+ * (Oasis/Volcano/Reef/Thin Ice/"nothing") renders as an inert flavor label, see CLAUDE.md's
+ * Hexploring the World note. */
 const LOCATION_LABEL: Record<LocationKind, string> = {
   orcCity: "Orc City",
   orcFortress: "Orc Fortress",
@@ -169,6 +210,9 @@ export function WorldScreen({
   onUpdateResources,
   onUpdateWorld,
   onEnterDungeon,
+  onEnterNoExitDungeon,
+  autoPortalOnMount = false,
+  onAutoPortalConsumed,
   onCharacterDied,
   onHardReset,
 }: WorldScreenProps) {
@@ -214,18 +258,44 @@ export function WorldScreen({
    * used for the ordinary "nothing happened" 7+ result, which is the common case on most moves and
    * would be pure noise. */
   const [eventNote, setEventNote] = useState<string | null>(null);
+  /** Portals (issue #21). `pendingPortalConfirm` gates the irreversible step ("there is no turning
+   * back"); `portal` then holds the resolved trip until dismissed. `awaitDestination` is only ever
+   * true for rolls 11/14, which need a chosen hex before anything moves. Not persisted, same call as
+   * `travelEvent`. */
+  const [pendingPortalConfirm, setPendingPortalConfirm] = useState(false);
+  const [portal, setPortal] = useState<{
+    roll: PortalRoll;
+    /** False until the player acknowledges the roll -- see `handleStepThroughPortal` for why the
+     * reveal and the application are two steps rather than one. */
+    applied: boolean;
+    resolvedMessage: string | null;
+    awaitDestination: boolean;
+  } | null>(() =>
+    // Stepping out of a no-exit dungeon's Boss-room Portal (roll of 7) lands here with another portal
+    // already waiting. Seeded lazily at mount -- WorldScreen remounts whenever App switches back from
+    // the dungeon -- rather than in an effect, which would mean a setState cascade on first render.
+    autoPortalOnMount
+      ? { roll: rollPortal(), applied: false, resolvedMessage: null, awaitDestination: false }
+      : null,
+  );
   /** Null = today's auto-fit-everything behavior; set the instant the player zooms or drag-pans,
    * same "override until Reset View" shape DungeonMap's own `scale` state uses. */
   const [viewBoxOverride, setViewBoxOverride] = useState<ViewBox | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragOrigin = useRef<{ clientX: number; clientY: number; base: ViewBox; inverse: DOMMatrix } | null>(null);
+  const dragOrigin = useRef<{
+    clientX: number;
+    clientY: number;
+    base: ViewBox;
+    inverse: DOMMatrix;
+  } | null>(null);
   /** Mirrors DungeonMap's own ref: true once a pointer-down has moved past the click-vs-drag
    * threshold, checked (and reset) by the capturing click handler below so a drag-to-pan doesn't
    * also select whatever hex the pointer happened to release over. */
   const didDrag = useRef(false);
   const currentTile: HexTile | undefined = world.tiles[hexKey(world.player)];
   const neighborCoords = hexNeighbors(world.player);
-  const inCityOrFortress = !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
+  const inCityOrFortress =
+    !!currentTile && currentTile.location != null && CITY_OR_FORTRESS.has(currentTile.location);
   /** "none" hexes never had a dungeonRunId/dungeonMarked stamped; otherwise a shared lookup for
    * both the gate copy (current hex only) and the per-hex map badges (every known hex) below.
    * "found" is a hex "Ask" has flagged (dungeonMarked) but the player has never actually stepped
@@ -294,11 +364,38 @@ export function WorldScreen({
       )
     : [];
   const isFortress = isFortressLocation(currentTile?.location ?? null);
+  /** Portals' rolls 11/14 ("you go to whatever hexagon you want"): every revealed hex the player could
+   * legally stand in, nearest first. Bounded to known geography for the same reason
+   * `findNearestTown()` is -- you cannot choose a hex that doesn't exist yet. Impassable hexes are
+   * excluded (a portal won't set you down inside Rocks or open water), but a Thug-Life-banned hex
+   * deliberately *is* offered: that ban is about being turned away at a city gate, and arriving by
+   * portal isn't that. */
+  const portalDestinationList = useMemo(
+    () =>
+      Object.entries(world.tiles)
+        .filter(
+          ([key, tile]) =>
+            key !== hexKey(world.player) && !isImpassable(tile.terrain, tile.location, false),
+        )
+        .map(([key, tile]) => {
+          const coord = { q: Number(key.split(",")[0]), r: Number(key.split(",")[1]) };
+          const locationLabel = tile.location ? LOCATION_LABEL[tile.location] : "";
+          return {
+            coord,
+            tile,
+            distance: hexDistance(world.player, coord),
+            label: tile.name ?? (locationLabel || TERRAIN_LABEL[tile.terrain]),
+          };
+        })
+        .sort((a, b) => a.distance - b.distance),
+    [world.tiles, world.player],
+  );
   // Prefers the hex's own generated name (issue #49, City/Fortress only -- see HexTile.name) over
   // the generic type label wherever one exists; falls back to the type label for a Ruins/other
   // location with no name of its own, or "the wilds" for a bare plain hex with no location at all.
   const currentPlaceLabel =
-    currentTile?.name ?? (currentTile?.location ? LOCATION_LABEL[currentTile.location] : "the wilds");
+    currentTile?.name ??
+    (currentTile?.location ? LOCATION_LABEL[currentTile.location] : "the wilds");
   /** "If you don't already have a dungeon in any adjacent hex" -- gates the Ask button itself
    * (always rendered by TownScreen, disabled once true, same "visible but disabled" precedent as
    * every other City Action here) rather than the reducer alone, so the UI can explain why. */
@@ -313,7 +410,11 @@ export function WorldScreen({
    * `hasAffinity()`), and it isn't a hex Thug Life has permanently banned this world from. */
   function canTravelTo(tile: HexTile, coord: HexCoord): boolean {
     return (
-      !isImpassable(tile.terrain, tile.location, world.hasBoat || hasWaterWalk(character.race.name)) &&
+      !isImpassable(
+        tile.terrain,
+        tile.location,
+        world.hasBoat || hasWaterWalk(character.race.name),
+      ) &&
       hasAffinity(character.race.name, tile.location) &&
       !isBannedHex(world, coord)
     );
@@ -326,7 +427,12 @@ export function WorldScreen({
    * `without` distributing across both clauses, i.e. Fly skips the Event too (issue #91 documents
    * why -- a limited-use spell burying a drawback in its own text is the less coherent reading, and
    * the rulebook is a translation where that elision is idiomatic). */
-  function arriveAt(coord: HexCoord, tile: HexTile, updated: AdventurerResources, rollEvent: boolean) {
+  function arriveAt(
+    coord: HexCoord,
+    tile: HexTile,
+    updated: AdventurerResources,
+    rollEvent: boolean,
+  ) {
     onUpdateResources(updated);
     onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
     setShowMap(false);
@@ -359,7 +465,13 @@ export function WorldScreen({
       arriveAt(
         coord,
         tile,
-        recordTravelStats({ ...afterCost, flyActive: false }, tile.terrain, isCity, hexKey(coord), world.hasBoat),
+        recordTravelStats(
+          { ...afterCost, flyActive: false },
+          tile.terrain,
+          isCity,
+          hexKey(coord),
+          world.hasBoat,
+        ),
         false,
       );
       return;
@@ -371,7 +483,8 @@ export function WorldScreen({
     const elvenBootsOverride = tile.terrain === "forest" && hasElvenBoots(resources) ? 1 : null;
     // Feathered Boots (Ziggurat Wonder, issue #30): "Spend 1 provision on swamps" -- identical
     // shape to Elven Boots, just swamp instead of forest.
-    const featheredBootsOverride = tile.terrain === "swamp" && hasFeatheredBoots(resources) ? 1 : null;
+    const featheredBootsOverride =
+      tile.terrain === "swamp" && hasFeatheredBoots(resources) ? 1 : null;
     const animalOverride = animalTravelCostOverride(resources.animals, tile.terrain);
     const overrides = [elvenBootsOverride, featheredBootsOverride, animalOverride].filter(
       (v): v is number => v != null,
@@ -382,7 +495,10 @@ export function WorldScreen({
     const withMammothPenalty = baseCost + animalTravelCostPenalty(resources.animals);
     // Pandakhan (2x)/Centaur (0.5x, rounded up so a move is never free) -- layered on top of the
     // base cost the same way Elven Boots' forest override already is.
-    const cost = Math.max(1, Math.ceil(withMammothPenalty * travelCostMultiplier(character.race.name)));
+    const cost = Math.max(
+      1,
+      Math.ceil(withMammothPenalty * travelCostMultiplier(character.race.name)),
+    );
     const afterCost = payTravelCost(resources, cost, !!resources.hireling);
     // Advanced Classes (issue #72): Lumberjack/Druid/Survivor/Pirate/Bard's lifetime travel
     // counters, describing whichever hex is actually being arrived at. `wasSailing` reads
@@ -468,7 +584,10 @@ export function WorldScreen({
     if (result.roll.kind === "event") {
       setTravelEvent({ roll: result.roll, combat: null, resolvedMessage: null });
     } else {
-      setTravelEvent({ ...travelEvent, resolvedMessage: "The Star Stone flares, and the moment passes." });
+      setTravelEvent({
+        ...travelEvent,
+        resolvedMessage: "The Star Stone flares, and the moment passes.",
+      });
     }
   }
 
@@ -478,7 +597,13 @@ export function WorldScreen({
   function handleEventAttack(targetId: number, roll: number) {
     if (!travelEvent?.combat || !resources.weapon) return;
     const combat = travelEvent.combat;
-    const result = resolveEventRound(combat, resources.hp, resources.weapon.formula, targetId, roll);
+    const result = resolveEventRound(
+      combat,
+      resources.hp,
+      resources.weapon.formula,
+      targetId,
+      roll,
+    );
 
     if (result.died) {
       onCharacterDied("event", currentPlaceLabel);
@@ -510,6 +635,98 @@ export function WorldScreen({
     setTravelEvent({ ...travelEvent, combat: result.state });
   }
 
+  // --- Portals (issue #21) ----------------------------------------------------------------------
+
+  /** Applies one settled portal roll against explicit resources/world, so a chained roll can build on
+   * what the previous one just produced rather than the stale props this render closed over.
+   * `stampOrigin` is false for a chained roll -- "once you've established where a portal leads" is
+   * about the portal *hex*, and the golden room's second portal isn't one, so only the first is
+   * remembered. `depth` bounds a golden-room-into-golden-room chain. */
+  function applyPortalRoll(
+    roll: PortalRoll,
+    fromResources: AdventurerResources,
+    fromWorld: WorldState,
+    stampOrigin: boolean,
+    depth = 0,
+  ) {
+    const from = fromWorld.player;
+    // Stamped before resolving, since a `newMap` outcome discards these tiles wholesale -- writing it
+    // afterwards would either stamp a tile that no longer exists or need its own special case.
+    const stamped = stampOrigin ? withPortalTotal(fromWorld, from, roll.total) : fromWorld;
+    const result = resolvePortalOutcome(roll.row.outcome, fromResources, stamped, from);
+
+    if (result.died) {
+      onCharacterDied("portal", currentPlaceLabel);
+      return;
+    }
+
+    onUpdateResources(result.resources);
+    onUpdateWorld(result.world);
+
+    if (result.awaitDestination) {
+      setPortal({ roll, applied: true, resolvedMessage: null, awaitDestination: true });
+      return;
+    }
+    if (result.enterNoExitDungeon) {
+      setPortal(null);
+      onEnterNoExitDungeon();
+      return;
+    }
+    if (result.chainAnotherPortal && depth < MAX_PORTAL_CHAIN) {
+      // The golden room's coins are already credited; its second portal is the only way out, so it's
+      // rolled and resolved right here against the state this outcome just produced.
+      const next = rollPortal();
+      applyPortalRoll(next, result.resources, result.world, false, depth + 1);
+      return;
+    }
+    setPortal({ roll, applied: true, resolvedMessage: result.message, awaitDestination: false });
+  }
+
+  /** "Once you've established where a portal leads, you don't need to roll again for it" -- a hex with
+   * a remembered `portalTotal` reuses it instead of rolling. The roll is only *revealed* here; nothing
+   * is applied until the player acknowledges it (see `handleStepThroughPortal`). */
+  function handleEnterPortal() {
+    setPendingPortalConfirm(false);
+    const remembered = currentTile?.portalTotal;
+    const roll = (remembered != null ? establishedPortal(remembered) : null) ?? rollPortal();
+    setPortal({ roll, applied: false, resolvedMessage: null, awaitDestination: false });
+  }
+
+  /** Applies the revealed roll. Split from `handleEnterPortal` so the outcome is *shown* before it
+   * takes effect -- not a choice (the ConfirmDialog already covered "no turning back," and the dice
+   * have already fallen), just an acknowledgment. Keeping it a click rather than an effect is also
+   * what lets the no-exit dungeon's arrival portal seed itself at mount without a setState cascade. */
+  function handleStepThroughPortal() {
+    if (!portal || portal.applied) return;
+    // Clears App's one-shot arrival flag, so a later remount of this screen doesn't seed a second
+    // portal out of nowhere. A no-op for an ordinary portal, where the flag was never set.
+    onAutoPortalConsumed?.();
+    const remembered = currentTile?.portalTotal;
+    applyPortalRoll(
+      portal.roll,
+      resources,
+      world,
+      remembered == null && currentTile?.location === "portal",
+    );
+  }
+
+  /** Rolls 11/14: the player picked where the portal opens. */
+  function handleChoosePortalDestination(coord: HexCoord) {
+    const tile = world.tiles[hexKey(coord)];
+    onUpdateWorld(withPlayerMovedTo(world, coord, Math.random));
+    setPortal((prev) =>
+      prev
+        ? {
+            ...prev,
+            awaitDestination: false,
+            resolvedMessage: tile?.name
+              ? `You step out in ${tile.name}.`
+              : "You step out somewhere new.",
+          }
+        : prev,
+    );
+  }
+
   /** "You can buy mounts in a city that is on the appropriate terrain" -- always succeeds if
    * affordable, no roll involved, unlike training. */
   function handleBuyMount(name: string) {
@@ -524,10 +741,20 @@ export function WorldScreen({
    * hex `HexInspector` happens to be describing. Re-validates defensively, same
    * "handler re-checks, engine function is real authority" precedent as `handleTrainAnimal`. */
   function handleBuildBuilding(kind: BuildingKind) {
-    if (!currentTile || !canBuildBuilding(resources, currentTile, kind, currentTile.terrain, character.race.name)) {
+    if (
+      !currentTile ||
+      !canBuildBuilding(resources, currentTile, kind, currentTile.terrain, character.race.name)
+    ) {
       return;
     }
-    const result = buildBuilding(resources, world, world.player, kind, currentTile.terrain, character.race.name);
+    const result = buildBuilding(
+      resources,
+      world,
+      world.player,
+      kind,
+      currentTile.terrain,
+      character.race.name,
+    );
     onUpdateResources(result.resources);
     onUpdateWorld(result.world);
   }
@@ -538,10 +765,21 @@ export function WorldScreen({
    * can render it as message text; `null` if the action isn't actually available right now
    * (the button is already disabled in that case, this is just defense in depth). */
   function handlePoliticalAffinity(): PoliticalAffinityOutcome | null {
-    if (!currentTile || !culture || !canAttemptPoliticalAffinity(world, world.player, currentTile)) {
+    if (
+      !currentTile ||
+      !culture ||
+      !canAttemptPoliticalAffinity(world, world.player, currentTile)
+    ) {
       return null;
     }
-    const outcome = resolvePoliticalAffinity(resources, world, character.race.name, world.player, culture, isFortress);
+    const outcome = resolvePoliticalAffinity(
+      resources,
+      world,
+      character.race.name,
+      world.player,
+      culture,
+      isFortress,
+    );
     onUpdateResources(outcome.resources);
     onUpdateWorld(outcome.world);
     return outcome;
@@ -590,7 +828,14 @@ export function WorldScreen({
    * and picking Annex/Loot. */
   function handleResolveStorming(choice: "annex" | "loot") {
     if (!culture) return;
-    const outcome = resolveStorming(resources, world, character.race.name, world.player, culture, choice);
+    const outcome = resolveStorming(
+      resources,
+      world,
+      character.race.name,
+      world.player,
+      culture,
+      choice,
+    );
     onUpdateResources(outcome.resources);
     onUpdateWorld(outcome.world);
     setPendingStorm(false);
@@ -605,8 +850,9 @@ export function WorldScreen({
 
   /** Issue #79: shows -- doesn't travel to, see `DungeonsList`'s own doc comment for why that
    * distinction is deliberate -- where a dungeon from the Dungeons list is, by selecting its hex
-   * the same way clicking it on the map directly would. A no-op (same defensive shape as every
-   * other handler here) if the run can't be found on the map, which shouldn't happen in practice. */
+   * the same way clicking it on the map directly would. A no-op if the run isn't on the map at all --
+   * which a portal-created no-exit run (issue #21, roll of 7) genuinely never is, since nothing ever
+   * stamps it onto a hex. */
   function handleLocateDungeon(runId: string) {
     const coord = findHexForRunId(world, runId);
     if (!coord) return;
@@ -617,7 +863,8 @@ export function WorldScreen({
   /** Issue #80: "closest to farthest," measured from the player's own current position --
    * `DungeonsList`'s own `sortDungeonsForDisplay()` then layers its unfinished-before-cleared
    * grouping on top of this order (a stable sort, so this ordering survives within each group). A
-   * dungeon whose hex can't be found (shouldn't happen in practice) sorts last. */
+   * dungeon with no hex at all sorts last -- a portal-created no-exit run (issue #21, roll of 7) is
+   * permanently in that category, since it exists nowhere on the map. */
   const sortedDungeonHistory = useMemo(
     () =>
       [...dungeonHistory].sort((a, b) => {
@@ -632,8 +879,10 @@ export function WorldScreen({
 
   const inspectedCoord = selectedHex ?? world.player;
   const inspectedTile: HexTile | undefined = world.tiles[hexKey(inspectedCoord)];
-  const isInspectingCurrentTile = inspectedCoord.q === world.player.q && inspectedCoord.r === world.player.r;
-  const inspectedNoAffinity = !!inspectedTile && !hasAffinity(character.race.name, inspectedTile.location);
+  const isInspectingCurrentTile =
+    inspectedCoord.q === world.player.q && inspectedCoord.r === world.player.r;
+  const inspectedNoAffinity =
+    !!inspectedTile && !hasAffinity(character.race.name, inspectedTile.location);
   const inspectedBanned = isBannedHex(world, inspectedCoord);
 
   /** Clicking a passable, in-range neighbor travels immediately; anything else (out of range,
@@ -687,7 +936,10 @@ export function WorldScreen({
       }),
     [world.tiles],
   );
-  const pixels = useMemo(() => knownCoords.map((c) => ({ coord: c, pixel: axialToPixel(c) })), [knownCoords]);
+  const pixels = useMemo(
+    () => knownCoords.map((c) => ({ coord: c, pixel: axialToPixel(c) })),
+    [knownCoords],
+  );
   const naturalViewBox: ViewBox = useMemo(() => {
     const minX = Math.min(...pixels.map((p) => p.pixel.x)) - HEX_SIZE;
     const maxX = Math.max(...pixels.map((p) => p.pixel.x)) + HEX_SIZE;
@@ -735,7 +987,12 @@ export function WorldScreen({
     if (!svg) return;
     const ctm = svg.getScreenCTM();
     if (!ctm) return;
-    dragOrigin.current = { clientX: e.clientX, clientY: e.clientY, base: baseViewBox, inverse: ctm.inverse() };
+    dragOrigin.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      base: baseViewBox,
+      inverse: ctm.inverse(),
+    };
   }
 
   function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
@@ -761,7 +1018,12 @@ export function WorldScreen({
     const curUser = curPt.matrixTransform(origin.inverse);
     const deltaX = curUser.x - startUser.x;
     const deltaY = curUser.y - startUser.y;
-    setViewBoxOverride({ x: origin.base.x - deltaX, y: origin.base.y - deltaY, w: origin.base.w, h: origin.base.h });
+    setViewBoxOverride({
+      x: origin.base.x - deltaX,
+      y: origin.base.y - deltaY,
+      w: origin.base.w,
+      h: origin.base.h,
+    });
   }
 
   function handlePointerUp(e: React.PointerEvent<SVGSVGElement>) {
@@ -779,43 +1041,63 @@ export function WorldScreen({
     }
   }
 
+  /** Portals (issue #21) -- rendered in *both* branches below, as a viewport-level modal. A portal can
+   * deposit the player inside a City/Fortress (rolls 9/10), which flips this screen to `TownScreen`
+   * wholesale; an overlay living inside the map card would unmount before the outcome could be read. */
+  const portalOverlay = portal ? (
+    <div className={styles.portalOverlay}>
+      <PortalPanel
+        roll={portal.roll}
+        applied={portal.applied}
+        resolvedMessage={portal.resolvedMessage}
+        destinations={portal.awaitDestination ? portalDestinationList : []}
+        onStepThrough={handleStepThroughPortal}
+        onChooseDestination={handleChoosePortalDestination}
+        onDismiss={() => setPortal(null)}
+      />
+    </div>
+  ) : null;
+
   if (inCityOrFortress && !showMap) {
     return (
-      <TownScreen
-        character={character}
-        resources={resources}
-        // canEnterDungeon, not "already has a known dungeonRunId" -- a hex the player has never
-        // entered a dungeon on yet still offers a fresh roll, same as the old Ruins card always did.
-        hasDungeon={canEnterDungeon}
-        dungeonGateCopy={dungeonGateCopy}
-        dungeonHistory={sortedDungeonHistory}
-        culture={culture}
-        cityName={currentPlaceLabel}
-        showHireBoat={besideWater}
-        askedDungeonKnown={askedDungeonKnown}
-        isFortress={isFortress}
-        buyableMounts={buyableMounts}
-        politicalStatus={politicalStatusFor(world, world.player)}
-        canPoliticalAffinity={canAttemptPoliticalAffinity(world, world.player, currentTile)}
-        canRecruitTroop={canRecruitTroop(resources, world, world.player, currentTile)}
-        canAttack={canAttack(world, world.player, currentTile)}
-        attackMessage={attackMessage}
-        pendingStorm={pendingStorm}
-        onUpdateResources={onUpdateResources}
-        onEnterDungeon={onEnterDungeon}
-        onHireBoat={handleHireBoat}
-        onBuyMount={handleBuyMount}
-        onAsk={handleAsk}
-        onThugLife={handleThugLife}
-        onPoliticalAffinity={handlePoliticalAffinity}
-        onRecruitTroop={handleRecruitTroop}
-        onAttack={handleAttack}
-        onResolveStorming={handleResolveStorming}
-        onLocateDungeon={handleLocateDungeon}
-        onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
-        onExploreWorld={() => setShowMap(true)}
-        onHardReset={onHardReset}
-      />
+      <>
+        <TownScreen
+          character={character}
+          resources={resources}
+          // canEnterDungeon, not "already has a known dungeonRunId" -- a hex the player has never
+          // entered a dungeon on yet still offers a fresh roll, same as the old Ruins card always did.
+          hasDungeon={canEnterDungeon}
+          dungeonGateCopy={dungeonGateCopy}
+          dungeonHistory={sortedDungeonHistory}
+          culture={culture}
+          cityName={currentPlaceLabel}
+          showHireBoat={besideWater}
+          askedDungeonKnown={askedDungeonKnown}
+          isFortress={isFortress}
+          buyableMounts={buyableMounts}
+          politicalStatus={politicalStatusFor(world, world.player)}
+          canPoliticalAffinity={canAttemptPoliticalAffinity(world, world.player, currentTile)}
+          canRecruitTroop={canRecruitTroop(resources, world, world.player, currentTile)}
+          canAttack={canAttack(world, world.player, currentTile)}
+          attackMessage={attackMessage}
+          pendingStorm={pendingStorm}
+          onUpdateResources={onUpdateResources}
+          onEnterDungeon={onEnterDungeon}
+          onHireBoat={handleHireBoat}
+          onBuyMount={handleBuyMount}
+          onAsk={handleAsk}
+          onThugLife={handleThugLife}
+          onPoliticalAffinity={handlePoliticalAffinity}
+          onRecruitTroop={handleRecruitTroop}
+          onAttack={handleAttack}
+          onResolveStorming={handleResolveStorming}
+          onLocateDungeon={handleLocateDungeon}
+          onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
+          onExploreWorld={() => setShowMap(true)}
+          onHardReset={onHardReset}
+        />
+        {portalOverlay}
+      </>
     );
   }
 
@@ -845,7 +1127,11 @@ export function WorldScreen({
               {pixels.map(({ coord, pixel }) => {
                 const tile = world.tiles[hexKey(coord)]!;
                 const isPlayer = coord.q === world.player.q && coord.r === world.player.r;
-                const isSelected = !isPlayer && selectedHex != null && coord.q === selectedHex.q && coord.r === selectedHex.r;
+                const isSelected =
+                  !isPlayer &&
+                  selectedHex != null &&
+                  coord.q === selectedHex.q &&
+                  coord.r === selectedHex.r;
                 const label = tile.name ?? (tile.location ? LOCATION_LABEL[tile.location] : "");
                 const { status: dungeonStatus, hasRemains } = dungeonInfoFor(tile);
                 const political = politicalStatusFor(world, coord);
@@ -854,7 +1140,11 @@ export function WorldScreen({
                 // danger-colored outline, visible at a glance without adding a 5th tiny glyph.
                 const noAffinityHere = !hasAffinity(character.race.name, tile.location);
                 return (
-                  <g key={hexKey(coord)} className={styles.clickableHex} onClick={() => handleHexClick(coord)}>
+                  <g
+                    key={hexKey(coord)}
+                    className={styles.clickableHex}
+                    onClick={() => handleHexClick(coord)}
+                  >
                     {noAffinityHere && <title>Your race is not welcome here</title>}
                     <polygon
                       points={hexPolygonPoints(pixel, HEX_SIZE - 2)}
@@ -869,10 +1159,17 @@ export function WorldScreen({
                               : "rgba(0,0,0,0.4)"
                       }
                       strokeWidth={isPlayer || isSelected ? 4 : noAffinityHere ? 2.5 : 1.5}
-                      strokeDasharray={noAffinityHere && !isPlayer && !isSelected ? "4 2" : undefined}
+                      strokeDasharray={
+                        noAffinityHere && !isPlayer && !isSelected ? "4 2" : undefined
+                      }
                     />
                     {label && (
-                      <text x={pixel.x} y={pixel.y + 4} textAnchor="middle" className={styles.hexLabel}>
+                      <text
+                        x={pixel.x}
+                        y={pixel.y + 4}
+                        textAnchor="middle"
+                        className={styles.hexLabel}
+                      >
                         {label}
                       </text>
                     )}
@@ -881,7 +1178,11 @@ export function WorldScreen({
                         x={pixel.x + 17}
                         y={pixel.y - 18}
                         textAnchor="middle"
-                        className={dungeonStatus === "beaten" ? styles.dungeonBadgeCleared : styles.dungeonBadgeUnfinished}
+                        className={
+                          dungeonStatus === "beaten"
+                            ? styles.dungeonBadgeCleared
+                            : styles.dungeonBadgeUnfinished
+                        }
                       >
                         <title>
                           {dungeonStatus === "beaten"
@@ -894,27 +1195,53 @@ export function WorldScreen({
                       </text>
                     )}
                     {hasRemains && (
-                      <text x={pixel.x - 17} y={pixel.y - 18} textAnchor="middle" className={styles.remainsBadge}>
-                        <title>A fallen adventurer&apos;s remains are still here, unrecovered</title>
+                      <text
+                        x={pixel.x - 17}
+                        y={pixel.y - 18}
+                        textAnchor="middle"
+                        className={styles.remainsBadge}
+                      >
+                        <title>
+                          A fallen adventurer&apos;s remains are still here, unrecovered
+                        </title>
                         💀
                       </text>
                     )}
                     {tile.building && (
-                      <text x={pixel.x + 17} y={pixel.y + 18} textAnchor="middle" className={styles.buildingBadge}>
+                      <text
+                        x={pixel.x + 17}
+                        y={pixel.y + 18}
+                        textAnchor="middle"
+                        className={styles.buildingBadge}
+                      >
                         <title>{tile.building}</title>
                         🏛
                       </text>
                     )}
                     {political && (
-                      <text x={pixel.x - 17} y={pixel.y + 18} textAnchor="middle" className={styles.politicalBadge}>
+                      <text
+                        x={pixel.x - 17}
+                        y={pixel.y + 18}
+                        textAnchor="middle"
+                        className={styles.politicalBadge}
+                      >
                         <title>
-                          {political === "ally" ? "Allied" : political === "vassal" ? "Vassal" : "Enemy"}
+                          {political === "ally"
+                            ? "Allied"
+                            : political === "vassal"
+                              ? "Vassal"
+                              : "Enemy"}
                         </title>
                         {political === "ally" ? "🤝" : political === "vassal" ? "👑" : "🗡"}
                       </text>
                     )}
                     {isPlayer && (
-                      <text x={pixel.x} y={pixel.y - 14} textAnchor="middle" className={styles.playerLabel}>
+                      <text
+                        x={pixel.x}
+                        y={pixel.y - 14}
+                        textAnchor="middle"
+                        className={styles.playerLabel}
+                      >
                         You
                       </text>
                     )}
@@ -924,7 +1251,11 @@ export function WorldScreen({
             </svg>
 
             {viewBoxOverride && (
-              <button type="button" className={styles.resetViewBtn} onClick={() => setViewBoxOverride(null)}>
+              <button
+                type="button"
+                className={styles.resetViewBtn}
+                onClick={() => setViewBoxOverride(null)}
+              >
                 Reset View
               </button>
             )}
@@ -955,47 +1286,55 @@ export function WorldScreen({
               </div>
             ) : (
               inspectedTile && (
-              <div className={styles.hexInspectorOverlay}>
-                <HexInspector
-                  terrain={inspectedTile.terrain}
-                  locationLabel={inspectedTile.location ? LOCATION_LABEL[inspectedTile.location] : ""}
-                  cityName={inspectedTile.name}
-                  dungeonStatus={dungeonInfoFor(inspectedTile).status}
-                  hasRemains={dungeonInfoFor(inspectedTile).hasRemains}
-                  isCurrentTile={isInspectingCurrentTile}
-                  noAffinity={inspectedNoAffinity}
-                  banned={inspectedBanned}
-                  // City/Fortress hexes handle their own "Enter Dungeon" via TownScreen -- excluded
-                  // here too (even while voluntarily viewing the map from inside one, see "Return
-                  // to the City" below) so there's exactly one entry point for that case, not two.
-                  canEnterDungeon={canEnterDungeon && !inCityOrFortress}
-                  onEnterDungeon={onEnterDungeon}
-                  trainableAnimals={isInspectingCurrentTile ? trainableAnimals : []}
-                  resources={resources}
-                  onTrainAnimal={handleTrainAnimal}
-                  trainResultMessage={trainResultMessage}
-                  isEmptyHex={inspectedTile.location === null}
-                  currentBuilding={inspectedTile.building}
-                  raceName={character.race.name}
-                  onBuildBuilding={handleBuildBuilding}
-                  politicalStatus={politicalStatusFor(world, inspectedCoord)}
-                  canRecruitTroopHere={
-                    isInspectingCurrentTile && canRecruitTroop(resources, world, inspectedCoord, inspectedTile)
-                  }
-                  onRecruitTroop={handleRecruitTroop}
-                  warfareMessage={isInspectingCurrentTile ? attackMessage : null}
-                  inCityOrFortress={inCityOrFortress}
-                  onReturnToCity={() => setShowMap(false)}
-                  canCastFly={canCastFly(resources)}
-                  flyActive={resources.flyActive}
-                  onCastFly={() => onUpdateResources(castFly(resources))}
-                  showForgottenGods={isInspectingCurrentTile && dungeonTypeKeyFor(inspectedTile) === "ziggurat"}
-                  canUseForgottenGodsHere={canUseForgottenGods(resources)}
-                  onForgottenGods={handleForgottenGods}
-                  forgottenGodsMessage={isInspectingCurrentTile ? forgottenGodsMessage : null}
-                  eventNote={isInspectingCurrentTile ? eventNote : null}
-                />
-              </div>
+                <div className={styles.hexInspectorOverlay}>
+                  <HexInspector
+                    terrain={inspectedTile.terrain}
+                    locationLabel={
+                      inspectedTile.location ? LOCATION_LABEL[inspectedTile.location] : ""
+                    }
+                    cityName={inspectedTile.name}
+                    dungeonStatus={dungeonInfoFor(inspectedTile).status}
+                    hasRemains={dungeonInfoFor(inspectedTile).hasRemains}
+                    isCurrentTile={isInspectingCurrentTile}
+                    noAffinity={inspectedNoAffinity}
+                    banned={inspectedBanned}
+                    // City/Fortress hexes handle their own "Enter Dungeon" via TownScreen -- excluded
+                    // here too (even while voluntarily viewing the map from inside one, see "Return
+                    // to the City" below) so there's exactly one entry point for that case, not two.
+                    canEnterDungeon={canEnterDungeon && !inCityOrFortress}
+                    onEnterDungeon={onEnterDungeon}
+                    trainableAnimals={isInspectingCurrentTile ? trainableAnimals : []}
+                    resources={resources}
+                    onTrainAnimal={handleTrainAnimal}
+                    trainResultMessage={trainResultMessage}
+                    isEmptyHex={inspectedTile.location === null}
+                    currentBuilding={inspectedTile.building}
+                    raceName={character.race.name}
+                    onBuildBuilding={handleBuildBuilding}
+                    politicalStatus={politicalStatusFor(world, inspectedCoord)}
+                    canRecruitTroopHere={
+                      isInspectingCurrentTile &&
+                      canRecruitTroop(resources, world, inspectedCoord, inspectedTile)
+                    }
+                    onRecruitTroop={handleRecruitTroop}
+                    warfareMessage={isInspectingCurrentTile ? attackMessage : null}
+                    inCityOrFortress={inCityOrFortress}
+                    onReturnToCity={() => setShowMap(false)}
+                    canCastFly={canCastFly(resources)}
+                    flyActive={resources.flyActive}
+                    onCastFly={() => onUpdateResources(castFly(resources))}
+                    showForgottenGods={
+                      isInspectingCurrentTile && dungeonTypeKeyFor(inspectedTile) === "ziggurat"
+                    }
+                    canUseForgottenGodsHere={canUseForgottenGods(resources)}
+                    onForgottenGods={handleForgottenGods}
+                    forgottenGodsMessage={isInspectingCurrentTile ? forgottenGodsMessage : null}
+                    eventNote={isInspectingCurrentTile ? eventNote : null}
+                    canEnterPortal={isInspectingCurrentTile && inspectedTile.location === "portal"}
+                    portalEstablished={inspectedTile.portalTotal != null}
+                    onEnterPortal={() => setPendingPortalConfirm(true)}
+                  />
+                </div>
               )
             )}
           </div>
@@ -1026,10 +1365,31 @@ export function WorldScreen({
             hireling={resources.hireling}
             animals={resources.animals}
             canCastOutOfCombat
-            onCastSpell={(table, spellRoll) => onUpdateResources(castSpell(resources, table, spellRoll))}
+            onCastSpell={(table, spellRoll) =>
+              onUpdateResources(castSpell(resources, table, spellRoll))
+            }
           />
         </aside>
       </div>
+
+      {/* Portals (issue #21) -- gated behind a confirmation because "when going through a portal
+          there is no turning back," and one of the sixteen outcomes deletes the character outright. */}
+      {pendingPortalConfirm && (
+        <ConfirmDialog
+          title="Step through the portal?"
+          message={
+            currentTile?.portalTotal != null
+              ? "You have been through this portal before, and know where it comes out."
+              : "There is no turning back, and no telling where you will come out — or whether you will come out at all."
+          }
+          confirmLabel="Step Through"
+          cancelLabel="Stay"
+          onConfirm={handleEnterPortal}
+          onCancel={() => setPendingPortalConfirm(false)}
+        />
+      )}
+
+      {portalOverlay}
 
       <Footer screenLabel="THE WORLD" onHardReset={onHardReset} />
     </div>

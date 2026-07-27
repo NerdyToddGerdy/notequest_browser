@@ -49,7 +49,7 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
         // "Once you enter non-water terrain you leave the boat" -- fires every landing, harmless
         // no-op if hasBoat was already false.
         if (targetTile.terrain !== "water") draft.hasBoat = false;
-        revealNeighborsInPlace(draft.tiles, action.to, draft.climate, rng);
+        revealNeighborsInPlace(draft.tiles, action.to, draft.climate, rng, draft.plainsRevealAsWater);
       });
     }
     case "HIRE_BOAT": {
@@ -99,7 +99,7 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
         draft.player = dest;
         // The boat doesn't survive being thrown across the map, on the same reading MOVE uses.
         if (state.tiles[destKey]!.terrain !== "water") draft.hasBoat = false;
-        revealNeighborsInPlace(draft.tiles, dest, draft.climate, rng);
+        revealNeighborsInPlace(draft.tiles, dest, draft.climate, rng, draft.plainsRevealAsWater);
       });
     }
     default:

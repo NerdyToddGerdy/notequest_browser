@@ -76,6 +76,26 @@
   filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.55));
 }
 
+/* Portals (issue #21) -- a viewport-level modal, not a map affordance like .eventOverlay below. It
+   has to survive a portal depositing the player inside a City/Fortress, which swaps the whole map out
+   for TownScreen: an overlay scoped to the map card would unmount mid-outcome, exactly the failure
+   Warfare's own lifted `attackMessage` already documents. */
+.portalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 8, 7, 0.65);
+}
+.portalOverlay > * {
+  width: min(400px, 100%);
+  max-height: calc(100% - 40px);
+  overflow-y: auto;
+}
+
 /* Events on Travel (issue #91) -- deliberately more prominent than .hexInspectorOverlay (centered,
    wider, dimming the map behind it) because it's an interruption that must be resolved, not an
    optional inspection panel. */

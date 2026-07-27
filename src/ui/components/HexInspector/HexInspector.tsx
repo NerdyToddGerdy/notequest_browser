@@ -1,4 +1,4 @@
-import type { Terrain } from "../../../data/hexTables.ts";
+import { TERRAIN_LABEL, type Terrain } from "../../../data/hexTables.ts";
 import type { AnimalDef, BuildingKind } from "../../../data/types.ts";
 import { canTrainAnimal } from "../../../engine/animals.ts";
 import { canBuildBuilding } from "../../../engine/buildings.ts";
@@ -93,6 +93,12 @@ export interface HexInspectorProps {
    * (Patovsky, Elf Ranger) -- a real Event takes over the whole overlay via `EventPanel` instead, and
    * an ordinary "nothing happened" arrival says nothing at all. Read-only flavor, no action. */
   eventNote?: string | null;
+  /** Portals (issue #21): true only on the player's own current tile when it's a Portal location.
+   * `portalEstablished` distinguishes a portal whose destination is already known (from a previous
+   * trip) from an unknown one, since the rulebook fixes a portal's destination on first use. */
+  canEnterPortal: boolean;
+  portalEstablished: boolean;
+  onEnterPortal: () => void;
 }
 
 const TROOP_SOURCE_KINDS = new Set<BuildingKind>(["Castle", "City", "Fortress"]);
@@ -101,17 +107,6 @@ const POLITICAL_STATUS_COPY: Record<PoliticalStatus, string> = {
   ally: "Allied with you.",
   vassal: "A Vassal of your realm.",
   enemy: "Hostile to you.",
-};
-
-const TERRAIN_LABEL: Record<Terrain, string> = {
-  plain: "Plain",
-  mountain: "Mountain",
-  forest: "Forest",
-  swamp: "Swamp",
-  desert: "Desert",
-  water: "Water",
-  glacier: "Glacier",
-  tundra: "Tundra",
 };
 
 const DUNGEON_STATUS_COPY: Record<HexInspectorProps["dungeonStatus"], string> = {
@@ -161,6 +156,9 @@ export function HexInspector({
   onForgottenGods,
   forgottenGodsMessage,
   eventNote,
+  canEnterPortal,
+  portalEstablished,
+  onEnterPortal,
 }: HexInspectorProps) {
   return (
     <div className={styles.panel}>
@@ -248,6 +246,19 @@ export function HexInspector({
             onClick={onForgottenGods}
           >
             Effect of the Forgotten Gods (1 provision)
+          </button>
+        </div>
+      )}
+
+      {canEnterPortal && (
+        <div className={styles.actionRow}>
+          <p className={styles.flavor}>
+            {portalEstablished
+              ? "You already know where this portal leads."
+              : "There is no turning back, and no telling where it opens."}
+          </p>
+          <button className={styles.rollBtn} type="button" onClick={onEnterPortal}>
+            Enter the Portal
           </button>
         </div>
       )}

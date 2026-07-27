@@ -331,6 +331,17 @@ export interface DungeonState {
    * the rest of this run. Not reset by `RETURN_TO_DUNGEON` (same trip); `RESUME_DUNGEON` doesn't
    * carry it either, same as every other character-specific field. */
   runDamageBonus: number;
+  /** Portals (issue #21), the 3d6 roll of 7: "You appeared at the beginning of a new Dungeon but no
+   * door to exit. In the Boss's room there will be a Portal." True only for a run a portal dropped
+   * the character into -- there is no way back to the World until the Boss falls, at which point the
+   * Boss's room offers a Portal out instead of the usual "Return to Town."
+   *
+   * Deliberately *not* a hex-tied run: nothing stamps a `dungeonRunId` for it, so it never appears
+   * on the map and can't be resumed by traveling. That means dying here strands the run in
+   * `dungeonHistory` unreachable, which is the honest reading of "no door to exit."
+   *
+   * Optional-with-default at every read site (`?? false`) so an older persisted run still loads. */
+  noExit?: boolean;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (not a
@@ -461,6 +472,8 @@ export function createInitialDungeonState(
   // defaulting to 0 for every other caller (RESUME_DUNGEON/RETURN_TO_DUNGEON/tests) exactly like
   // `spellUses` etc. above.
   runDamageBonus = 0,
+  // Portals (issue #21) -- true only for the roll-of-7 dungeon; every other caller leaves it false.
+  noExit = false,
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -501,6 +514,7 @@ export function createInitialDungeonState(
     milestones,
     buildings,
     runDamageBonus,
+    noExit,
     weaponFormula,
     spellUses,
     maxSpellUses,

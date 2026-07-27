@@ -56,6 +56,14 @@ export default function App() {
    * this id is minted here instead and stamped onto the hex immediately (see onEnterDungeon), then
    * passed down as `externalRunId` so DungeonScreen uses this one instead of self-minting. */
   const [worldFreshRunId, setWorldFreshRunId] = useState<string | null>(null);
+  /** Portals (issue #21) roll of 7: the next dungeon entered has no exit until its Boss falls, and
+   * offers a Portal out instead of "Return to Town." Set alongside `worldFreshRunId` by
+   * `onEnterNoExitDungeon`, cleared on the way back out (see `handleReturnToTown`), and threaded into
+   * `DungeonScreen`'s mount-time initializer the same way `forcedTypeRoll` is. */
+  const [noExitRun, setNoExitRun] = useState(false);
+  /** Set when a no-exit run's Boss-room Portal is used, so `WorldScreen` immediately rolls a fresh
+   * portal on arrival rather than dropping the player back onto the map with nothing happening. */
+  const [pendingPortalOnArrival, setPendingPortalOnArrival] = useState(false);
 
   // Persists the whole session in one blob whenever any piece of it changes -- mirrors
   // addGraveyardEntry's "mutate then persist immediately" behavior, just via an effect instead
@@ -164,6 +172,7 @@ export default function App() {
   // A voluntary, alive retreat -- captures the run's current resources so City Actions can act on
   // them, and remembers the runId so re-entering that hex's dungeon jumps straight back in later.
   function handleReturnToTown(runId: string, dungeon: DungeonState) {
+    setNoExitRun(false);
     setResources((prev) => ({
       torches: dungeon.torches,
       hp: dungeon.hp,
@@ -290,6 +299,20 @@ export default function App() {
           }
           setScreen("dungeon");
         }}
+        autoPortalOnMount={pendingPortalOnArrival}
+        onAutoPortalConsumed={() => setPendingPortalOnArrival(false)}
+        onEnterNoExitDungeon={() => {
+          // Portals (issue #21) roll of 7. Deliberately *not* stamped onto any hex: this dungeon
+          // isn't tied to geography (the portal dropped the character in from nowhere), so no
+          // `withDungeonRunId` and no `forcedTypeRoll` -- the type roll stays free, since there's no
+          // terrain to fate it. Everything else matches a first-time hex entry.
+          const newRunId = crypto.randomUUID();
+          setForcedTypeRoll(null);
+          setWorldFreshRunId(newRunId);
+          setSelectedRunId(null);
+          setNoExitRun(true);
+          setScreen("dungeon");
+        }}
       />
     );
   }
@@ -310,6 +333,13 @@ export default function App() {
       resumeDungeon={resumeDungeon}
       forcedTypeRoll={forcedTypeRoll ?? undefined}
       externalRunId={worldFreshRunId ?? undefined}
+      noExit={noExitRun}
+      onExitViaPortal={(runId, dungeon) => {
+        // Portals (issue #21): the Boss's-room Portal out of a no-exit run. Banks the run exactly as
+        // "Return to Town" would, then arms WorldScreen to roll a fresh portal the moment it mounts.
+        handleReturnToTown(runId, dungeon);
+        setPendingPortalOnArrival(true);
+      }}
       onNewAdventurer={handleNewAdventurer}
       onUpdateResources={setResources}
       onReturnToTown={handleReturnToTown}

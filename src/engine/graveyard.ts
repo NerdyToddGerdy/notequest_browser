@@ -6,11 +6,13 @@
  * the city/fortress's location label instead of a dungeon name. "warfare" (issue #28) is the same shape:
  * a character who joined their troops in an Attack and rolled a 1 on a lost battle. "event" (issue #91,
  * Events on Travel) is the same shape again, and the only one that happens out in the wilderness rather
- * than at a City/Fortress -- either losing an Event fight or Glacier's Cracked Ice. */
+ * than at a City/Fortress -- either losing an Event fight or Glacier's Cracked Ice. "portal" (issue
+ * #21) is the 3d6 roll of 3, "your character has disappeared from existence" -- no body and no
+ * dungeon, so `dungeon` holds wherever the portal stood. */
 export interface GraveyardEntry {
   name: string;
   dungeon: string;
-  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena" | "warfare" | "event";
+  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena" | "warfare" | "event" | "portal";
   race?: string;
   cls?: string;
   monsterKills?: number;
