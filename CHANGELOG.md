@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.46.3] - 2026-07-28
+
+### Changed
+
+- Finished the CI runtime upgrade started in 2.46.2: the deprecation
+  warning survived it, because `upload-pages-artifact` is a composite
+  action that calls the old `upload-artifact` internally. Bumped it
+  and `deploy-pages` to v5 as well (#106).
+
+No app behavior change.
+
 ## [2.46.2] - 2026-07-28
 
 ### Changed

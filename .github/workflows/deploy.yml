@@ -23,12 +23,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # v5 majors (issue #106) run on the Node 24 action runtime; v4 targeted the deprecated Node 20
-      # and was being force-upgraded by the runner. Two behavior changes were checked and don't
-      # apply here: setup-node v5 auto-enables caching when `package.json` has a `packageManager`
-      # field (it doesn't, so the explicit `cache: npm` below stays authoritative), and checkout
-      # v5.1 hardened fork checkouts for `pull_request_target`/`workflow_run` only -- the ordinary
-      # `pull_request` event this workflow uses is explicitly unchanged.
+      # Every action here is on a v5 major (issue #106) so it runs on the Node 24 action runtime;
+      # the v4 line targeted the deprecated Node 20 and was being force-upgraded by the runner.
+      # Note `upload-pages-artifact` had to be bumped too even though the deprecation notice never
+      # named it: it's a *composite* action that calls `upload-artifact` internally, and its v3 tag
+      # pins v4 -- so the warning survived bumping only the actions this file names directly.
+      # Three behavior changes were checked and none apply here: setup-node v5 auto-enables caching
+      # when `package.json` has a `packageManager` field (it doesn't, so the explicit `cache: npm`
+      # below stays authoritative); checkout v5.1 hardened fork checkouts for `pull_request_target`/
+      # `workflow_run` only, and the ordinary `pull_request` event this workflow uses is explicitly
+      # unchanged; upload-pages-artifact v4 stopped including dotfiles, and `dist/` has none.
       - uses: actions/setup-node@v5
         with:
           # Pinned to the floor some devDependencies actually want (>=20.19). A bare `20` resolves
@@ -63,7 +67,7 @@ jobs:
       # Skipped on pull requests: nothing will deploy it, and a fork PR's read-only token can't
       # upload it anyway. `npm run build` above still runs on a PR -- it's the typecheck.
       - if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -77,4 +81,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
