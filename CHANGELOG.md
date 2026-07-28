@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.46.1] - 2026-07-27
+
+### Changed
+
+- The Playwright end-to-end tests now run in CI on every push and
+  every pull request, instead of only when someone remembered to run
+  them locally (#104). A pull request runs the full check suite but
+  never publishes; only a push to main deploys.
+- On failure, CI uploads the Playwright HTML report (with a trace) so
+  a failure that only happens there can actually be diagnosed.
+- CI pins Node 20.19 -- the version some devDependencies actually
+  ask for -- rather than resolving to whatever the latest 20.x is.
+
+No app behavior change.
+
 ## [2.46.0] - 2026-07-27
 
 ### Added
