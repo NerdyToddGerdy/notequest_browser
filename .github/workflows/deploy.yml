@@ -21,9 +21,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      # v5 majors (issue #106) run on the Node 24 action runtime; v4 targeted the deprecated Node 20
+      # and was being force-upgraded by the runner. Two behavior changes were checked and don't
+      # apply here: setup-node v5 auto-enables caching when `package.json` has a `packageManager`
+      # field (it doesn't, so the explicit `cache: npm` below stays authoritative), and checkout
+      # v5.1 hardened fork checkouts for `pull_request_target`/`workflow_run` only -- the ordinary
+      # `pull_request` event this workflow uses is explicitly unchanged.
+      - uses: actions/setup-node@v5
         with:
           # Pinned to the floor some devDependencies actually want (>=20.19). A bare `20` resolves
           # to the latest 20.x, which happens to satisfy that today, but locally Node 20.17 prints
@@ -48,7 +54,7 @@ jobs:
       # Makes a CI-only failure debuggable: the HTML report embeds the trace captured on the first
       # retry (see `trace: "on-first-retry"` / `retries: 2` in playwright.config.ts).
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-report
           path: playwright-report/

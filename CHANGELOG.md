@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.46.2] - 2026-07-28
+
+### Changed
+
+- CI now uses the v5 majors of checkout, setup-node, and
+  upload-artifact, which run on the Node 24 action runtime -- the v4
+  versions targeted the deprecated Node 20 and were being
+  force-upgraded by the runner, with a deprecation warning on every
+  run (#106).
+
+No app behavior change.
+
 ## [2.46.1] - 2026-07-27
 
 ### Changed
