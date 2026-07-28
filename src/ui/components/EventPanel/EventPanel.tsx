@@ -47,7 +47,10 @@ function HpBar({ value, max, kind }: { value: number; max: number; kind: "player
   const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   return (
     <div className={styles.hpBar}>
-      <div className={kind === "player" ? styles.hpFillPlayer : styles.hpFillMonster} style={{ width: `${pct}%` }} />
+      <div
+        className={kind === "player" ? styles.hpFillPlayer : styles.hpFillMonster}
+        style={{ width: `${pct}%` }}
+      />
     </div>
   );
 }
@@ -128,7 +131,9 @@ export function EventPanel({
             {combat.monsters.map((monster) => (
               <li key={monster.id} className={styles.monster}>
                 <div className={styles.monsterHeader}>
-                  <span className={monster.hp <= 0 ? styles.monsterNameDown : styles.monsterName}>{monster.name}</span>
+                  <span className={monster.hp <= 0 ? styles.monsterNameDown : styles.monsterName}>
+                    {monster.name}
+                  </span>
                   <span className={styles.hpText}>
                     {monster.hp} / {monster.maxHp} HP
                   </span>
@@ -137,7 +142,11 @@ export function EventPanel({
                 {monster.abilities.length > 0 && (
                   <div className={styles.tags}>
                     {monster.abilities.map((ability) => (
-                      <span key={ability} className={styles.tag} title={ABILITY_DESCRIPTIONS[ability]}>
+                      <span
+                        key={ability}
+                        className={styles.tag}
+                        title={ABILITY_DESCRIPTIONS[ability]}
+                      >
                         {ability}
                       </span>
                     ))}

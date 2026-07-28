@@ -237,12 +237,13 @@ const NECROPOLIS_SEGMENTS: Record<number, SegmentsRow> = {
   },
 };
 
-export const SEGMENTS_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, SegmentsRow>>> = {
-  citadel: CITADEL_PYRAMID_SEGMENTS,
-  pyramid: CITADEL_PYRAMID_SEGMENTS,
-  ziggurat: ZIGGURAT_SEGMENTS,
-  necropolis: NECROPOLIS_SEGMENTS,
-};
+export const SEGMENTS_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, SegmentsRow>>> =
+  {
+    citadel: CITADEL_PYRAMID_SEGMENTS,
+    pyramid: CITADEL_PYRAMID_SEGMENTS,
+    ziggurat: ZIGGURAT_SEGMENTS,
+    necropolis: NECROPOLIS_SEGMENTS,
+  };
 
 /** Deadly Dungeons (issue #30): Citadel's own Secret Passage table is explicitly printed in the
  * rulebook as "identical shape to Palace's" and Ziggurat's own printed table is byte-for-byte the
@@ -267,10 +268,11 @@ const NECROPOLIS_SECRET_PASSAGE: Record<number, string> = {
   6: "A secret door to a Staircase.",
 };
 
-export const SECRET_PASSAGE_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, string>>> = {
-  pyramid: PYRAMID_SECRET_PASSAGE,
-  necropolis: NECROPOLIS_SECRET_PASSAGE,
-};
+export const SECRET_PASSAGE_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, string>>> =
+  {
+    pyramid: PYRAMID_SECRET_PASSAGE,
+    necropolis: NECROPOLIS_SECRET_PASSAGE,
+  };
 
 /** Table: Dungeon Name, "first part" column (1d6) -- also selects the dungeon type. Keys 1-6 are
  * the real rulebook's own "Dungeon Name" table (Core Book, genuinely capped at 6 rows); keys 7+

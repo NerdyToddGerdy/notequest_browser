@@ -248,7 +248,11 @@ export function rest(resources: AdventurerResources, isChampion = false): Advent
 /** Whether the spell at this composite key is one of the two (Heal/Light) usable outside a
  * dungeon fight at all -- see `combat.ts`'s `OUT_OF_COMBAT_SPELL_NAMES` for why this is
  * name-matched rather than keyed by table/roll directly. */
-export function canCastSpell(resources: AdventurerResources, table: SpellTableKey, roll: number): boolean {
+export function canCastSpell(
+  resources: AdventurerResources,
+  table: SpellTableKey,
+  roll: number,
+): boolean {
   const spell = SPELL_TABLE_BY_KEY[table]?.[roll];
   if (!spell || !OUT_OF_COMBAT_SPELL_NAMES.has(spell.name)) return false;
   return (resources.spellUses[spellKey(table, roll)] ?? 0) > 0;
@@ -431,7 +435,11 @@ export function buyProvision(resources: AdventurerResources): AdventurerResource
  * MAX_PROVISIONS) coins in one call. */
 export function buyMaxProvisions(resources: AdventurerResources): AdventurerResources {
   const bought = Math.max(0, Math.min(resources.coins, MAX_PROVISIONS - resources.provisions));
-  return { ...resources, coins: resources.coins - bought, provisions: resources.provisions + bought };
+  return {
+    ...resources,
+    coins: resources.coins - bought,
+    provisions: resources.provisions + bought,
+  };
 }
 
 /** "Every day of travel consumes 1 Provision ... If you run out of provisions and have to move,
@@ -621,7 +629,10 @@ export function canLearnRandomSpell(resources: AdventurerResources): boolean {
 }
 /** Gnome: "Learn a random Basic Magic for 80 coins." Fully real -- rolls a spell exactly like
  * Character Creation's own random-spell rolls (`rollSpell()`) and grants 1 use of it. */
-export function learnRandomSpell(resources: AdventurerResources, rng: RNG = Math.random): AdventurerResources {
+export function learnRandomSpell(
+  resources: AdventurerResources,
+  rng: RNG = Math.random,
+): AdventurerResources {
   const { entry } = rollSpell(rng);
   const key = spellKey(entry.table, entry.roll);
   return {
@@ -649,7 +660,10 @@ export function canDrinkVerdosaPotion(resources: AdventurerResources, isOgre = f
  * regain all your HP. If not you will be itchy for a whole day." Drunk immediately (not
  * inventoried, matching "when drinking"); the itchy outcome is flavor-only -- no day-passage
  * system exists to model it against. */
-export function drinkVerdosaPotion(resources: AdventurerResources, rng: RNG = Math.random): VerdosaPotionResult {
+export function drinkVerdosaPotion(
+  resources: AdventurerResources,
+  rng: RNG = Math.random,
+): VerdosaPotionResult {
   const roll = rollDie(rng);
   const spent = { ...resources, coins: resources.coins - GOBLIN_POTION_COST };
   if (roll >= 3) return { resources: { ...spent, hp: spent.maxHp }, healed: true };
@@ -696,7 +710,10 @@ export function hireBoat(resources: AdventurerResources): AdventurerResources {
 export function canHardWork(resources: AdventurerResources): boolean {
   return resources.maxHp > 1;
 }
-export function hardWork(resources: AdventurerResources, rng: RNG = Math.random): AdventurerResources {
+export function hardWork(
+  resources: AdventurerResources,
+  rng: RNG = Math.random,
+): AdventurerResources {
   const maxHp = resources.maxHp - 1;
   return {
     ...resources,
@@ -720,7 +737,8 @@ export interface GambleResult {
 export function gamble(resources: AdventurerResources, rng: RNG = Math.random): GambleResult {
   if (resources.coins >= 1) {
     const spent = { ...resources, coins: resources.coins - 1 };
-    if (rollDie(rng) === 6) return { resources: { ...spent, coins: spent.coins + 6 }, outcome: "won" };
+    if (rollDie(rng) === 6)
+      return { resources: { ...spent, coins: spent.coins + 6 }, outcome: "won" };
     return { resources: spent, outcome: "lost" };
   }
   if (rollDie(rng) === 6) {

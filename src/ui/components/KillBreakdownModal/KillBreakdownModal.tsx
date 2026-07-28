@@ -23,7 +23,12 @@ export function KillBreakdownModal({ killsByName, onClose }: KillBreakdownModalP
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="killBreakdownTitle">
+      <div
+        className={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="killBreakdownTitle"
+      >
         <p id="killBreakdownTitle" className={styles.title}>
           Kills
         </p>

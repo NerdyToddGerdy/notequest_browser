@@ -93,7 +93,7 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
             survivedRunIds: p.resources.survivedRunIds ?? [],
             flyActive: p.resources.flyActive ?? false,
             nextDungeonDamageBonus: p.resources.nextDungeonDamageBonus ?? 0,
-        catatonic: p.resources.catatonic ?? false,
+            catatonic: p.resources.catatonic ?? false,
           }
         : null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],
@@ -107,7 +107,10 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
 
 /** Overwrites the persisted session wholesale -- App.tsx calls this from a single effect
  * watching all four pieces, rather than each individual setter persisting itself. */
-export function saveSession(session: SessionState, storage: Storage = globalThis.localStorage): void {
+export function saveSession(
+  session: SessionState,
+  storage: Storage = globalThis.localStorage,
+): void {
   try {
     storage.setItem(STORAGE_KEY, JSON.stringify(session));
   } catch {

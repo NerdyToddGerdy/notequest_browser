@@ -24,7 +24,11 @@ export type HexAction =
  * outlives every dungeon run, vs. one DungeonState per run), a different action vocabulary, and no
  * combat. Kept as its own small state machine instead of growing dungeonReducer.ts (already the
  * largest file) a second, unrelated one. */
-export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math.random): WorldState {
+export function hexReducer(
+  state: WorldState,
+  action: HexAction,
+  rng: RNG = Math.random,
+): WorldState {
   switch (action.type) {
     case "MOVE": {
       // Trusts the UI to only ever offer a reachable, passable neighbor (same pattern
@@ -36,7 +40,13 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
       if (!targetTile) return state;
       // Patovsky/Sharkin (New Races, issue #22): "You can walk in water territories" -- lifts the
       // water restriction the same way a hired boat does.
-      if (isImpassable(targetTile.terrain, targetTile.location, state.hasBoat || hasWaterWalk(action.raceName))) {
+      if (
+        isImpassable(
+          targetTile.terrain,
+          targetTile.location,
+          state.hasBoat || hasWaterWalk(action.raceName),
+        )
+      ) {
         return state;
       }
       if (!hasAffinity(action.raceName, targetTile.location)) return state;
@@ -49,7 +59,13 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
         // "Once you enter non-water terrain you leave the boat" -- fires every landing, harmless
         // no-op if hasBoat was already false.
         if (targetTile.terrain !== "water") draft.hasBoat = false;
-        revealNeighborsInPlace(draft.tiles, action.to, draft.climate, rng, draft.plainsRevealAsWater);
+        revealNeighborsInPlace(
+          draft.tiles,
+          action.to,
+          draft.climate,
+          rng,
+          draft.plainsRevealAsWater,
+        );
       });
     }
     case "HIRE_BOAT": {
@@ -58,7 +74,9 @@ export function hexReducer(state: WorldState, action: HexAction, rng: RNG = Math
       // deciding whether to show the button.
       const currentTile = state.tiles[hexKey(state.player)];
       if (!currentTile?.location || !CITY_OR_FORTRESS.has(currentTile.location)) return state;
-      const besideWater = hexNeighbors(state.player).some((n) => state.tiles[hexKey(n)]?.terrain === "water");
+      const besideWater = hexNeighbors(state.player).some(
+        (n) => state.tiles[hexKey(n)]?.terrain === "water",
+      );
       if (!besideWater) return state;
       return produce(state, (draft) => {
         draft.hasBoat = true;

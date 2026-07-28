@@ -147,9 +147,7 @@ async function seedAndEnterDungeon(page: Page, inCombat: boolean) {
   await page.goto("/");
   await page.evaluate(
     ({ character, resources, world, dungeon }) => {
-      const dungeonHistory = [
-        { id: "run-combat", lastCharacterName: character.name, dungeon },
-      ];
+      const dungeonHistory = [{ id: "run-combat", lastCharacterName: character.name, dungeon }];
       localStorage.setItem(
         "notequest:session",
         JSON.stringify({ character, resources, dungeonHistory, activeRunId: "run-combat", world }),
@@ -161,7 +159,9 @@ async function seedAndEnterDungeon(page: Page, inCombat: boolean) {
   await page.getByRole("button", { name: "Enter Dungeon" }).click();
 }
 
-test("no escape hatch exists while a fight is underway, even one you're about to lose", async ({ page }) => {
+test("no escape hatch exists while a fight is underway, even one you're about to lose", async ({
+  page,
+}) => {
   await seedAndEnterDungeon(page, true);
 
   // Confirms the seeded fight actually resumed live, not some fallback screen.

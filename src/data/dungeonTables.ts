@@ -114,7 +114,8 @@ export interface RewardOutcome {
  * actually absorb damage. `"wonderItem"` isn't a real Armor table row -- it's used for Wonders
  * that are themselves a bespoke protective item (e.g. "Jester Hat (2 HP)"), which grant their own
  * HP pool outside the 5 named pieces (see WonderEntry.grantsHp). */
-export type ArmorPieceKind = "ring" | "bracelets" | "boots" | "shoulderpads" | "helm" | "breastplate" | "wonderItem";
+export type ArmorPieceKind =
+  "ring" | "bracelets" | "boots" | "shoulderpads" | "helm" | "breastplate" | "wonderItem";
 
 export const ARMOR_PIECE_LABELS: Record<ArmorPieceKind, string> = {
   ring: "Ring",
@@ -367,14 +368,20 @@ const BLADE_TRAP: TrapEntry = {
   bladeTrap: true,
 };
 const CLICK_NOTHING: TrapEntry = { text: "You hear a click, but nothing happens." };
-const DITCH_TRAP: TrapEntry = { text: "You fall into a ditch (spend 1 torch to go out).", torchCost: 1 };
+const DITCH_TRAP: TrapEntry = {
+  text: "You fall into a ditch (spend 1 torch to go out).",
+  torchCost: 1,
+};
 const ACID_SPOUT_TRAP: TrapEntry = { text: "Acid Spout (5 Damage).", damage: 5 };
 const DART_TRAP: TrapEntry = { text: "A dart hits you (1 Damage).", damage: 1 };
 
 // Table: Reward, "Treasure" column -- these five rows repeat, word-for-word or in spirit,
 // across every Core Book dungeon type; only the "worth N Coins" row (and Tomb's Mana Potion
 // row 1) actually varies per type.
-const HEALTH_POTION: RewardOutcome = { text: "Health Potion (Recovers all HP).", effect: { kind: "healAll" } };
+const HEALTH_POTION: RewardOutcome = {
+  text: "Health Potion (Recovers all HP).",
+  effect: { kind: "healAll" },
+};
 const MAGIC_SCROLL: RewardOutcome = {
   text: "Magic Scroll (a random Basic Spell, 1 use).",
   effect: { kind: "randomSpell" },
@@ -503,14 +510,27 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: { name: "Minotaur", hp: 14, damage: 7, abilities: [], count: 1 },
       3: { name: "Orcs", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
       4: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 },
-      5: { name: "Giant Rats", singularName: "Giant Rat", hp: 2, damage: 1, abilities: [], count: { dice: 1, sides: 6 } },
+      5: {
+        name: "Giant Rats",
+        singularName: "Giant Rat",
+        hp: 2,
+        damage: 1,
+        abilities: [],
+        count: { dice: 1, sides: 6 },
+      },
       6: GOBLINS,
       7: null,
       8: null,
       9: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
       10: { name: "Fungoid", hp: 4, damage: 2, abilities: ["loot", "regeneration"], count: 3 },
       11: { name: "Bone Golem", hp: 12, damage: 5, abilities: ["undead"], count: 1 },
-      12: { name: "Walking Slime", hp: 10, damage: 1, abilities: ["loot", "regeneration"], count: 1 },
+      12: {
+        name: "Walking Slime",
+        hp: 10,
+        damage: 1,
+        abilities: ["loot", "regeneration"],
+        count: 1,
+      },
     },
     boss: {
       1: { name: "Zombie Baron", hp: 30, damage: 4, abilities: ["undead"], count: 1 },
@@ -521,12 +541,21 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       6: { name: "Orc King", hp: 24, damage: 5, abilities: ["horde"], count: 1 },
     },
     treasure: {
-      1: { text: "Ornament (worth 5 Coins in the town).", effect: { kind: "heldValue", name: "Ornament", amount: 5 } },
+      1: {
+        text: "Ornament (worth 5 Coins in the town).",
+        effect: { kind: "heldValue", name: "Ornament", amount: 5 },
+      },
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Candlestick", formula: "1d6-1" },
@@ -671,8 +700,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Femur", formula: "1d6-1" },
@@ -801,7 +836,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       6: GOBLINS,
       7: null,
       8: null,
-      9: { name: "Scorpions", singularName: "Scorpion", hp: 2, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
+      9: {
+        name: "Scorpions",
+        singularName: "Scorpion",
+        hp: 2,
+        damage: 1,
+        abilities: ["poison"],
+        count: { dice: 1, sides: 6 },
+      },
       10: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
       11: { name: "Fungoid", hp: 4, damage: 2, abilities: ["loot", "regeneration"], count: 3 },
       12: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
@@ -810,17 +852,35 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       1: { name: "Emperor Scorpio", hp: 20, damage: 3, abilities: ["poison"], count: 1 },
       2: { name: "Skeleton King", hp: 12, damage: 7, abilities: ["undead"], count: 1 },
       3: { name: "Queen of Bladed Hands", hp: 11, damage: 10, abilities: [], count: 1 },
-      4: { name: "Ghost King of the Lost Swamp", hp: 10, damage: 4, abilities: ["intangible"], count: 1 },
+      4: {
+        name: "Ghost King of the Lost Swamp",
+        hp: 10,
+        damage: 4,
+        abilities: ["intangible"],
+        count: 1,
+      },
       5: { name: "Necrotic Kings", hp: 4, damage: 1, abilities: ["undead"], count: 7 },
-      6: { name: "Lich King of the Ethernal Wars", hp: 22, damage: 6, abilities: ["necromancy", "undead"], count: 1 },
+      6: {
+        name: "Lich King of the Ethernal Wars",
+        hp: 22,
+        damage: 6,
+        abilities: ["necromancy", "undead"],
+        count: 1,
+      },
     },
     treasure: {
       1: { text: "Mana Potion (Recovers all Spells).", effect: { kind: "restoreAllSpells" } },
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Shovel", formula: "1d6-1" },
@@ -919,7 +979,11 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
       },
       5: { text: "Creature or deity statues.", secretPassage: true },
-      6: { text: "Corpse with 1 Treasure.", secretPassage: false, reward: { kind: "treasures", count: 1 } },
+      6: {
+        text: "Corpse with 1 Treasure.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: 1 },
+      },
       7: { text: "Large Chest on an altar.", secretPassage: false, hasChest: true },
       8: {
         text: "Small altar with 1d6 coins.",
@@ -950,7 +1014,13 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       9: { name: "Orcs", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
       10: { name: "Giant Angel Statue", hp: 10, damage: 5, abilities: ["stoneskin"], count: 1 },
       11: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
-      12: { name: "Fallen Angel of Putrification", hp: 21, damage: 4, abilities: ["poison"], count: 1 },
+      12: {
+        name: "Fallen Angel of Putrification",
+        hp: 21,
+        damage: 4,
+        abilities: ["poison"],
+        count: 1,
+      },
     },
     boss: {
       1: { name: "Rat God", hp: 30, damage: 5, abilities: ["poison"], count: 1 },
@@ -968,8 +1038,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Pan", formula: "1d6-1" },
@@ -1071,7 +1147,11 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
       },
       5: { text: "Unknown creature statues.", secretPassage: true },
-      6: { text: "Corpse with 1 Treasure.", secretPassage: false, reward: { kind: "treasures", count: 1 } },
+      6: {
+        text: "Corpse with 1 Treasure.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: 1 },
+      },
       7: { text: "Chest surrounded by melted candles.", secretPassage: false, hasChest: true },
       8: {
         text: "Small altar with 1d6 coins.",
@@ -1092,10 +1172,31 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       },
     },
     monsters: {
-      2: { name: "Imps", singularName: "Imp", hp: 2, damage: 1, abilities: [], count: { dice: 2, sides: 6 } },
+      2: {
+        name: "Imps",
+        singularName: "Imp",
+        hp: 2,
+        damage: 1,
+        abilities: [],
+        count: { dice: 2, sides: 6 },
+      },
       3: { name: "Fungoid", hp: 4, damage: 2, abilities: ["loot", "regeneration"], count: 3 },
-      4: { name: "Cultists", singularName: "Cultist", hp: 4, damage: 1, abilities: [], count: { dice: 1, sides: 6 } },
-      5: { name: "Serpents", singularName: "Serpent", hp: 2, damage: 1, abilities: ["poison"], count: { dice: 1, sides: 6 } },
+      4: {
+        name: "Cultists",
+        singularName: "Cultist",
+        hp: 4,
+        damage: 1,
+        abilities: [],
+        count: { dice: 1, sides: 6 },
+      },
+      5: {
+        name: "Serpents",
+        singularName: "Serpent",
+        hp: 2,
+        damage: 1,
+        abilities: ["poison"],
+        count: { dice: 1, sides: 6 },
+      },
       6: GOBLINS,
       7: null,
       8: null,
@@ -1120,8 +1221,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: HEALTH_POTION,
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Hacksaw", formula: "1d6-1" },
@@ -1258,8 +1365,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: MAGIC_SCROLL,
       3: VALUABLE_JEWEL,
       4: { text: "Roll on the Weapon table.", effect: { kind: "rerollColumn", column: "weapon" } },
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "BBQ Stick", formula: "1d6-2" },
@@ -1396,14 +1509,32 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       },
       10: { name: "Dwarf Ghost", hp: 6, damage: 4, abilities: ["intangible"], count: 1 },
       11: { name: "Golem Bones and Stone", hp: 15, damage: 6, abilities: ["undead"], count: 1 },
-      12: { name: "Walking Slime", hp: 10, damage: 1, abilities: ["loot", "regeneration"], count: 1 },
+      12: {
+        name: "Walking Slime",
+        hp: 10,
+        damage: 1,
+        abilities: ["loot", "regeneration"],
+        count: 1,
+      },
     },
     boss: {
       1: { name: "Grim Reaper", hp: 50, damage: 3, abilities: ["deathtouch"], count: 1 },
       2: { name: "Bolrag", hp: 40, damage: 6, abilities: ["firebreath"], count: 1 },
       3: { name: "The Minotaur", hp: 30, damage: 7, abilities: ["horde"], count: 1 },
-      4: { name: "Ghost of the Dwarf King", hp: 20, damage: 5, abilities: ["intangible"], count: 1 },
-      5: { name: "Orc Shaman Leader", hp: 20, damage: 2, abilities: ["sorcery", "horde"], count: 1 },
+      4: {
+        name: "Ghost of the Dwarf King",
+        hp: 20,
+        damage: 5,
+        abilities: ["intangible"],
+        count: 1,
+      },
+      5: {
+        name: "Orc Shaman Leader",
+        hp: 20,
+        damage: 2,
+        abilities: ["sorcery", "horde"],
+        count: 1,
+      },
       6: { name: "The Cursed King", hp: 30, damage: 7, abilities: ["necromancy"], count: 1 },
     },
     treasure: {
@@ -1417,8 +1548,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         text: "A very valuable jewel (worth 150 Coins in the town).",
         effect: { kind: "heldValue", name: "Very Valuable Jewel", amount: 150 },
       },
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Pickaxe", formula: "1d6-1" },
@@ -1552,8 +1689,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       // a new "always fatal" flag -- this reuses every existing death-handling path (Samambro/Raven
       // survival rolls, remains, deathCause) for free, since no realistic HP total could survive it.
       1: { text: "A huge block of stone falls over you. You died.", damage: 999 },
-      2: { text: "Raise 1d6 Mummified Soldiers (5 HP; 2 dmg; Undead).", monsters: MUMMIFIED_SOLDIERS_SWARM },
-      3: { text: "Raise 1d6 Mummified Soldiers (5 HP; 2 dmg; Undead).", monsters: MUMMIFIED_SOLDIERS_SWARM },
+      2: {
+        text: "Raise 1d6 Mummified Soldiers (5 HP; 2 dmg; Undead).",
+        monsters: MUMMIFIED_SOLDIERS_SWARM,
+      },
+      3: {
+        text: "Raise 1d6 Mummified Soldiers (5 HP; 2 dmg; Undead).",
+        monsters: MUMMIFIED_SOLDIERS_SWARM,
+      },
       4: {
         text: "Raise 1 Mummy (4 HP; 1 dmg; Undead).",
         monsters: { name: "Mummy", hp: 4, damage: 1, abilities: ["undead"], count: 1 },
@@ -1584,8 +1727,22 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
     },
     monsters: {
       2: { name: "Mummified Priestess", hp: 7, damage: 2, abilities: ["sorcery"], count: 1 },
-      3: { name: "Mummified Soldiers", singularName: "Mummified Soldier", hp: 5, damage: 2, abilities: ["undead"], count: 3 },
-      4: { name: "Mummified Soldiers", singularName: "Mummified Soldier", hp: 5, damage: 2, abilities: ["undead"], count: 2 },
+      3: {
+        name: "Mummified Soldiers",
+        singularName: "Mummified Soldier",
+        hp: 5,
+        damage: 2,
+        abilities: ["undead"],
+        count: 3,
+      },
+      4: {
+        name: "Mummified Soldiers",
+        singularName: "Mummified Soldier",
+        hp: 5,
+        damage: 2,
+        abilities: ["undead"],
+        count: 2,
+      },
       5: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
       6: {
         name: "Giant Scarabs",
@@ -1606,7 +1763,13 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         count: { dice: 1, sides: 6 },
       },
       10: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 3 },
-      11: { name: "Jackal God Living Statue", hp: 10, damage: 3, abilities: ["stoneskin"], count: 1 },
+      11: {
+        name: "Jackal God Living Statue",
+        hp: 10,
+        damage: 3,
+        abilities: ["stoneskin"],
+        count: 1,
+      },
       12: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
     },
     boss: {
@@ -1625,13 +1788,25 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
     treasure: {
       1: {
         text: "Golden statuette (worth 3d6 Coins in the town).",
-        effect: { kind: "heldValueRoll", name: "Golden statuette", dice: 3, sides: 6, multiplier: 1 },
+        effect: {
+          kind: "heldValueRoll",
+          name: "Golden statuette",
+          dice: 3,
+          sides: 6,
+          multiplier: 1,
+        },
       },
       2: { text: "Health Potion (Recovers all HP).", effect: { kind: "healAll" } },
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Scepter", formula: "1d6-1" },
@@ -1728,7 +1903,10 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: { text: "Corpses of different races hung on the walls.", secretPassage: false },
       3: { text: "Bone of a giant snake.", secretPassage: true },
       4: { text: "Bed with a Chest beside it.", secretPassage: false, hasChest: true },
-      5: { text: "Cabinets with a lot of garments made of colored feathers.", secretPassage: false },
+      5: {
+        text: "Cabinets with a lot of garments made of colored feathers.",
+        secretPassage: false,
+      },
       6: { text: "Altar of sacrifice.", secretPassage: true },
       7: { text: "Empty room.", secretPassage: false },
       8: { text: "Ceiling covered with star designs.", secretPassage: false },
@@ -1743,8 +1921,22 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
     },
     monsters: {
       2: { name: "Boar Tribe Leader", hp: 15, damage: 5, abilities: ["loot"], count: 1 },
-      3: { name: "Boar Soldiers", singularName: "Boar Soldier", hp: 6, damage: 3, abilities: ["loot"], count: 3 },
-      4: { name: "Boar Soldiers", singularName: "Boar Soldier", hp: 6, damage: 3, abilities: ["loot"], count: 2 },
+      3: {
+        name: "Boar Soldiers",
+        singularName: "Boar Soldier",
+        hp: 6,
+        damage: 3,
+        abilities: ["loot"],
+        count: 3,
+      },
+      4: {
+        name: "Boar Soldiers",
+        singularName: "Boar Soldier",
+        hp: 6,
+        damage: 3,
+        abilities: ["loot"],
+        count: 2,
+      },
       5: { name: "Goblin Assassin", hp: 3, damage: 3, abilities: ["explosive"], count: 1 },
       6: GOBLINS,
       7: null,
@@ -1760,7 +1952,13 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { name: "Hagork, God of Orcs", hp: 30, damage: 7, abilities: ["horde"], count: 1 },
       4: { name: "Mysterious Peacock", hp: 17, damage: 5, abilities: ["sorcery"], count: 1 },
       5: { name: "Feathered Priestess", hp: 50, damage: 2, abilities: ["sorcery"], count: 1 },
-      6: { name: "Sun God of the Feathered Spear", hp: 80, damage: 8, abilities: ["weakness"], count: 1 },
+      6: {
+        name: "Sun God of the Feathered Spear",
+        hp: 80,
+        damage: 8,
+        abilities: ["weakness"],
+        count: 1,
+      },
     },
     treasure: {
       1: {
@@ -1773,8 +1971,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         text: "Gold Ornament and Jewelry (worth 100 Coins in the town).",
         effect: { kind: "heldValue", name: "Gold Ornament and Jewelry", amount: 100 },
       },
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Sacrificial Dagger", formula: "1d6-1" },
@@ -1868,8 +2072,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
   necropolis: {
     trap: {
       1: BLADE_TRAP,
-      2: { text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 dmg; Undead).", monsters: SKELETON_SOLDIERS_SWARM },
-      3: { text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 dmg; Undead).", monsters: SKELETON_SOLDIERS_SWARM },
+      2: {
+        text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 dmg; Undead).",
+        monsters: SKELETON_SOLDIERS_SWARM,
+      },
+      3: {
+        text: "Raise 1d6 Skeleton Soldiers (4 HP; 2 dmg; Undead).",
+        monsters: SKELETON_SOLDIERS_SWARM,
+      },
       4: {
         text: "A cage falls on you. You are trapped and need to spend 1d6 torches to get out.",
         torchCostDice: { dice: 1, sides: 6 },
@@ -1903,12 +2113,26 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       3: { name: "Ghost King", hp: 10, damage: 4, abilities: ["intangible"], count: 1 },
       4: { name: "Bone Golem", hp: 20, damage: 5, abilities: ["undead"], count: 1 },
       5: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
-      6: { name: "Skeleton Soldiers", singularName: "Skeleton Soldier", hp: 4, damage: 2, abilities: ["undead"], count: 2 },
+      6: {
+        name: "Skeleton Soldiers",
+        singularName: "Skeleton Soldier",
+        hp: 4,
+        damage: 2,
+        abilities: ["undead"],
+        count: 2,
+      },
       7: null,
       8: null,
       9: { name: "Living Armor", hp: 8, damage: 3, abilities: [], count: 2 },
       10: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
-      11: { name: "Giant Spiders", singularName: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 2 },
+      11: {
+        name: "Giant Spiders",
+        singularName: "Giant Spider",
+        hp: 10,
+        damage: 4,
+        abilities: ["paralyze"],
+        count: 2,
+      },
       12: { name: "Queen of the Blade Hands", hp: 18, damage: 10, abilities: [], count: 1 },
     },
     // Necropolis's own Boss is a 3-dice combinator (dungeon.ts's resolveNecropolisBoss()), not a
@@ -1918,8 +2142,14 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       2: { text: "Health Potion (Recovers all HP).", effect: { kind: "healAll" } },
       3: MAGIC_SCROLL,
       4: VALUABLE_JEWEL,
-      5: { text: "Roll on the Wonders table.", effect: { kind: "rerollColumn", column: "wonders" } },
-      6: { text: "Roll on the Magic Item table.", effect: { kind: "rerollColumn", column: "magicItem" } },
+      5: {
+        text: "Roll on the Wonders table.",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "Roll on the Magic Item table.",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
     },
     weapon: {
       1: { name: "Bone Shard", formula: "1d6-1" },

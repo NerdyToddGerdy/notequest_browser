@@ -1,11 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { DUNGEON_TYPES } from "../dungeonTypes.ts";
-import { DUNGEON_TYPE_BY_TERRAIN, hasWaterWalk, isFortressLocation, travelCostMultiplier } from "../hexTables.ts";
+import {
+  DUNGEON_TYPE_BY_TERRAIN,
+  hasWaterWalk,
+  isFortressLocation,
+  travelCostMultiplier,
+} from "../hexTables.ts";
 import type { OverworldTerrain } from "../hexTables.ts";
 
 // Deliberately `OverworldTerrain`, not `Terrain`: the Other Worlds' terrain (issue #105) never
 // reaches this table -- realms have no dungeons.
-const ALL_TERRAINS: OverworldTerrain[] = ["plain", "mountain", "forest", "swamp", "desert", "tundra", "water", "glacier"];
+const ALL_TERRAINS: OverworldTerrain[] = [
+  "plain",
+  "mountain",
+  "forest",
+  "swamp",
+  "desert",
+  "tundra",
+  "water",
+  "glacier",
+];
 
 describe("DUNGEON_TYPE_BY_TERRAIN completeness", () => {
   it("has a full 1-6 row for every terrain", () => {
@@ -22,7 +36,10 @@ describe("DUNGEON_TYPE_BY_TERRAIN completeness", () => {
     for (const terrain of ALL_TERRAINS) {
       for (let roll = 1; roll <= 6; roll++) {
         const typeRoll = DUNGEON_TYPE_BY_TERRAIN[terrain]![roll]!;
-        expect(DUNGEON_TYPES[typeRoll], `${terrain} roll ${roll} -> typeRoll ${typeRoll}`).toBeDefined();
+        expect(
+          DUNGEON_TYPES[typeRoll],
+          `${terrain} roll ${roll} -> typeRoll ${typeRoll}`,
+        ).toBeDefined();
       }
     }
   });

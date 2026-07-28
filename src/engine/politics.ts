@@ -85,7 +85,11 @@ export function resolvePoliticalAffinity(
   const roll = rollDie(rng) + rollDie(rng);
   const target = politicalAffinityTarget(raceName, culture);
   const status: PoliticalStatus =
-    roll >= target ? (isEligibleForVassal(resources, coord, isFortressHex) ? "vassal" : "ally") : "enemy";
+    roll >= target
+      ? isEligibleForVassal(resources, coord, isFortressHex)
+        ? "vassal"
+        : "ally"
+      : "enemy";
 
   let milestones = resources.milestones;
   if (isFortressHex) milestones = { ...milestones, talkedToKing: true };

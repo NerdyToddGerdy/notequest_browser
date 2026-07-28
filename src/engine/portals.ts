@@ -1,4 +1,9 @@
-import { PORTAL_TABLE, type OtherWorldKey, type PortalOutcome, type PortalRow } from "../data/portals.ts";
+import {
+  PORTAL_TABLE,
+  type OtherWorldKey,
+  type PortalOutcome,
+  type PortalRow,
+} from "../data/portals.ts";
 import { rollDie } from "./dice.ts";
 import {
   findNearestTown,
@@ -155,7 +160,11 @@ export function resolvePortalOutcome(
 
     case "goldenRoom":
       return {
-        ...unchanged(resources, world, `You gather ${outcome.coins} coins and face the second portal.`),
+        ...unchanged(
+          resources,
+          world,
+          `You gather ${outcome.coins} coins and face the second portal.`,
+        ),
         resources: { ...resources, coins: resources.coins + outcome.coins },
         chainAnotherPortal: true,
       };
@@ -173,7 +182,10 @@ export function resolvePortalOutcome(
  * `findNearestTown` is -- you can't choose a hex that doesn't exist yet. Impassable terrain is
  * excluded (a portal doesn't let you stand inside Rocks), but a banned hex deliberately *is* allowed:
  * the Thug Life ban is about being turned away at the gate, and arriving by portal isn't that. */
-export function portalDestinations(world: WorldState, isImpassableAt: (key: string) => boolean): HexCoord[] {
+export function portalDestinations(
+  world: WorldState,
+  isImpassableAt: (key: string) => boolean,
+): HexCoord[] {
   return Object.keys(world.tiles)
     .filter((key) => key !== hexKey(world.player) && !isImpassableAt(key))
     .map((key) => {

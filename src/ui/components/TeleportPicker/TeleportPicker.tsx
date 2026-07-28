@@ -46,12 +46,18 @@ export function TeleportPicker({ levels, excludeSegId, onSelect, onCancel }: Tel
       )}
       <p className={styles.copy}>Choose an already-explored, empty room to reappear in.</p>
       {destinations.length === 0 ? (
-        <p className={styles.copy}>There&apos;s nowhere to go yet -- explore more of the dungeon first.</p>
+        <p className={styles.copy}>
+          There&apos;s nowhere to go yet -- explore more of the dungeon first.
+        </p>
       ) : (
         <ul className={styles.destList}>
           {destinations.map(({ levelIndex, segId, type }) => (
             <li key={`${levelIndex}-${segId}`}>
-              <button type="button" className={styles.destBtn} onClick={() => onSelect(levelIndex, segId)}>
+              <button
+                type="button"
+                className={styles.destBtn}
+                onClick={() => onSelect(levelIndex, segId)}
+              >
                 Level {levelIndex + 1} — {TYPE_LABELS[type]} (Segment {segId})
               </button>
             </li>

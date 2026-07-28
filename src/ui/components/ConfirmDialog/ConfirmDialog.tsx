@@ -28,7 +28,12 @@ export function ConfirmDialog({
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div className={styles.dialog} role="alertdialog" aria-modal="true" aria-labelledby="confirmDialogTitle">
+      <div
+        className={styles.dialog}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirmDialogTitle"
+      >
         <p id="confirmDialogTitle" className={styles.title}>
           {title}
         </p>

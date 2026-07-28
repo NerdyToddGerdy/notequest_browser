@@ -112,7 +112,12 @@
     inset 0 0 0 7px rgba(42, 32, 22, 0.55),
     0 24px 60px rgba(0, 0, 0, 0.55);
   padding: clamp(20px, 4vw, 36px) clamp(18px, 4vw, 38px) clamp(26px, 4vw, 36px);
-  background-image: repeating-linear-gradient(to bottom, transparent, transparent 27px, rgba(42, 32, 22, 0.06) 28px);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 27px,
+    rgba(42, 32, 22, 0.06) 28px
+  );
 }
 
 .sheetLabel {
@@ -384,4 +389,3 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-

@@ -1,6 +1,10 @@
 import { useState } from "react";
 import type { ArmorPiece, CombatState } from "../../../engine/dungeonState.ts";
-import { ABILITY_DESCRIPTIONS, ARMOR_PIECE_LABELS, type MonsterAbility } from "../../../data/dungeonTables.ts";
+import {
+  ABILITY_DESCRIPTIONS,
+  ARMOR_PIECE_LABELS,
+  type MonsterAbility,
+} from "../../../data/dungeonTables.ts";
 import type { SpellTableKey } from "../../../data/types.ts";
 import { HIRELING_BY_NAME } from "../../../data/hirelings.ts";
 import { parseSpellKey, SPELL_TABLE_BY_KEY } from "../../../engine/character.ts";
@@ -88,7 +92,10 @@ function HpBar({ value, max, kind }: { value: number; max: number; kind: "player
   const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   return (
     <div className={styles.hpBar}>
-      <div className={kind === "player" ? styles.hpFillPlayer : styles.hpFillMonster} style={{ width: `${pct}%` }} />
+      <div
+        className={kind === "player" ? styles.hpFillPlayer : styles.hpFillMonster}
+        style={{ width: `${pct}%` }}
+      />
     </div>
   );
 }
@@ -341,7 +348,11 @@ export function CombatPanel({
               disabled={!canAct}
               title={s.effect}
               onClick={() =>
-                s.name === "Heal" ? castHeal(s) : s.name === "Teleport" ? onFlee() : onCastSpell(s.table, s.roll)
+                s.name === "Heal"
+                  ? castHeal(s)
+                  : s.name === "Teleport"
+                    ? onFlee()
+                    : onCastSpell(s.table, s.roll)
               }
             >
               {s.name === "Teleport" ? "Flee — " : ""}
@@ -381,19 +392,35 @@ export function CombatPanel({
 
       {awaitingDamageChoice && (
         <div className={styles.paralyzed}>
-          <p>Take {combat.pendingDamage} damage: your call -- absorb it with your HP, or a piece of armor.</p>
+          <p>
+            Take {combat.pendingDamage} damage: your call -- absorb it with your HP, or a piece of
+            armor.
+          </p>
           <div className={styles.monsterActions}>
-            <button type="button" className={styles.attackBtn} onClick={() => onResolveDamage("hp")}>
+            <button
+              type="button"
+              className={styles.attackBtn}
+              onClick={() => onResolveDamage("hp")}
+            >
               HP ({hp}/{maxHp})
             </button>
             {combat.hireling && combat.hireling.hp > 0 && (
-              <button type="button" className={styles.attackBtn} onClick={() => onResolveDamage("hireling")}>
+              <button
+                type="button"
+                className={styles.attackBtn}
+                onClick={() => onResolveDamage("hireling")}
+              >
                 {combat.hireling.name} ({combat.hireling.hp}/{combat.hireling.maxHp})
               </button>
             )}
             {armor.map((piece, index) =>
               piece.hp > 0 ? (
-                <button key={index} type="button" className={styles.attackBtn} onClick={() => onResolveDamage(index)}>
+                <button
+                  key={index}
+                  type="button"
+                  className={styles.attackBtn}
+                  onClick={() => onResolveDamage(index)}
+                >
                   {piece.itemName ?? ARMOR_PIECE_LABELS[piece.piece]} ({piece.hp}/{piece.maxHp})
                 </button>
               ) : null,
@@ -405,15 +432,14 @@ export function CombatPanel({
       {paralyzed && (
         <div className={styles.paralyzed}>
           <p>
-            You are paralyzed and cannot act ({combat.paralyzedTurns} turn{combat.paralyzedTurns > 1 ? "s" : ""}{" "}
-            left)!
+            You are paralyzed and cannot act ({combat.paralyzedTurns} turn
+            {combat.paralyzedTurns > 1 ? "s" : ""} left)!
           </p>
           <button type="button" className={styles.attackBtn} onClick={handleContinueParalyzed}>
             Continue
           </button>
         </div>
       )}
-
     </div>
   );
 }

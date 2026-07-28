@@ -7,7 +7,14 @@ import { DUNGEON_TABLES } from "../../../data/dungeonTables.ts";
 import { Die } from "../Die/Die.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import { computeMapLayout } from "./layout.ts";
-import { DescentIcon, DoorIcon, EntranceIcon, MonsterIcon, SecretIcon, SegmentIcon } from "./icons.tsx";
+import {
+  DescentIcon,
+  DoorIcon,
+  EntranceIcon,
+  MonsterIcon,
+  SecretIcon,
+  SegmentIcon,
+} from "./icons.tsx";
 import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
 import styles from "./DungeonMap.module.css";
 
@@ -67,7 +74,10 @@ export function DungeonMap({
   // this level's map renders greyed out until the player walks there segment by segment. A level
   // other than wherever the player actually stands ends up with an empty reachable set here (its
   // segment ids never match currentSegId, which lives elsewhere), correctly locking it read-only.
-  const reachable = useMemo(() => (level ? reachableSegIds(level, state.currentSegId) : new Set<number>()), [level, state.currentSegId]);
+  const reachable = useMemo(
+    () => (level ? reachableSegIds(level, state.currentSegId) : new Set<number>()),
+    [level, state.currentSegId],
+  );
   // Mirrors the reducer's hasPendingRoomEntry: a quiet arrival revealed monsters the player hasn't
   // yet chosen to Attack First or Move Silently past -- no further doors open until they decide.
   // `state.alive` guards against a lost fight in this same room (never marks monstersDefeated)
@@ -75,14 +85,19 @@ export function DungeonMap({
   // check too, so this is defense-in-depth, not the only thing guarding door interaction.
   const currentSeg = level?.segments.find((s) => s.id === state.currentSegId);
   const pendingRoomEntry =
-    state.alive && !!currentSeg?.monsters && !currentSeg.monstersDefeated && !currentSeg.sneakedPast;
+    state.alive &&
+    !!currentSeg?.monsters &&
+    !currentSeg.monstersDefeated &&
+    !currentSeg.sneakedPast;
 
   const [doorFlow, setDoorFlow] = useState<DoorFlow | null>(null);
   const [dieValue, setDieValue] = useState(1);
   const [dieRollToken, setDieRollToken] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dragOrigin = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
+  const dragOrigin = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(
+    null,
+  );
   /** True once a pointer-down has moved past the click-vs-drag threshold -- checked (and reset) by
    * the capturing click handler below so a drag-to-pan gesture doesn't also select whatever room or
    * door the pointer happened to release over. */
@@ -124,7 +139,12 @@ export function DungeonMap({
     if (e.pointerType !== "mouse" || e.button !== 0) return;
     const el = scrollRef.current;
     if (!el) return;
-    dragOrigin.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop };
+    dragOrigin.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: el.scrollLeft,
+      scrollTop: el.scrollTop,
+    };
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -168,7 +188,13 @@ export function DungeonMap({
   }
 
   /** Rolls (if needed) and applies the Segments-table result once any lock/trap is out of the way. */
-  function proceedToSegment(segId: number, doorIdx: number, x: number, y: number, wasNoisy: boolean) {
+  function proceedToSegment(
+    segId: number,
+    doorIdx: number,
+    x: number,
+    y: number,
+    wasNoisy: boolean,
+  ) {
     const classification = classifyDoorOpen(state, segId, doorIdx);
     if (AUTOMATIC_KINDS.has(classification.kind)) {
       setDoorFlow(null);
@@ -206,7 +232,9 @@ export function DungeonMap({
         const trapRoll = rollDie();
         animateDie(trapRoll, () => {
           onResolveLock(segId, doorIdx, doorRoll, trapRoll, null);
-          const trap = state.dungeonTypeKey ? DUNGEON_TABLES[state.dungeonTypeKey].trap[trapRoll] : undefined;
+          const trap = state.dungeonTypeKey
+            ? DUNGEON_TABLES[state.dungeonTypeKey].trap[trapRoll]
+            : undefined;
           const cost = trap?.torchCost ?? 0;
           if (cost > 0 && state.torches < cost) {
             setDoorFlow(null); // the Darkness took them -- the door never opens
@@ -246,7 +274,12 @@ export function DungeonMap({
       >
         <div
           className={styles.canvas}
-          style={{ width: layout.width, height: layout.height, transform: `scale(${scale})`, transformOrigin: "0 0" }}
+          style={{
+            width: layout.width,
+            height: layout.height,
+            transform: `scale(${scale})`,
+            transformOrigin: "0 0",
+          }}
         >
           {level.connectors.map((connector, index) => (
             <div
@@ -264,46 +297,51 @@ export function DungeonMap({
           {level.segments.map((seg) => {
             const isReachable = reachable.has(seg.id);
             return (
-            <div
-              key={seg.id}
-              className={`${styles.room} ${TYPE_CLASS[seg.type] ?? ""} ${seg.isEntrance ? styles.typeEntrance : ""} ${seg.id === state.selectedSegId ? styles.selected : ""} ${seg.id === state.currentSegId ? styles.current : ""} ${isReachable ? "" : styles.locked}`}
-              style={{ left: seg.x - layout.originX, top: seg.y - layout.originY, width: seg.w, height: seg.h }}
-              title={`${seg.isEntrance ? "Entrance " : ""}${TYPE_LABELS[seg.type]}${seg.flavor ? ` — ${seg.flavor}` : ""}${isReachable ? "" : " (out of reach -- walk there first)"}`}
-              onClick={() => isReachable && onSelectSegment(seg.id)}
-            >
-              <span className={styles.roomId}>S{seg.id}</span>
-              <div className={styles.roomIcon}>
-                <SegmentIcon type={seg.type} />
-              </div>
-              {seg.type === "room-large" &&
-                PILLAR_OFFSETS.map(([dx, dy], i) => (
+              <div
+                key={seg.id}
+                className={`${styles.room} ${TYPE_CLASS[seg.type] ?? ""} ${seg.isEntrance ? styles.typeEntrance : ""} ${seg.id === state.selectedSegId ? styles.selected : ""} ${seg.id === state.currentSegId ? styles.current : ""} ${isReachable ? "" : styles.locked}`}
+                style={{
+                  left: seg.x - layout.originX,
+                  top: seg.y - layout.originY,
+                  width: seg.w,
+                  height: seg.h,
+                }}
+                title={`${seg.isEntrance ? "Entrance " : ""}${TYPE_LABELS[seg.type]}${seg.flavor ? ` — ${seg.flavor}` : ""}${isReachable ? "" : " (out of reach -- walk there first)"}`}
+                onClick={() => isReachable && onSelectSegment(seg.id)}
+              >
+                <span className={styles.roomId}>S{seg.id}</span>
+                <div className={styles.roomIcon}>
+                  <SegmentIcon type={seg.type} />
+                </div>
+                {seg.type === "room-large" &&
+                  PILLAR_OFFSETS.map(([dx, dy], i) => (
+                    <span
+                      key={i}
+                      className={styles.pillarDot}
+                      style={{
+                        left: dx > 0 ? dx : seg.w + dx - 7,
+                        top: dy > 0 ? dy : seg.h + dy - 7,
+                      }}
+                    />
+                  ))}
+                {seg.isEntrance && (
+                  <span className={`${styles.badge} ${styles.entrance}`} title="Dungeon entrance">
+                    <EntranceIcon />
+                  </span>
+                )}
+                {seg.monsters && !seg.monstersDefeated && (
+                  <span className={`${styles.badge} ${styles.monster}`}>
+                    <MonsterIcon />
+                  </span>
+                )}
+                {seg.roomContent?.secretPassage && (
                   <span
-                    key={i}
-                    className={styles.pillarDot}
-                    style={{
-                      left: dx > 0 ? dx : seg.w + dx - 7,
-                      top: dy > 0 ? dy : seg.h + dy - 7,
-                    }}
-                  />
-                ))}
-              {seg.isEntrance && (
-                <span className={`${styles.badge} ${styles.entrance}`} title="Dungeon entrance">
-                  <EntranceIcon />
-                </span>
-              )}
-              {seg.monsters && !seg.monstersDefeated && (
-                <span className={`${styles.badge} ${styles.monster}`}>
-                  <MonsterIcon />
-                </span>
-              )}
-              {seg.roomContent?.secretPassage && (
-                <span
-                  className={`${styles.badge} ${styles.secret} ${seg.secretPassageSearched ? styles.searched : ""}`}
-                >
-                  <SecretIcon />
-                </span>
-              )}
-            </div>
+                    className={`${styles.badge} ${styles.secret} ${seg.secretPassageSearched ? styles.searched : ""}`}
+                  >
+                    <SecretIcon />
+                  </span>
+                )}
+              </div>
             );
           })}
 
@@ -317,7 +355,8 @@ export function DungeonMap({
               if (!door.opened) {
                 // Hide every other door while one is mid-resolution so the lock-choice
                 // popover never has to compete with a neighboring door icon for space.
-                if (doorFlow && !(doorFlow.segId === seg.id && doorFlow.doorIdx === idx)) return null;
+                if (doorFlow && !(doorFlow.segId === seg.id && doorFlow.doorIdx === idx))
+                  return null;
                 return (
                   <button
                     key={`${seg.id}-${idx}`}
@@ -353,7 +392,11 @@ export function DungeonMap({
                     !!state.pendingPackItem ||
                     seg.id !== state.currentSegId
                   }
-                  title={seg.id === state.currentSegId ? `Descend to Level ${targetLevel + 1}` : "Walk here first"}
+                  title={
+                    seg.id === state.currentSegId
+                      ? `Descend to Level ${targetLevel + 1}`
+                      : "Walk here first"
+                  }
                   onClick={() => door.childId != null && onSwitchLevel(targetLevel, door.childId)}
                 >
                   <DescentIcon />
@@ -363,18 +406,32 @@ export function DungeonMap({
           )}
 
           {doorFlow && doorFlow.kind === "rolling" && (
-            <div className={styles.rollOverlay} style={{ left: doorFlow.x - 14, top: doorFlow.y - 44 }}>
+            <div
+              className={styles.rollOverlay}
+              style={{ left: doorFlow.x - 14, top: doorFlow.y - 44 }}
+            >
               <Die value={dieValue} rollToken={dieRollToken} />
             </div>
           )}
 
           {doorFlow && doorFlow.kind === "lockChoice" && (
-            <div className={styles.lockChoice} style={{ left: doorFlow.x - 70, top: doorFlow.y - 76 }}>
+            <div
+              className={styles.lockChoice}
+              style={{ left: doorFlow.x - 70, top: doorFlow.y - 76 }}
+            >
               <p>Locked!</p>
-              <button type="button" onClick={() => handleLockChoice("pickLock")} disabled={state.torches < 1}>
+              <button
+                type="button"
+                onClick={() => handleLockChoice("pickLock")}
+                disabled={state.torches < 1}
+              >
                 Pick Lock (1 torch)
               </button>
-              <button type="button" onClick={() => handleLockChoice("useKey")} disabled={state.keys < 1}>
+              <button
+                type="button"
+                onClick={() => handleLockChoice("useKey")}
+                disabled={state.keys < 1}
+              >
                 Use a Key ({state.keys})
               </button>
               <button type="button" onClick={() => handleLockChoice("breakDoor")}>

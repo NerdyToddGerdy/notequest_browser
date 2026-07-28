@@ -140,7 +140,10 @@ describe("rollTravelEvent", () => {
     const band34 = rollTravelEvent(makeResources(), "Human", "forest", fixedDie(2));
     expect(band34.kind === "event" && band34.row.monsters?.name).toBe("Goblins");
     const band56 = rollTravelEvent(makeResources(), "Human", "forest", fixedDie(3));
-    expect(band56.kind === "event" && band56.row.effect).toEqual({ kind: "loseProvisions", amount: 1 });
+    expect(band56.kind === "event" && band56.row.effect).toEqual({
+      kind: "loseProvisions",
+      amount: 1,
+    });
   });
 });
 
@@ -166,7 +169,10 @@ describe("eventSkipReason (passive skips)", () => {
 
 describe("Camouflage (canIgnoreEvent / ignoreEvent)", () => {
   const withCamouflage = (uses: number) =>
-    makeResources({ spellUses: { [spellKey("nature", 3)]: uses }, maxSpellUses: { [spellKey("nature", 3)]: 2 } });
+    makeResources({
+      spellUses: { [spellKey("nature", 3)]: uses },
+      maxSpellUses: { [spellKey("nature", 3)]: 2 },
+    });
 
   it("is offered only in a forest or swamp, and only with a use left", () => {
     expect(canIgnoreEvent(withCamouflage(1), "forest")).toBe(true);
@@ -219,7 +225,10 @@ describe("Star Stone (canRerollEvent / rerollEvent)", () => {
 
 describe("applyEventEffect (non-combat outcomes)", () => {
   it("loses provisions, flooring at 0 rather than converting to HP damage", () => {
-    const result = applyEventEffect(makeResources({ provisions: 1 }), { kind: "loseProvisions", amount: 2 });
+    const result = applyEventEffect(makeResources({ provisions: 1 }), {
+      kind: "loseProvisions",
+      amount: 2,
+    });
     expect(result.resources.provisions).toBe(0);
     expect(result.resources.hp).toBe(20); // unlike payTravelCost, a shortfall is not a debt
     expect(result.died).toBe(false);

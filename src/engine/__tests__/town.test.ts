@@ -88,8 +88,12 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
 
 describe("canRest / rest", () => {
   it("requires at least 1 coin", () => {
-    expect(canRest(makeResources({ coins: 0, hp: 10, maxHp: 20, maxSpellUses: { 1: 3 } }))).toBe(false);
-    expect(canRest(makeResources({ coins: 1, hp: 10, maxHp: 20, maxSpellUses: { 1: 3 } }))).toBe(true);
+    expect(canRest(makeResources({ coins: 0, hp: 10, maxHp: 20, maxSpellUses: { 1: 3 } }))).toBe(
+      false,
+    );
+    expect(canRest(makeResources({ coins: 1, hp: 10, maxHp: 20, maxSpellUses: { 1: 3 } }))).toBe(
+      true,
+    );
   });
 
   it("stays true below max HP regardless of spell uses", () => {
@@ -460,9 +464,9 @@ describe("canCastFly / castFly (New Spells, Advanced 6, issue #61)", () => {
     expect(canCastFly(makeResources({ spellUses: { "advanced:6": 1 } }))).toBe(true);
     expect(canCastFly(makeResources({ spellUses: { "advanced:6": 0 } }))).toBe(false);
     expect(canCastFly(makeResources({ spellUses: {} }))).toBe(false);
-    expect(
-      canCastFly(makeResources({ spellUses: { "advanced:6": 1 }, flyActive: true })),
-    ).toBe(false);
+    expect(canCastFly(makeResources({ spellUses: { "advanced:6": 1 }, flyActive: true }))).toBe(
+      false,
+    );
   });
 
   it("arms flyActive and spends the use", () => {
@@ -569,7 +573,11 @@ describe("payTravelCost", () => {
     expect(withShortfall.travelStats.provisionsSpentTotal).toBe(2); // only what was actually spent
 
     const accumulated = payTravelCost(
-      makeResources({ provisions: 10, hp: 15, travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 5 } }),
+      makeResources({
+        provisions: 10,
+        hp: 15,
+        travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 5 },
+      }),
       3,
     );
     expect(accumulated.travelStats.provisionsSpentTotal).toBe(8); // 5 + 3, lifetime, not reset
@@ -659,11 +667,15 @@ describe("Ziggurat's Feathered Boots (issue #30): hasFeatheredBoots", () => {
     expect(hasFeatheredBoots(makeResources({ armor: [] }))).toBe(false);
     expect(
       hasFeatheredBoots(
-        makeResources({ armor: [{ piece: "boots", hp: 3, maxHp: 3, itemName: "Feathered Boots" }] }),
+        makeResources({
+          armor: [{ piece: "boots", hp: 3, maxHp: 3, itemName: "Feathered Boots" }],
+        }),
       ),
     ).toBe(true);
     expect(
-      hasFeatheredBoots(makeResources({ armor: [{ piece: "boots", hp: 2, maxHp: 2, itemName: "Elven Boots" }] })),
+      hasFeatheredBoots(
+        makeResources({ armor: [{ piece: "boots", hp: 2, maxHp: 2, itemName: "Elven Boots" }] }),
+      ),
     ).toBe(false);
   });
 });
@@ -680,13 +692,19 @@ describe("Ziggurat's Effect of the Forgotten Gods (issue #30): canUseForgottenGo
   });
 
   it("roll 1: lightning strikes for 1d6 damage, floored at 1 HP", () => {
-    const result = resolveForgottenGods(makeResources({ provisions: 5, hp: 3 }), sequenceDie([1, 6]));
+    const result = resolveForgottenGods(
+      makeResources({ provisions: 5, hp: 3 }),
+      sequenceDie([1, 6]),
+    );
     expect(result.resources.hp).toBe(1); // floored, not negative
     expect(result.message).toContain("Lightning strikes");
   });
 
   it("roll 1: ordinary damage that doesn't drop below 1 HP applies normally", () => {
-    const result = resolveForgottenGods(makeResources({ provisions: 5, hp: 10 }), sequenceDie([1, 3]));
+    const result = resolveForgottenGods(
+      makeResources({ provisions: 5, hp: 10 }),
+      sequenceDie([1, 3]),
+    );
     expect(result.resources.hp).toBe(7);
   });
 
@@ -712,7 +730,10 @@ describe("Ziggurat's Effect of the Forgotten Gods (issue #30): canUseForgottenGo
   });
 
   it("roll 6: a permanent +4 HP", () => {
-    const result = resolveForgottenGods(makeResources({ provisions: 5, hp: 10, maxHp: 20 }), fixedDie(6));
+    const result = resolveForgottenGods(
+      makeResources({ provisions: 5, hp: 10, maxHp: 20 }),
+      fixedDie(6),
+    );
     expect(result.resources.hp).toBe(14);
     expect(result.resources.maxHp).toBe(24);
   });

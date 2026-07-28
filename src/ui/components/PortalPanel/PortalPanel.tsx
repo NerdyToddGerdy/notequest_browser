@@ -22,7 +22,12 @@ export interface PortalPanelProps {
   /** Set once the outcome has been applied -- the panel's terminal state. */
   resolvedMessage: string | null;
   /** Non-empty only while rolls 11/14 await a choice. */
-  destinations: { coord: { q: number; r: number }; tile: HexTile; distance: number; label: string }[];
+  destinations: {
+    coord: { q: number; r: number };
+    tile: HexTile;
+    distance: number;
+    label: string;
+  }[];
   onStepThrough: () => void;
   onChooseDestination: (coord: { q: number; r: number }) => void;
   onDismiss: () => void;
@@ -54,8 +59,8 @@ export function PortalPanel({
 
       {roll.skippedWorlds.length > 0 && (
         <p className={styles.aside}>
-          The portal pulls toward {joinWorlds(roll.skippedWorlds)} — but those doors are sealed, and it
-          searches again.
+          The portal pulls toward {joinWorlds(roll.skippedWorlds)} — but those doors are sealed, and
+          it searches again.
         </p>
       )}
 
@@ -69,7 +74,11 @@ export function PortalPanel({
           <ul className={styles.destList}>
             {destinations.map(({ coord, label, distance }) => (
               <li key={`${coord.q},${coord.r}`}>
-                <button type="button" className={styles.destBtn} onClick={() => onChooseDestination(coord)}>
+                <button
+                  type="button"
+                  className={styles.destBtn}
+                  onClick={() => onChooseDestination(coord)}
+                >
                   <span className={styles.destName}>{label}</span>
                   <span className={styles.destMeta}>{distance} away</span>
                 </button>

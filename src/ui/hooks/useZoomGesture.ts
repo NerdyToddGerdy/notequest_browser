@@ -22,7 +22,10 @@ const WHEEL_SENSITIVITY = 0.0018;
  * touch pointer actually joins (an active pinch), so native one-finger scroll/pan on the target
  * keeps working exactly as it does today.
  */
-export function useZoomGesture(ref: RefObject<Element | null>, onZoom: (e: ZoomEvent) => void): void {
+export function useZoomGesture(
+  ref: RefObject<Element | null>,
+  onZoom: (e: ZoomEvent) => void,
+): void {
   const onZoomRef = useRef(onZoom);
   useLayoutEffect(() => {
     onZoomRef.current = onZoom;
@@ -43,7 +46,11 @@ export function useZoomGesture(ref: RefObject<Element | null>, onZoom: (e: ZoomE
     const activePointers = new Map<number, { x: number; y: number }>();
     let lastPinchDistance: number | null = null;
 
-    function distanceAndMidpoint(points: { x: number; y: number }[]): { distance: number; x: number; y: number } {
+    function distanceAndMidpoint(points: { x: number; y: number }[]): {
+      distance: number;
+      x: number;
+      y: number;
+    } {
       const [a, b] = points;
       return {
         distance: Math.hypot(b!.x - a!.x, b!.y - a!.y),
@@ -55,7 +62,10 @@ export function useZoomGesture(ref: RefObject<Element | null>, onZoom: (e: ZoomE
     function handlePointerDown(e: PointerEvent) {
       if (e.pointerType !== "touch") return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      lastPinchDistance = activePointers.size === 2 ? distanceAndMidpoint([...activePointers.values()]).distance : null;
+      lastPinchDistance =
+        activePointers.size === 2
+          ? distanceAndMidpoint([...activePointers.values()]).distance
+          : null;
     }
 
     function handlePointerMove(e: PointerEvent) {
@@ -74,7 +84,10 @@ export function useZoomGesture(ref: RefObject<Element | null>, onZoom: (e: ZoomE
     function handlePointerEnd(e: PointerEvent) {
       if (e.pointerType !== "touch") return;
       activePointers.delete(e.pointerId);
-      lastPinchDistance = activePointers.size === 2 ? distanceAndMidpoint([...activePointers.values()]).distance : null;
+      lastPinchDistance =
+        activePointers.size === 2
+          ? distanceAndMidpoint([...activePointers.values()]).distance
+          : null;
     }
 
     el.addEventListener("wheel", handleWheel as EventListener, { passive: false });

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addGraveyardEntry, clearGraveyard, loadGraveyard, type GraveyardEntry } from "../graveyard.ts";
+import {
+  addGraveyardEntry,
+  clearGraveyard,
+  loadGraveyard,
+  type GraveyardEntry,
+} from "../graveyard.ts";
 
 /** A minimal in-memory Storage so these tests don't need a DOM environment. */
 function makeFakeStorage(initial: Record<string, string> = {}): Storage {
@@ -20,7 +25,11 @@ function makeFakeStorage(initial: Record<string, string> = {}): Storage {
   };
 }
 
-const DEAD_ADVENTURER: GraveyardEntry = { name: "Bram", dungeon: "The Crypt of the Broken Curse", causeOfDeath: "combat" };
+const DEAD_ADVENTURER: GraveyardEntry = {
+  name: "Bram",
+  dungeon: "The Crypt of the Broken Curse",
+  causeOfDeath: "combat",
+};
 const FULL_ADVENTURER: GraveyardEntry = {
   name: "Cordelia",
   dungeon: "The Palace of the Secret Horrors",
@@ -63,7 +72,11 @@ describe("addGraveyardEntry", () => {
 
   it("appends to an existing graveyard without dropping earlier entries", () => {
     const storage = makeFakeStorage({ "notequest:graveyard": JSON.stringify([DEAD_ADVENTURER]) });
-    const second: GraveyardEntry = { name: "Yorick", dungeon: "The Palace of the Secret Horrors", causeOfDeath: "darkness" };
+    const second: GraveyardEntry = {
+      name: "Yorick",
+      dungeon: "The Palace of the Secret Horrors",
+      causeOfDeath: "darkness",
+    };
     const next = addGraveyardEntry(second, storage);
     expect(next).toEqual([DEAD_ADVENTURER, second]);
   });

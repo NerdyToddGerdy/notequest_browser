@@ -17,18 +17,46 @@ import {
   switchRealm,
   visitedRealms,
 } from "../realms.ts";
-import { createInitialMilestones, createInitialTravelStats, type AdventurerResources } from "../town.ts";
+import {
+  createInitialMilestones,
+  createInitialTravelStats,
+  type AdventurerResources,
+} from "../town.ts";
 
 const ALL_REALMS: OtherWorldKey[] = ["hell", "underworld", "pesadelum", "candyWorld"];
 
 function makeResources(overrides: Partial<AdventurerResources> = {}): AdventurerResources {
   return {
-    torches: 5, hp: 20, maxHp: 20, coins: 0, treasures: 0, keys: 0, heldItems: [], armor: [],
-    weapon: null, spareWeapons: [], spareArmor: [], spellUses: {}, maxSpellUses: {},
-    monsterKills: 0, bossKills: 0, killsByName: {}, killsByAbility: {}, provisions: 10,
-    advancedClasses: [], hireling: null, animals: [], milestones: createInitialMilestones(),
-    buildings: [], troops: 0, troopSources: [], travelStats: createInitialTravelStats(),
-    survivedRunIds: [], flyActive: false, catatonic: false, nextDungeonDamageBonus: 0,
+    torches: 5,
+    hp: 20,
+    maxHp: 20,
+    coins: 0,
+    treasures: 0,
+    keys: 0,
+    heldItems: [],
+    armor: [],
+    weapon: null,
+    spareWeapons: [],
+    spareArmor: [],
+    spellUses: {},
+    maxSpellUses: {},
+    monsterKills: 0,
+    bossKills: 0,
+    killsByName: {},
+    killsByAbility: {},
+    provisions: 10,
+    advancedClasses: [],
+    hireling: null,
+    animals: [],
+    milestones: createInitialMilestones(),
+    buildings: [],
+    troops: 0,
+    troopSources: [],
+    travelStats: createInitialTravelStats(),
+    survivedRunIds: [],
+    flyActive: false,
+    catatonic: false,
+    nextDungeonDamageBonus: 0,
     ...overrides,
   };
 }
@@ -53,7 +81,9 @@ describe("realm table completeness", () => {
     for (const key of ALL_REALMS) {
       for (let total = 2; total <= 6; total++) {
         const row = REALMS[key].event[total]!;
-        expect((row.monsters !== undefined) !== (row.effect !== undefined), `${key} ${total}`).toBe(true);
+        expect((row.monsters !== undefined) !== (row.effect !== undefined), `${key} ${total}`).toBe(
+          true,
+        );
       }
     }
   });
@@ -76,8 +106,10 @@ describe("realm table completeness", () => {
   });
 
   it("Candy World's Treasure table stops at 6, as printed", () => {
-    for (let total = 2; total <= 6; total++) expect(CANDY_TREASURE_TABLE[total], `${total}`).toBeDefined();
-    for (let total = 7; total <= 12; total++) expect(CANDY_TREASURE_TABLE[total], `${total}`).toBeUndefined();
+    for (let total = 2; total <= 6; total++)
+      expect(CANDY_TREASURE_TABLE[total], `${total}`).toBeDefined();
+    for (let total = 7; total <= 12; total++)
+      expect(CANDY_TREASURE_TABLE[total], `${total}`).toBeUndefined();
   });
 });
 
@@ -120,7 +152,11 @@ describe("switchRealm", () => {
   it("keeps the overworld's own bans and politics out of the realms", () => {
     // These are keyed by a bare hexKey, so leaking them across realms would let a ban in the
     // overworld silently apply to the same-numbered hex in Hell.
-    const banned = { ...overworld(), bannedHexes: ["1,0"], politicalStatus: { "1,0": "enemy" as const } };
+    const banned = {
+      ...overworld(),
+      bannedHexes: ["1,0"],
+      politicalStatus: { "1,0": "enemy" as const },
+    };
     const inHell = switchRealm(banned, "hell", mulberry32(3));
     // They stay on the WorldState (they describe the overworld), but no realm hex shares their keys
     // in a way that matters -- the systems that read them are all gated off in a realm.
@@ -170,7 +206,10 @@ describe("realmTerrainHazard", () => {
   });
 
   it("the Plain of Thorns is a flat 1", () => {
-    expect(realmTerrainHazard("plainOfThorns", fixedDie(3))?.effect).toEqual({ kind: "loseHp", amount: 1 });
+    expect(realmTerrainHazard("plainOfThorns", fixedDie(3))?.effect).toEqual({
+      kind: "loseHp",
+      amount: 1,
+    });
   });
 
   it("the Sea of Blood hurts and shoves", () => {
@@ -181,14 +220,24 @@ describe("realmTerrainHazard", () => {
   });
 
   it("the Forest of the Impaled only catches you on a 1", () => {
-    expect(realmTerrainHazard("forestOfImpaled", fixedDie(1))?.effect).toEqual({ kind: "catatonic" });
+    expect(realmTerrainHazard("forestOfImpaled", fixedDie(1))?.effect).toEqual({
+      kind: "catatonic",
+    });
     for (const roll of [2, 3, 4, 5, 6]) {
       expect(realmTerrainHazard("forestOfImpaled", fixedDie(roll)), `roll ${roll}`).toBeNull();
     }
   });
 
   it("ordinary and candy terrain cost nothing", () => {
-    for (const t of ["plain", "mountain", "swamp", "water", "caramelPlain", "lollipopForest", "milkShakeSea"] as const) {
+    for (const t of [
+      "plain",
+      "mountain",
+      "swamp",
+      "water",
+      "caramelPlain",
+      "lollipopForest",
+      "milkShakeSea",
+    ] as const) {
       expect(realmTerrainHazard(t, fixedDie(1)), t).toBeNull();
     }
   });
@@ -214,13 +263,23 @@ describe("rollRealmEvent", () => {
 
 describe("applyRealmVictoryReward", () => {
   it("Hell's Demon Lord grants 1d6 Magic Items", () => {
-    const reward = applyRealmVictoryReward(makeResources(), "hell", "Demon Lord", sequenceDie([3, 1, 2, 3]));
+    const reward = applyRealmVictoryReward(
+      makeResources(),
+      "hell",
+      "Demon Lord",
+      sequenceDie([3, 1, 2, 3]),
+    );
     expect(reward.resources.heldItems).toHaveLength(3);
     expect(reward.opensPortalHere).toBe(false);
   });
 
   it("the Infernal Baron also opens a Portal where he fell", () => {
-    const reward = applyRealmVictoryReward(makeResources(), "hell", "Infernal Baron", sequenceDie([1, 4]));
+    const reward = applyRealmVictoryReward(
+      makeResources(),
+      "hell",
+      "Infernal Baron",
+      sequenceDie([1, 4]),
+    );
     expect(reward.opensPortalHere).toBe(true);
     expect(reward.message).toContain("Portal");
   });
@@ -243,13 +302,23 @@ describe("applyRealmVictoryReward", () => {
 
   it("Candy World rolls a treasure for any monster", () => {
     // 1 + 1 = 2 -> "100 chocolate coins (worth 1 coin)".
-    const reward = applyRealmVictoryReward(makeResources({ coins: 4 }), "candyWorld", "Marshminion", fixedDie(1));
+    const reward = applyRealmVictoryReward(
+      makeResources({ coins: 4 }),
+      "candyWorld",
+      "Marshminion",
+      fixedDie(1),
+    );
     expect(reward.resources.coins).toBe(5);
   });
 
   it("Candy World's 7+ rolls grant nothing, matching the printed table", () => {
     // 4 + 4 = 8, which the table simply doesn't list.
-    const reward = applyRealmVictoryReward(makeResources({ coins: 4 }), "candyWorld", "Marshminion", fixedDie(4));
+    const reward = applyRealmVictoryReward(
+      makeResources({ coins: 4 }),
+      "candyWorld",
+      "Marshminion",
+      fixedDie(4),
+    );
     expect(reward.resources.coins).toBe(4);
     expect(reward.message).toContain("crumbs");
   });
@@ -274,7 +343,11 @@ describe("the Dream Potion (reverseHp)", () => {
   });
 
   it("drinking it consumes the potion and applies the swap", () => {
-    const before = makeResources({ hp: 34, maxHp: 99, heldItems: [{ name: "Dream Potion", worth: 5 }] });
+    const before = makeResources({
+      hp: 34,
+      maxHp: 99,
+      heldItems: [{ name: "Dream Potion", worth: 5 }],
+    });
     const after = drinkDreamPotion(before);
     expect(after.hp).toBe(43);
     expect(hasDreamPotion(after)).toBe(false);

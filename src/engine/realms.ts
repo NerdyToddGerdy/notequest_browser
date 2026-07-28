@@ -1,4 +1,10 @@
-import { REALMS, REALM_TERRAIN_HAZARD, type RealmDef, type RealmEventEffect, type RealmEventRow } from "../data/otherWorlds.ts";
+import {
+  REALMS,
+  REALM_TERRAIN_HAZARD,
+  type RealmDef,
+  type RealmEventEffect,
+  type RealmEventRow,
+} from "../data/otherWorlds.ts";
 import { OVERWORLD, type RealmKey } from "../data/realms.ts";
 import type { OtherWorldKey } from "../data/portals.ts";
 import type { Terrain } from "../data/hexTables.ts";
@@ -70,7 +76,9 @@ export function revealRealmNeighborsInPlace(
 /** Builds a realm's map from scratch: "Make a new map... You start on a [terrain]." */
 export function createRealmMap(realm: RealmDef, rng: RNG): StashedRealm {
   const start: HexCoord = { q: 0, r: 0 };
-  const tiles: Record<string, HexTile> = { [hexKey(start)]: { terrain: realm.startTerrain, location: null } };
+  const tiles: Record<string, HexTile> = {
+    [hexKey(start)]: { terrain: realm.startTerrain, location: null },
+  };
   revealRealmNeighborsInPlace(tiles, start, realm, rng);
   return { tiles, player: start, home: start, hasBoat: false };
 }
@@ -89,7 +97,8 @@ export function switchRealm(world: WorldState, to: RealmKey, rng: RNG = Math.ran
   };
 
   const existing = stashed[to];
-  const destination = existing ?? (to === OVERWORLD ? null : createRealmMap(REALMS[to as OtherWorldKey], rng));
+  const destination =
+    existing ?? (to === OVERWORLD ? null : createRealmMap(REALMS[to as OtherWorldKey], rng));
   if (!destination) {
     // Only reachable if the overworld itself was never stashed, which can't happen -- the player
     // always starts there. Bail rather than invent a second overworld.
@@ -116,7 +125,10 @@ export function switchRealm(world: WorldState, to: RealmKey, rng: RNG = Math.ran
  * Underworld's "If you defeat Death you can go back to any world you like (in any hex you like)"
  * and the portal table's roll of 11 ("even from another world") are the two callers. */
 export function visitedRealms(world: WorldState): RealmKey[] {
-  const keys = new Set<RealmKey>([currentRealm(world), ...(Object.keys(world.stashedRealms ?? {}) as RealmKey[])]);
+  const keys = new Set<RealmKey>([
+    currentRealm(world),
+    ...(Object.keys(world.stashedRealms ?? {}) as RealmKey[]),
+  ]);
   return [...keys];
 }
 
@@ -142,18 +154,25 @@ export function realmTerrainHazard(terrain: Terrain, rng: RNG = Math.random): Re
   if (terrain === "magma") {
     let damage = 0;
     for (let i = 0; i < 6; i++) damage += rollDie(rng);
-    return { effect: { kind: "loseHp", amount: damage }, text: `The magma sears you for ${damage} damage.` };
+    return {
+      effect: { kind: "loseHp", amount: damage },
+      text: `The magma sears you for ${damage} damage.`,
+    };
   }
   if (terrain === "forestOfImpaled") {
     if (rollDie(rng) !== 1) return null;
-    return { effect: { kind: "catatonic" }, text: "The horror of the place locks you rigid — you lose your next move." };
+    return {
+      effect: { kind: "catatonic" },
+      text: "The horror of the place locks you rigid — you lose your next move.",
+    };
   }
   const flat = REALM_TERRAIN_HAZARD[terrain as keyof typeof REALM_TERRAIN_HAZARD];
   if (!flat) return null;
   if (flat.kind === "moveToRandomAdjacent") {
     return { effect: flat, text: "The blood drags you under and spits you out somewhere else." };
   }
-  if (flat.kind === "loseHp") return { effect: flat, text: `The thorns open you up for ${flat.amount} damage.` };
+  if (flat.kind === "loseHp")
+    return { effect: flat, text: `The thorns open you up for ${flat.amount} damage.` };
   return { effect: flat, text: "" };
 }
 
@@ -182,7 +201,6 @@ export function canClearDenseFog(provisions: number): boolean {
 export function realmLabel(key: RealmKey): string {
   return key === OVERWORLD ? "the world" : REALMS[key as OtherWorldKey].name;
 }
-
 
 // --- Per-world victory rewards -------------------------------------------------------------------
 
@@ -263,20 +281,40 @@ export function applyRealmVictoryReward(
     if (entry.armorHp && entry.armorName) {
       next = {
         ...next,
-        armor: [...next.armor, { piece: "wonderItem", hp: entry.armorHp, maxHp: entry.armorHp, itemName: entry.armorName }],
+        armor: [
+          ...next.armor,
+          {
+            piece: "wonderItem",
+            hp: entry.armorHp,
+            maxHp: entry.armorHp,
+            itemName: entry.armorName,
+          },
+        ],
       };
     }
     if (entry.palaceTreasure) {
       const treasure = DUNGEON_TABLES.palace.magicItem[rollDie(rng)]!;
-      next = { ...next, heldItems: [...next.heldItems, { name: treasure.name, worth: MAGIC_ITEM_WORTH }] };
+      next = {
+        ...next,
+        heldItems: [...next.heldItems, { name: treasure.name, worth: MAGIC_ITEM_WORTH }],
+      };
     }
-    return { resources: next, message: entry.text, opensPortalHere: false, unlocksAnyDestination: false };
+    return {
+      resources: next,
+      message: entry.text,
+      opensPortalHere: false,
+      unlocksAnyDestination: false,
+    };
   }
 
   return plain("");
 }
 
-function plainWith(resources: AdventurerResources, item: HeldItem, message: string): RealmVictoryReward {
+function plainWith(
+  resources: AdventurerResources,
+  item: HeldItem,
+  message: string,
+): RealmVictoryReward {
   return {
     resources: { ...resources, heldItems: [...resources.heldItems, item] },
     message,

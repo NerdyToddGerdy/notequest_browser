@@ -163,7 +163,8 @@ export const MONSTROUS_RACE_TABLE: Record<number, RaceDef> = {
     roll: 1,
     name: "Goblin",
     hp: 3,
-    ability: "If you roll 1 on the damage die, you explode. Dealing 5 damage to everyone in the room.",
+    ability:
+      "If you roll 1 on the damage die, you explode. Dealing 5 damage to everyone in the room.",
   },
   2: {
     roll: 2,

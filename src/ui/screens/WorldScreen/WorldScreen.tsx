@@ -750,7 +750,10 @@ export function WorldScreen({
     if (!realmEvent) return;
     const row = realmEvent.row;
     if (row.monsters) {
-      setRealmEvent({ ...realmEvent, combat: startEventCombat({ text: row.text, monsters: row.monsters }) });
+      setRealmEvent({
+        ...realmEvent,
+        combat: startEventCombat({ text: row.text, monsters: row.monsters }),
+      });
       return;
     }
     const effect = row.effect;
@@ -765,7 +768,8 @@ export function WorldScreen({
       // rescued companion would represent. A documented simplification.
       const roll = 1 + Math.floor(Math.random() * 6);
       const helped = roll === 6;
-      if (helped) onUpdateResources({ ...resources, hp: resources.maxHp, coins: resources.coins + 50 });
+      if (helped)
+        onUpdateResources({ ...resources, hp: resources.maxHp, coins: resources.coins + 50 });
       setRealmEvent({
         ...realmEvent,
         resolvedMessage: helped
@@ -802,7 +806,13 @@ export function WorldScreen({
    * realm's own victory reward (issue #105). */
   function handleRealmEventAttack(targetId: number, roll: number) {
     if (!realmEvent?.combat || !resources.weapon) return;
-    const result = resolveEventRound(realmEvent.combat, resources.hp, resources.weapon.formula, targetId, roll);
+    const result = resolveEventRound(
+      realmEvent.combat,
+      resources.hp,
+      resources.weapon.formula,
+      targetId,
+      roll,
+    );
     if (result.died) {
       onCharacterDied("realm", realmLabel(currentRealm(world)));
       return;
@@ -810,7 +820,13 @@ export function WorldScreen({
     if (result.state.outcome === "victory") {
       const template = realmEvent.row.monsters!;
       const reward = applyRealmVictoryReward(
-        applyEventVictory(resources, result.state, result.hp, template.name, result.state.monsters.length),
+        applyEventVictory(
+          resources,
+          result.state,
+          result.hp,
+          template.name,
+          result.state.monsters.length,
+        ),
         currentRealm(world),
         template.name,
       );
@@ -1317,7 +1333,9 @@ export function WorldScreen({
           isFortress={isFortress}
           buyableMounts={buyableMounts}
           politicalStatus={politicalStatusFor(world, world.player)}
-          canPoliticalAffinity={!inRealm && canAttemptPoliticalAffinity(world, world.player, currentTile)}
+          canPoliticalAffinity={
+            !inRealm && canAttemptPoliticalAffinity(world, world.player, currentTile)
+          }
           canRecruitTroop={!inRealm && canRecruitTroop(resources, world, world.player, currentTile)}
           canAttack={!inRealm && canAttack(world, world.player, currentTile)}
           attackMessage={attackMessage}

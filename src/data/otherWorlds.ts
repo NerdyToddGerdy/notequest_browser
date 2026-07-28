@@ -91,12 +91,28 @@ const HELL: RealmDef = {
     6: "cityOfSurvivors",
   },
   event: {
-    2: { text: "An Infernal Baron blocks your path.", monsters: { name: "Infernal Baron", hp: 60, damage: 9, abilities: [], count: 1 } },
-    3: { text: "A Demon Lord strides out of the heat.", monsters: { name: "Demon Lord", hp: 30, damage: 8, abilities: [], count: 1 } },
-    4: { text: "A Demon finds you.", monsters: { name: "Demon", hp: 10, damage: 3, abilities: [], count: 1 } },
+    2: {
+      text: "An Infernal Baron blocks your path.",
+      monsters: { name: "Infernal Baron", hp: 60, damage: 9, abilities: [], count: 1 },
+    },
+    3: {
+      text: "A Demon Lord strides out of the heat.",
+      monsters: { name: "Demon Lord", hp: 30, damage: 8, abilities: [], count: 1 },
+    },
+    4: {
+      text: "A Demon finds you.",
+      monsters: { name: "Demon", hp: 10, damage: 3, abilities: [], count: 1 },
+    },
     5: {
       text: "Imps swarm out of the cracks.",
-      monsters: { name: "Imps", singularName: "Imp", hp: 2, damage: 1, abilities: [], count: { dice: 2, sides: 6 } },
+      monsters: {
+        name: "Imps",
+        singularName: "Imp",
+        hp: 2,
+        damage: 1,
+        abilities: [],
+        count: { dice: 2, sides: 6 },
+      },
     },
     6: { text: "Fire rains from the sky.", effect: { kind: "loseHp", amount: 3 } },
   },
@@ -110,11 +126,27 @@ const UNDERWORLD: RealmDef = {
   name: "the Underworld",
   startTerrain: "swamp",
   terrain: { 1: "water", 2: "water", 3: "mountain", 4: "swamp", 5: "swamp", 6: "swamp" },
-  location: { 1: "denseFog", 2: "denseFog", 3: "denseFog", 4: "denseFog", 5: "portal", 6: "portal" },
+  location: {
+    1: "denseFog",
+    2: "denseFog",
+    3: "denseFog",
+    4: "denseFog",
+    5: "portal",
+    6: "portal",
+  },
   event: {
-    2: { text: "The Death itself has noticed you.", monsters: { name: "The Death", hp: 30, damage: 3, abilities: ["deathtouch"], count: 1 } },
-    3: { text: "A Ghost drifts through you.", monsters: { name: "Ghost", hp: 4, damage: 3, abilities: ["intangible"], count: 1 } },
-    4: { text: "A lesser Ghost bars the way.", monsters: { name: "Ghost", hp: 2, damage: 2, abilities: ["intangible"], count: 1 } },
+    2: {
+      text: "The Death itself has noticed you.",
+      monsters: { name: "The Death", hp: 30, damage: 3, abilities: ["deathtouch"], count: 1 },
+    },
+    3: {
+      text: "A Ghost drifts through you.",
+      monsters: { name: "Ghost", hp: 4, damage: 3, abilities: ["intangible"], count: 1 },
+    },
+    4: {
+      text: "A lesser Ghost bars the way.",
+      monsters: { name: "Ghost", hp: 2, damage: 2, abilities: ["intangible"], count: 1 },
+    },
     5: { text: "An ominous fog rolls in.", effect: { kind: "loseProvisions", amount: 1 } },
     6: {
       text: "You have found the soul of an ancient dead adventurer.",
@@ -151,14 +183,33 @@ const PESADELUM: RealmDef = {
     // The Dracolich's "D8" is the only dice-based monster damage in the rulebook; every
     // MonsterTemplate here carries a flat number, so it's averaged up to 4 (a documented
     // simplification, same tier as `bladeTrap`'s flavor-only roll-of-2).
-    2: { text: "A Dracolich uncoils in front of you.", monsters: { name: "Dracolich", hp: 30, damage: 4, abilities: ["necromancy"], count: 1 } },
-    3: { text: "A Tentacle erupts from the ground.", monsters: { name: "Tentacle", hp: 20, damage: 3, abilities: ["regeneration"], count: 1 } },
+    2: {
+      text: "A Dracolich uncoils in front of you.",
+      monsters: { name: "Dracolich", hp: 30, damage: 4, abilities: ["necromancy"], count: 1 },
+    },
+    3: {
+      text: "A Tentacle erupts from the ground.",
+      monsters: { name: "Tentacle", hp: 20, damage: 3, abilities: ["regeneration"], count: 1 },
+    },
     4: {
       text: "Goblins boil out of the thorns.",
-      monsters: { name: "Goblins", singularName: "Goblin", hp: 3, damage: 1, abilities: ["explosive"], count: { dice: 1, sides: 6 } },
+      monsters: {
+        name: "Goblins",
+        singularName: "Goblin",
+        hp: 3,
+        damage: 1,
+        abilities: ["explosive"],
+        count: { dice: 1, sides: 6 },
+      },
     },
-    5: { text: "A temporal distortion folds the ground under you.", effect: { kind: "moveToRandomAdjacent" } },
-    6: { text: "A temporal distortion folds the ground under you.", effect: { kind: "moveToRandomAdjacent" } },
+    5: {
+      text: "A temporal distortion folds the ground under you.",
+      effect: { kind: "moveToRandomAdjacent" },
+    },
+    6: {
+      text: "A temporal distortion folds the ground under you.",
+      effect: { kind: "moveToRandomAdjacent" },
+    },
   },
   arrivalFlavor: "Everything here is almost familiar, and worse for it. This is Pesadelum.",
 };
@@ -186,11 +237,26 @@ const CANDY_WORLD: RealmDef = {
     6: "portal",
   },
   event: {
-    2: { text: "A Caking rolls toward you.", monsters: { name: "Caking", hp: 10, damage: 4, abilities: ["regeneration"], count: 1 } },
-    3: { text: "A Candy Apple Soldier salutes, then charges.", monsters: { name: "Candy Apple Soldier", hp: 10, damage: 2, abilities: [], count: 1 } },
-    4: { text: "A Marshminion bounces into your path.", monsters: { name: "Marshminion", hp: 4, damage: 2, abilities: [], count: 1 } },
-    5: { text: "A Marshminion bounces into your path.", monsters: { name: "Marshminion", hp: 4, damage: 2, abilities: [], count: 1 } },
-    6: { text: "Icing rain, and it gets everywhere.", effect: { kind: "loseProvisions", amount: 1 } },
+    2: {
+      text: "A Caking rolls toward you.",
+      monsters: { name: "Caking", hp: 10, damage: 4, abilities: ["regeneration"], count: 1 },
+    },
+    3: {
+      text: "A Candy Apple Soldier salutes, then charges.",
+      monsters: { name: "Candy Apple Soldier", hp: 10, damage: 2, abilities: [], count: 1 },
+    },
+    4: {
+      text: "A Marshminion bounces into your path.",
+      monsters: { name: "Marshminion", hp: 4, damage: 2, abilities: [], count: 1 },
+    },
+    5: {
+      text: "A Marshminion bounces into your path.",
+      monsters: { name: "Marshminion", hp: 4, damage: 2, abilities: [], count: 1 },
+    },
+    6: {
+      text: "Icing rain, and it gets everywhere.",
+      effect: { kind: "loseProvisions", amount: 1 },
+    },
   },
   arrivalFlavor: "It smells like a birthday. Something here still wants to kill you.",
 };
@@ -205,7 +271,17 @@ export const REALMS: Record<OtherWorldKey, RealmDef> = {
 /** "If you defeat a monster, roll a treasure" (Candy World only). The rulebook prints rows 2-6 and
  * simply stops -- there is no 7-12 entry. Read as "nothing," matching every other 7+ row in these
  * worlds' own Event tables rather than inventing five rewards the book doesn't grant. */
-export const CANDY_TREASURE_TABLE: Record<number, { text: string; coins?: number; healAll?: boolean; palaceTreasure?: boolean; armorHp?: number; armorName?: string }> = {
+export const CANDY_TREASURE_TABLE: Record<
+  number,
+  {
+    text: string;
+    coins?: number;
+    healAll?: boolean;
+    palaceTreasure?: boolean;
+    armorHp?: number;
+    armorName?: string;
+  }
+> = {
   2: { text: "100 chocolate coins (worth 1 coin).", coins: 1 },
   3: { text: "Strawberry Flavor Life Potion — recovers all HP.", healAll: true },
   4: { text: "An Easter Egg — roll a treasure from a Palace.", palaceTreasure: true },

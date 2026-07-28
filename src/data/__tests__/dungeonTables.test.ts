@@ -5,7 +5,10 @@ describe("describeItemEffect", () => {
   it("describes each mechanical effect kind in plain language", () => {
     const cases: [ItemEffect, string][] = [
       [{ kind: "weaponDamageBonus", amount: 2 }, "+2 damage"],
-      [{ kind: "damageBonusVsTag", tags: ["vampire", "ghoul"], amount: 1 }, "+1 damage vs vampire and ghoul"],
+      [
+        { kind: "damageBonusVsTag", tags: ["vampire", "ghoul"], amount: 1 },
+        "+1 damage vs vampire and ghoul",
+      ],
       [{ kind: "damageMultiplierVsTag", tags: ["dragon"], multiplier: 2 }, "2x damage vs dragon"],
       [{ kind: "ignoresMonsterAbility", ability: "intangible" }, "Ignores Intangible"],
       [{ kind: "trapImmunity" }, "Ignores the next activated trap"],

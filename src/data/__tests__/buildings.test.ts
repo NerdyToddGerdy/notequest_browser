@@ -57,7 +57,9 @@ describe("buildingCost", () => {
 describe("buildingTaxTotal", () => {
   it("sums the tax of every owned building kind", () => {
     expect(buildingTaxTotal(["House", "Tower"])).toBe(0);
-    expect(buildingTaxTotal(["Palace", "City"])).toBe(BUILDING_TABLE.Palace.tax + BUILDING_TABLE.City.tax);
+    expect(buildingTaxTotal(["Palace", "City"])).toBe(
+      BUILDING_TABLE.Palace.tax + BUILDING_TABLE.City.tax,
+    );
   });
 
   it("is 0 for an empty list", () => {

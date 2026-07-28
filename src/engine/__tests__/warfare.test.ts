@@ -7,7 +7,11 @@ import {
   resolveStorming,
 } from "../warfare.ts";
 import { hexKey, politicalStatusFor, type HexTile, type WorldState } from "../hexState.ts";
-import { createInitialMilestones, createInitialTravelStats, type AdventurerResources } from "../town.ts";
+import {
+  createInitialMilestones,
+  createInitialTravelStats,
+  type AdventurerResources,
+} from "../town.ts";
 import { sequenceDie } from "../../test/mulberry32.ts";
 
 function makeResources(overrides: Partial<AdventurerResources> = {}): AdventurerResources {
@@ -49,7 +53,10 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
 const HOME = { q: 0, r: 0 };
 const TARGET = { q: 1, r: 0 };
 
-function makeWorld(tiles: Record<string, HexTile>, politicalStatus?: WorldState["politicalStatus"]): WorldState {
+function makeWorld(
+  tiles: Record<string, HexTile>,
+  politicalStatus?: WorldState["politicalStatus"],
+): WorldState {
   return {
     climate: "hot",
     home: HOME,
@@ -72,12 +79,18 @@ describe("canRecruitTroop", () => {
   });
 
   it("allows recruiting at a Vassal hex with no player building at all", () => {
-    const world = makeWorld({ "0,0": { terrain: "plain", location: "humanCity" } }, { "0,0": "vassal" });
+    const world = makeWorld(
+      { "0,0": { terrain: "plain", location: "humanCity" } },
+      { "0,0": "vassal" },
+    );
     expect(canRecruitTroop(makeResources(), world, HOME, world.tiles["0,0"])).toBe(true);
   });
 
   it("rejects a plain ally/enemy hex with no building", () => {
-    const world = makeWorld({ "0,0": { terrain: "plain", location: "humanCity" } }, { "0,0": "ally" });
+    const world = makeWorld(
+      { "0,0": { terrain: "plain", location: "humanCity" } },
+      { "0,0": "ally" },
+    );
     expect(canRecruitTroop(makeResources(), world, HOME, world.tiles["0,0"])).toBe(false);
   });
 
@@ -89,8 +102,12 @@ describe("canRecruitTroop", () => {
 
   it("requires enough coins", () => {
     const world = makeWorld({ "0,0": { terrain: "plain", location: null, building: "Castle" } });
-    expect(canRecruitTroop(makeResources({ coins: 199 }), world, HOME, world.tiles["0,0"])).toBe(false);
-    expect(canRecruitTroop(makeResources({ coins: 200 }), world, HOME, world.tiles["0,0"])).toBe(true);
+    expect(canRecruitTroop(makeResources({ coins: 199 }), world, HOME, world.tiles["0,0"])).toBe(
+      false,
+    );
+    expect(canRecruitTroop(makeResources({ coins: 200 }), world, HOME, world.tiles["0,0"])).toBe(
+      true,
+    );
   });
 });
 
@@ -117,7 +134,10 @@ describe("canAttack", () => {
   });
 
   it("blocks attacking the player's own Vassal", () => {
-    const world = makeWorld({ "1,0": { terrain: "plain", location: "humanCity" } }, { "1,0": "vassal" });
+    const world = makeWorld(
+      { "1,0": { terrain: "plain", location: "humanCity" } },
+      { "1,0": "vassal" },
+    );
     expect(canAttack(world, TARGET, world.tiles["1,0"])).toBe(false);
   });
 
@@ -223,7 +243,10 @@ describe("resolveAttack", () => {
 
   it("Declared Enemies excludes the hex actually being attacked, even if it's also marked enemy", () => {
     const world = makeWorld(
-      { "1,0": { terrain: "plain", location: "humanCity" }, "5,5": { terrain: "plain", location: null, building: "Tower" } },
+      {
+        "1,0": { terrain: "plain", location: "humanCity" },
+        "5,5": { terrain: "plain", location: null, building: "Tower" },
+      },
       { "1,0": "enemy" },
     );
     const resources = makeResources({ buildings: [{ hexKey: "5,5", kind: "Tower" }] });
@@ -233,7 +256,10 @@ describe("resolveAttack", () => {
   });
 
   it("skips Declared Enemies entirely when the player owns no buildings", () => {
-    const world = makeWorld({ "1,0": { terrain: "plain", location: "humanCity" } }, { "9,9": "enemy" });
+    const world = makeWorld(
+      { "1,0": { terrain: "plain", location: "humanCity" } },
+      { "9,9": "enemy" },
+    );
     const resources = makeResources({ buildings: [] });
     const outcome = resolveAttack(resources, world, TARGET, false, false, sequenceDie([]));
     expect(outcome.retaliation).toEqual([]);
@@ -244,7 +270,15 @@ describe("resolveStorming", () => {
   it("Annex succeeds: grants Vassal status unconditionally and bumps vassalCount", () => {
     const world = makeWorld({ "1,0": { terrain: "plain", location: "humanCity" } });
     // Human/human target is 4; 2d6+2 with rolls [1,1] = 4, meets it.
-    const outcome = resolveStorming(makeResources(), world, "Human", TARGET, "human", "annex", sequenceDie([1, 1]));
+    const outcome = resolveStorming(
+      makeResources(),
+      world,
+      "Human",
+      TARGET,
+      "human",
+      "annex",
+      sequenceDie([1, 1]),
+    );
     expect(outcome.annexed).toBe(true);
     expect(politicalStatusFor(outcome.world, TARGET)).toBe("vassal");
     expect(outcome.resources.milestones.vassalCount).toBe(1);
@@ -253,7 +287,15 @@ describe("resolveStorming", () => {
   it("Annex failure falls through to Loot automatically", () => {
     const world = makeWorld({ "1,0": { terrain: "plain", location: "humanCity" } });
     // Human/orc target is 7; 2d6+2 with rolls [1,1] = 4, falls short.
-    const outcome = resolveStorming(makeResources(), world, "Human", TARGET, "orc", "annex", sequenceDie([1, 1]));
+    const outcome = resolveStorming(
+      makeResources(),
+      world,
+      "Human",
+      TARGET,
+      "orc",
+      "annex",
+      sequenceDie([1, 1]),
+    );
     expect(outcome.annexed).toBe(false);
     expect(world.tiles[hexKey(TARGET)]); // sanity: helper still resolves
     expect(outcome.resources.coins).toBe(makeResources().coins + 600); // City payout
@@ -262,7 +304,14 @@ describe("resolveStorming", () => {
 
   it("Loot directly: razes to Ruins and pays the flat amount for a Fortress", () => {
     const world = makeWorld({ "1,0": { terrain: "plain", location: "humanFortress" } });
-    const outcome = resolveStorming(makeResources({ coins: 0 }), world, "Human", TARGET, "human", "loot");
+    const outcome = resolveStorming(
+      makeResources({ coins: 0 }),
+      world,
+      "Human",
+      TARGET,
+      "human",
+      "loot",
+    );
     expect(outcome.annexed).toBe(false);
     expect(outcome.resources.coins).toBe(1000);
     expect(outcome.world.tiles["1,0"]!.location).toBe("ruins");

@@ -395,15 +395,22 @@ describe("PLAYER_ATTACK", () => {
 
   it("Buildings (issue #27): a Boss kill also credits coins from every owned Palace/Castle/City/Fortress's tax", () => {
     const boss = makeMonster({ hp: 3, abilities: [] });
-    const state = stateWithCombat({
-      buildings: [
-        { hexKey: "0,0", kind: "Palace" }, // 150
-        { hexKey: "1,1", kind: "City" }, // 200
-        { hexKey: "2,2", kind: "House" }, // 0, no tax
-      ],
-    }, [boss]);
+    const state = stateWithCombat(
+      {
+        buildings: [
+          { hexKey: "0,0", kind: "Palace" }, // 150
+          { hexKey: "1,1", kind: "City" }, // 200
+          { hexKey: "2,2", kind: "House" }, // 0, no tax
+        ],
+      },
+      [boss],
+    );
     state.combat!.isBoss = true;
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: boss.id, roll: 6 }, sequenceDie([4, 5]));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: boss.id, roll: 6 },
+      sequenceDie([4, 5]),
+    );
     expect(next.coins).toBe(350);
     expect(next.log.some((entry) => entry.message.includes("350 coins in taxes"))).toBe(true);
   });
@@ -412,7 +419,11 @@ describe("PLAYER_ATTACK", () => {
     const boss = makeMonster({ hp: 3, abilities: [] });
     const state = stateWithCombat({ buildings: [{ hexKey: "0,0", kind: "Tower" }] }, [boss]);
     state.combat!.isBoss = true;
-    const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: boss.id, roll: 6 }, sequenceDie([4, 5]));
+    const next = dungeonReducer(
+      state,
+      { type: "PLAYER_ATTACK", targetId: boss.id, roll: 6 },
+      sequenceDie([4, 5]),
+    );
     expect(next.coins).toBe(0);
     expect(next.log.some((entry) => entry.message.includes("taxes"))).toBe(false);
   });
@@ -1078,7 +1089,11 @@ describe("CAST_SPELL: New Spells Tier 2 (issue #61)", () => {
     // dispatch) doesn't drain anything, keeping this test focused purely on the cast itself.
     const monster = makeMonster({ hp: 20, damage: 0 });
     const state = stateWithCombat({ spellUses: { "advanced:8": 2 } }, [monster]);
-    const oneShield = dungeonReducer(state, { type: "CAST_SPELL", table: "advanced", spellRoll: 8 });
+    const oneShield = dungeonReducer(state, {
+      type: "CAST_SPELL",
+      table: "advanced",
+      spellRoll: 8,
+    });
     expect(oneShield.combat!.shields).toEqual([4]);
 
     const twoShields = dungeonReducer(oneShield, {
@@ -1115,7 +1130,9 @@ describe("CAST_SPELL: New Spells Tier 2 (issue #61)", () => {
 
   it("Absorb Soul (Death 2) restores 5 HP per monster killed this fight, on victory", () => {
     const monster = makeMonster({ hp: 3, damage: 0 });
-    const state = { ...stateWithCombat({ spellUses: { "death:2": 1 }, hp: 5, maxHp: 30 }, [monster]) };
+    const state = {
+      ...stateWithCombat({ spellUses: { "death:2": 1 }, hp: 5, maxHp: 30 }, [monster]),
+    };
     const afterCast = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 2 });
     expect(afterCast.combat!.absorbSoulActive).toBe(true);
 
@@ -1148,7 +1165,9 @@ describe("CAST_SPELL: New Spells Tier 2 (issue #61)", () => {
 
   it("Absorb Soul/Fire of the Dead grant nothing if the fight isn't actually won this round", () => {
     const monster = makeMonster({ hp: 20, damage: 0 });
-    const state = { ...stateWithCombat({ spellUses: { "death:2": 1 }, hp: 5, maxHp: 30 }, [monster]) };
+    const state = {
+      ...stateWithCombat({ spellUses: { "death:2": 1 }, hp: 5, maxHp: 30 }, [monster]),
+    };
     const afterCast = dungeonReducer(state, { type: "CAST_SPELL", table: "death", spellRoll: 2 });
     const next = dungeonReducer(afterCast, {
       type: "PLAYER_ATTACK",
@@ -1661,10 +1680,9 @@ describe("Grave Digger: +2 damage to Undead", () => {
 
   it("having both the Grave Digger class and the Gravedigger Advanced Class doesn't stack the bonus", () => {
     const monster = makeMonster({ hp: 20, damage: 0, abilities: ["undead"] });
-    const state = stateWithCombat(
-      { className: "Grave Digger", advancedClasses: ["Gravedigger"] },
-      [monster],
-    );
+    const state = stateWithCombat({ className: "Grave Digger", advancedClasses: ["Gravedigger"] }, [
+      monster,
+    ]);
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: monster.id, roll: 3 });
     expect(next.combat!.monsters[0]!.hp).toBe(15); // still just 3 + 2, not +4
   });
@@ -1709,7 +1727,11 @@ describe("Helsing (Advanced Class, issue #71): +1 damage against Vampires and Gh
 
     const ghoul = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Ghoul" });
     const ghoulState = stateWithCombat({ advancedClasses: ["Helsing"] }, [ghoul]);
-    const ghoulNext = dungeonReducer(ghoulState, { type: "PLAYER_ATTACK", targetId: ghoul.id, roll: 3 });
+    const ghoulNext = dungeonReducer(ghoulState, {
+      type: "PLAYER_ATTACK",
+      targetId: ghoul.id,
+      roll: 3,
+    });
     expect(ghoulNext.combat!.monsters[0]!.hp).toBe(16);
   });
 
@@ -1723,11 +1745,14 @@ describe("Helsing (Advanced Class, issue #71): +1 damage against Vampires and Gh
     expect(withoutClass.combat!.monsters[0]!.hp).toBe(17); // just 3
 
     const skeleton = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Skeleton" });
-    const withClass = dungeonReducer(stateWithCombat({ advancedClasses: ["Helsing"] }, [skeleton]), {
-      type: "PLAYER_ATTACK",
-      targetId: skeleton.id,
-      roll: 3,
-    });
+    const withClass = dungeonReducer(
+      stateWithCombat({ advancedClasses: ["Helsing"] }, [skeleton]),
+      {
+        type: "PLAYER_ATTACK",
+        targetId: skeleton.id,
+        roll: 3,
+      },
+    );
     expect(withClass.combat!.monsters[0]!.hp).toBe(17);
   });
 });
@@ -1750,11 +1775,14 @@ describe("Bugcatcher (Advanced Class, issue #71): +1 damage against insects and 
     expect(withoutClass.combat!.monsters[0]!.hp).toBe(17); // just 3
 
     const leech = makeMonster({ hp: 20, damage: 0, abilities: [], name: "Giant Leech" });
-    const withClass = dungeonReducer(stateWithCombat({ advancedClasses: ["Bugcatcher"] }, [leech]), {
-      type: "PLAYER_ATTACK",
-      targetId: leech.id,
-      roll: 3,
-    });
+    const withClass = dungeonReducer(
+      stateWithCombat({ advancedClasses: ["Bugcatcher"] }, [leech]),
+      {
+        type: "PLAYER_ATTACK",
+        targetId: leech.id,
+        roll: 3,
+      },
+    );
     expect(withClass.combat!.monsters[0]!.hp).toBe(17); // Giant Leech isn't an insect/arachnid
   });
 });
@@ -1819,7 +1847,10 @@ describe("Goblin (New Races, issue #60): roll-of-1 self-destruct", () => {
   });
 
   it("a Goblin rolling anything other than 1 attacks normally, single-target", () => {
-    const monsters = [makeMonster({ id: 1, hp: 10, damage: 0 }), makeMonster({ id: 2, hp: 10, damage: 0 })];
+    const monsters = [
+      makeMonster({ id: 1, hp: 10, damage: 0 }),
+      makeMonster({ id: 2, hp: 10, damage: 0 }),
+    ];
     const state = stateWithCombat({ raceName: "Goblin" }, monsters);
     const next = dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: 1, roll: 3 });
     expect(next.combat!.monsters[0]!.hp).toBe(7); // only the targeted monster took damage
@@ -2038,14 +2069,22 @@ describe("HIRELING_ATTACK (issue #84)", () => {
     it("no-op with no Hireling employed", () => {
       const monster = makeMonster();
       const state = stateWithCombat({}, [monster]);
-      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      const next = dungeonReducer(state, {
+        type: "HIRELING_ATTACK",
+        targetId: monster.id,
+        roll: 4,
+      });
       expect(next).toBe(state);
     });
 
     it("no-op once the Hireling has already died", () => {
       const monster = makeMonster();
       const state = stateWithHireling({ hp: 0 }, [monster]);
-      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      const next = dungeonReducer(state, {
+        type: "HIRELING_ATTACK",
+        targetId: monster.id,
+        roll: 4,
+      });
       expect(next).toBe(state);
     });
 
@@ -2057,7 +2096,11 @@ describe("HIRELING_ATTACK (issue #84)", () => {
         hireling: "Torchbearer",
         combat: { ...base.combat!, hireling: { name: "Torchbearer", hp: 10, maxHp: 10 } },
       };
-      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      const next = dungeonReducer(state, {
+        type: "HIRELING_ATTACK",
+        targetId: monster.id,
+        roll: 4,
+      });
       expect(next).toBe(state);
     });
 
@@ -2065,7 +2108,11 @@ describe("HIRELING_ATTACK (issue #84)", () => {
       const monster = makeMonster();
       const state = stateWithHireling({}, [monster]);
       state.combat!.hirelingAttackedThisRound = true;
-      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      const next = dungeonReducer(state, {
+        type: "HIRELING_ATTACK",
+        targetId: monster.id,
+        roll: 4,
+      });
       expect(next).toBe(state);
     });
 
@@ -2073,14 +2120,22 @@ describe("HIRELING_ATTACK (issue #84)", () => {
       const monster = makeMonster();
       const state = stateWithHireling({}, [monster]);
       state.combat!.pendingDamage = 5;
-      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      const next = dungeonReducer(state, {
+        type: "HIRELING_ATTACK",
+        targetId: monster.id,
+        roll: 4,
+      });
       expect(next).toBe(state);
     });
 
     it("no-op once the character is dead", () => {
       const monster = makeMonster();
       const state = { ...stateWithHireling({}, [monster]), alive: false };
-      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      const next = dungeonReducer(state, {
+        type: "HIRELING_ATTACK",
+        targetId: monster.id,
+        roll: 4,
+      });
       expect(next).toBe(state);
     });
 
@@ -2088,7 +2143,11 @@ describe("HIRELING_ATTACK (issue #84)", () => {
       const monster = makeMonster();
       const state = stateWithHireling({}, [monster]);
       state.combat!.outcome = "victory";
-      const next = dungeonReducer(state, { type: "HIRELING_ATTACK", targetId: monster.id, roll: 4 });
+      const next = dungeonReducer(state, {
+        type: "HIRELING_ATTACK",
+        targetId: monster.id,
+        roll: 4,
+      });
       expect(next).toBe(state);
     });
   });
@@ -2206,7 +2265,7 @@ describe("pendingDamage defers to a living Hireling too, not just armor (issue #
   });
 });
 
-describe("RESOLVE_DAMAGE with absorbWith: \"hireling\" (issue #84)", () => {
+describe('RESOLVE_DAMAGE with absorbWith: "hireling" (issue #84)', () => {
   it("absorbs damage into the Hireling's own HP, up to what it has", () => {
     const monster = makeMonster();
     const state = stateWithHireling({ hp: 10, maxHp: 14 }, [monster]);

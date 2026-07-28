@@ -22,7 +22,12 @@ export interface AdvancedClassesProps {
  * completeness, always visible and `disabled` (not omitted) with an explanatory reason when it
  * can't be acquired right now, matching the established always-visible-but-disabled precedent
  * (`Ask`, spell "Cast" buttons). Sorted by cost, ascending, for a natural sense of progression. */
-export function AdvancedClasses({ character, resources, graveyard, onAcquire }: AdvancedClassesProps) {
+export function AdvancedClasses({
+  character,
+  resources,
+  graveyard,
+  onAcquire,
+}: AdvancedClassesProps) {
   const ctx: AdvancedClassContext = { character, resources, graveyard };
   const entries = Object.values(ADVANCED_CLASS_TABLE).sort((a, b) => a.cost - b.cost);
 

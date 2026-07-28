@@ -302,7 +302,9 @@ function startCombat(
     shields: [],
     absorbSoulActive: false,
     fireOfTheDeadActive: false,
-    hireling: hirelingDef ? { name: hirelingDef.name, hp: hirelingDef.hp, maxHp: hirelingDef.hp } : null,
+    hireling: hirelingDef
+      ? { name: hirelingDef.name, hp: hirelingDef.hp, maxHp: hirelingDef.hp }
+      : null,
     hirelingAttackedThisRound: false,
     animalAttackedThisRound: false,
   };
@@ -475,7 +477,9 @@ function applyTrapEffect(
 
   if (trap.rollsMonsterTable) {
     const sum = rollDie(rng) + rollDie(rng);
-    const monsters = draft.dungeonTypeKey ? DUNGEON_TABLES[draft.dungeonTypeKey].monsters[sum] : null;
+    const monsters = draft.dungeonTypeKey
+      ? DUNGEON_TABLES[draft.dungeonTypeKey].monsters[sum]
+      : null;
     if (monsters) {
       startCombat(draft, segId, monsters, true, rng);
     } else {
@@ -775,7 +779,8 @@ function handleMonsterDefeat(
   bypassRevival = false,
 ): void {
   if (monster.hp > 0) return;
-  const revived = !bypassRevival && !ignoresAbility(draft, "undead") && checkUndeadRevival(monster, rng);
+  const revived =
+    !bypassRevival && !ignoresAbility(draft, "undead") && checkUndeadRevival(monster, rng);
   if (revived) {
     monster.hp = 1;
     pushLog(draft, `${monster.name} rises again with 1 HP!`);
@@ -1092,7 +1097,8 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
     (entry.grantsHp !== undefined || entry.effect.kind !== "flavor") &&
     !(entry.effect.kind === "rerollBaseTable" && entry.effect.table === "weapon");
   if (isOgreUnusable) {
-    const worth = entry.grantsHp !== undefined ? Math.max(1, entry.grantsHp) : OGRE_UNUSABLE_TREASURE_WORTH;
+    const worth =
+      entry.grantsHp !== undefined ? Math.max(1, entry.grantsHp) : OGRE_UNUSABLE_TREASURE_WORTH;
     addHeldItem(
       draft,
       { name: entry.name, worth },
@@ -1126,7 +1132,10 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
     if (draft.combat) {
       draft.combat.playerDamageBonus += entry.effect.amount;
     } else {
-      pushLog(draft, `Treasure: ${entry.text} No fight is happening right now, so it has no effect.`);
+      pushLog(
+        draft,
+        `Treasure: ${entry.text} No fight is happening right now, so it has no effect.`,
+      );
       return;
     }
   } else if (entry.effect.kind === "grantsTorches") {
@@ -1144,11 +1153,18 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
       const roll = rollDie(rng);
       const base = ARMOR_TABLE[roll]!;
       addArmorPiece(draft, { piece: base.piece, hp: base.maxHp, maxHp: base.maxHp });
-      pushLog(draft, `Treasure: ${entry.text} (${ARMOR_PIECE_LABELS[base.piece]}, ${base.maxHp} HP)`);
+      pushLog(
+        draft,
+        `Treasure: ${entry.text} (${ARMOR_PIECE_LABELS[base.piece]}, ${base.maxHp} HP)`,
+      );
     } else {
       const roll = rollDie(rng);
       const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
-      draft.spareWeapons.push({ name: base.name, formula: base.formula, twoHanded: base.twoHanded });
+      draft.spareWeapons.push({
+        name: base.name,
+        formula: base.formula,
+        twoHanded: base.twoHanded,
+      });
       pushLog(draft, `Treasure: ${entry.text} — a ${base.name} (${base.formula} damage).`);
     }
     return;
@@ -1156,7 +1172,8 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
     // Always a random *Basic* Spell per the rulebook's own wording for every Wonder/Magic
     // Scroll/Mana Potion that grants one -- New Spells (issue #24) tables are never rolled here.
     const spellRoll = rollDie(rng);
-    draft.spellUses[spellKey("basic", spellRoll)] = (draft.spellUses[spellKey("basic", spellRoll)] ?? 0) + 1;
+    draft.spellUses[spellKey("basic", spellRoll)] =
+      (draft.spellUses[spellKey("basic", spellRoll)] ?? 0) + 1;
     const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
     pushLog(draft, `Treasure: ${entry.text} — learned ${spellName}!`);
     return;
@@ -1583,7 +1600,10 @@ export function dungeonReducer(
         // heldItems -- take as many as currently fit, first-overflow becomes pendingPackItem, and
         // anything past that stays behind in a shrunken remains (nothing is ever silently lost;
         // collecting again later, once there's room, picks up the next one the same way).
-        const room = Math.max(0, maxHeldItemsFor(draft.hireling, draft.animals) - draft.heldItems.length);
+        const room = Math.max(
+          0,
+          maxHeldItemsFor(draft.hireling, draft.animals) - draft.heldItems.length,
+        );
         const fitting = heldItems.slice(0, room);
         const overflow = heldItems.slice(room);
         draft.heldItems.push(...fitting);
@@ -1606,7 +1626,10 @@ export function dungeonReducer(
             weapon: null,
             weapons: [],
           };
-          pushLog(draft, `Your Pack is full -- ${overflow[0]!.name} is still waiting in the remains.`);
+          pushLog(
+            draft,
+            `Your Pack is full -- ${overflow[0]!.name} is still waiting in the remains.`,
+          );
         } else {
           seg.remains = null;
         }
@@ -1715,7 +1738,13 @@ export function dungeonReducer(
             ) {
               pushLog(draft, `Segment ${seg.id}: your lockpicking skill needs no torch.`);
             } else {
-              spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id, rng);
+              spendTorches(
+                draft,
+                1,
+                `Segment ${seg.id}: spent 1 torch to pick the lock.`,
+                seg.id,
+                rng,
+              );
             }
           } else if (action.lockChoice === "useKey") {
             // Issue #95: "If you find a key, you can open any door in the dungeon." No torch, no
@@ -2272,7 +2301,10 @@ export function dungeonReducer(
         const result = resolveSpellDamage(monster, total);
         monster.hp = Math.max(0, monster.hp - result.damageDealt);
         if (result.damageDealt > 0) {
-          pushLog(draft, `${combat.hireling.name} hits ${monster.name} for ${result.damageDealt} damage.`);
+          pushLog(
+            draft,
+            `${combat.hireling.name} hits ${monster.name} for ${result.damageDealt} damage.`,
+          );
         } else {
           pushLog(
             draft,

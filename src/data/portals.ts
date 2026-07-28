@@ -68,9 +68,15 @@ export const PORTAL_TABLE: Record<number, PortalRow> = {
     text: "You appeared in the middle of the nearest town — even an unfriendly one.",
     outcome: { kind: "nearestTown" },
   },
-  10: { text: "You appeared in the middle of the nearest human city.", outcome: { kind: "nearestHumanCity" } },
+  10: {
+    text: "You appeared in the middle of the nearest human city.",
+    outcome: { kind: "nearestHumanCity" },
+  },
   11: { text: "The portal opens onto anywhere you choose.", outcome: { kind: "chooseAnyHex" } },
-  12: { text: "You went to another reality — an entirely new map, unknown to you.", outcome: { kind: "newMap" } },
+  12: {
+    text: "You went to another reality — an entirely new map, unknown to you.",
+    outcome: { kind: "newMap" },
+  },
   13: {
     text: "You are still in the same place, but the world has changed: every plain you find from now on turns out to be water.",
     outcome: { kind: "plainsBecomeWater" },

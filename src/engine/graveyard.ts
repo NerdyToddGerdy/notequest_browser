@@ -14,7 +14,16 @@
 export interface GraveyardEntry {
   name: string;
   dungeon: string;
-  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena" | "warfare" | "event" | "portal" | "realm";
+  causeOfDeath:
+    | "darkness"
+    | "combat"
+    | "gamble"
+    | "thug-life"
+    | "arena"
+    | "warfare"
+    | "event"
+    | "portal"
+    | "realm";
   race?: string;
   cls?: string;
   monsterKills?: number;

@@ -8,7 +8,9 @@ import {
   type SegmentState,
 } from "../dungeonState.ts";
 
-function makeSegment(overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">): SegmentState {
+function makeSegment(
+  overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">,
+): SegmentState {
   return {
     x: 0,
     y: 0,
@@ -26,7 +28,10 @@ function makeSegment(overrides: Partial<SegmentState> & Pick<SegmentState, "id" 
 describe("isDungeonBeaten", () => {
   it("is false for a dungeon with no Final Room level at all", () => {
     const room = makeSegment({ id: 1, type: "room-small", doors: [] });
-    const state = { ...createInitialDungeonState(), levels: [{ ...makeLevel(1), segments: [room] }] };
+    const state = {
+      ...createInitialDungeonState(),
+      levels: [{ ...makeLevel(1), segments: [room] }],
+    };
     expect(isDungeonBeaten(state)).toBe(false);
   });
 
@@ -77,7 +82,11 @@ describe("sortDungeonsForDisplay (issue #80)", () => {
   function beaten(id: string): PendingDungeon {
     const finalSeg = makeSegment({ id: 1, type: "final", doors: [], monstersDefeated: true });
     const level = { ...makeLevel(3), isFinalRoomLevel: true, segments: [finalSeg] };
-    return { id, dungeon: { ...createInitialDungeonState(), levels: [level] }, lastCharacterName: "Pip" };
+    return {
+      id,
+      dungeon: { ...createInitialDungeonState(), levels: [level] },
+      lastCharacterName: "Pip",
+    };
   }
 
   it("puts every unfinished dungeon before every cleared one", () => {

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildBuilding, canBuildBuilding, qualifiesForBuilding } from "../buildings.ts";
 import { hexKey, type HexTile, type WorldState } from "../hexState.ts";
-import { createInitialMilestones, createInitialTravelStats, type AdventurerResources } from "../town.ts";
+import {
+  createInitialMilestones,
+  createInitialTravelStats,
+  type AdventurerResources,
+} from "../town.ts";
 import { BUILDING_TABLE } from "../../data/buildings.ts";
 
 function makeResources(overrides: Partial<AdventurerResources> = {}): AdventurerResources {
@@ -59,19 +63,33 @@ describe("qualifiesForBuilding", () => {
   });
 
   it("an already-built hex still qualifies, for its own upgrade path", () => {
-    expect(qualifiesForBuilding({ terrain: "plain", location: null, building: "House" })).toBe(true);
+    expect(qualifiesForBuilding({ terrain: "plain", location: null, building: "House" })).toBe(
+      true,
+    );
   });
 });
 
 describe("canBuildBuilding", () => {
   it("requires enough coins", () => {
     const tile: HexTile = { terrain: "plain", location: null };
-    expect(canBuildBuilding(makeResources({ coins: BUILDING_TABLE.House.cost }), tile, "House", "plain", "Human")).toBe(
-      true,
-    );
-    expect(canBuildBuilding(makeResources({ coins: BUILDING_TABLE.House.cost - 1 }), tile, "House", "plain", "Human")).toBe(
-      false,
-    );
+    expect(
+      canBuildBuilding(
+        makeResources({ coins: BUILDING_TABLE.House.cost }),
+        tile,
+        "House",
+        "plain",
+        "Human",
+      ),
+    ).toBe(true);
+    expect(
+      canBuildBuilding(
+        makeResources({ coins: BUILDING_TABLE.House.cost - 1 }),
+        tile,
+        "House",
+        "plain",
+        "Human",
+      ),
+    ).toBe(false);
   });
 
   it("rejects a hex that already has a location", () => {
@@ -87,22 +105,40 @@ describe("canBuildBuilding", () => {
     const tile: HexTile = { terrain: "plain", location: null };
     const resources = makeResources({ coins: 10000 });
     expect(canBuildBuilding(resources, tile, "Palace", "plain", "Human")).toBe(false);
-    expect(canBuildBuilding({ ...resources, advancedClasses: ["Noble"] }, tile, "Palace", "plain", "Human")).toBe(
-      true,
-    );
+    expect(
+      canBuildBuilding(
+        { ...resources, advancedClasses: ["Noble"] },
+        tile,
+        "Palace",
+        "plain",
+        "Human",
+      ),
+    ).toBe(true);
     expect(canBuildBuilding(resources, tile, "City", "plain", "Human")).toBe(false);
-    expect(canBuildBuilding({ ...resources, advancedClasses: ["Lord"] }, tile, "City", "plain", "Human")).toBe(true);
+    expect(
+      canBuildBuilding({ ...resources, advancedClasses: ["Lord"] }, tile, "City", "plain", "Human"),
+    ).toBe(true);
     expect(canBuildBuilding(resources, tile, "Fortress", "plain", "Human")).toBe(false);
-    expect(canBuildBuilding({ ...resources, advancedClasses: ["King"] }, tile, "Fortress", "plain", "Human")).toBe(
-      true,
-    );
+    expect(
+      canBuildBuilding(
+        { ...resources, advancedClasses: ["King"] },
+        tile,
+        "Fortress",
+        "plain",
+        "Human",
+      ),
+    ).toBe(true);
   });
 
   it("only requires the cost difference on an already-built hex", () => {
     const tile: HexTile = { terrain: "plain", location: null, building: "House" };
     const diff = BUILDING_TABLE.Tower.cost - BUILDING_TABLE.House.cost;
-    expect(canBuildBuilding(makeResources({ coins: diff - 1 }), tile, "Tower", "plain", "Human")).toBe(false);
-    expect(canBuildBuilding(makeResources({ coins: diff }), tile, "Tower", "plain", "Human")).toBe(true);
+    expect(
+      canBuildBuilding(makeResources({ coins: diff - 1 }), tile, "Tower", "plain", "Human"),
+    ).toBe(false);
+    expect(canBuildBuilding(makeResources({ coins: diff }), tile, "Tower", "plain", "Human")).toBe(
+      true,
+    );
   });
 
   it("doubles the cost off-Plains, exempting Dwarf/Mountain and Elf/Forest", () => {

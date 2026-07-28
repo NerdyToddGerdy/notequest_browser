@@ -1,4 +1,10 @@
-import { EVENT_TABLE, eventBandFor, type EventBand, type EventEffect, type EventRow } from "../data/events.ts";
+import {
+  EVENT_TABLE,
+  eventBandFor,
+  type EventBand,
+  type EventEffect,
+  type EventRow,
+} from "../data/events.ts";
 import type { OverworldTerrain } from "../data/hexTables.ts";
 import { HIRELING_BY_NAME } from "../data/hirelings.ts";
 import { SPELL_TABLE_BY_KEY, spellKey } from "./character.ts";
@@ -45,7 +51,14 @@ export type TravelEventRoll =
   | { kind: "skipped"; reason: string }
   /** "If it's 7 or more, nothing happened." */
   | { kind: "none"; total: number; dice: [number, number] }
-  | { kind: "event"; total: number; dice: [number, number]; terrain: OverworldTerrain; band: EventBand; row: EventRow };
+  | {
+      kind: "event";
+      total: number;
+      dice: [number, number];
+      terrain: OverworldTerrain;
+      band: EventBand;
+      row: EventRow;
+    };
 
 /** Patovsky (race, `races.ts`) and Elf Ranger (hireling) both simply never have Events. Checked
  * before any dice are rolled, so an Event is never even generated for them.
@@ -94,11 +107,17 @@ export function canIgnoreEvent(resources: AdventurerResources, terrain: Overworl
   return (resources.spellUses[CAMOUFLAGE_KEY] ?? 0) > 0;
 }
 
-export function ignoreEvent(resources: AdventurerResources, terrain: OverworldTerrain): AdventurerResources {
+export function ignoreEvent(
+  resources: AdventurerResources,
+  terrain: OverworldTerrain,
+): AdventurerResources {
   if (!canIgnoreEvent(resources, terrain)) return resources;
   return {
     ...resources,
-    spellUses: { ...resources.spellUses, [CAMOUFLAGE_KEY]: resources.spellUses[CAMOUFLAGE_KEY]! - 1 },
+    spellUses: {
+      ...resources.spellUses,
+      [CAMOUFLAGE_KEY]: resources.spellUses[CAMOUFLAGE_KEY]! - 1,
+    },
   };
 }
 
@@ -129,7 +148,8 @@ export function rerollEvent(
   terrain: OverworldTerrain,
   rng: RNG = Math.random,
 ): EventRerollResult {
-  if (!canRerollEvent(resources)) return { resources, roll: { kind: "none", total: 7, dice: [3, 4] } };
+  if (!canRerollEvent(resources))
+    return { resources, roll: { kind: "none", total: 7, dice: [3, 4] } };
   const spent = { ...resources, provisions: resources.provisions - 1 };
   return { resources: spent, roll: rollTravelEvent(spent, raceName, terrain, rng) };
 }
@@ -148,7 +168,10 @@ export interface EventEffectResult {
  * explicitly fatal outcome -- here just Cracked Ice -- ever actually kills. Provision loss likewise
  * floors at 0 rather than converting a shortfall into HP damage the way `payTravelCost()` does;
  * the rulebook describes these as losing provisions you have, not a debt. */
-export function applyEventEffect(resources: AdventurerResources, effect: EventEffect): EventEffectResult {
+export function applyEventEffect(
+  resources: AdventurerResources,
+  effect: EventEffect,
+): EventEffectResult {
   switch (effect.kind) {
     case "loseProvisions": {
       const lost = Math.min(effect.amount, resources.provisions);
@@ -156,7 +179,10 @@ export function applyEventEffect(resources: AdventurerResources, effect: EventEf
         resources: { ...resources, provisions: resources.provisions - lost },
         died: false,
         relocate: false,
-        message: lost > 0 ? `You lose ${lost} provision${lost === 1 ? "" : "s"}.` : "You had no provisions left to lose.",
+        message:
+          lost > 0
+            ? `You lose ${lost} provision${lost === 1 ? "" : "s"}.`
+            : "You had no provisions left to lose.",
       };
     }
     case "loseHp": {
@@ -169,7 +195,12 @@ export function applyEventEffect(resources: AdventurerResources, effect: EventEf
       };
     }
     case "moveToRandomHex":
-      return { resources, died: false, relocate: true, message: "You come to on unfamiliar ground." };
+      return {
+        resources,
+        died: false,
+        relocate: true,
+        message: "You come to on unfamiliar ground.",
+      };
     case "instantDeath":
       // Never actually surfaced -- the caller hands straight off to the death handler.
       return { resources, died: true, relocate: false, message: "" };
@@ -188,7 +219,11 @@ export interface EventCombatState {
 export function startEventCombat(row: EventRow, rng: RNG = Math.random): EventCombatState | null {
   if (!row.monsters) return null;
   let nextId = 1;
-  return { monsters: spawnMonsters(row.monsters, () => nextId++, rng), outcome: "ongoing", loot: null };
+  return {
+    monsters: spawnMonsters(row.monsters, () => nextId++, rng),
+    outcome: "ongoing",
+    loot: null,
+  };
 }
 
 export interface EventRoundResult {
@@ -244,20 +279,35 @@ export function resolveEventRound(
   // first regardless, mirroring both dungeonReducer.ts and arena.ts.
   let newHp = hp - atk.selfDestructDamageToPlayer;
   if (newHp <= 0) {
-    return { state: { ...state, monsters, outcome: "defeat" }, hp: 0, died: true, events: atk.events };
+    return {
+      state: { ...state, monsters, outcome: "defeat" },
+      hp: 0,
+      died: true,
+      events: atk.events,
+    };
   }
 
   const living = monsters.filter((m) => m.hp > 0);
   if (living.length === 0) {
     const lootCount = state.monsters[0]!.abilities.includes("loot") ? state.monsters.length : 0;
     const loot = lootCount > 0 ? rollLoot(lootCount, rng) : null;
-    return { state: { monsters, outcome: "victory", loot }, hp: newHp, died: false, events: atk.events };
+    return {
+      state: { monsters, outcome: "victory", loot },
+      hp: newHp,
+      died: false,
+      events: atk.events,
+    };
   }
 
   const counter = resolveMonsterTurn(living);
   newHp = Math.max(0, newHp - counter.totalDamage);
   const outcome = newHp <= 0 ? "defeat" : "ongoing";
-  return { state: { ...state, monsters, outcome }, hp: newHp, died: newHp <= 0, events: atk.events };
+  return {
+    state: { ...state, monsters, outcome },
+    hp: newHp,
+    died: newHp <= 0,
+    events: atk.events,
+  };
 }
 
 /** Credits a won Event fight's Loot to the character. Split out from `resolveEventRound` (which is
@@ -280,7 +330,8 @@ export function applyEventVictory(
     monsterKills: resources.monsterKills + killCount,
     killsByName: {
       ...resources.killsByName,
-      [monsterName.toLowerCase()]: (resources.killsByName[monsterName.toLowerCase()] ?? 0) + killCount,
+      [monsterName.toLowerCase()]:
+        (resources.killsByName[monsterName.toLowerCase()] ?? 0) + killCount,
     },
   };
 }

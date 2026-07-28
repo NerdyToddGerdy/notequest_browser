@@ -17,13 +17,19 @@ export interface RoomEntryPromptProps {
  * this app always gave before this choice existed); Move Silently spends a torch for a chance to
  * skip the fight entirely, at the risk of the monsters attacking first instead if detected.
  */
-export function RoomEntryPrompt({ torches, hasDog, onAttack, onMoveSilently }: RoomEntryPromptProps) {
+export function RoomEntryPrompt({
+  torches,
+  hasDog,
+  onAttack,
+  onMoveSilently,
+}: RoomEntryPromptProps) {
   return (
     <div className={styles.panel}>
       <p className={styles.title}>Monsters Ahead</p>
       <p className={styles.copy}>
-        You&apos;ve slipped in quietly so far. Attack now and you strike first for free, or spend 1 torch to try
-        moving silently past them -- if any of them notice you, they attack first instead.
+        You&apos;ve slipped in quietly so far. Attack now and you strike first for free, or spend 1
+        torch to try moving silently past them -- if any of them notice you, they attack first
+        instead.
       </p>
       <div className={styles.actions}>
         <button type="button" className={styles.attackBtn} onClick={onAttack}>

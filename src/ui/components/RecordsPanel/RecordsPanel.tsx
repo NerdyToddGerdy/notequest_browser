@@ -28,7 +28,9 @@ export function RecordsPanel({
 }: RecordsPanelProps) {
   const hasGraveyard = graveyardEntries.length > 0;
   const hasDungeons = dungeons.length > 0;
-  const [activeTab, setActiveTab] = useState<"graveyard" | "dungeons">(hasGraveyard ? "graveyard" : "dungeons");
+  const [activeTab, setActiveTab] = useState<"graveyard" | "dungeons">(
+    hasGraveyard ? "graveyard" : "dungeons",
+  );
 
   if (!hasGraveyard && !hasDungeons) return null;
 

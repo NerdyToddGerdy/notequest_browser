@@ -41,7 +41,9 @@ export function DungeonsList({ dungeons, compact = false, onLocate }: DungeonsLi
           return (
             <li key={pd.id} className={compact ? `${styles.row} ${styles.rowCompact}` : styles.row}>
               <span className={styles.nameCol}>
-                <span className={styles.name}>{pd.dungeon.dungeonName ?? "An unnamed dungeon"}</span>
+                <span className={styles.name}>
+                  {pd.dungeon.dungeonName ?? "An unnamed dungeon"}
+                </span>
                 <span className={styles.subtitle}>Last explored by {pd.lastCharacterName}</span>
               </span>
               <span className={beaten ? styles.statusCleared : styles.statusUnfinished}>

@@ -31,13 +31,21 @@ import { fixedDie, sequenceDie } from "../../test/mulberry32.ts";
 // Neighbor order (HEX_DIRECTIONS) from {0,0}: {1,0} {1,-1} {0,-1} {-1,0} {-1,1} {0,1}.
 // CITY_NAME_PREFIX/SUFFIX's human column: 1 -> "Iron"/"hold".
 const HOME_REVEAL_ROLLS = [
-  2, 3, // {1,0}: terrain mountain, no location
-  6, 6, 4, // {1,-1}: terrain plain, location check succeeds, LOCATION_TABLE[4].plain -> humanCity
-  1, 1, // {1,-1}'s name: "Iron" + "hold" -> "Ironhold"
-  1, 2, // {0,-1}: terrain water, no location
-  4, 3, // {-1,0}: terrain plain, no location
-  4, 3, // {-1,1}: terrain plain, no location
-  4, 3, // {0,1}: terrain plain, no location
+  2,
+  3, // {1,0}: terrain mountain, no location
+  6,
+  6,
+  4, // {1,-1}: terrain plain, location check succeeds, LOCATION_TABLE[4].plain -> humanCity
+  1,
+  1, // {1,-1}'s name: "Iron" + "hold" -> "Ironhold"
+  1,
+  2, // {0,-1}: terrain water, no location
+  4,
+  3, // {-1,0}: terrain plain, no location
+  4,
+  3, // {-1,1}: terrain plain, no location
+  4,
+  3, // {0,1}: terrain plain, no location
 ];
 
 describe("createInitialWorldState", () => {
@@ -52,7 +60,11 @@ describe("createInitialWorldState", () => {
     // Home's own name is fixed ("Haven"), not rolled -- see createInitialWorldState's doc comment.
     expect(world.tiles["0,0"]).toEqual({ terrain: "plain", location: "humanCity", name: "Haven" });
     expect(world.tiles["1,0"]).toEqual({ terrain: "mountain", location: null });
-    expect(world.tiles["1,-1"]).toEqual({ terrain: "plain", location: "humanCity", name: "Ironhold" });
+    expect(world.tiles["1,-1"]).toEqual({
+      terrain: "plain",
+      location: "humanCity",
+      name: "Ironhold",
+    });
     expect(world.tiles["0,-1"]).toEqual({ terrain: "water", location: null });
   });
 });
@@ -103,7 +115,12 @@ describe("revealNeighborsInPlace", () => {
     };
     // If "1,0" were re-rolled, this sequence's first two rolls (1, 2) would produce
     // { terrain: "water", location: null } -- a different value than what's already there.
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([1, 2, 1, 2, 1, 2, 1, 2, 1, 2]));
+    revealNeighborsInPlace(
+      tiles,
+      { q: 0, r: 0 },
+      "hot",
+      sequenceDie([1, 2, 1, 2, 1, 2, 1, 2, 1, 2]),
+    );
     expect(tiles["1,0"]).toBe(existing);
   });
 });
@@ -118,7 +135,11 @@ describe("withDungeonRunId", () => {
       hasBoat: false,
     };
     const next = withDungeonRunId(world, { q: 0, r: 0 }, "run-1");
-    expect(next.tiles["0,0"]).toEqual({ terrain: "plain", location: "humanCity", dungeonRunId: "run-1" });
+    expect(next.tiles["0,0"]).toEqual({
+      terrain: "plain",
+      location: "humanCity",
+      dungeonRunId: "run-1",
+    });
     expect(world.tiles["0,0"]).toEqual({ terrain: "plain", location: "humanCity" }); // original untouched
   });
 
@@ -519,12 +540,21 @@ describe("findOrRevealCompatibleHome (issue #78)", () => {
     // orcCity. {1,0} is forced to roll a location (roll 6) that resolves to an orcCity; every other
     // neighbor rolls "no location" (a non-6).
     const rng = sequenceDie([
-      4, 6, 1, 1, 1, // {1,0}: plain, has a location, LOCATION_TABLE[1].plain -> orcCity, name dice
-      4, 1, // {1,-1}: plain, no location
-      4, 1, // {0,-1}: plain, no location
-      4, 1, // {-1,0}: plain, no location
-      4, 1, // {-1,1}: plain, no location
-      4, 1, // {0,1}: plain, no location
+      4,
+      6,
+      1,
+      1,
+      1, // {1,0}: plain, has a location, LOCATION_TABLE[1].plain -> orcCity, name dice
+      4,
+      1, // {1,-1}: plain, no location
+      4,
+      1, // {0,-1}: plain, no location
+      4,
+      1, // {-1,0}: plain, no location
+      4,
+      1, // {-1,1}: plain, no location
+      4,
+      1, // {0,1}: plain, no location
     ]);
     const result = findOrRevealCompatibleHome(world, "Orc", rng);
     expect(result.coord).toEqual({ q: 1, r: 0 });

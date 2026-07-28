@@ -140,7 +140,10 @@ export function parseWeaponFormula(formula: string): { sides: number; modifier: 
 }
 
 /** Rolls a weapon's damage formula (e.g. "1d6+1"), clamped so damage never goes negative. */
-export function rollWeaponDamage(formula: string, rng: RNG = Math.random): { rawRoll: number; total: number } {
+export function rollWeaponDamage(
+  formula: string,
+  rng: RNG = Math.random,
+): { rawRoll: number; total: number } {
   const { sides, modifier } = parseWeaponFormula(formula);
   const rawRoll = rollUpTo(sides, rng);
   return { rawRoll, total: Math.max(0, rawRoll + modifier) };
@@ -180,10 +183,18 @@ function applyDefensiveAbilities(
   damage: number,
   ignoreAbilities: readonly MonsterAbility[] = [],
 ): { damage: number; blocked: "stoneskin" | "intangible" | null } {
-  if (monster.abilities.includes("stoneskin") && !ignoreAbilities.includes("stoneskin") && damage <= 3) {
+  if (
+    monster.abilities.includes("stoneskin") &&
+    !ignoreAbilities.includes("stoneskin") &&
+    damage <= 3
+  ) {
     return { damage: 0, blocked: "stoneskin" };
   }
-  if (monster.abilities.includes("intangible") && !ignoreAbilities.includes("intangible") && damage % 2 === 0) {
+  if (
+    monster.abilities.includes("intangible") &&
+    !ignoreAbilities.includes("intangible") &&
+    damage % 2 === 0
+  ) {
     return { damage: 0, blocked: "intangible" };
   }
   return { damage, blocked: null };
@@ -252,7 +263,12 @@ export function resolvePlayerAttack(
   }
 
   const damageDealt = Math.min(damage, monster.hp);
-  return { damageDealt, monsterDefeated: damageDealt >= monster.hp, selfDestructDamageToPlayer: 0, events };
+  return {
+    damageDealt,
+    monsterDefeated: damageDealt >= monster.hp,
+    selfDestructDamageToPlayer: 0,
+    events,
+  };
 }
 
 export interface SpellDamageResult {
@@ -267,7 +283,10 @@ export interface SpellDamageResult {
  * Firebreath, Horde, Sorcery, Deathtouch, Necromancy, Regeneration, Paralyze, Weakness) never
  * trigger from it -- only the generic defensive abilities (Stoneskin, Intangible) apply.
  */
-export function resolveSpellDamage(monster: CombatMonsterState, rawDamage: number): SpellDamageResult {
+export function resolveSpellDamage(
+  monster: CombatMonsterState,
+  rawDamage: number,
+): SpellDamageResult {
   const { damage, blocked } = applyDefensiveAbilities(monster, rawDamage);
   const damageDealt = Math.min(damage, monster.hp);
   return { damageDealt, monsterDefeated: damageDealt >= monster.hp, blocked };

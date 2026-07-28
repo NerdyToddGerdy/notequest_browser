@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { dungeonReducer } from "../dungeonReducer.ts";
 import { DUNGEON_TABLES } from "../../data/dungeonTables.ts";
-import { createInitialDungeonState, makeLevel, type DungeonState, type SegmentState } from "../dungeonState.ts";
+import {
+  createInitialDungeonState,
+  makeLevel,
+  type DungeonState,
+  type SegmentState,
+} from "../dungeonState.ts";
 import { fixedDie, sequenceDie } from "../../test/mulberry32.ts";
 
 function makeSegment(
@@ -60,7 +65,14 @@ describe("Pyramid trap (issue #30): unconditional instant death", () => {
     const state = { ...doorState("pyramid"), hp: 20, raceName: "Samambro" };
     const next = dungeonReducer(
       state,
-      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 1, trapRoll: 1, lockChoice: null },
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 1,
+        lockChoice: null,
+      },
       fixedDie(3),
     );
     expect(next.alive).toBe(true);
@@ -127,7 +139,14 @@ describe("Ziggurat trap (issue #30): rollsMonsterTable", () => {
     const state = doorState("ziggurat");
     const next = dungeonReducer(
       state,
-      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 1, trapRoll: 4, lockChoice: null },
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 4,
+        lockChoice: null,
+      },
       sequenceDie([5, 5]), // monster sum 10 -> Giant Bat
     );
     expect(next.combat).not.toBeNull();
@@ -138,7 +157,14 @@ describe("Ziggurat trap (issue #30): rollsMonsterTable", () => {
     const state = doorState("ziggurat");
     const next = dungeonReducer(
       state,
-      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 1, trapRoll: 4, lockChoice: null },
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 4,
+        lockChoice: null,
+      },
       sequenceDie([4, 3]), // monster sum 7 -> no monsters
     );
     expect(next.combat).toBeNull();
@@ -151,7 +177,14 @@ describe("Necropolis trap (issue #30): torchCostDice", () => {
     const state = doorState("necropolis", 10);
     const next = dungeonReducer(
       state,
-      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 1, trapRoll: 4, lockChoice: null },
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 4,
+        lockChoice: null,
+      },
       fixedDie(4),
     );
     expect(next.torches).toBe(6); // 10 - 4
@@ -162,7 +195,14 @@ describe("Necropolis trap (issue #30): torchCostDice", () => {
     const state = doorState("necropolis", 2);
     const next = dungeonReducer(
       state,
-      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 1, trapRoll: 4, lockChoice: null },
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 4,
+        lockChoice: null,
+      },
       fixedDie(5),
     );
     expect(next.alive).toBe(false);
@@ -268,7 +308,13 @@ describe("Necropolis Magic Item (issue #30): fixedArmor/twoHanded/grantsSpells",
     // King's Helm, fixedArmor helm/11 -- no second roll needed since fixedArmor skips ARMOR_TABLE).
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(2));
     expect(next.armor).toEqual([
-      { piece: "helm", hp: 11, maxHp: 11, itemName: "Dwarf King's Helm", effect: { kind: "flavor" } },
+      {
+        piece: "helm",
+        hp: 11,
+        maxHp: 11,
+        itemName: "Dwarf King's Helm",
+        effect: { kind: "flavor" },
+      },
     ]);
   });
 
@@ -278,7 +324,12 @@ describe("Necropolis Magic Item (issue #30): fixedArmor/twoHanded/grantsSpells",
     // the row directly, fixedFormula skips the base Weapon table roll.
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(5));
     expect(next.spareWeapons).toEqual([
-      { name: "Vampiric Trident", formula: "1d6+2", twoHanded: true, bonusEffect: { kind: "lifesteal", amount: 1 } },
+      {
+        name: "Vampiric Trident",
+        formula: "1d6+2",
+        twoHanded: true,
+        bonusEffect: { kind: "lifesteal", amount: 1 },
+      },
     ]);
   });
 
@@ -351,7 +402,9 @@ describe("bossBonusLoot (issue #30): Citadel's Dwarf Hallows / Necropolis's Forg
       sequenceDie([2, 3, 5]),
     );
     expect(next.combat).toBeNull();
-    expect(next.armor).toEqual([{ piece: "helm", hp: 11, maxHp: 11, itemName: "Dwarf King's Helm", effect: undefined }]);
+    expect(next.armor).toEqual([
+      { piece: "helm", hp: 11, maxHp: 11, itemName: "Dwarf King's Helm", effect: undefined },
+    ]);
     expect(next.log.some((e) => e.message.includes("Dwarf King's Helm"))).toBe(true);
   });
 
@@ -471,8 +524,14 @@ describe("table completeness (issue #30): Citadel/Pyramid/Ziggurat/Necropolis", 
 
   it("Citadel and Necropolis each have a full bossBonusLoot (1-6) Hallows table; Pyramid/Ziggurat deliberately don't", () => {
     for (let roll = 1; roll <= 6; roll++) {
-      expect(DUNGEON_TABLES.citadel.bossBonusLoot?.[roll], `citadel bossBonusLoot ${roll}`).toBeDefined();
-      expect(DUNGEON_TABLES.necropolis.bossBonusLoot?.[roll], `necropolis bossBonusLoot ${roll}`).toBeDefined();
+      expect(
+        DUNGEON_TABLES.citadel.bossBonusLoot?.[roll],
+        `citadel bossBonusLoot ${roll}`,
+      ).toBeDefined();
+      expect(
+        DUNGEON_TABLES.necropolis.bossBonusLoot?.[roll],
+        `necropolis bossBonusLoot ${roll}`,
+      ).toBeDefined();
     }
     expect(DUNGEON_TABLES.pyramid.bossBonusLoot).toBeUndefined();
     expect(DUNGEON_TABLES.ziggurat.bossBonusLoot).toBeUndefined();

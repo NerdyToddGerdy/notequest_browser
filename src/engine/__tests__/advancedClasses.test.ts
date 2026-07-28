@@ -19,7 +19,14 @@ import { sequenceDie } from "../../test/mulberry32.ts";
 const CHARACTER: CreatedCharacter = {
   name: "Testerin",
   race: { roll: 7, name: "Human", hp: 12, ability: "None." },
-  cls: { roll: 7, name: "Fighter", hpBonus: 4, ability: "None.", weapon: "Sword", weaponDamage: "1d6+1" },
+  cls: {
+    roll: 7,
+    name: "Fighter",
+    hpBonus: 4,
+    ability: "None.",
+    weapon: "Sword",
+    weaponDamage: "1d6+1",
+  },
   totalHp: 16,
   spells: [],
   fixedGrants: [],
@@ -63,7 +70,10 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
   };
 }
 
-function makeCtx(overrides: Partial<AdventurerResources> = {}, graveyard: GraveyardEntry[] = []): AdvancedClassContext {
+function makeCtx(
+  overrides: Partial<AdventurerResources> = {},
+  graveyard: GraveyardEntry[] = [],
+): AdvancedClassContext {
   return { character: CHARACTER, resources: makeResources(overrides), graveyard };
 }
 
@@ -81,23 +91,39 @@ describe("table completeness", () => {
 
 describe("meetsAdvancedClassRequirement", () => {
   it("Ruthless: 10 Imps killed", () => {
-    expect(meetsAdvancedClassRequirement("Ruthless", makeCtx({ killsByName: { imps: 9 } }))).toBe(false);
-    expect(meetsAdvancedClassRequirement("Ruthless", makeCtx({ killsByName: { imps: 10 } }))).toBe(true);
+    expect(meetsAdvancedClassRequirement("Ruthless", makeCtx({ killsByName: { imps: 9 } }))).toBe(
+      false,
+    );
+    expect(meetsAdvancedClassRequirement("Ruthless", makeCtx({ killsByName: { imps: 10 } }))).toBe(
+      true,
+    );
   });
 
   it("Goblinator: 20 Goblins killed", () => {
-    expect(meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 19 } }))).toBe(false);
-    expect(meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 20 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 19 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 20 } })),
+    ).toBe(true);
   });
 
   it("Goblinator: sums singular 'goblin' kills alongside plural 'goblins' (issue #65 -- a solo Goblin logs singular)", () => {
     expect(
-      meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 15, goblin: 4 } })),
+      meetsAdvancedClassRequirement(
+        "Goblinator",
+        makeCtx({ killsByName: { goblins: 15, goblin: 4 } }),
+      ),
     ).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblins: 15, goblin: 5 } })),
+      meetsAdvancedClassRequirement(
+        "Goblinator",
+        makeCtx({ killsByName: { goblins: 15, goblin: 5 } }),
+      ),
     ).toBe(true);
-    expect(meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblin: 20 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Goblinator", makeCtx({ killsByName: { goblin: 20 } })),
+    ).toBe(true);
   });
 
   it("Gravedigger: at least one prior character in the (world-scoped) Graveyard", () => {
@@ -112,12 +138,18 @@ describe("meetsAdvancedClassRequirement", () => {
 
   it("Orcslayer: killed an Orc King or Orc Leader", () => {
     expect(meetsAdvancedClassRequirement("Orcslayer", makeCtx({}))).toBe(false);
-    expect(meetsAdvancedClassRequirement("Orcslayer", makeCtx({ killsByName: { "orc king": 1 } }))).toBe(true);
-    expect(meetsAdvancedClassRequirement("Orcslayer", makeCtx({ killsByName: { "orc leader": 1 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Orcslayer", makeCtx({ killsByName: { "orc king": 1 } })),
+    ).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Orcslayer", makeCtx({ killsByName: { "orc leader": 1 } })),
+    ).toBe(true);
   });
 
   it("Dragonslayer: slain a dragon", () => {
-    expect(meetsAdvancedClassRequirement("Dragonslayer", makeCtx({ killsByName: { dragon: 1 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Dragonslayer", makeCtx({ killsByName: { dragon: 1 } })),
+    ).toBe(true);
   });
 
   it("Guard: at least 3 monster kills", () => {
@@ -126,12 +158,18 @@ describe("meetsAdvancedClassRequirement", () => {
   });
 
   it("Ghostbuster: 10 Intangible kills", () => {
-    expect(meetsAdvancedClassRequirement("Ghostbuster", makeCtx({ killsByAbility: { intangible: 9 } }))).toBe(false);
-    expect(meetsAdvancedClassRequirement("Ghostbuster", makeCtx({ killsByAbility: { intangible: 10 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Ghostbuster", makeCtx({ killsByAbility: { intangible: 9 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Ghostbuster", makeCtx({ killsByAbility: { intangible: 10 } })),
+    ).toBe(true);
   });
 
   it("Cleric: approximated as having killed at least one Undead", () => {
-    expect(meetsAdvancedClassRequirement("Cleric", makeCtx({ killsByAbility: { undead: 1 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Cleric", makeCtx({ killsByAbility: { undead: 1 } })),
+    ).toBe(true);
     expect(meetsAdvancedClassRequirement("Cleric", makeCtx({}))).toBe(false);
   });
 
@@ -144,40 +182,67 @@ describe("meetsAdvancedClassRequirement", () => {
   });
 
   it("Multidextrous chains on already having Ambidextrous", () => {
-    expect(meetsAdvancedClassRequirement("Multidextrous", makeCtx({ advancedClasses: [] }))).toBe(false);
+    expect(meetsAdvancedClassRequirement("Multidextrous", makeCtx({ advancedClasses: [] }))).toBe(
+      false,
+    );
     expect(
-      meetsAdvancedClassRequirement("Multidextrous", makeCtx({ advancedClasses: ["Ambidextrous"] })),
+      meetsAdvancedClassRequirement(
+        "Multidextrous",
+        makeCtx({ advancedClasses: ["Ambidextrous"] }),
+      ),
     ).toBe(true);
   });
 
   it("Paladin chains on Cleric or Knight (issue #27 made Knight real too); Anti-Paladin chains on Paladin", () => {
-    expect(meetsAdvancedClassRequirement("Paladin", makeCtx({ advancedClasses: ["Cleric"] }))).toBe(true);
-    expect(meetsAdvancedClassRequirement("Paladin", makeCtx({ advancedClasses: ["Knight"] }))).toBe(true);
+    expect(meetsAdvancedClassRequirement("Paladin", makeCtx({ advancedClasses: ["Cleric"] }))).toBe(
+      true,
+    );
+    expect(meetsAdvancedClassRequirement("Paladin", makeCtx({ advancedClasses: ["Knight"] }))).toBe(
+      true,
+    );
     expect(meetsAdvancedClassRequirement("Paladin", makeCtx({ advancedClasses: [] }))).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Anti-Paladin", makeCtx({ advancedClasses: ["Cleric", "Paladin"] })),
+      meetsAdvancedClassRequirement(
+        "Anti-Paladin",
+        makeCtx({ advancedClasses: ["Cleric", "Paladin"] }),
+      ),
     ).toBe(true);
   });
 
   it("Buildings and Politics (issue #27): Noble/Lord/King/Emperor/Knight", () => {
     expect(meetsAdvancedClassRequirement("Noble", makeCtx({}))).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Noble", makeCtx({ milestones: { ...createInitialMilestones(), talkedToKing: true } })),
+      meetsAdvancedClassRequirement(
+        "Noble",
+        makeCtx({ milestones: { ...createInitialMilestones(), talkedToKing: true } }),
+      ),
     ).toBe(true);
 
-    expect(meetsAdvancedClassRequirement("Lord", makeCtx({ buildings: [{ hexKey: "1,1", kind: "Tower" }] }))).toBe(
-      false,
-    );
-    expect(meetsAdvancedClassRequirement("Lord", makeCtx({ buildings: [{ hexKey: "1,1", kind: "Castle" }] }))).toBe(
-      true,
-    );
+    expect(
+      meetsAdvancedClassRequirement(
+        "Lord",
+        makeCtx({ buildings: [{ hexKey: "1,1", kind: "Tower" }] }),
+      ),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "Lord",
+        makeCtx({ buildings: [{ hexKey: "1,1", kind: "Castle" }] }),
+      ),
+    ).toBe(true);
 
-    expect(meetsAdvancedClassRequirement("King", makeCtx({ buildings: [{ hexKey: "1,1", kind: "Castle" }] }))).toBe(
-      false,
-    );
-    expect(meetsAdvancedClassRequirement("King", makeCtx({ buildings: [{ hexKey: "1,1", kind: "City" }] }))).toBe(
-      true,
-    );
+    expect(
+      meetsAdvancedClassRequirement(
+        "King",
+        makeCtx({ buildings: [{ hexKey: "1,1", kind: "Castle" }] }),
+      ),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement(
+        "King",
+        makeCtx({ buildings: [{ hexKey: "1,1", kind: "City" }] }),
+      ),
+    ).toBe(true);
 
     expect(
       meetsAdvancedClassRequirement(
@@ -199,11 +264,16 @@ describe("meetsAdvancedClassRequirement", () => {
     ).toBe(true);
     // 3 vassals with no owned Fortress isn't enough either.
     expect(
-      meetsAdvancedClassRequirement("Emperor", makeCtx({ milestones: { ...createInitialMilestones(), vassalCount: 3 } })),
+      meetsAdvancedClassRequirement(
+        "Emperor",
+        makeCtx({ milestones: { ...createInitialMilestones(), vassalCount: 3 } }),
+      ),
     ).toBe(false);
 
     expect(meetsAdvancedClassRequirement("Knight", makeCtx({ advancedClasses: [] }))).toBe(false);
-    expect(meetsAdvancedClassRequirement("Knight", makeCtx({ advancedClasses: ["Noble"] }))).toBe(true);
+    expect(meetsAdvancedClassRequirement("Knight", makeCtx({ advancedClasses: ["Noble"] }))).toBe(
+      true,
+    );
   });
 
   it("Mage: knows at least 3 Basic-table spells", () => {
@@ -213,7 +283,9 @@ describe("meetsAdvancedClassRequirement", () => {
         makeCtx({ spellUses: { "basic:1": 1, "basic:2": 1, "basic:3": 0 } }),
       ),
     ).toBe(true);
-    expect(meetsAdvancedClassRequirement("Mage", makeCtx({ spellUses: { "basic:1": 1 } }))).toBe(false);
+    expect(meetsAdvancedClassRequirement("Mage", makeCtx({ spellUses: { "basic:1": 1 } }))).toBe(
+      false,
+    );
   });
 
   it("Elementalist: knows both Fireball and Cold Ray", () => {
@@ -223,27 +295,29 @@ describe("meetsAdvancedClassRequirement", () => {
         makeCtx({ spellUses: { "basic:6": 0, "basic:4": 0 } }), // Fireball, Cold Ray
       ),
     ).toBe(true);
-    expect(meetsAdvancedClassRequirement("Elementalist", makeCtx({ spellUses: { "basic:6": 0 } }))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Elementalist", makeCtx({ spellUses: { "basic:6": 0 } })),
+    ).toBe(false);
   });
 
   it("Alchemist/Arcane: known-spell-count thresholds (any table)", () => {
     const fourSpells = { "basic:1": 0, "basic:2": 0, "nature:1": 0, "death:1": 0 };
-    expect(meetsAdvancedClassRequirement("Alchemist", makeCtx({ spellUses: fourSpells }))).toBe(true);
+    expect(meetsAdvancedClassRequirement("Alchemist", makeCtx({ spellUses: fourSpells }))).toBe(
+      true,
+    );
     expect(meetsAdvancedClassRequirement("Arcane", makeCtx({ spellUses: fourSpells }))).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Arcane", makeCtx({ spellUses: { ...fourSpells, "elemental:1": 0, "advanced:2": 0 } })),
+      meetsAdvancedClassRequirement(
+        "Arcane",
+        makeCtx({ spellUses: { ...fourSpells, "elemental:1": 0, "advanced:2": 0 } }),
+      ),
     ).toBe(true);
   });
 
   it("Collector: owns all 5 real armor pieces at once (Ring and wonderItem don't count)", () => {
     const piece = (kind: string) => ({ piece: kind, hp: 1, maxHp: 1, itemName: null }) as never;
     const fourOfFive = makeCtx({
-      armor: [
-        piece("bracelets"),
-        piece("boots"),
-        piece("shoulderpads"),
-        piece("helm"),
-      ],
+      armor: [piece("bracelets"), piece("boots"), piece("shoulderpads"), piece("helm")],
     });
     expect(meetsAdvancedClassRequirement("Collector", fourOfFive)).toBe(false);
 
@@ -362,10 +436,7 @@ describe("meetsAdvancedClassRequirement", () => {
       ),
     ).toBe(true);
     expect(
-      meetsAdvancedClassRequirement(
-        "Assassin",
-        makeCtx({ advancedClasses: [], bossKills: 1 }),
-      ),
+      meetsAdvancedClassRequirement("Assassin", makeCtx({ advancedClasses: [], bossKills: 1 })),
     ).toBe(false);
     expect(
       meetsAdvancedClassRequirement(
@@ -377,59 +448,95 @@ describe("meetsAdvancedClassRequirement", () => {
 
   it("Lumberjack/Druid: the identical lifetime forest-hexes-crossed signal at two thresholds", () => {
     expect(
-      meetsAdvancedClassRequirement("Lumberjack", makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 1 } })),
+      meetsAdvancedClassRequirement(
+        "Lumberjack",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 1 } }),
+      ),
     ).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Lumberjack", makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 2 } })),
+      meetsAdvancedClassRequirement(
+        "Lumberjack",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 2 } }),
+      ),
     ).toBe(true);
     expect(
-      meetsAdvancedClassRequirement("Druid", makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 5 } })),
+      meetsAdvancedClassRequirement(
+        "Druid",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 5 } }),
+      ),
     ).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Druid", makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 6 } })),
+      meetsAdvancedClassRequirement(
+        "Druid",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), forestsCrossed: 6 } }),
+      ),
     ).toBe(true);
   });
 
   it("Survivor: 2 deserts crossed", () => {
     expect(
-      meetsAdvancedClassRequirement("Survivor", makeCtx({ travelStats: { ...createInitialTravelStats(), desertsCrossed: 1 } })),
+      meetsAdvancedClassRequirement(
+        "Survivor",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), desertsCrossed: 1 } }),
+      ),
     ).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Survivor", makeCtx({ travelStats: { ...createInitialTravelStats(), desertsCrossed: 2 } })),
+      meetsAdvancedClassRequirement(
+        "Survivor",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), desertsCrossed: 2 } }),
+      ),
     ).toBe(true);
   });
 
   it("Pirate: 5 territories sailed", () => {
     expect(
-      meetsAdvancedClassRequirement("Pirate", makeCtx({ travelStats: { ...createInitialTravelStats(), territoriesSailed: 4 } })),
+      meetsAdvancedClassRequirement(
+        "Pirate",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), territoriesSailed: 4 } }),
+      ),
     ).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Pirate", makeCtx({ travelStats: { ...createInitialTravelStats(), territoriesSailed: 5 } })),
+      meetsAdvancedClassRequirement(
+        "Pirate",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), territoriesSailed: 5 } }),
+      ),
     ).toBe(true);
   });
 
   it("Bard: 3 distinct cities visited (a length check, not a raw count)", () => {
     expect(
-      meetsAdvancedClassRequirement("Bard", makeCtx({ travelStats: { ...createInitialTravelStats(), citiesVisited: ["a", "b"] } })),
+      meetsAdvancedClassRequirement(
+        "Bard",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), citiesVisited: ["a", "b"] } }),
+      ),
     ).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Bard", makeCtx({ travelStats: { ...createInitialTravelStats(), citiesVisited: ["a", "b", "c"] } })),
+      meetsAdvancedClassRequirement(
+        "Bard",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), citiesVisited: ["a", "b", "c"] } }),
+      ),
     ).toBe(true);
   });
 
   it("Miner: 2 distinct dungeon runs survived (a deduplicated-by-runId length check)", () => {
     expect(meetsAdvancedClassRequirement("Miner", makeCtx({ survivedRunIds: ["a"] }))).toBe(false);
-    expect(
-      meetsAdvancedClassRequirement("Miner", makeCtx({ survivedRunIds: ["a", "b"] })),
-    ).toBe(true);
+    expect(meetsAdvancedClassRequirement("Miner", makeCtx({ survivedRunIds: ["a", "b"] }))).toBe(
+      true,
+    );
   });
 
   it("Cook: 20 provisions spent (lifetime, not the current balance)", () => {
     expect(
-      meetsAdvancedClassRequirement("Cook", makeCtx({ travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 19 } })),
+      meetsAdvancedClassRequirement(
+        "Cook",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 19 } }),
+      ),
     ).toBe(false);
     expect(
-      meetsAdvancedClassRequirement("Cook", makeCtx({ travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 20 } })),
+      meetsAdvancedClassRequirement(
+        "Cook",
+        makeCtx({ travelStats: { ...createInitialTravelStats(), provisionsSpentTotal: 20 } }),
+      ),
     ).toBe(true);
   });
 
@@ -445,26 +552,47 @@ describe("meetsAdvancedClassRequirement", () => {
 
   it("Lich: a past character died while holding Necromancer (issue #73 -- reads around the 'be X and have died' paradox)", () => {
     expect(
-      meetsAdvancedClassRequirement("Lich", makeCtx({}, [
-        { name: "Old Necro", dungeon: "The Tomb", causeOfDeath: "combat", advancedClasses: ["Necromancer"] },
-      ])),
+      meetsAdvancedClassRequirement(
+        "Lich",
+        makeCtx({}, [
+          {
+            name: "Old Necro",
+            dungeon: "The Tomb",
+            causeOfDeath: "combat",
+            advancedClasses: ["Necromancer"],
+          },
+        ]),
+      ),
     ).toBe(true);
     expect(
-      meetsAdvancedClassRequirement("Lich", makeCtx({}, [
-        { name: "Plain Fighter", dungeon: "The Tomb", causeOfDeath: "combat", advancedClasses: ["Guard"] },
-      ])),
+      meetsAdvancedClassRequirement(
+        "Lich",
+        makeCtx({}, [
+          {
+            name: "Plain Fighter",
+            dungeon: "The Tomb",
+            causeOfDeath: "combat",
+            advancedClasses: ["Guard"],
+          },
+        ]),
+      ),
     ).toBe(false);
     // A pre-#73 Graveyard entry has no advancedClasses field at all -- shouldn't throw, just not match.
     expect(
-      meetsAdvancedClassRequirement("Lich", makeCtx({}, [
-        { name: "Ancient Entry", dungeon: "The Tomb", causeOfDeath: "combat" },
-      ])),
+      meetsAdvancedClassRequirement(
+        "Lich",
+        makeCtx({}, [{ name: "Ancient Entry", dungeon: "The Tomb", causeOfDeath: "combat" }]),
+      ),
     ).toBe(false);
   });
 
   it("Helsing: 2 vampire-type kills, summed across the curated Vampire Servant/Master Vampire/Vampiric Beast names (issue #71)", () => {
-    expect(meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { "vampire servant": 1 } }))).toBe(false);
-    expect(meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { "vampire servant": 2 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { "vampire servant": 1 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { "vampire servant": 2 } })),
+    ).toBe(true);
     expect(
       meetsAdvancedClassRequirement(
         "Helsing",
@@ -472,12 +600,18 @@ describe("meetsAdvancedClassRequirement", () => {
       ),
     ).toBe(true);
     // A kill of something else entirely (e.g. Ghoul) doesn't count toward "killed 2 vampires."
-    expect(meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { ghoul: 5 } }))).toBe(false);
+    expect(meetsAdvancedClassRequirement("Helsing", makeCtx({ killsByName: { ghoul: 5 } }))).toBe(
+      false,
+    );
   });
 
   it("Bugcatcher: 10 insect/arachnid kills, summed across the curated spider/scorpion/wasp names (issue #71)", () => {
-    expect(meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant spider": 9 } }))).toBe(false);
-    expect(meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant spider": 10 } }))).toBe(true);
+    expect(
+      meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant spider": 9 } })),
+    ).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant spider": 10 } })),
+    ).toBe(true);
     expect(
       meetsAdvancedClassRequirement(
         "Bugcatcher",
@@ -493,7 +627,9 @@ describe("meetsAdvancedClassRequirement", () => {
       ),
     ).toBe(true);
     // Giant Leech is a worm/annelid, not an insect or arachnid -- deliberately excluded.
-    expect(meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant leech": 20 } }))).toBe(false);
+    expect(
+      meetsAdvancedClassRequirement("Bugcatcher", makeCtx({ killsByName: { "giant leech": 20 } })),
+    ).toBe(false);
   });
 
   it("a class with no requirement check at all is never met, regardless of state", () => {
@@ -654,9 +790,11 @@ describe("acquireAdvancedClass", () => {
     expect(necromancerNext.spellUses["death:1"]).toBe(1);
     expect(necromancerNext.spellUses["death:4"]).toBe(1);
 
-    const necromasterCtx = makeCtx(
-      { coins: 400, advancedClasses: ["Necromancer"], killsByName: { "lich king": 1 } },
-    );
+    const necromasterCtx = makeCtx({
+      coins: 400,
+      advancedClasses: ["Necromancer"],
+      killsByName: { "lich king": 1 },
+    });
     const necromasterNext = acquireAdvancedClass(
       necromasterCtx,
       "Necromaster",
@@ -668,7 +806,12 @@ describe("acquireAdvancedClass", () => {
 
   it("Lich grants 4 random Death Spell uses, same as Necromancer/Necromaster (issue #73)", () => {
     const ctx = makeCtx({}, [
-      { name: "Old Necro", dungeon: "The Tomb", causeOfDeath: "combat", advancedClasses: ["Necromancer"] },
+      {
+        name: "Old Necro",
+        dungeon: "The Tomb",
+        causeOfDeath: "combat",
+        advancedClasses: ["Necromancer"],
+      },
     ]);
     const richCtx = { ...ctx, resources: { ...ctx.resources, coins: 500 } };
     const next = acquireAdvancedClass(richCtx, "Lich", sequenceDie([3, 4, 5, 6]));
@@ -705,7 +848,11 @@ describe("acquireAdvancedClass", () => {
   });
 
   it("Knight's Horse grant silently no-ops with no free animal slot", () => {
-    const ctx = makeCtx({ coins: 400, advancedClasses: ["Noble"], animals: ["Cat", "Dog", "Wolf"] });
+    const ctx = makeCtx({
+      coins: 400,
+      advancedClasses: ["Noble"],
+      animals: ["Cat", "Dog", "Wolf"],
+    });
     const next = acquireAdvancedClass(ctx, "Knight");
     expect(next.animals).toEqual(["Cat", "Dog", "Wolf"]);
   });

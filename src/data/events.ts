@@ -72,10 +72,20 @@ const CRACKED_ICE: EventRow = {
  * existing `rollLoot()` on victory, exactly as a dungeon monster's would be. */
 export const EVENT_TABLE: Record<OverworldTerrain, Record<EventBand, EventRow>> = {
   water: {
-    2: { text: "A Kraken rises from the deep.", monsters: { name: "Kraken", hp: 50, damage: 10, abilities: [], count: 1 } },
+    2: {
+      text: "A Kraken rises from the deep.",
+      monsters: { name: "Kraken", hp: 50, damage: 10, abilities: [], count: 1 },
+    },
     34: {
       text: "Pirates board you.",
-      monsters: { name: "Pirates", singularName: "Pirate", hp: 5, damage: 2, abilities: ["loot"], count: 4 },
+      monsters: {
+        name: "Pirates",
+        singularName: "Pirate",
+        hp: 5,
+        damage: 2,
+        abilities: ["loot"],
+        count: 4,
+      },
     },
     56: STORM,
   },
@@ -84,7 +94,10 @@ export const EVENT_TABLE: Record<OverworldTerrain, Record<EventBand, EventRow>> 
       text: "A Wyvern drops out of the sky.",
       monsters: { name: "Wyvern", hp: 12, damage: 6, abilities: ["firebreath"], count: 1 },
     },
-    34: { text: "An Orc bars your way.", monsters: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 } },
+    34: {
+      text: "An Orc bars your way.",
+      monsters: { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 },
+    },
     56: HEAVY_RAIN,
   },
   mountain: {
@@ -92,7 +105,17 @@ export const EVENT_TABLE: Record<OverworldTerrain, Record<EventBand, EventRow>> 
       text: "A Dragon descends on you.",
       monsters: { name: "Dragon", hp: 30, damage: 7, abilities: ["firebreath"], count: 1 },
     },
-    34: { text: "Two Orcs ambush you.", monsters: { name: "Orcs", singularName: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 2 } },
+    34: {
+      text: "Two Orcs ambush you.",
+      monsters: {
+        name: "Orcs",
+        singularName: "Orc",
+        hp: 6,
+        damage: 3,
+        abilities: ["loot"],
+        count: 2,
+      },
+    },
     56: { text: "An avalanche catches you.", effect: { kind: "loseHp", amount: 2 } },
   },
   forest: {
@@ -114,17 +137,26 @@ export const EVENT_TABLE: Record<OverworldTerrain, Record<EventBand, EventRow>> 
     56: HEAVY_RAIN,
   },
   swamp: {
-    2: { text: "A Moss Giant hauls itself upright.", monsters: { name: "Moss Giant", hp: 20, damage: 2, abilities: [], count: 1 } },
+    2: {
+      text: "A Moss Giant hauls itself upright.",
+      monsters: { name: "Moss Giant", hp: 20, damage: 2, abilities: [], count: 1 },
+    },
     34: HEAVY_RAIN,
     56: STORM,
   },
   desert: {
-    2: { text: "A Giant Worm erupts from the sand.", monsters: { name: "Giant Worm", hp: 30, damage: 10, abilities: [], count: 1 } },
+    2: {
+      text: "A Giant Worm erupts from the sand.",
+      monsters: { name: "Giant Worm", hp: 30, damage: 10, abilities: [], count: 1 },
+    },
     34: SAND_STORM,
     56: SAND_STORM,
   },
   tundra: {
-    2: { text: "A Yeti stalks you across the snow.", monsters: { name: "Yeti", hp: 20, damage: 5, abilities: [], count: 1 } },
+    2: {
+      text: "A Yeti stalks you across the snow.",
+      monsters: { name: "Yeti", hp: 20, damage: 5, abilities: [], count: 1 },
+    },
     34: BLIZZARD,
     56: BLIZZARD,
   },

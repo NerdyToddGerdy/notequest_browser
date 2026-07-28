@@ -61,7 +61,9 @@ export function trainAnimal(
 /** "Buy mounts in a city that is on the appropriate terrain" -- always succeeds if affordable, no
  * roll involved, unlike training. */
 export function canBuyMount(resources: AdventurerResources, mount: AnimalDef): boolean {
-  return resources.coins >= (mount.mountCost ?? Infinity) && hasRoomForAnotherAnimal(resources, mount);
+  return (
+    resources.coins >= (mount.mountCost ?? Infinity) && hasRoomForAnotherAnimal(resources, mount)
+  );
 }
 
 export function buyMount(resources: AdventurerResources, mount: AnimalDef): AdventurerResources {

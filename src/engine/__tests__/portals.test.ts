@@ -67,9 +67,11 @@ describe("PORTAL_TABLE completeness", () => {
   });
 
   it("has no rows outside 3-18", () => {
-    expect(Object.keys(PORTAL_TABLE).map(Number).sort((a, b) => a - b)).toEqual([
-      3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
-    ]);
+    expect(
+      Object.keys(PORTAL_TABLE)
+        .map(Number)
+        .sort((a, b) => a - b),
+    ).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
   });
 
   it("authors the six Other-World rows the rulebook prints, at their printed totals", () => {
@@ -100,7 +102,14 @@ describe("rollPortal", () => {
   });
 
   it("reaches every world row at its printed total", () => {
-    const worlds: Record<number, string> = { 4: "hell", 5: "pesadelum", 8: "underworld", 16: "pesadelum", 17: "candyWorld", 18: "hell" };
+    const worlds: Record<number, string> = {
+      4: "hell",
+      5: "pesadelum",
+      8: "underworld",
+      16: "pesadelum",
+      17: "candyWorld",
+      18: "hell",
+    };
     for (const [total, world] of Object.entries(worlds)) {
       const outcome = PORTAL_TABLE[Number(total)]!.outcome;
       expect(outcome, `total ${total}`).toEqual({ kind: "otherWorld", world });
@@ -224,7 +233,11 @@ describe("plainsRevealAsWater (roll of 13)", () => {
   it("leaves plains alone when the curse isn't active", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
     revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([6, 1]), false);
-    expect(Object.entries(tiles).filter(([k]) => k !== "0,0").every(([, t]) => t.terrain === "plain")).toBe(true);
+    expect(
+      Object.entries(tiles)
+        .filter(([k]) => k !== "0,0")
+        .every(([, t]) => t.terrain === "plain"),
+    ).toBe(true);
   });
 });
 
@@ -301,7 +314,12 @@ describe("resolvePortalOutcome", () => {
   });
 
   it("credits the golden room's coins and chains a second portal", () => {
-    const r = resolvePortalOutcome({ kind: "goldenRoom", coins: 300 }, makeResources({ coins: 7 }), world, from);
+    const r = resolvePortalOutcome(
+      { kind: "goldenRoom", coins: 300 },
+      makeResources({ coins: 7 }),
+      world,
+      from,
+    );
     expect(r.resources.coins).toBe(307);
     expect(r.chainAnotherPortal).toBe(true);
   });
@@ -313,7 +331,13 @@ describe("resolvePortalOutcome", () => {
 
   it("regenerates the map for the new-reality row", () => {
     const real = { ...createInitialWorldState(fixedDie(3)), player: { q: 1, r: 0 } };
-    const r = resolvePortalOutcome({ kind: "newMap" }, makeResources(), real, { q: 1, r: 0 }, fixedDie(4));
+    const r = resolvePortalOutcome(
+      { kind: "newMap" },
+      makeResources(),
+      real,
+      { q: 1, r: 0 },
+      fixedDie(4),
+    );
     expect(r.world.player).toEqual({ q: 0, r: 0 });
     expect(r.world.tiles[hexKey({ q: 0, r: 0 })]!.location).toBe("humanCity");
   });

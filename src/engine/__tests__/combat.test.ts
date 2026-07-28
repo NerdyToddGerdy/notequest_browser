@@ -46,18 +46,37 @@ describe("resolveMonsterCount", () => {
 
 describe("spawnMonsters", () => {
   it("spawns one instance per fixed count, with ids from the provided generator", () => {
-    const template: MonsterTemplate = { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 2 };
+    const template: MonsterTemplate = {
+      name: "Orc",
+      hp: 6,
+      damage: 3,
+      abilities: ["loot"],
+      count: 2,
+    };
     let nextId = 10;
     const monsters = spawnMonsters(template, () => nextId++, Math.random);
     expect(monsters).toHaveLength(2);
     expect(monsters.map((m) => m.id)).toEqual([10, 11]);
     for (const m of monsters) {
-      expect(m).toMatchObject({ name: "Orc", hp: 6, maxHp: 6, damage: 3, abilities: ["loot"], bonusDamage: 0 });
+      expect(m).toMatchObject({
+        name: "Orc",
+        hp: 6,
+        maxHp: 6,
+        damage: 3,
+        abilities: ["loot"],
+        bonusDamage: 0,
+      });
     }
   });
 
   it("spawns a dice-resolved number of instances", () => {
-    const template: MonsterTemplate = { name: "Goblins", hp: 3, damage: 1, abilities: [], count: { dice: 1, sides: 6 } };
+    const template: MonsterTemplate = {
+      name: "Goblins",
+      hp: 3,
+      damage: 1,
+      abilities: [],
+      count: { dice: 1, sides: 6 },
+    };
     const rng = fixedDie(4);
     const monsters = spawnMonsters(template, () => 1, rng);
     expect(monsters).toHaveLength(4);
@@ -92,14 +111,26 @@ describe("spawnMonsters", () => {
   });
 
   it("falls back to the plural name at count 1 if no singularName is set", () => {
-    const template: MonsterTemplate = { name: "Orcs", hp: 6, damage: 3, abilities: [], count: { dice: 1, sides: 6 } };
+    const template: MonsterTemplate = {
+      name: "Orcs",
+      hp: 6,
+      damage: 3,
+      abilities: [],
+      count: { dice: 1, sides: 6 },
+    };
     const monsters = spawnMonsters(template, () => 1, fixedDie(1));
     expect(monsters).toHaveLength(1);
     expect(monsters[0]!.name).toBe("Orcs");
   });
 
   it("a fixed count of 1 is unaffected -- name is already correctly singular in the data", () => {
-    const template: MonsterTemplate = { name: "Orc", hp: 6, damage: 3, abilities: ["loot"], count: 1 };
+    const template: MonsterTemplate = {
+      name: "Orc",
+      hp: 6,
+      damage: 3,
+      abilities: ["loot"],
+      count: 1,
+    };
     const monsters = spawnMonsters(template, () => 1, Math.random);
     expect(monsters[0]!.name).toBe("Orc");
   });
@@ -134,13 +165,23 @@ describe("resolvePlayerAttack: plain monster", () => {
   it("deals ordinary damage and reports defeat once HP is exhausted", () => {
     const monster = makeMonster({ hp: 3 });
     const result = resolvePlayerAttack(monster, 4, 4, Math.random);
-    expect(result).toEqual({ damageDealt: 3, monsterDefeated: true, selfDestructDamageToPlayer: 0, events: [] });
+    expect(result).toEqual({
+      damageDealt: 3,
+      monsterDefeated: true,
+      selfDestructDamageToPlayer: 0,
+      events: [],
+    });
   });
 
   it("leaves the monster alive when damage is insufficient", () => {
     const monster = makeMonster({ hp: 6 });
     const result = resolvePlayerAttack(monster, 4, 4, Math.random);
-    expect(result).toEqual({ damageDealt: 4, monsterDefeated: false, selfDestructDamageToPlayer: 0, events: [] });
+    expect(result).toEqual({
+      damageDealt: 4,
+      monsterDefeated: false,
+      selfDestructDamageToPlayer: 0,
+      events: [],
+    });
   });
 });
 
@@ -249,7 +290,9 @@ describe("resolvePlayerAttack: roll-of-1 triggers", () => {
   });
 
   it("none of the roll-of-1 abilities fire on other rolls", () => {
-    const monster = makeMonster({ abilities: ["firebreath", "horde", "sorcery", "deathtouch", "regeneration", "paralyze"] });
+    const monster = makeMonster({
+      abilities: ["firebreath", "horde", "sorcery", "deathtouch", "regeneration", "paralyze"],
+    });
     const result = resolvePlayerAttack(monster, 4, 4, Math.random);
     expect(result.events).toEqual([]);
   });
@@ -306,7 +349,10 @@ describe("checkUndeadRevival", () => {
 
 describe("resolveMonsterTurn", () => {
   it("sums damage across every monster, including queued bonus damage", () => {
-    const monsters = [makeMonster({ id: 1, damage: 3 }), makeMonster({ id: 2, damage: 1, bonusDamage: 10 })];
+    const monsters = [
+      makeMonster({ id: 1, damage: 3 }),
+      makeMonster({ id: 2, damage: 1, bonusDamage: 10 }),
+    ];
     const result = resolveMonsterTurn(monsters);
     expect(result.totalDamage).toBe(14);
     expect(result.deathtouchKill).toBe(false);
@@ -333,6 +379,12 @@ describe("fixed spawn stat blocks", () => {
     expect(HORDE_ORC).toMatchObject({ name: "Orc", hp: 6, maxHp: 6, damage: 3, abilities: [] });
   });
   it("Necromancy's Skeleton matches the ability text (4 HP, Damage 1, Undead)", () => {
-    expect(NECROMANCY_SKELETON).toMatchObject({ name: "Skeleton", hp: 4, maxHp: 4, damage: 1, abilities: ["undead"] });
+    expect(NECROMANCY_SKELETON).toMatchObject({
+      name: "Skeleton",
+      hp: 4,
+      maxHp: 4,
+      damage: 1,
+      abilities: ["undead"],
+    });
   });
 });

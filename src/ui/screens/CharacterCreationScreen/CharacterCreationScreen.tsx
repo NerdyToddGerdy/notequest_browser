@@ -13,7 +13,13 @@ import {
 } from "../../../engine/character.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
 import type { PendingDungeon } from "../../../engine/dungeonState.ts";
-import type { ClassDef, CreatedCharacter, RaceDef, SpellDef, SpellTableKey } from "../../../data/types.ts";
+import type {
+  ClassDef,
+  CreatedCharacter,
+  RaceDef,
+  SpellDef,
+  SpellTableKey,
+} from "../../../data/types.ts";
 import { revealDelay } from "../../rollTiming.ts";
 import { Footer } from "../../components/Footer/Footer.tsx";
 import styles from "./CharacterCreationScreen.module.css";
@@ -30,7 +36,12 @@ interface RollState<T> {
 }
 
 function initialRoll<T>(diceCount: number): RollState<T> {
-  return { values: Array(diceCount).fill(1) as number[], rollToken: 0, entry: null, revealing: false };
+  return {
+    values: Array(diceCount).fill(1) as number[],
+    rollToken: 0,
+    entry: null,
+    revealing: false,
+  };
 }
 
 /** One rolled spell keeps its own dice alongside it (1 for a flat 1d6 table, 2 for Advanced's
@@ -48,7 +59,12 @@ interface SpellRollState {
   revealing: boolean;
 }
 
-const initialSpellRoll: SpellRollState = { values: [], rollToken: 0, entries: null, revealing: false };
+const initialSpellRoll: SpellRollState = {
+  values: [],
+  rollToken: 0,
+  entries: null,
+  revealing: false,
+};
 
 /** "New Races" (issue #22) -- Prohibited Races is deliberately not offered here, see races.ts. */
 const RACE_TABLE_LABELS: Record<RaceTableKey, string> = {
@@ -104,7 +120,10 @@ export function CharacterCreationScreen({
   // A reroll of either race or class can change how many spells (and from which table) are owed,
   // so any previously-rolled random spells no longer apply. Adjusting state during render (React's
   // documented pattern for this) instead of an effect avoids an extra commit-then-reset render pass.
-  const [spellsResetFor, setSpellsResetFor] = useState<{ race: RaceDef | null; cls: ClassDef | null }>({
+  const [spellsResetFor, setSpellsResetFor] = useState<{
+    race: RaceDef | null;
+    cls: ClassDef | null;
+  }>({
     race: race.entry,
     cls: cls.entry,
   });
@@ -116,7 +135,12 @@ export function CharacterCreationScreen({
   function handleRollRace() {
     if (race.revealing || sealed) return;
     const { dice, entry } = rollRaceFromTable(raceTable);
-    setRace((prev) => ({ values: dice, rollToken: prev.rollToken + 1, entry: null, revealing: true }));
+    setRace((prev) => ({
+      values: dice,
+      rollToken: prev.rollToken + 1,
+      entry: null,
+      revealing: true,
+    }));
     window.setTimeout(() => {
       setRace((prev) => ({ ...prev, entry, revealing: false }));
       setAnnouncement(`Race rolled: ${entry.name} on a ${dice.reduce((a, b) => a + b, 0)}.`);
@@ -136,7 +160,12 @@ export function CharacterCreationScreen({
   function handleRollClass() {
     if (cls.revealing || sealed) return;
     const { dice, entry } = rollClass();
-    setCls((prev) => ({ values: dice, rollToken: prev.rollToken + 1, entry: null, revealing: true }));
+    setCls((prev) => ({
+      values: dice,
+      rollToken: prev.rollToken + 1,
+      entry: null,
+      revealing: true,
+    }));
     window.setTimeout(() => {
       setCls((prev) => ({ ...prev, entry, revealing: false }));
       setAnnouncement(`Class rolled: ${entry.name} on a ${dice[0]! + dice[1]!}.`);
@@ -161,10 +190,18 @@ export function CharacterCreationScreen({
     const entries = rolls.map((r) => ({ spell: r.entry, dice: r.dice }));
     setSpellRolls((prev) => ({
       ...prev,
-      [table]: { values, rollToken: (prev[table]?.rollToken ?? 0) + 1, entries: null, revealing: true },
+      [table]: {
+        values,
+        rollToken: (prev[table]?.rollToken ?? 0) + 1,
+        entries: null,
+        revealing: true,
+      },
     }));
     window.setTimeout(() => {
-      setSpellRolls((prev) => ({ ...prev, [table]: { ...prev[table]!, entries, revealing: false } }));
+      setSpellRolls((prev) => ({
+        ...prev,
+        [table]: { ...prev[table]!, entries, revealing: false },
+      }));
       setAnnouncement(
         `Rolled ${entries.length} ${SPELL_TABLE_LABELS[table]} Spell${entries.length > 1 ? "s" : ""}.`,
       );
@@ -175,7 +212,8 @@ export function CharacterCreationScreen({
   const weaponText = cls.entry ? `${cls.entry.weapon} (${cls.entry.weaponDamage})` : null;
   const spellsSatisfied = requiredSpellTables.every((table) => spellRolls[table]?.entries != null);
   const hasName = name.trim().length > 0;
-  const canBegin = hasName && race.entry !== null && cls.entry !== null && spellsSatisfied && !sealed;
+  const canBegin =
+    hasName && race.entry !== null && cls.entry !== null && spellsSatisfied && !sealed;
 
   function handleBegin() {
     if (!canBegin || !race.entry || !cls.entry) return;
@@ -206,7 +244,9 @@ export function CharacterCreationScreen({
       const spell = SPELL_TABLE_BY_KEY[grant.table][grant.spellRoll];
       if (spell) parts.push(`${spell.name} is granted outright (${grant.uses} uses).`);
     }
-    return parts.length > 0 ? parts.join(" ") : "This build carries no spells — steel and nerve only.";
+    return parts.length > 0
+      ? parts.join(" ")
+      : "This build carries no spells — steel and nerve only.";
     // requiredSpellTables is derived from spellRequirements every render, so depending on the
     // latter alone already covers both.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,7 +303,8 @@ export function CharacterCreationScreen({
           <div className={styles.tracks}>
             <section>
               <h2 className={styles.trackTitle}>
-                <span className={styles.trackIndex}>{raceTable === "core" ? "2d6" : "1d6"}</span>Race
+                <span className={styles.trackIndex}>{raceTable === "core" ? "2d6" : "1d6"}</span>
+                Race
               </h2>
               <div className={styles.raceTableRow} data-testid="race-table-row">
                 {(Object.keys(RACE_TABLE_LABELS) as RaceTableKey[]).map((key) => (
@@ -348,7 +389,10 @@ export function CharacterCreationScreen({
                 <span className={styles.trackIndex}>
                   {requiredSpellTables.length > 0
                     ? requiredSpellTables
-                        .map((t) => `${spellRequirements.randomSlotsByTable[t]}${t === "advanced" ? "x2d6" : "d6"}`)
+                        .map(
+                          (t) =>
+                            `${spellRequirements.randomSlotsByTable[t]}${t === "advanced" ? "x2d6" : "d6"}`,
+                        )
                         .join(" + ")
                     : "—"}
                 </span>
@@ -387,9 +431,7 @@ export function CharacterCreationScreen({
                         <span className={styles.spellName}>{spell.name}</span>
                         <span className={styles.spellFx}>{spell.effect}</span>
                         <br />
-                        <span className={styles.spellTag}>
-                          GRANTED · {grant.uses} USES
-                        </span>
+                        <span className={styles.spellTag}>GRANTED · {grant.uses} USES</span>
                       </li>
                     );
                   })}
@@ -400,7 +442,8 @@ export function CharacterCreationScreen({
                         <span className={styles.spellFx}>{rolled.spell.effect}</span>
                         <br />
                         <span className={styles.spellTag}>
-                          {rolled.dice.length > 1 ? "2d6" : "d6"} → {rolled.dice.reduce((a, b) => a + b, 0)}
+                          {rolled.dice.length > 1 ? "2d6" : "d6"} →{" "}
+                          {rolled.dice.reduce((a, b) => a + b, 0)}
                         </span>
                       </li>
                     )),

@@ -33,7 +33,9 @@ const RIGHT_OF: Record<Direction, Direction> = { N: "E", E: "S", S: "W", W: "N" 
 
 export function assignDirections(cameFromDir: Direction | null, count: number): Direction[] {
   const pool: Direction[] =
-    cameFromDir === null ? ["E", "S", "N", "W"] : [cameFromDir, LEFT_OF[cameFromDir], RIGHT_OF[cameFromDir]];
+    cameFromDir === null
+      ? ["E", "S", "N", "W"]
+      : [cameFromDir, LEFT_OF[cameFromDir], RIGHT_OF[cameFromDir]];
   return pool.slice(0, count);
 }
 
@@ -54,7 +56,9 @@ export function sizeFor(type: SegmentType, dir: Direction | null): { w: number; 
     case "final":
       return { w: 9 * UNIT, h: 7 * UNIT };
     case "corridor":
-      return dir === "E" || dir === "W" ? { w: 7 * UNIT, h: 3 * UNIT } : { w: 3 * UNIT, h: 7 * UNIT };
+      return dir === "E" || dir === "W"
+        ? { w: 7 * UNIT, h: 3 * UNIT }
+        : { w: 3 * UNIT, h: 7 * UNIT };
   }
 }
 
@@ -89,7 +93,12 @@ export function edgePoint(box: Box, dir: Direction): { x: number; y: number } {
 }
 
 /** Places a new segment adjacent to `parent` in direction `dir`, extending the gap until it clears every existing box. */
-export function placeChild(parent: Box, dir: Direction, childType: SegmentType, existing: Box[]): Box {
+export function placeChild(
+  parent: Box,
+  dir: Direction,
+  childType: SegmentType,
+  existing: Box[],
+): Box {
   const size = sizeFor(childType, dir);
   const vec = DIR_VEC[dir];
   const parentHalf = dir === "E" || dir === "W" ? parent.w / 2 : parent.h / 2;
@@ -244,7 +253,10 @@ export function classifyDoorOpen(
   if (isDescent) return { kind: "descend-normal" };
 
   const triggersDeadEnd =
-    !isEntranceStaircase && !level.finalRoomPlaced && level.doorsRemaining === 1 && !level.hasStaircase;
+    !isEntranceStaircase &&
+    !level.finalRoomPlaced &&
+    level.doorsRemaining === 1 &&
+    !level.hasStaircase;
   return triggersDeadEnd ? { kind: "dead-end-final" } : { kind: "normal" };
 }
 
@@ -256,7 +268,10 @@ export function classifyDoorOpen(
  * level's own segment list, so cross-level links are harmless noise here, not a correctness bug --
  * level transitions are handled separately by whichever action crosses them, updating
  * `currentSegId` directly rather than through this adjacency walk. */
-export function reachableSegIds(level: Pick<LevelState, "segments">, currentSegId: number | null): Set<number> {
+export function reachableSegIds(
+  level: Pick<LevelState, "segments">,
+  currentSegId: number | null,
+): Set<number> {
   const reachable = new Set<number>();
   if (currentSegId == null) return reachable;
   reachable.add(currentSegId);

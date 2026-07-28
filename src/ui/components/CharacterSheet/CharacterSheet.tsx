@@ -83,7 +83,8 @@ export function CharacterSheet({
   const [showKills, setShowKills] = useState(false);
   const hirelingDef = hireling ? HIRELING_BY_NAME[hireling] : null;
   const maxHpValue = maxHp ?? character.totalHp;
-  const maxSpellUses = maxSpellUsesProp ?? computeSpellUses(character.spells, character.fixedGrants);
+  const maxSpellUses =
+    maxSpellUsesProp ?? computeSpellUses(character.spells, character.fixedGrants);
   const liveSpellUses = spellUses ?? maxSpellUses;
   // Every known spell keyed here, informational (name/effect/uses) regardless of table -- only
   // the spells in `KNOWN_CASTABLE_SPELL_NAMES` (issue #24) ever get an actual "Cast" button below
@@ -209,7 +210,9 @@ export function CharacterSheet({
                 // left is shown disabled rather than omitted, so "out of uses" and "needs a fight"
                 // both read as "not right now," not "unsupported here."
                 const canCastAnythingHere =
-                  !!canCastOutOfCombat && !!onCastSpell && KNOWN_CASTABLE_SPELL_NAMES.has(spell.name);
+                  !!canCastOutOfCombat &&
+                  !!onCastSpell &&
+                  KNOWN_CASTABLE_SPELL_NAMES.has(spell.name);
                 const outOfUses = remaining <= 0;
                 const needsCombat = COMBAT_ONLY_SPELL_NAMES.has(spell.name);
                 return (
@@ -226,7 +229,13 @@ export function CharacterSheet({
                         type="button"
                         className={styles.castBtn}
                         disabled={outOfUses || needsCombat}
-                        title={needsCombat ? "Requires combat" : outOfUses ? "No uses remaining" : undefined}
+                        title={
+                          needsCombat
+                            ? "Requires combat"
+                            : outOfUses
+                              ? "No uses remaining"
+                              : undefined
+                        }
                         onClick={() => onCastSpell!(table, roll)}
                       >
                         Cast

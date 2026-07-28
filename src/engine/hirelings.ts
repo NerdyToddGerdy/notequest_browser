@@ -31,7 +31,11 @@ export function canHireHireling(
  * against `DungeonState.hireling`/`resources.hireling` at their own use sites (`dungeonReducer.ts`'s
  * `attackBonus()`/`RESOLVE_DOOR_LOCK`, `RoomInspector.tsx`, `WorldScreen.tsx`'s travel handler)
  * rather than here, since they're passive checks, not one-time grants applied at hire time. */
-function applyHirelingAbility(name: string, resources: AdventurerResources, rng: RNG): AdventurerResources {
+function applyHirelingAbility(
+  name: string,
+  resources: AdventurerResources,
+  rng: RNG,
+): AdventurerResources {
   switch (name) {
     case "Rent Wizard":
       return grantSpellUses(resources, "basic", 4, rng);

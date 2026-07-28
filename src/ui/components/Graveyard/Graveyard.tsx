@@ -47,7 +47,9 @@ export function Graveyard({ entries, compact = false }: GraveyardProps) {
             {(entry.monsterKills !== undefined || entry.bossKills !== undefined) && (
               <span className={styles.kills}>
                 {entry.monsterKills ?? 0} killed
-                {entry.bossKills ? ` · ${entry.bossKills} Boss${entry.bossKills === 1 ? "" : "es"}` : ""}
+                {entry.bossKills
+                  ? ` · ${entry.bossKills} Boss${entry.bossKills === 1 ? "" : "es"}`
+                  : ""}
               </span>
             )}
             <span className={styles.cause}>{CAUSE_LABELS[entry.causeOfDeath]}</span>

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { EXOTIC_RACE_TABLE, MONSTROUS_RACE_TABLE, RACE_TABLE, UNCOMMON_RACE_TABLE } from "../../data/races.ts";
+import {
+  EXOTIC_RACE_TABLE,
+  MONSTROUS_RACE_TABLE,
+  RACE_TABLE,
+  UNCOMMON_RACE_TABLE,
+} from "../../data/races.ts";
 import { CLASS_TABLE } from "../../data/classes.ts";
 import {
   ADVANCED_SPELL_TABLE,
@@ -47,8 +52,14 @@ describe("table completeness", () => {
     const raceNames = Object.values(RACE_TABLE).map((r) => r.name);
     for (const key of [...raceNames, "default"]) {
       for (let roll = 1; roll <= 6; roll++) {
-        expect(FIRST_NAME_TABLE[key]?.[roll], `missing first name for ${key} roll ${roll}`).toBeDefined();
-        expect(LAST_NAME_TABLE[key]?.[roll], `missing last name for ${key} roll ${roll}`).toBeDefined();
+        expect(
+          FIRST_NAME_TABLE[key]?.[roll],
+          `missing first name for ${key} roll ${roll}`,
+        ).toBeDefined();
+        expect(
+          LAST_NAME_TABLE[key]?.[roll],
+          `missing last name for ${key} roll ${roll}`,
+        ).toBeDefined();
       }
     }
   });
@@ -221,7 +232,10 @@ describe("computeSpellRequirements", () => {
   });
 
   it("handles a null race or class before either has been rolled", () => {
-    expect(computeSpellRequirements(null, null)).toEqual({ randomSlotsByTable: {}, fixedGrants: [] });
+    expect(computeSpellRequirements(null, null)).toEqual({
+      randomSlotsByTable: {},
+      fixedGrants: [],
+    });
   });
 });
 

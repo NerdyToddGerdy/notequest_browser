@@ -117,10 +117,25 @@ describe("politicalAffinityTarget (Politics, issue #27)", () => {
     // "Table: Political Affinity" only lists 11 rows -- Cat-Person/Rinoceroid/Lightbugster
     // deliberately fall back to DEFAULT_POLITICAL_AFFINITY instead (see the fallback test below),
     // an honest reflection of the rulebook's own omission rather than an invented number.
-    const raceNames = ["Human", "Dwarf", "Elf", "Gnome", "Halfling", "Pixie", "Slimemen", "Dragonkin", "Goblin", "Orc", "Ogre"];
+    const raceNames = [
+      "Human",
+      "Dwarf",
+      "Elf",
+      "Gnome",
+      "Halfling",
+      "Pixie",
+      "Slimemen",
+      "Dragonkin",
+      "Goblin",
+      "Orc",
+      "Ogre",
+    ];
     for (const name of raceNames) {
       for (const culture of ALL_CULTURES) {
-        expect(POLITICAL_AFFINITY_TABLE[name]?.[culture], `missing ${name}/${culture}`).toBeDefined();
+        expect(
+          POLITICAL_AFFINITY_TABLE[name]?.[culture],
+          `missing ${name}/${culture}`,
+        ).toBeDefined();
       }
     }
   });

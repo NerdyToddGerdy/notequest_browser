@@ -19,7 +19,18 @@ import type { MonsterTemplate } from "../../data/dungeonTables.ts";
 function makeSegment(
   overrides: Partial<SegmentState> & Pick<SegmentState, "id" | "type" | "doors">,
 ): SegmentState {
-  return { x: 0, y: 0, w: 80, h: 80, cx: 0, cy: 0, cameFromDir: null, flavor: null, isEntrance: false, ...overrides };
+  return {
+    x: 0,
+    y: 0,
+    w: 80,
+    h: 80,
+    cx: 0,
+    cy: 0,
+    cameFromDir: null,
+    flavor: null,
+    isEntrance: false,
+    ...overrides,
+  };
 }
 
 function stateWithLevel(level: ReturnType<typeof makeLevel>): DungeonState {
@@ -35,12 +46,36 @@ function stateWithLevel(level: ReturnType<typeof makeLevel>): DungeonState {
 
 function makeResources(overrides: Partial<AdventurerResources> = {}): AdventurerResources {
   return {
-    torches: 5, hp: 20, maxHp: 20, coins: 0, treasures: 0, keys: 0, heldItems: [], armor: [],
-    weapon: null, spareWeapons: [], spareArmor: [], spellUses: {}, maxSpellUses: {},
-    monsterKills: 0, bossKills: 0, killsByName: {}, killsByAbility: {}, provisions: 10,
-    advancedClasses: [], hireling: null, animals: [], milestones: createInitialMilestones(),
-    buildings: [], troops: 0, troopSources: [], travelStats: createInitialTravelStats(),
-    survivedRunIds: [], flyActive: false, catatonic: false, nextDungeonDamageBonus: 0,
+    torches: 5,
+    hp: 20,
+    maxHp: 20,
+    coins: 0,
+    treasures: 0,
+    keys: 0,
+    heldItems: [],
+    armor: [],
+    weapon: null,
+    spareWeapons: [],
+    spareArmor: [],
+    spellUses: {},
+    maxSpellUses: {},
+    monsterKills: 0,
+    bossKills: 0,
+    killsByName: {},
+    killsByAbility: {},
+    provisions: 10,
+    advancedClasses: [],
+    hireling: null,
+    animals: [],
+    milestones: createInitialMilestones(),
+    buildings: [],
+    troops: 0,
+    troopSources: [],
+    travelStats: createInitialTravelStats(),
+    survivedRunIds: [],
+    flyActive: false,
+    catatonic: false,
+    nextDungeonDamageBonus: 0,
     ...overrides,
   };
 }
@@ -56,11 +91,32 @@ describe("#93: the Forgotten Gods bonus survives resuming a paused run", () => {
   }
 
   const resumeArgs = {
-    torches: 5, hp: 20, maxHp: 20, weaponFormula: "1d6", spellUses: {}, maxSpellUses: {},
-    characterName: "Tester", coins: 0, treasures: 0, keys: 0, heldItems: [], armor: [],
-    weapon: null, monsterKills: 0, bossKills: 0, raceName: "Human", className: "Fighter",
-    killsByName: {}, killsByAbility: {}, spareWeapons: [], advancedClasses: [], hireling: null,
-    animals: [], milestones: createInitialMilestones(), buildings: [], spareArmor: [],
+    torches: 5,
+    hp: 20,
+    maxHp: 20,
+    weaponFormula: "1d6",
+    spellUses: {},
+    maxSpellUses: {},
+    characterName: "Tester",
+    coins: 0,
+    treasures: 0,
+    keys: 0,
+    heldItems: [],
+    armor: [],
+    weapon: null,
+    monsterKills: 0,
+    bossKills: 0,
+    raceName: "Human",
+    className: "Fighter",
+    killsByName: {},
+    killsByAbility: {},
+    spareWeapons: [],
+    advancedClasses: [],
+    hireling: null,
+    animals: [],
+    milestones: createInitialMilestones(),
+    buildings: [],
+    spareArmor: [],
   };
 
   it("RETURN_TO_DUNGEON carries it (the same character resuming their own run)", () => {
@@ -121,7 +177,11 @@ describe("#94: selling in a Fortress pays double", () => {
 // ---------------------------------------------------------------------------------------------
 describe("#92: entering a dungeon spends its torch through spendTorches()", () => {
   const enter = (state: DungeonState) =>
-    dungeonReducer(state, { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 }, mulberry32(3));
+    dungeonReducer(
+      state,
+      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      mulberry32(3),
+    );
 
   it("charges exactly 1 torch on a normal entry", () => {
     const next = enter({ ...createInitialDungeonState(), torches: 5 });
@@ -160,11 +220,20 @@ describe("#95: spending a Key on a locked door", () => {
       type: "room-small",
       doors: [{ dir: "E", opened: false, childId: null, leadsToLevel: null }],
     });
-    return { ...stateWithLevel({ ...makeLevel(1), segments: [seg], doorsRemaining: 1 }), keys, torches };
+    return {
+      ...stateWithLevel({ ...makeLevel(1), segments: [seg], doorsRemaining: 1 }),
+      keys,
+      torches,
+    };
   }
   const useKey = (state: DungeonState) =>
     dungeonReducer(state, {
-      type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 0, doorRoll: 2, trapRoll: null, lockChoice: "useKey",
+      type: "RESOLVE_DOOR_LOCK",
+      segId: 1,
+      doorIdx: 0,
+      doorRoll: 2,
+      trapRoll: null,
+      lockChoice: "useKey",
     });
 
   it("spends one key and no torch", () => {
@@ -226,7 +295,14 @@ describe("#96: a broken door carries an alert one segment over", () => {
   const breakTheOtherDoor = (state: DungeonState) =>
     dungeonReducer(
       state,
-      { type: "RESOLVE_DOOR_LOCK", segId: 1, doorIdx: 1, doorRoll: 2, trapRoll: null, lockChoice: "breakDoor" },
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 1,
+        doorRoll: 2,
+        trapRoll: null,
+        lockChoice: "breakDoor",
+      },
       fixedDie(3),
     );
 
@@ -260,7 +336,14 @@ describe("#96: a broken door carries an alert one segment over", () => {
     const state = { ...threeSegments(true), currentSegId: 2 };
     const next = dungeonReducer(
       state,
-      { type: "RESOLVE_DOOR_LOCK", segId: 2, doorIdx: 1, doorRoll: 2, trapRoll: null, lockChoice: "breakDoor" },
+      {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 2,
+        doorIdx: 1,
+        doorRoll: 2,
+        trapRoll: null,
+        lockChoice: "breakDoor",
+      },
       fixedDie(3),
     );
     // Segment 1 has no monsters, so nothing to alert -- but segment 3 (through seg 2's own broken

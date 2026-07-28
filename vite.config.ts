@@ -11,7 +11,9 @@ const base = process.env.GITHUB_ACTIONS ? "/notequest_browser/" : "/";
 // readFileSync + JSON.parse rather than a JSON import, since import attribute syntax
 // ("with { type: 'json' }") support varies across the Node versions this config might run
 // under (see CLAUDE.md's Node 20.17 note) -- this works everywhere.
-const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf-8")) as {
+const pkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL("./package.json", import.meta.url)), "utf-8"),
+) as {
   version: string;
 };
 

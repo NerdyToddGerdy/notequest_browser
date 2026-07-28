@@ -65,7 +65,11 @@ export function Equipment({
                       {spare.name}
                     </span>
                     {onWield && (
-                      <button type="button" className={styles.fixBtn} onClick={() => onWield(index)}>
+                      <button
+                        type="button"
+                        className={styles.fixBtn}
+                        onClick={() => onWield(index)}
+                      >
                         Wield
                       </button>
                     )}

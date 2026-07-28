@@ -1,4 +1,9 @@
-import { EXOTIC_RACE_TABLE, MONSTROUS_RACE_TABLE, RACE_TABLE, UNCOMMON_RACE_TABLE } from "../data/races.ts";
+import {
+  EXOTIC_RACE_TABLE,
+  MONSTROUS_RACE_TABLE,
+  RACE_TABLE,
+  UNCOMMON_RACE_TABLE,
+} from "../data/races.ts";
 import { CLASS_TABLE } from "../data/classes.ts";
 import {
   ADVANCED_SPELL_TABLE,
@@ -42,7 +47,10 @@ const RACE_TABLE_BY_KEY: Record<Exclude<RaceTableKey, "core">, Record<number, Ra
  * rest of the app only ever sees one coherent `RaceDef` rather than needing to track "a Half-Human
  * pretending to be a Dwarf" separately everywhere a race matters. The bonus roll's dice are
  * appended to the returned `dice` array so the UI can still show every die that contributed. */
-export function rollRaceFromTable(table: RaceTableKey, rng: RNG = Math.random): DiceRollResult<RaceDef> {
+export function rollRaceFromTable(
+  table: RaceTableKey,
+  rng: RNG = Math.random,
+): DiceRollResult<RaceDef> {
   if (table === "core") return rollRace(rng);
   const roll = rollDie(rng);
   const entry = RACE_TABLE_BY_KEY[table][roll];
@@ -103,7 +111,10 @@ export function rollSpell(rng: RNG = Math.random): DiceRollResult<SpellDef> {
  * player choice the way Race tables are (see CLAUDE.md's New Spells note): access always comes
  * from a race ability, an Advanced Class, or a Magic Item. Advanced alone is 2d6 (summed, same
  * shape as `rollRace()`/`rollClass()`); every other table is a flat 1d6. */
-export function rollSpellFromTable(table: SpellTableKey, rng: RNG = Math.random): DiceRollResult<SpellDef> {
+export function rollSpellFromTable(
+  table: SpellTableKey,
+  rng: RNG = Math.random,
+): DiceRollResult<SpellDef> {
   if (table === "advanced") {
     const [a, b] = roll2d6(rng);
     const entry = ADVANCED_SPELL_TABLE[a + b];
@@ -126,7 +137,8 @@ export function rollName(raceName: string, rng: RNG = Math.random): DiceRollResu
   const lastTable = LAST_NAME_TABLE[raceName] ?? LAST_NAME_TABLE.default!;
   const first = firstTable[firstRoll];
   const last = lastTable[lastRoll];
-  if (!first || !last) throw new Error(`No name defined for ${raceName} rolls ${firstRoll}/${lastRoll}`);
+  if (!first || !last)
+    throw new Error(`No name defined for ${raceName} rolls ${firstRoll}/${lastRoll}`);
   return { dice: [firstRoll, lastRoll], entry: `${first} ${last}` };
 }
 

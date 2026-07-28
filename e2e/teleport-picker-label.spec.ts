@@ -135,14 +135,22 @@ function makeDungeon() {
   };
 }
 
-test("TeleportPicker labels the room being fled from, above the destination list", async ({ page }) => {
+test("TeleportPicker labels the room being fled from, above the destination list", async ({
+  page,
+}) => {
   await page.goto("/");
   await page.evaluate(
     ({ character, resources, world, dungeon }) => {
       const dungeonHistory = [{ id: "run-teleport", lastCharacterName: character.name, dungeon }];
       localStorage.setItem(
         "notequest:session",
-        JSON.stringify({ character, resources, dungeonHistory, activeRunId: "run-teleport", world }),
+        JSON.stringify({
+          character,
+          resources,
+          dungeonHistory,
+          activeRunId: "run-teleport",
+          world,
+        }),
       );
     },
     { character: CHARACTER, resources: RESOURCES, world: WORLD, dungeon: makeDungeon() },

@@ -2139,11 +2139,7 @@ describe("OPEN_TREASURE", () => {
 
   it("Magic Scroll (Palace roll 3) grants one use of a randomly rolled Basic Spell", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1, spellUses: {} };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 3 },
-      fixedDie(5),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 3 }, fixedDie(5));
     expect(next.spellUses).toEqual({ "basic:5": 1 });
     expect(next.maxSpellUses).toEqual({ "basic:5": 1 }); // raises the ceiling too (issue #75)
     expect(next.log[0]!.message).toContain("Lightning");
@@ -2166,11 +2162,7 @@ describe("OPEN_TREASURE", () => {
 
   it("Valuable jewel (Palace roll 4) adds a held item worth 2d6 x 10 coins", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 4 },
-      sequenceDie([4, 3]),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 4 }, sequenceDie([4, 3]));
     expect(next.coins).toBe(0);
     expect(next.heldItems).toEqual([{ name: "Valuable jewel", worth: 70 }]); // (4 + 3) * 10
   });
@@ -2178,11 +2170,7 @@ describe("OPEN_TREASURE", () => {
   it("Palace roll 5 redirects to the Wonders table and grants an HP-bearing item", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
     // Wonders roll 1 -> Jester Hat (2 HP; Can't Move in Silence).
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 5 },
-      fixedDie(1),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(1));
     expect(next.treasures).toBe(0);
     expect(next.armor).toEqual([
       { piece: "wonderItem", hp: 2, maxHp: 2, itemName: "Jester Hat", effect: { kind: "flavor" } },
@@ -2193,11 +2181,7 @@ describe("OPEN_TREASURE", () => {
   it("Palace roll 5 redirects to a Wonder with no HP -- a standing-effect-only 0 HP item", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
     // Wonders roll 3 -> Amulet of the Dead (Ignores Undead effect).
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 5 },
-      fixedDie(3),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(3));
     expect(next.armor).toEqual([
       {
         piece: "wonderItem",
@@ -2212,11 +2196,7 @@ describe("OPEN_TREASURE", () => {
   it("Palace roll 6 redirects to the Magic Item table and, for an [Armor] grant, rolls the base Armor table and bakes the bonus into its HP", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
     // Magic Item roll 3 -> Centurion's [Armor] (+1 HP); base Armor roll 3 (same forced die) -> Boots (3 HP).
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 6 },
-      fixedDie(3),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(3));
     expect(next.armor).toEqual([
       { piece: "boots", hp: 4, maxHp: 4, itemName: "Centurion's [Armor]", effect: undefined },
     ]);
@@ -2225,11 +2205,7 @@ describe("OPEN_TREASURE", () => {
   it("Palace roll 6 redirects to the Magic Item table and, for a [Weapon] grant, rolls the base Weapon table and attaches the bonus effect", () => {
     const state: DungeonState = { ...stateWithLevel(makeLevel(1)), treasures: 1 };
     // Magic Item roll 4 -> [Weapon] of Destruction (+2 damage); base Weapon roll 4 -> Whip (1d6+1).
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 6 },
-      fixedDie(4),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(4));
     // Weapon finds land in spareWeapons, never auto-equipped -- see WIELD_WEAPON.
     expect(next.weapon).toBeNull();
     expect(next.spareWeapons).toEqual([
@@ -2276,11 +2252,7 @@ describe("OPEN_TREASURE", () => {
       treasures: 1,
       torches: 5,
     };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 5 },
-      fixedDie(6),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(6));
     expect(next.torches).toBe(7);
   });
 
@@ -2343,11 +2315,7 @@ describe("OPEN_TREASURE", () => {
       treasures: 1,
       torches: 9,
     };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 5 },
-      fixedDie(6),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(6));
     expect(next.torches).toBe(10);
   });
 
@@ -2388,11 +2356,7 @@ describe("OPEN_TREASURE", () => {
         animalAttackedThisRound: false,
       },
     };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 5 },
-      fixedDie(5),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(5));
     expect(next.combat!.playerDamageBonus).toBe(2);
   });
 
@@ -2402,11 +2366,7 @@ describe("OPEN_TREASURE", () => {
       dungeonTypeKey: "palace",
       treasures: 1,
     };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 5 },
-      fixedDie(5),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(5));
     expect(next.combat).toBeNull();
     expect(next.log[0]!.message).toContain("no effect");
   });
@@ -2418,11 +2378,7 @@ describe("OPEN_TREASURE", () => {
       treasures: 1,
       spellUses: {},
     };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 5 },
-      fixedDie(5),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(5));
     expect(next.spellUses).toEqual({ "basic:5": 1 });
     expect(next.log[0]!.message).toContain("Lightning");
   });
@@ -2433,11 +2389,7 @@ describe("OPEN_TREASURE", () => {
       dungeonTypeKey: "crypt",
       treasures: 1,
     };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 6 },
-      fixedDie(5),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(5));
     expect(next.weapon).toBeNull();
     expect(next.spareWeapons).toEqual([
       {
@@ -2565,7 +2517,12 @@ describe("OPEN_TREASURE", () => {
       fixedDie(4), // "[Weapon] of Destruction", then Palace's own base weapon roll 4 -> Whip
     );
     expect(next.spareWeapons).toEqual([
-      { name: "Whip", formula: "1d6+1", twoHanded: undefined, bonusEffect: { kind: "weaponDamageBonus", amount: 2 } },
+      {
+        name: "Whip",
+        formula: "1d6+1",
+        twoHanded: undefined,
+        bonusEffect: { kind: "weaponDamageBonus", amount: 2 },
+      },
     ]);
   });
 
@@ -2575,11 +2532,7 @@ describe("OPEN_TREASURE", () => {
       dungeonTypeKey: "crypt",
       treasures: 1,
     };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 6 },
-      fixedDie(6),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(6));
     expect(next.weapon).toBeNull();
     expect(next.spareWeapons).toEqual([
       {
@@ -2597,11 +2550,7 @@ describe("OPEN_TREASURE", () => {
       treasures: 1,
     };
     // Magic Item roll 1 -> Bone [Armor] (-1 HP); base Armor roll 1 (same forced die) -> Ring (0 HP).
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 6 },
-      fixedDie(1),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(1));
     expect(next.armor).toEqual([
       { piece: "ring", hp: 0, maxHp: 0, itemName: "Bone [Armor]", effect: undefined },
     ]);
@@ -2613,11 +2562,7 @@ describe("OPEN_TREASURE", () => {
       dungeonTypeKey: "prison",
       treasures: 1,
     };
-    const next = dungeonReducer(
-      state,
-      { type: "OPEN_TREASURE", roll: 4 },
-      fixedDie(3),
-    );
+    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 4 }, fixedDie(3));
     expect(next.weapon).toBeNull();
     expect(next.spareWeapons).toEqual([{ name: "Spear", formula: "1d6+1", twoHanded: undefined }]);
   });
@@ -4087,7 +4032,10 @@ describe("RESOLVE_PACK_SWAP (issue #82)", () => {
 
   it("discarding an existing index makes room and adds the incoming item", () => {
     const next = dungeonReducer(stateWithPending(), { type: "RESOLVE_PACK_SWAP", discardIndex: 0 });
-    expect(next.heldItems).toEqual([{ name: "Old B", worth: 2 }, { name: "New Item", worth: 9 }]);
+    expect(next.heldItems).toEqual([
+      { name: "Old B", worth: 2 },
+      { name: "New Item", worth: 9 },
+    ]);
     expect(next.pendingPackItem).toBeNull();
   });
 
@@ -4114,7 +4062,10 @@ describe("DISCARD_ITEM (issue #82)", () => {
   it("removes the chosen item", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
-      heldItems: [{ name: "A", worth: 1 }, { name: "B", worth: 2 }],
+      heldItems: [
+        { name: "A", worth: 1 },
+        { name: "B", worth: 2 },
+      ],
     };
     const next = dungeonReducer(state, { type: "DISCARD_ITEM", index: 0 });
     expect(next.heldItems).toEqual([{ name: "B", worth: 2 }]);

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.47.1] - 2026-07-28
+
+### Changed
+
+- Ran Prettier across the whole repo. The config and the `format`
+  script were always there; they had just never been run, so any file
+  anyone formatted picked up unrelated churn. Formatting only -- no
+  behavior change, and `.git-blame-ignore-revs` keeps this commit out
+  of `git blame`.
+
 ## [2.47.0] - 2026-07-28
 
 ### Added

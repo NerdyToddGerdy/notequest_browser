@@ -485,7 +485,7 @@ describe("isTeleportDestination", () => {
     expect(isTeleportDestination(seg, 1)).toBe(false);
   });
 
-  it("excludes corridors and staircases -- not a \"room\" per the rulebook", () => {
+  it('excludes corridors and staircases -- not a "room" per the rulebook', () => {
     const corridor = makeSegment({ id: 2, type: "corridor", doors: [] });
     const staircase = makeSegment({ id: 3, type: "staircase", doors: [] });
     expect(isTeleportDestination(corridor, 1)).toBe(false);

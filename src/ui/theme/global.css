@@ -19,9 +19,7 @@ body {
   overflow-x: hidden;
   position: relative;
   isolation: isolate;
-  background:
-    radial-gradient(80vw 60vh at 50% 6%, var(--bg-1) 0%, var(--bg-0) 60%),
-    var(--bg-0);
+  background: radial-gradient(80vw 60vh at 50% 6%, var(--bg-1) 0%, var(--bg-0) 60%), var(--bg-0);
 }
 
 /* dungeon-stone grain */

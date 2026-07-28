@@ -82,7 +82,10 @@ describe("hirelingsFor", () => {
   });
 
   it("doesn't append the Human-Fortress tier for any other culture, even at a Fortress", () => {
-    expect(hirelingsFor("dwarven", true).map((h) => h.name)).toEqual(["Dwarf Miner", "Dwarf Soldier"]);
+    expect(hirelingsFor("dwarven", true).map((h) => h.name)).toEqual([
+      "Dwarf Miner",
+      "Dwarf Soldier",
+    ]);
     expect(hirelingsFor("elven", true).map((h) => h.name)).toEqual(["Elf Ranger", "Elf Soldier"]);
     expect(hirelingsFor("gnome", true).map((h) => h.name)).toEqual(["Gnome Helper"]);
   });

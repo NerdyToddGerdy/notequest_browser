@@ -299,7 +299,8 @@ function applyAdvancedClassAbility(
     // there's no free slot or a mount is already owned (this file has no logging mechanism at all,
     // unlike dungeonReducer.ts, so this matches its existing style rather than a regression).
     case "Knight":
-      if (resources.animals.length >= MAX_ANIMALS || activeMount(resources.animals)) return resources;
+      if (resources.animals.length >= MAX_ANIMALS || activeMount(resources.animals))
+        return resources;
       return { ...resources, animals: [...resources.animals, "Horse"] };
     default:
       return resources;

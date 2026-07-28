@@ -234,7 +234,11 @@ export function DungeonScreen({
   // its own hireling through the reducer, so this must not fire for that case. Ziggurat's
   // Effect of the Forgotten Gods (issue #30) is consumed the same way, into state.runDamageBonus.
   useEffect(() => {
-    if (!activeDungeon && !resumeDungeon && (resources.hireling || resources.nextDungeonDamageBonus > 0)) {
+    if (
+      !activeDungeon &&
+      !resumeDungeon &&
+      (resources.hireling || resources.nextDungeonDamageBonus > 0)
+    ) {
       onUpdateResources({ ...resources, hireling: null, nextDungeonDamageBonus: 0 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -386,7 +390,9 @@ export function DungeonScreen({
                     </p>
                     {state.noExit ? (
                       <>
-                        <p>A Portal stands open where the Boss fell — the only way out of this place.</p>
+                        <p>
+                          A Portal stands open where the Boss fell — the only way out of this place.
+                        </p>
                         <button
                           className={styles.deathBtn}
                           type="button"
@@ -531,7 +537,9 @@ export function DungeonScreen({
                             dispatch({ type: "HIRELING_ATTACK", targetId, roll })
                           }
                           onHirelingExplode={() => dispatch({ type: "HIRELING_EXPLODE" })}
-                          onAnimalAttack={(targetId) => dispatch({ type: "ANIMAL_ATTACK", targetId })}
+                          onAnimalAttack={(targetId) =>
+                            dispatch({ type: "ANIMAL_ATTACK", targetId })
+                          }
                         />
                       )}
                     </div>

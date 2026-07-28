@@ -309,12 +309,15 @@ export function HexInspector({
               const def = BUILDING_TABLE[kind];
               const alreadyThis = currentBuilding === kind;
               const newCost = buildingCost(kind, terrain, raceName);
-              const oldCost = currentBuilding ? buildingCost(currentBuilding, terrain, raceName) : 0;
+              const oldCost = currentBuilding
+                ? buildingCost(currentBuilding, terrain, raceName)
+                : 0;
               const cost = Math.max(0, newCost - oldCost);
               return (
                 <li key={kind} className={styles.trainRow}>
                   <span>
-                    {def.name} ({cost} coins{def.requirementText === "None." ? "" : `, ${def.requirementText}`})
+                    {def.name} ({cost} coins
+                    {def.requirementText === "None." ? "" : `, ${def.requirementText}`})
                   </span>
                   <button
                     type="button"
