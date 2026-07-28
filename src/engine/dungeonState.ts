@@ -16,6 +16,12 @@ export interface DoorState {
   opened: boolean;
   childId: number | null;
   leadsToLevel: number | null;
+  /** Issue #96: this door was broken open rather than picked/unlocked, so it no longer separates the
+   * two segments -- "whenever you have a broken door in a segment, there is communication between
+   * the segments." Read by `alertThroughBrokenDoors()` to carry an alarm one hop outward. Optional
+   * and defaulted at the read site, per the back-compat convention, so an older persisted
+   * `dungeonHistory` blob still loads (its doors simply count as intact). */
+  broken?: boolean;
 }
 
 export interface Box {
@@ -42,6 +48,12 @@ export interface SegmentState extends Box {
    * this segment no longer blocks further actions -- until a noisy action (breaking a door, a fired
    * trap) inside it wakes them, which clears this flag and starts combat with them attacking first. */
   sneakedPast?: boolean;
+  /** Issue #96: this segment's monsters have been alerted from a distance -- noise carried to them
+   * through a broken door while the player was somewhere else. Only one `CombatState` exists at a
+   * time, so they can't attack now; instead `startCombat` reads this as `wasNoisy` when the player
+   * finally walks in, so they get the first strike. Cleared when the fight actually starts.
+   * Optional/back-compat like every other later addition here. */
+  alerted?: boolean;
   /** Set on empty rooms when RETURN_TO_DUNGEON/RESUME_DUNGEON restores a persisted map -- per the
    * rulebook, resting in town (or a new character taking over) means fresh monsters may have moved
    * into any room that's currently empty, re-rolled the next time the player actually looks at it
@@ -523,7 +535,12 @@ export function createInitialDungeonState(
   };
 }
 
-export type LockChoice = "pickLock" | "breakDoor";
+/** How the player chose to get through a locked door. "useKey" (issue #95) spends one of
+ * `DungeonState.keys` -- no torch, no noise -- per "If you find a key, you can open any door in the
+ * dungeon." Keys are per-run by construction: they live on `DungeonState`, and `RESUME_DUNGEON`
+ * resets them for a new character, which is exactly "keys found in one dungeon do not open doors in
+ * another." */
+export type LockChoice = "pickLock" | "breakDoor" | "useKey";
 
 export type DungeonAction =
   | { type: "ROLL_DUNGEON"; typeRoll: number; secondRoll: number; thirdRoll: number }

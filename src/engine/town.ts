@@ -320,17 +320,26 @@ export function buyMaxTorches(resources: AdventurerResources): AdventurerResourc
 
 /** "Sell Items: Sell any item in any city for [its worth in] coins." Each HeldItem already
  * carries the sale price it was found with (e.g. "Ornament, worth 5 Coins in the town").
- * `isCatPerson`: "You can sell equipment in the town for twice the price." */
+ * `isCatPerson`: "You can sell equipment in the town for twice the price."
+ * `isFortress` (issue #94): "If it is a Fortress, double this value."
+ *
+ * The two multipliers **stack** (4x for a Cat-Person selling in a Fortress), confirmed with the
+ * user. This is deliberately *not* the "two rulebook entries, one bonus, no double-counting"
+ * convention: that applies where two entries grant the identical effect (Grave Digger/Gravedigger,
+ * Cat-Person/Merchant -- which is itself still OR'd into `isCatPerson` by the caller). Here one
+ * multiplier is a property of the *place* and the other of the *seller*, so they're independent. */
 export function sellItem(
   resources: AdventurerResources,
   index: number,
   isCatPerson = false,
+  isFortress = false,
 ): AdventurerResources {
   const item = resources.heldItems[index];
   if (!item) return resources;
+  const multiplier = (isCatPerson ? 2 : 1) * (isFortress ? 2 : 1);
   return {
     ...resources,
-    coins: resources.coins + item.worth * (isCatPerson ? 2 : 1),
+    coins: resources.coins + item.worth * multiplier,
     heldItems: resources.heldItems.filter((_, i) => i !== index),
     milestones: { ...resources.milestones, hasSoldItem: true },
   };

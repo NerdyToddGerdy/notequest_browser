@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.46.0] - 2026-07-27
+
+### Added
+
+- Keys finally do something: a locked door now offers "Use a Key"
+  alongside Pick Lock and Break Door -- it costs no torch and makes no
+  noise (#95). The Master Key is still flavor-only.
+- Selling in a Fortress pays double, per the rulebook. It stacks with
+  a Cat-Person's or Merchant's own markup, so selling there as one
+  pays quadruple (#94).
+- Breaking a door is remembered, and noise now carries through a
+  broken door into the next segment -- monsters over there are
+  alerted, and get the first strike when you finally walk in (#96).
+
+### Fixed
+
+- The Ziggurat's Forgotten Gods damage bonus is no longer lost when
+  you leave a dungeon and come back to the same run (#93).
+- Entering a dungeon with no torches no longer left you on -1 torches
+  and somehow still alive. The entry torch is now spent like every
+  other one, and "Roll for Dungeon" is disabled when you have none,
+  so you're turned back at the gate instead of killed on the
+  threshold (#92).
+
 ## [2.45.0] - 2026-07-27
 
 ### Added

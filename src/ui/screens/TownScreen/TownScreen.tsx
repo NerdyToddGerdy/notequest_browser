@@ -303,6 +303,17 @@ export function TownScreen({
   // "repair an armor by spending 1 Torch instead of a coin" -- same dual-source-one-bonus shape.
   const isBlacksmith =
     character.cls.name === "Blacksmith" || resources.advancedClasses.includes("Blacksmith");
+  /** Explains whichever sell multipliers are actually in play. Cat-Person/Merchant (the seller) and a
+   * Fortress (the place, issue #94) are independent and stack to 4x -- see `sellItem()` for why this
+   * one isn't the usual "two entries, one bonus" case. */
+  const sellMultiplierNote = (() => {
+    const reasons = [
+      isCatPerson ? (character.race.name === "Cat-Person" ? "Cat-Person" : "Merchant") : null,
+      isFortress ? "Fortress" : null,
+    ].filter((r): r is string => r != null);
+    if (reasons.length === 0) return "";
+    return ` (${isCatPerson && isFortress ? "quadrupled" : "doubled"}, ${reasons.join(" + ")})`;
+  })();
   const isChampion = resources.advancedClasses.includes("Champion");
   const isAlchemist = resources.advancedClasses.includes("Alchemist");
   // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor."
@@ -757,9 +768,7 @@ export function TownScreen({
                   </div>
                   <p className={styles.sellNote}>
                     Sell items from your Pack for their listed worth in coins
-                    {isCatPerson
-                      ? ` (doubled, ${character.race.name === "Cat-Person" ? "Cat-Person" : "Merchant"})`
-                      : ""}
+                    {sellMultiplierNote}
                     , or fix a damaged armor piece from your Equipment, for{" "}
                     {isBlacksmith
                       ? `1 torch (${character.cls.name === "Blacksmith" ? "Blacksmith" : "Advanced Class"})`
@@ -868,7 +877,7 @@ export function TownScreen({
           />
           <Pack
             items={resources.heldItems}
-            onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson))}
+            onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson, isFortress))}
             onDiscard={(index) => onUpdateResources(discardItem(resources, index))}
             maxItems={maxHeldItemsFor(resources.hireling, resources.animals)}
           />

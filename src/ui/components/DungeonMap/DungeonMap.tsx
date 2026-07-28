@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { DungeonState } from "../../../engine/dungeonState.ts";
+import type { DungeonState, LockChoice } from "../../../engine/dungeonState.ts";
 import { classifyDoorOpen, DIR_VEC, edgePoint, reachableSegIds } from "../../../engine/dungeon.ts";
 import { rollDie } from "../../../engine/dice.ts";
 import { OPEN_DOOR_TABLE, TYPE_LABELS, type SegmentType } from "../../../data/dungeonTypes.ts";
@@ -39,7 +39,7 @@ export interface DungeonMapProps {
     doorIdx: number,
     doorRoll: number,
     trapRoll: number | null,
-    lockChoice: "pickLock" | "breakDoor" | null,
+    lockChoice: LockChoice | null,
   ) => void;
   onSelectSegment: (segId: number) => void;
   onSwitchLevel: (levelIndex: number, segId?: number) => void;
@@ -221,7 +221,7 @@ export function DungeonMap({
     });
   }
 
-  function handleLockChoice(choice: "pickLock" | "breakDoor") {
+  function handleLockChoice(choice: LockChoice) {
     if (!doorFlow || doorFlow.kind !== "lockChoice") return;
     const { segId, doorIdx, x, y, doorRoll } = doorFlow;
     onResolveLock(segId, doorIdx, doorRoll, null, choice);
@@ -229,7 +229,7 @@ export function DungeonMap({
       setDoorFlow(null); // the Darkness took them while picking the lock
       return;
     }
-    // Breaking the door down is loud; picking the lock is quiet.
+    // Breaking the door down is loud; picking the lock and turning a key (issue #95) are quiet.
     proceedToSegment(segId, doorIdx, x, y, choice === "breakDoor");
   }
 
@@ -373,6 +373,9 @@ export function DungeonMap({
               <p>Locked!</p>
               <button type="button" onClick={() => handleLockChoice("pickLock")} disabled={state.torches < 1}>
                 Pick Lock (1 torch)
+              </button>
+              <button type="button" onClick={() => handleLockChoice("useKey")} disabled={state.keys < 1}>
+                Use a Key ({state.keys})
               </button>
               <button type="button" onClick={() => handleLockChoice("breakDoor")}>
                 Break Door (free)

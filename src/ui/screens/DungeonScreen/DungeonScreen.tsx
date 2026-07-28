@@ -292,7 +292,7 @@ export function DungeonScreen({
   }, []);
 
   function handleRollDungeon() {
-    if (rollingDungeon) return;
+    if (rollingDungeon || state.torches < 1) return;
     // The type die still animates like any other roll -- it's just fated by the hex's terrain
     // instead of free chance when arriving from World (forcedTypeRoll), same ritual either way.
     const rolls = [forcedTypeRoll ?? rollDie(), rollDie(), rollDie()];
@@ -348,11 +348,19 @@ export function DungeonScreen({
                     <div className={styles.diceRow}>
                       <DicePool values={diceValues} rollToken={diceRollToken} />
                     </div>
+                    {/* Issue #92: entering costs a torch, so blocking here beats letting the reducer
+                        kill them on the threshold -- especially for a Miner, whose whole ability is
+                        surviving an empty torch bag. */}
+                    {state.torches < 1 && (
+                      <p className={styles.gateCopy}>
+                        You have no torches. Go back to town and buy one before entering the dark.
+                      </p>
+                    )}
                     <div className={styles.headerActions}>
                       <button
                         className={styles.rollBtn}
                         type="button"
-                        disabled={rollingDungeon}
+                        disabled={rollingDungeon || state.torches < 1}
                         onClick={handleRollDungeon}
                       >
                         Roll for Dungeon

@@ -71,7 +71,7 @@ import {
   type LevelState,
   type SegmentState,
 } from "./dungeonState.ts";
-import { createInitialMilestones, maxHeldItemsFor } from "./town.ts";
+import { createInitialMilestones, MAX_TORCHES, maxHeldItemsFor } from "./town.ts";
 import type { RNG } from "./rng.ts";
 
 function bumpStatsForNewSegment(
@@ -198,6 +198,11 @@ function spendTorches(
     if (trySamambroSurvival(draft, rng)) return false; // still out of torches, but alive
     if (tryRavenSurvival(draft, rng)) return false; // still out of torches, but alive
     draft.alive = false;
+    // Set explicitly rather than left null: every reader already treats null as the Darkness
+    // (`deathCause ?? "darkness"`, `deathCause !== "combat"`), but the field exists precisely to
+    // distinguish the two, and relying on the absence of a value made the one path that isn't
+    // combat the only one that never says so.
+    draft.deathCause = "darkness";
     pushLog(draft, DARKNESS_MESSAGE, "descend");
     leaveRemains(draft, segId);
     return false;
@@ -260,6 +265,17 @@ function startCombat(
   rng: RNG,
   isBoss = false,
 ): void {
+  // Issue #96: monsters alerted from a distance (noise carried through a broken door while the
+  // player was elsewhere) get the first strike whenever the player finally walks in, exactly as if
+  // the arrival itself had been noisy. Folded in here rather than at each call site, since this is
+  // the single chokepoint every fight starts from. The flag is consumed either way -- they only get
+  // one free ambush out of it.
+  const alertedSeg = draft.levels[draft.activeLevel]?.segments.find((sg) => sg.id === segId);
+  if (alertedSeg?.alerted) {
+    wasNoisy = true;
+    alertedSeg.alerted = false;
+  }
+
   const monsters: CombatMonsterState[] = spawnMonsters(
     template,
     () => {
@@ -338,17 +354,59 @@ function isActionBlocked(state: DungeonState): boolean {
 
 /** If a room the player previously moved silently through hears a noisy action (a door breaking,
  * a trap firing) while they're still there, its monsters wake up and attack first -- "If while
- * hiding you set off a trap or make a noise, monsters attack." */
+ * hiding you set off a trap or make a noise, monsters attack."
+ *
+ * Also carries the alarm one hop outward through any *broken* door (issue #96): "whenever you have a
+ * broken door in a segment, there is communication between the segments. If monsters in one segment
+ * are alerted, monsters in the other segment are also alerted and will attack you." */
 function wakeSneakedPastMonsters(
   draft: Draft<DungeonState>,
   seg: Draft<SegmentState>,
   rng: RNG,
 ): void {
+  alertThroughBrokenDoors(draft, seg);
   const monsters = seg.monsters;
   if (!seg.sneakedPast || !monsters) return;
   seg.sneakedPast = false;
   pushLog(draft, `Segment ${seg.id}: the noise gives you away -- the monsters attack!`);
   startCombat(draft, seg.id, monsters, true, rng);
+}
+
+/** Issue #96's propagation half. Deliberately **one hop**, not a transitive flood-fill: the rulebook
+ * says "communication between the segments" (the two a broken door joins), not "throughout the
+ * dungeon" -- confirmed with the user.
+ *
+ * Only one `CombatState` slot exists at a time, so an alerted group the player isn't standing in
+ * can't start a fight now. Instead it's marked `alerted`, which `startCombat` reads as `wasNoisy`
+ * whenever the player does walk in -- closest to "will attack you," and it reuses machinery that
+ * already exists rather than inventing a second combat slot. Doors live only on the *parent*
+ * segment (`childId` points at the child), so neighbors are collected in both directions, the same
+ * bidirectional walk `reachableSegIds()` does. */
+function alertThroughBrokenDoors(draft: Draft<DungeonState>, from: Draft<SegmentState>): void {
+  const level = draft.levels[draft.activeLevel];
+  if (!level) return;
+
+  const neighborIds = new Set<number>();
+  for (const door of from.doors) {
+    if (door.broken && door.childId != null) neighborIds.add(door.childId);
+  }
+  for (const other of level.segments) {
+    if (other.id === from.id) continue;
+    if (other.doors.some((d) => d.broken && d.childId === from.id)) neighborIds.add(other.id);
+  }
+
+  for (const id of neighborIds) {
+    const neighbor = level.segments.find((sg) => sg.id === id);
+    if (!neighbor?.monsters || neighbor.monstersDefeated || neighbor.alerted) continue;
+    neighbor.alerted = true;
+    // A sneaked-past neighbor loses its "they never noticed you" status outright -- the whole point
+    // of the rule is that a broken door gives away a room you took care to slip through.
+    neighbor.sneakedPast = false;
+    pushLog(
+      draft,
+      `Segment ${neighbor.id}: the noise carries through the broken door -- something in there heard you.`,
+    );
+  }
 }
 
 /**
@@ -794,7 +852,7 @@ function finishIfVictorious(
     pushLog(draft, `Absorb Soul restores ${healed} HP from the fallen.`);
   }
   if (combat.fireOfTheDeadActive && combat.engulfableBodies > 0) {
-    const gained = Math.min(2 * combat.engulfableBodies, 10 - draft.torches);
+    const gained = Math.min(2 * combat.engulfableBodies, MAX_TORCHES - draft.torches);
     draft.torches += gained;
     pushLog(
       draft,
@@ -1072,7 +1130,7 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
       return;
     }
   } else if (entry.effect.kind === "grantsTorches") {
-    const gained = Math.min(entry.effect.amount, 10 - draft.torches);
+    const gained = Math.min(entry.effect.amount, MAX_TORCHES - draft.torches);
     draft.torches += gained;
   } else if (entry.effect.kind === "healAmount") {
     // Ziggurat's "Addictive Sweet Drink" (issue #30): "Recovers 1 HP" -- applied immediately, same
@@ -1323,6 +1381,14 @@ export function dungeonReducer(
       const third = DUNGEON_NAME_THIRD[action.thirdRoll];
 
       return produce(state, (draft) => {
+        // Issue #92: the entry torch goes through `spendTorches()` like every other spend, rather
+        // than a bare decrement that could drive the counter negative. Charged *before* anything is
+        // built, so a failed spend leaves no half-made dungeon behind: a Miner (or a successful
+        // Samambro/Raven roll) is spared and simply doesn't enter, anyone else meets the Darkness.
+        // `DungeonScreen` also disables "Roll for Dungeon" at 0 torches, so in practice this is
+        // defense in depth -- reducer decides, UI mirrors.
+        if (!spendTorches(draft, 1, "Entering the dungeon costs 1 torch to light the way.")) return;
+
         draft.dungeonTypeKey = dtype.key;
         draft.dungeonName = `${dtype.name} ${second ?? ""} ${third ?? ""}`.trim();
         draft.entranceFlavor = dtype.entrance;
@@ -1340,9 +1406,6 @@ export function dungeonReducer(
           doorsRemaining: 0,
           finalRooms: 0,
         };
-        draft.torches -= 1;
-        pushLog(draft, "Entering the dungeon costs 1 torch to light the way.");
-
         const level = draft.levels[0]!;
         const box = boxFromCenter(0, 0, sizeFor(dtype.entranceType, null));
         const entrance = buildSegment(
@@ -1654,7 +1717,19 @@ export function dungeonReducer(
             } else {
               spendTorches(draft, 1, `Segment ${seg.id}: spent 1 torch to pick the lock.`, seg.id, rng);
             }
+          } else if (action.lockChoice === "useKey") {
+            // Issue #95: "If you find a key, you can open any door in the dungeon." No torch, no
+            // noise -- the quiet option the locked-door prompt previously lacked. Counted toward
+            // Thief's `locksOpened` (its requirement is "opened at least 4 locks," and a key opens
+            // the lock; breaking the door destroys it without ever opening it, which is why the
+            // break branch below still doesn't count).
+            if (draft.keys < 1) return;
+            draft.keys -= 1;
+            draft.milestones.locksOpened += 1;
+            pushLog(draft, `Segment ${seg.id}: a key turns the lock quietly. (${draft.keys} left)`);
           } else if (action.lockChoice === "breakDoor") {
+            // Issue #96: remembered so the alarm can travel back through it later.
+            door.broken = true;
             pushLog(
               draft,
               `Segment ${seg.id}: broke the door open — no torch spent, but it alerts nearby monsters.`,
@@ -1662,7 +1737,7 @@ export function dungeonReducer(
             if (draft.className === "Lumberjack") {
               const roll = rollDie(rng);
               if (roll === 6) {
-                draft.torches = Math.min(draft.torches + 1, 10);
+                draft.torches = Math.min(draft.torches + 1, MAX_TORCHES);
                 pushLog(draft, "Splintered wood makes for good kindling — you gain 1 torch.");
               }
             }
@@ -2408,7 +2483,7 @@ export function dungeonReducer(
           case "Light": {
             // "Worth a torch (does not use a hand)" -- modeled as a free torch, since this
             // codebase collapses light-source and hand-economy into the single torches count.
-            const gained = Math.min(1, 10 - draft.torches);
+            const gained = Math.min(1, MAX_TORCHES - draft.torches);
             draft.torches += gained;
             pushLog(
               draft,
@@ -2835,6 +2910,13 @@ export function dungeonReducer(
           action.spareArmor,
         ),
         (draft) => {
+          // Ziggurat's Effect of the Forgotten Gods (issue #93): `runDamageBonus` belongs to the
+          // *run*, not the character, so it's restored from the persisted run rather than passed in
+          // as an action field like every resource above. `createInitialDungeonState()` would
+          // otherwise default it to 0 and silently drop a bonus that cost a provision to earn.
+          // RESUME_DUNGEON deliberately does *not* do this -- a new character taking over someone
+          // else's map doesn't inherit their blessing, same as every other character-specific field.
+          draft.runDamageBonus = persisted.runDamageBonus ?? 0;
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);
         },
       );
