@@ -1,0 +1,5 @@
+# Formatting-only commits, skipped by `git blame`.
+# Enable with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Release 2.47.1: format the repo with Prettier
+889443aab7250b6e51952d8ba7abce49db652087
