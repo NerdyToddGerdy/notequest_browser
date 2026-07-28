@@ -25,6 +25,7 @@ import {
   qualifiesForBuyingMount,
   qualifiesForTraining,
   withBannedHex,
+  hasSewersBelow,
   withPlayerMovedTo,
   withPortalHere,
   withPortalTotal,
@@ -150,6 +151,9 @@ export interface WorldScreenProps {
    * `onEnterDungeon` because it isn't tied to the hex the player is standing on at all -- the portal
    * drops them into a fresh run that App.tsx has to mint outside the normal per-hex flow. */
   onEnterNoExitDungeon: () => void;
+  /** Issue #99: descend into the Sewers beneath a Fortress -- a second run on the same hex, so it
+   * needs its own entry point rather than reusing `onEnterDungeon`, which stamps `dungeonRunId`. */
+  onEnterSewers: () => void;
   /** Portals (issue #21): true when the player just stepped through a no-exit dungeon's Boss-room
    * Portal, so a fresh portal roll fires the moment this screen mounts rather than dumping them back
    * on the map with nothing happening. `onAutoPortalConsumed` clears it so it fires exactly once. */
@@ -244,6 +248,7 @@ export function WorldScreen({
   onUpdateWorld,
   onEnterDungeon,
   onEnterNoExitDungeon,
+  onEnterSewers,
   autoPortalOnMount = false,
   onAutoPortalConsumed,
   onCharacterDied,
@@ -349,22 +354,35 @@ export function WorldScreen({
    * "unfinished" about it yet. "unfinished" itself covers dungeonRunId being set (Enter Dungeon has
    * actually been used here) even before a PendingDungeon exists in dungeonHistory (which only
    * catches up once the player first leaves). */
+  /** Describes one run by id -- shared by a hex's own dungeon and (issue #99) the Sewers beneath a
+   * Fortress, which is a genuinely separate run on the same hex. */
+  function runInfoFor(runId: string | undefined): {
+    status: "none" | "unfinished" | "beaten";
+    hasRemains: boolean;
+  } {
+    if (!runId) return { status: "none", hasRemains: false };
+    const pending = dungeonHistory.find((pd) => pd.id === runId);
+    if (!pending) return { status: "unfinished", hasRemains: false };
+    return {
+      status: isDungeonBeaten(pending.dungeon) ? "beaten" : "unfinished",
+      hasRemains: hasUnlootedRemains(pending.dungeon),
+    };
+  }
+
   function dungeonInfoFor(tile: HexTile | undefined): {
     status: "none" | "found" | "unfinished" | "beaten";
     hasRemains: boolean;
   } {
-    if (tile?.dungeonRunId) {
-      const pending = dungeonHistory.find((pd) => pd.id === tile.dungeonRunId);
-      if (pending) {
-        return {
-          status: isDungeonBeaten(pending.dungeon) ? "beaten" : "unfinished",
-          hasRemains: hasUnlootedRemains(pending.dungeon),
-        };
-      }
-      return { status: "unfinished", hasRemains: false };
-    }
+    if (tile?.dungeonRunId) return runInfoFor(tile.dungeonRunId);
     if (tile?.dungeonMarked) return { status: "found", hasRemains: false };
     return { status: "none", hasRemains: false };
+  }
+
+  /** Issue #99: the Sewers under this Fortress, if it rolled any. Deliberately separate from
+   * `dungeonInfoFor` -- both can be present on the same hex, which is unique to Fortresses. */
+  function sewersInfoFor(tile: HexTile | undefined) {
+    if (!hasSewersBelow(tile)) return null;
+    return runInfoFor(tile?.sewerRunId);
   }
   const currentDungeonStatus = dungeonInfoFor(currentTile).status;
   // Ziggurat's Effect of the Forgotten Gods (issue #30): only meaningful once this hex's own
@@ -397,6 +415,14 @@ export function WorldScreen({
       : currentDungeonStatus === "unfinished"
         ? "your unfinished dungeon is still here."
         : "a dungeon awaits here.";
+  /** Issue #99: the Fortress's own second dungeon. Offered until it's been cleared, exactly like the
+   * hex's primary one -- and never in a realm, where dungeons don't operate at all (issue #105). */
+  const currentSewers = sewersInfoFor(currentTile);
+  const hasSewers = !inRealm && currentSewers != null && currentSewers.status !== "beaten";
+  const sewersGateCopy =
+    currentSewers?.status === "unfinished"
+      ? "your unfinished business in the sewers is still down there."
+      : "a manhole in the courtyard drops into the sewers below.";
   const culture: CityCulture | null =
     (currentTile?.location && CULTURE_BY_LOCATION[currentTile.location]) || null;
   const besideWater = neighborCoords.some((n) => world.tiles[hexKey(n)]?.terrain === "water");
@@ -1325,6 +1351,9 @@ export function WorldScreen({
           // entered a dungeon on yet still offers a fresh roll, same as the old Ruins card always did.
           hasDungeon={canEnterDungeon}
           dungeonGateCopy={dungeonGateCopy}
+          hasSewers={hasSewers}
+          sewersGateCopy={sewersGateCopy}
+          onEnterSewers={onEnterSewers}
           dungeonHistory={sortedDungeonHistory}
           culture={culture}
           cityName={currentPlaceLabel}

@@ -173,6 +173,13 @@ export interface TownScreenProps {
    * distinguishes the three cases in the copy shown alongside the button. */
   hasDungeon: boolean;
   dungeonGateCopy: string;
+  /** Issue #99: this Fortress has Sewers beneath it -- a *second*, independent dungeon on the same
+   * hex, the only place the rulebook allows that. Rendered as its own gate next to the Fortress's
+   * own dungeon rather than replacing it. False for every City and for a Fortress whose sub-roll
+   * came up 1-2. */
+  hasSewers: boolean;
+  sewersGateCopy: string;
+  onEnterSewers: () => void;
   /** Every dungeon any character has touched -- shown read-only via RecordsPanel's Dungeons tab,
    * pre-sorted by `WorldScreen` (closest-to-farthest, issue #80). */
   dungeonHistory: PendingDungeon[];
@@ -266,6 +273,9 @@ export function TownScreen({
   resources,
   hasDungeon,
   dungeonGateCopy,
+  hasSewers,
+  sewersGateCopy,
+  onEnterSewers,
   dungeonHistory,
   onLocateDungeon,
   culture,
@@ -840,6 +850,15 @@ export function TownScreen({
                         <p className={styles.gateCopy}>{dungeonGateCopy}</p>
                         <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
                           Enter Dungeon
+                        </button>
+                      </div>
+                    )}
+
+                    {hasSewers && (
+                      <div className={styles.activeDungeonCard}>
+                        <p className={styles.gateCopy}>{sewersGateCopy}</p>
+                        <button className={styles.rollBtn} type="button" onClick={onEnterSewers}>
+                          Descend into the Sewers
                         </button>
                       </div>
                     )}

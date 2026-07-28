@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.50.0] - 2026-07-28
+
+### Added
+
+- Fortresses can have Sewers underneath them (#99). Every fortress
+  rolls once, when you first find it, and on a 3 or more there's a
+  manhole in the courtyard -- a second, completely separate dungeon on
+  the same hex, alongside whatever the fortress itself holds. It's the
+  only place in the rules where one hex has two dungeons.
+
 ## [2.49.0] - 2026-07-28
 
 ### Added

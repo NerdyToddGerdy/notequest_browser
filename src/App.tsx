@@ -15,10 +15,14 @@ import {
   findOrRevealCompatibleHome,
   hexKey,
   withDungeonRunId,
+  withSewerRunId,
   type WorldState,
 } from "./engine/hexState.ts";
 import { hasAffinity } from "./data/affinity.ts";
 import { DUNGEON_TYPE_BY_TERRAIN, isOverworldTerrain } from "./data/hexTables.ts";
+/** Issue #99: the Sewers' own `DUNGEON_TYPES` roll number -- the Fortress sub-roll names the type
+ * outright, so it bypasses `DUNGEON_TYPE_BY_TERRAIN` entirely. */
+const SEWERS_TYPE_ROLL = 11;
 import { rollDie } from "./engine/dice.ts";
 import { clearSession, loadSession, saveSession } from "./engine/session.ts";
 import { addGraveyardEntry, clearGraveyard, type TownDeathCause } from "./engine/graveyard.ts";
@@ -307,6 +311,26 @@ export default function App() {
         }}
         autoPortalOnMount={pendingPortalOnArrival}
         onAutoPortalConsumed={() => setPendingPortalOnArrival(false)}
+        onEnterSewers={() => {
+          // Issue #99: "A Fortress may also have an extra dungeon to explore... Sewers under the
+          // fortress." A second, independent run on the same hex, so it stamps `sewerRunId` rather
+          // than `dungeonRunId` and forces the Sewers type roll (11) instead of consulting the
+          // terrain table -- the rulebook names the type outright here.
+          const tile = resolvedWorld.tiles[hexKey(resolvedWorld.player)];
+          if (!tile) return;
+          if (tile.sewerRunId) {
+            setForcedTypeRoll(null);
+            setWorldFreshRunId(null);
+            setSelectedRunId(tile.sewerRunId);
+          } else {
+            setForcedTypeRoll(SEWERS_TYPE_ROLL);
+            const newRunId = crypto.randomUUID();
+            setWorldFreshRunId(newRunId);
+            setWorld(withSewerRunId(resolvedWorld, resolvedWorld.player, newRunId));
+            setSelectedRunId(null);
+          }
+          setScreen("dungeon");
+        }}
         onEnterNoExitDungeon={() => {
           // Portals (issue #21) roll of 7. Deliberately *not* stamped onto any hex: this dungeon
           // isn't tied to geography (the portal dropped the character in from nowhere), so no

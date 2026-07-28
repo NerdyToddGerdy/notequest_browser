@@ -3,6 +3,7 @@ import type { RNG } from "./rng.ts";
 import {
   CITY_OR_FORTRESS,
   COLD_TERRAIN_TABLE,
+  isFortressLocation,
   HOT_TERRAIN_TABLE,
   LOCATION_TABLE,
   type Climate,
@@ -85,6 +86,17 @@ export interface HexTile {
    * the destination forever and every later trip reuses it, making a portal a stable piece of
    * geography rather than a slot machine. Only ever set on a `location: "portal"` hex. */
   portalTotal?: number;
+  /** Issue #99: "A Fortress may also have an extra dungeon to explore: roll a die, on a 3 or more it
+   * has Sewers under the fortress." Rolled once, when the Fortress itself is first revealed --
+   * alongside its `name`, the same "settle everything about a hex the moment it exists" precedent --
+   * so it never changes and never needs re-rolling. Undefined for every non-Fortress hex, and for a
+   * Fortress revealed before this existed (`hasSewersBelow()` reads it, defaulting to false rather
+   * than rolling late, so an old save simply has no sewers rather than gaining them retroactively). */
+  sewersRoll?: number;
+  /** Issue #99: the `PendingDungeon.id` of the Sewers *under* this Fortress -- a second, independent
+   * run on the same hex, alongside `dungeonRunId` for the Fortress's own dungeon. This is the only
+   * place in the rulebook where one hex holds two dungeons. */
+  sewerRunId?: string;
 }
 
 export interface WorldState {
@@ -168,6 +180,22 @@ function nextTerrain(
  * culture's `CITY_NAME_PREFIX`/`CITY_NAME_SUFFIX` tables (`data/cityNames.ts`), joined into one
  * compound word (e.g. "Iron" + "hold" -> "Ironhold"). Not from the rulebook, mirroring
  * `dungeonTypes.ts`'s own "second part"/"third part" flavor-name combination. */
+/** Issue #99: "on a 3 or more it has Sewers under the fortress." Always read through this rather
+ * than the raw field, so the back-compat default (a hex revealed before the roll existed has no
+ * sewers) lives in one place -- the same shape `isBannedHex`/`politicalStatusFor` already use. */
+export function hasSewersBelow(tile: HexTile | undefined): boolean {
+  return (tile?.sewersRoll ?? 0) >= 3;
+}
+
+/** Issue #99: stamps the Sewers run onto a Fortress hex, alongside (not replacing) its own
+ * `dungeonRunId`. Mirrors `withDungeonRunId` exactly. */
+export function withSewerRunId(world: WorldState, coord: HexCoord, runId: string): WorldState {
+  const key = hexKey(coord);
+  const tile = world.tiles[key];
+  if (!tile) return world;
+  return { ...world, tiles: { ...world.tiles, [key]: { ...tile, sewerRunId: runId } } };
+}
+
 export function rollCityName(culture: CityCulture, rng: RNG): string {
   const prefix = CITY_NAME_PREFIX[culture][rollDie(rng)]!;
   const suffix = CITY_NAME_SUFFIX[culture][rollDie(rng)]!;
@@ -199,8 +227,17 @@ export function revealNeighborsInPlace(
     const hasLocation = rollDie(rng) === 6;
     const location = hasLocation ? LOCATION_TABLE[rollDie(rng)]![terrain as Land] : null;
     const culture = location ? CULTURE_BY_LOCATION[location] : undefined;
+    // Issue #99: a Fortress rolls once, here, for whether it has Sewers beneath it -- settled at
+    // reveal time along with its name, so it's a fixed fact about the hex rather than something
+    // re-rolled on each visit.
+    const sewersRoll = isFortressLocation(location) ? rollDie(rng) : undefined;
     tiles[key] = culture
-      ? { terrain, location, name: rollCityName(culture, rng) }
+      ? {
+          terrain,
+          location,
+          name: rollCityName(culture, rng),
+          ...(sewersRoll ? { sewersRoll } : {}),
+        }
       : { terrain, location };
   }
 }

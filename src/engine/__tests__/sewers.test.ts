@@ -15,6 +15,12 @@ import {
   type SegmentState,
 } from "../dungeonState.ts";
 import { fixedDie, mulberry32, sequenceDie } from "../../test/mulberry32.ts";
+import {
+  hasSewersBelow,
+  revealNeighborsInPlace,
+  withSewerRunId,
+  type HexTile,
+} from "../hexState.ts";
 
 /** Sewers (issue #30) -- the first dungeon type with no Boss and no Final Room, the first with
  * Tunnels, and the first with doors that can't be broken. */
@@ -301,5 +307,77 @@ describe("the Sewers Treasure table", () => {
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 }, sequenceDie([6]));
     expect(next.torches).toBe(10);
     expect(next.treasures).toBe(0);
+  });
+});
+
+describe("Fortress sewers sub-roll (issue #99)", () => {
+  it("rolls once when the Fortress is revealed, and 3+ means sewers", () => {
+    const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
+    // Dice order per revealed hex: terrain (6 -> plain), "is there a location?" (6 -> yes),
+    // the Location roll (6 -> humanFortress on plain), the sewers sub-roll (5), then two city-name
+    // dice. The sub-roll is taken before the name, so it sits fourth.
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([6, 6, 6, 5, 1, 1]));
+    const fortress = Object.values(tiles).find((t) => t.location === "humanFortress");
+    expect(fortress).toBeDefined();
+    expect(fortress!.sewersRoll).toBe(5);
+    expect(hasSewersBelow(fortress)).toBe(true);
+  });
+
+  it("a 1 or 2 means no sewers", () => {
+    for (const roll of [1, 2]) {
+      expect(
+        hasSewersBelow({ terrain: "plain", location: "humanFortress", sewersRoll: roll }),
+      ).toBe(false);
+    }
+    for (const roll of [3, 4, 5, 6]) {
+      expect(
+        hasSewersBelow({ terrain: "plain", location: "humanFortress", sewersRoll: roll }),
+      ).toBe(true);
+    }
+  });
+
+  it("never rolls for a City -- only a Fortress has sewers under it", () => {
+    const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
+    // ...6 -> humanCity is roll 4/5 on plain; use 5 for the location roll.
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([6, 6, 5, 1, 1]));
+    for (const tile of Object.values(tiles)) {
+      if (tile.location === "humanCity") expect(tile.sewersRoll).toBeUndefined();
+    }
+  });
+
+  it("a hex revealed before the roll existed simply has no sewers, rather than gaining them", () => {
+    expect(hasSewersBelow({ terrain: "plain", location: "humanFortress" })).toBe(false);
+    expect(hasSewersBelow(undefined)).toBe(false);
+  });
+
+  it("stamps the sewer run alongside -- not instead of -- the hex's own dungeon", () => {
+    const world = {
+      climate: "hot" as const,
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      hasBoat: false,
+      tiles: {
+        "0,0": {
+          terrain: "plain" as const,
+          location: "humanFortress" as const,
+          sewersRoll: 6,
+          dungeonRunId: "own-run",
+        },
+      },
+    };
+    const next = withSewerRunId(world, { q: 0, r: 0 }, "sewer-run");
+    expect(next.tiles["0,0"]!.sewerRunId).toBe("sewer-run");
+    expect(next.tiles["0,0"]!.dungeonRunId).toBe("own-run"); // the two coexist
+  });
+
+  it("is a no-op for a hex that doesn't exist", () => {
+    const world = {
+      climate: "hot" as const,
+      home: { q: 0, r: 0 },
+      player: { q: 0, r: 0 },
+      hasBoat: false,
+      tiles: {},
+    };
+    expect(withSewerRunId(world, { q: 9, r: 9 }, "x")).toBe(world);
   });
 });
