@@ -12,6 +12,9 @@ export interface RoomInspectorProps {
   onRollSecretPassage: (segId: number, roll: number, trapRoll: number | null) => void;
   onRollChest: (segId: number, dice: [number, number], trapRoll: number | null) => void;
   onCollectRemains: (segId: number) => void;
+  /** Sewers (issue #30): Room Content 10's metal ladder -- the only way to finish a dungeon that
+   * has no Final Room or Boss. */
+  onClimbOut: (segId: number) => void;
   /** Fires the instant a secret-passage or chest roll is confirmed as a trap -- before the extra
    * die rolls to decide *which* trap, so the warning lands as an ambush rather than after-the-fact
    * flavor text. */
@@ -47,6 +50,7 @@ export function RoomInspector({
   onRollSecretPassage,
   onRollChest,
   onCollectRemains,
+  onClimbOut,
   onTrapTriggered,
 }: RoomInspectorProps) {
   const [passageDice, setPassageDice] = useState<number[]>([1]);
@@ -186,6 +190,19 @@ export function RoomInspector({
             onClick={handleOpenChest}
           >
             Open Chest
+          </button>
+        </div>
+      )}
+
+      {seg.roomContent?.isExit && !state.exitUsed && (
+        <div className={styles.dieRow}>
+          <button
+            className={styles.rollBtn}
+            type="button"
+            disabled={!state.alive || !!state.combat || !!state.pendingPackItem}
+            onClick={() => onClimbOut(seg.id)}
+          >
+            Climb Out
           </button>
         </div>
       )}

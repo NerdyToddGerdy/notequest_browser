@@ -255,6 +255,14 @@ export function DungeonMap({
     state.armor.some((p) => p.effect?.kind === "opensAnyLock") ||
     state.weapon?.bonusEffect?.kind === "opensAnyLock";
 
+  /** Sewers (issue #30): whichever door the open-lock prompt is currently about, if it's a
+   * Floodgate -- always locked, never trapped, and impossible to break. */
+  const isFloodgate =
+    doorFlow?.kind === "lockChoice" &&
+    !!state.levels[state.activeLevel]?.segments.find((sg) => sg.id === doorFlow.segId)?.doors[
+      doorFlow.doorIdx
+    ]?.floodgate;
+
   function handleLockChoice(choice: LockChoice) {
     if (!doorFlow || doorFlow.kind !== "lockChoice") return;
     const { segId, doorIdx, x, y, doorRoll } = doorFlow;
@@ -425,7 +433,7 @@ export function DungeonMap({
               className={styles.lockChoice}
               style={{ left: doorFlow.x - 70, top: doorFlow.y - 76 }}
             >
-              <p>Locked!</p>
+              <p>{isFloodgate ? "Floodgate — sealed!" : "Locked!"}</p>
               <button
                 type="button"
                 onClick={() => handleLockChoice("pickLock")}
@@ -440,9 +448,13 @@ export function DungeonMap({
               >
                 {hasMasterKey ? "Master Key" : `Use a Key (${state.keys})`}
               </button>
-              <button type="button" onClick={() => handleLockChoice("breakDoor")}>
-                Break Door (free)
-              </button>
+              {/* Sewers (issue #30): a Floodgate "cannot be destroyed" -- the option isn't
+                  offered at all rather than shown disabled, since it's not a thing you can attempt. */}
+              {!isFloodgate && (
+                <button type="button" onClick={() => handleLockChoice("breakDoor")}>
+                  Break Door (free)
+                </button>
+              )}
             </div>
           )}
         </div>

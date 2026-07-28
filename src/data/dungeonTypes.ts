@@ -13,7 +13,8 @@ export type DungeonTypeKey =
   | "citadel"
   | "pyramid"
   | "ziggurat"
-  | "necropolis";
+  | "necropolis"
+  | "sewers";
 
 export type SegmentType =
   | "corridor"
@@ -26,6 +27,11 @@ export type SegmentType =
    * between "Wide room" and "Large hall with pillars" in these 3 types' own Segments tables --
    * genuinely new, not a reskin of an existing size (see `sizeFor()` in `dungeon.ts`). */
   | "room-big"
+  /** Sewers (issue #30): "Tunnels work like corridors but you can't see the rest of it. Each tunnel
+   * segment continues the previous one. In a tunnel you must roll to add Monster but not Content."
+   * That last clause is why it isn't just a reskinned corridor -- a corridor rolls neither, a room
+   * rolls both, and a tunnel sits between them. */
+  | "tunnel"
   | "final";
 
 export type DoorRollOutcome = "trap" | "locked" | "unlocked";
@@ -41,6 +47,10 @@ export const OPEN_DOOR_TABLE: Record<number, DoorRollOutcome> = {
 };
 
 export interface SegmentsColumnResult {
+  /** Sewers (issue #30): this segment has a Floodgate -- "works like normal doors but cannot be
+   * destroyed, has no traps, and will always be locked." One of the new segment's own doors is
+   * marked `DoorState.floodgate` when it's built. */
+  floodgate?: boolean;
   type: SegmentType;
   doors: number;
   text: string;
@@ -51,6 +61,14 @@ export interface SegmentsRow {
   staircase: SegmentsColumnResult;
   corridor: SegmentsColumnResult;
   room: SegmentsColumnResult;
+  /** Sewers (issue #30) prints *two* tunnel columns where every other type has one per source
+   * segment: "Following a Tunnel" (carrying on along it) and "Open from a Tunnel" (a side door).
+   * The distinction is the whole character of the type -- following a tunnel yields more tunnel,
+   * opening off it yields rooms -- so rather than flatten it, a tunnel's forward door is marked
+   * `DoorState.continuesTunnel` when the segment is built, and `rollSegment()` picks the column
+   * from that. Only Sewers sets these. */
+  tunnelForward?: SegmentsColumnResult;
+  tunnelSide?: SegmentsColumnResult;
 }
 
 export interface DungeonTypeDef {
@@ -237,12 +255,101 @@ const NECROPOLIS_SEGMENTS: Record<number, SegmentsRow> = {
   },
 };
 
+/** Sewers (issue #30, rules 1815-1825). `staircase`/`corridor` are filled with the "Open from a
+ * Tunnel" results purely so the row stays a complete `SegmentsRow` -- Sewers generates neither, so
+ * neither column is ever consulted. */
+const SEWERS_SEGMENTS: Record<number, SegmentsRow> = {
+  1: {
+    tunnelForward: {
+      type: "tunnel",
+      doors: 1,
+      text: "Tunnel that ends in a Floodgate.",
+      floodgate: true,
+    },
+    tunnelSide: { type: "room-small", doors: 0, text: "A small room." },
+    staircase: { type: "room-small", doors: 0, text: "A small room." },
+    corridor: { type: "room-small", doors: 0, text: "A small room." },
+    room: { type: "room-small", doors: 0, text: "A small room." },
+  },
+  2: {
+    tunnelForward: {
+      type: "tunnel",
+      doors: 2,
+      text: "Tunnel follows. Has a Floodgate.",
+      floodgate: true,
+    },
+    tunnelSide: { type: "room-small", doors: 0, text: "A small room." },
+    staircase: { type: "room-small", doors: 0, text: "A small room." },
+    corridor: { type: "room-small", doors: 0, text: "A small room." },
+    room: { type: "room-small", doors: 0, text: "A small room." },
+  },
+  3: {
+    tunnelForward: {
+      type: "tunnel",
+      doors: 2,
+      text: "Tunnel follows. Has a Floodgate.",
+      floodgate: true,
+    },
+    tunnelSide: { type: "room-medium", doors: 0, text: "An average room." },
+    staircase: { type: "room-medium", doors: 0, text: "An average room." },
+    corridor: { type: "room-medium", doors: 0, text: "An average room." },
+    room: { type: "room-medium", doors: 0, text: "An average room." },
+  },
+  4: {
+    tunnelForward: { type: "tunnel", doors: 1, text: "Tunnel follows." },
+    tunnelSide: {
+      type: "room-medium",
+      doors: 1,
+      text: "A room with a Floodgate.",
+      floodgate: true,
+    },
+    staircase: { type: "room-medium", doors: 1, text: "A room with a Floodgate.", floodgate: true },
+    corridor: { type: "room-medium", doors: 1, text: "A room with a Floodgate.", floodgate: true },
+    room: { type: "room-medium", doors: 0, text: "An average room." },
+  },
+  5: {
+    tunnelForward: { type: "tunnel", doors: 1, text: "Tunnel follows making a curve." },
+    tunnelSide: {
+      type: "room-medium",
+      doors: 1,
+      text: "A room with a Floodgate.",
+      floodgate: true,
+    },
+    staircase: { type: "room-medium", doors: 1, text: "A room with a Floodgate.", floodgate: true },
+    corridor: { type: "room-medium", doors: 1, text: "A room with a Floodgate.", floodgate: true },
+    room: { type: "tunnel", doors: 1, text: "A tunnel that goes on." },
+  },
+  6: {
+    tunnelForward: { type: "tunnel", doors: 1, text: "Tunnel follows. Has a ladder." },
+    tunnelSide: {
+      type: "room-medium",
+      doors: 1,
+      text: "A room with a Floodgate.",
+      floodgate: true,
+    },
+    staircase: { type: "room-medium", doors: 1, text: "A room with a Floodgate.", floodgate: true },
+    corridor: { type: "room-medium", doors: 1, text: "A room with a Floodgate.", floodgate: true },
+    room: { type: "tunnel", doors: 1, text: "A tunnel that goes on." },
+  },
+};
+
+/** Sewers' own Secret Passage table (rules 1827-1836) -- differs from the shared one at rolls 5/6. */
+const SEWERS_SECRET_PASSAGE: Record<number, string> = {
+  1: "You have activated a Trap!",
+  2: "There's nothing here.",
+  3: "There's nothing here.",
+  4: "There's nothing here.",
+  5: "Found a hidden Treasure!",
+  6: "There is a hidden door here.",
+};
+
 export const SEGMENTS_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, SegmentsRow>>> =
   {
     citadel: CITADEL_PYRAMID_SEGMENTS,
     pyramid: CITADEL_PYRAMID_SEGMENTS,
     ziggurat: ZIGGURAT_SEGMENTS,
     necropolis: NECROPOLIS_SEGMENTS,
+    sewers: SEWERS_SEGMENTS,
   };
 
 /** Deadly Dungeons (issue #30): Citadel's own Secret Passage table is explicitly printed in the
@@ -272,6 +379,7 @@ export const SECRET_PASSAGE_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record
   {
     pyramid: PYRAMID_SECRET_PASSAGE,
     necropolis: NECROPOLIS_SECRET_PASSAGE,
+    sewers: SEWERS_SECRET_PASSAGE,
   };
 
 /** Table: Dungeon Name, "first part" column (1d6) -- also selects the dungeon type. Keys 1-6 are
@@ -371,6 +479,15 @@ export const DUNGEON_TYPES: Record<number, DungeonTypeDef> = {
     entrance:
       "Beyond the heavy metal double doors, the smell of death grows stronger. A long, dark staircase leads straight down to a metal door.",
   },
+  11: {
+    key: "sewers",
+    roll: 11,
+    name: "The Sewers",
+    entranceType: "tunnel",
+    doors: 4,
+    entrance:
+      "Down a dirty metal ladder through a manhole, you arrive at an intersection of four water-logged tunnels. Everything here is stinking, dark, shallow water.",
+  },
 };
 
 /** Table: Dungeon Name, "second part" and "third part" columns (1d6 each) -- flavor only. */
@@ -400,5 +517,6 @@ export const TYPE_LABELS: Record<SegmentType, string> = {
   "room-wide": "Wide Room",
   "room-large": "Large Room",
   "room-big": "Big Room",
+  tunnel: "Tunnel",
   final: "Final Room",
 };

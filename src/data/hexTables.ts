@@ -370,16 +370,19 @@ export function travelCostMultiplier(raceName: string): number {
  * now use their real roll numbers (7/8/9/10 in `DUNGEON_TYPES`, see `dungeonTypes.ts`) below; Mine/
  * Cave/Laboratory are still unbuilt (tracked as the rest of #30) and stay substituted with the
  * closest thematic match among the types that exist, same "documented, deliberate simplification"
- * precedent as `bladeTrap`'s roll-of-2 flavor-only outcome or `WeaponEntry.twoHanded`: Mine/Cave
- * (tunneled strongholds) -> Prison (6), Laboratory -> Palace (1). `water` and `glacier` rows are
+ * precedent as `bladeTrap`'s roll-of-2 flavor-only outcome or `WeaponEntry.twoHanded`: Cave
+ * (a tunneled stronghold) -> Prison (6), Laboratory -> Palace (1). Mine now maps to **Sewers** (11)
+ * instead, which is a far closer match -- both are tunnel complexes -- now that Sewers exists.
+ * Sewers also has its own rulebook route that this table doesn't cover: "every fortress has a sewer
+ * complex," a sub-roll on entering a Fortress (issue #99, still unbuilt). `water` and `glacier` rows are
  * unreachable in practice today (no City/Fortress/Ruins ever rolls on water per `LOCATION_TABLE`;
  * `glacier` only exists in the still-unused `COLD_TERRAIN_TABLE`) but are filled in for
  * `Record<Terrain, ...>`'s type completeness rather than left to throw. */
 export const DUNGEON_TYPE_BY_TERRAIN: Record<OverworldTerrain, Record<number, number>> = {
   plain: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 }, // Palace, Crypt, Tomb, Sanctuary, Temple, Prison
-  mountain: { 1: 2, 2: 4, 3: 6, 4: 7, 5: 6, 6: 6 }, // Crypt, Sanctuary, Prison, Citadel, Mine->Prison, Cave->Prison
+  mountain: { 1: 2, 2: 4, 3: 6, 4: 7, 5: 11, 6: 6 }, // Crypt, Sanctuary, Prison, Citadel, Mine->Sewers, Cave->Prison
   forest: { 1: 3, 2: 5, 3: 1, 4: 5, 5: 1, 6: 6 }, // Tomb, Temple, Palace, Temple, Laboratory->Palace, Cave->Prison
-  swamp: { 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 10 }, // Crypt, Tomb, Sanctuary, Temple, Prison, Necropolis
+  swamp: { 1: 2, 2: 3, 3: 4, 4: 5, 5: 11, 6: 10 }, // Crypt, Tomb, Sanctuary, Temple, Sewers, Necropolis
   desert: { 1: 6, 2: 1, 3: 4, 4: 5, 5: 8, 6: 8 }, // Prison, Palace, Sanctuary, Temple, Pyramid, Pyramid
   tundra: { 1: 6, 2: 1, 3: 2, 4: 3, 5: 9, 6: 9 }, // Prison, Palace, Crypt, Tomb, Ziggurat, Ziggurat
   water: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 }, // unreachable -- no dungeon-bearing location ever rolls on water

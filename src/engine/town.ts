@@ -176,6 +176,12 @@ export interface AdvancedClassMilestones {
    * the act of visiting and rolling, not a required success). Set by `politics.ts`'s
    * `resolvePoliticalAffinity()`. */
   talkedToKing: boolean;
+  /** Janitor (issue #62/#30): "Killed all creatures from a Sewer" -- set when a Sewers run is
+   * actually *finished*, i.e. the metal ladder out is climbed (`DungeonState.exitUsed`), which is
+   * the only completion a dungeon with no Boss has. Read as "you cleared a Sewer": the rooms are
+   * generated lazily as doors open, so there is no fixed population "all creatures" could mean, and
+   * getting out is the rulebook's own definition of having done the place. */
+  clearedASewer: boolean;
   /** Emperor (issue #27): "Have 1 fortress and 3 vassals" -- incremented whenever a Political
    * Affinity roll resolves to `"vassal"` (see `resolvePoliticalAffinity()`). */
   vassalCount: number;
@@ -191,6 +197,7 @@ export function createInitialMilestones(): AdvancedClassMilestones {
     locksOpened: 0,
     talkedToKing: false,
     vassalCount: 0,
+    clearedASewer: false,
   };
 }
 

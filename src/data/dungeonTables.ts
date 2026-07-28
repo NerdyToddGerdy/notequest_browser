@@ -10,6 +10,11 @@ export interface RoomContentEntry {
    * demand via "Open a Treasure"), these are just there -- rolled and credited automatically the
    * moment the room is built, same as the room's flavor text itself needing no interaction. */
   reward?: RoomContentReward;
+  /** Sewers (issue #30): "A metal ladder leads to the surface." Sewers has no Final Room or Boss, so
+   * this is how a run is *finished* -- `RoomInspector` offers a "Climb Out" action, which sets
+   * `DungeonState.exitUsed` and makes `isDungeonBeaten()` true. The only row in any table that ends
+   * a dungeon without a Boss. */
+  isExit?: boolean;
 }
 
 export type RoomContentReward =
@@ -93,6 +98,9 @@ export interface MonsterTemplate {
 export type RewardEffect =
   | { kind: "heldValue"; name: string; amount: number }
   | { kind: "heldValueRoll"; name: string; dice: number; sides: number; multiplier: number }
+  /** Sewers (issue #30): "1d6 Torches" as a *Treasure* row. The Wonders column's `grantsTorches` is
+   * an `ItemEffect` with a flat amount; this is the Treasure column's own rolled equivalent. */
+  | { kind: "grantTorchesRoll"; dice: number; sides: number }
   | { kind: "healAll" }
   | { kind: "restoreAllSpells" }
   | { kind: "randomSpell" }
@@ -2278,6 +2286,184 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         name: "Sword of the Nameless Gods",
         formula: "1d6+4",
         bonusEffect: { kind: "lifesteal", amount: 1 },
+      },
+    },
+  },
+
+  /** Sewers (issue #30, rules 1809-1907). The one dungeon type with **no Boss and no Final Room** --
+   * `boss` is omitted entirely (the field is optional; Necropolis is the only other type without
+   * one, and that's because it builds its Boss from a combinator instead). A Sewers run is finished
+   * by climbing out: Room Content 10's metal ladder, see `RoomContentEntry.isExit`.
+   *
+   * Its printed Armor table is byte-for-byte the shared `ARMOR_TABLE`, so unlike Pyramid there's no
+   * deviation to document here. */
+  sewers: {
+    trap: {
+      1: BLADE_TRAP,
+      2: { text: "An explosion! (4 damage).", damage: 4 },
+      3: { text: "Gust of acid (3 damage).", damage: 3 },
+      4: DART_TRAP,
+      5: CLICK_NOTHING,
+      6: CLICK_NOTHING,
+    },
+    roomContent: {
+      // "Spend 1 torch to leave the room" has no hook: nothing models *leaving* a room as an action
+      // with a cost, so this is flavor -- the same tier as `bladeTrap`'s roll-of-2.
+      2: { text: "It's all flooded. Spend 1 torch to leave the room.", secretPassage: false },
+      3: { text: "Destroyed closet with a Chest inside.", secretPassage: false, hasChest: true },
+      4: { text: "Destroyed furniture. It may have Secret Passage.", secretPassage: true },
+      // The per-crate investigation loop (8 crates, each a trap-or-treasure roll) has no UI to
+      // drive it and no existing shape -- flavor, documented rather than invented.
+      5: {
+        text: "8 stacked crates. If you investigate roll 1 dice for each. If '1', it activates a Trap. If '5' or more, you have found 1 Treasure.",
+        secretPassage: false,
+      },
+      6: {
+        text: "Trash pile with a Treasure inside.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: 1 },
+      },
+      7: { text: "Dirt everywhere. It may have Secret Passage.", secretPassage: true },
+      8: {
+        text: "A dirty bed and a sign of a recent fire. It may have Secret Passage.",
+        secretPassage: true,
+      },
+      9: {
+        text: "Trash pile with a Treasure inside.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: 1 },
+      },
+      10: { text: "A metal ladder leads to the surface.", secretPassage: false, isExit: true },
+      // The Laboratory dungeon type isn't built (the rest of #30) -- flavor until it is.
+      11: {
+        text: "A trapdoor that leads to a Laboratory. It is sealed shut.",
+        secretPassage: false,
+      },
+      12: { text: "A lost Chest.", secretPassage: false, hasChest: true },
+    },
+    monsters: {
+      2: { name: "Rat swarm", hp: 20, damage: 2, abilities: ["regeneration"], count: 1 },
+      3: { name: "Cockroaches swarm", hp: 26, damage: 1, abilities: ["regeneration"], count: 1 },
+      4: GOBLINS,
+      5: { name: "Sewer Worm", hp: 10, damage: 3, abilities: ["poison"], count: 1 },
+      6: {
+        name: "Giant Rats",
+        singularName: "Giant Rat",
+        hp: 2,
+        damage: 1,
+        abilities: [],
+        count: { dice: 1, sides: 6 },
+      },
+      9: { name: "Trash Golem", hp: 15, damage: 4, abilities: ["weakness"], count: 1 },
+      10: {
+        name: "Bandits",
+        singularName: "Bandit",
+        hp: 5,
+        damage: 2,
+        abilities: ["loot"],
+        count: 4,
+      },
+      11: {
+        name: "Walking Slime",
+        hp: 10,
+        damage: 1,
+        abilities: ["loot", "regeneration"],
+        count: 1,
+      },
+      12: { name: "Giant Crocodile", hp: 30, damage: 5, abilities: [], count: 1 },
+    },
+    treasure: {
+      1: { text: "1d6 Torches.", effect: { kind: "grantTorchesRoll", dice: 1, sides: 6 } },
+      2: HEALTH_POTION,
+      3: MAGIC_SCROLL,
+      4: {
+        text: "Lost jewel (worth 2d6 Coins in the town).",
+        effect: { kind: "heldValueRoll", name: "Lost jewel", dice: 2, sides: 6, multiplier: 1 },
+      },
+      5: {
+        text: "[Roll in the 'Wonders' column]",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "[Roll in the 'Magic Item' column]",
+        effect: { kind: "rerollColumn", column: "magicItem" },
+      },
+    },
+    weapon: {
+      1: { name: "Broken Pipe", formula: "1d6-1" },
+      2: { name: "Sword", formula: "1d6" },
+      3: { name: "Wrench", formula: "1d6" },
+      4: { name: "Long Fork", formula: "1d6" },
+      5: { name: "Spear", formula: "1d6+1", twoHanded: true },
+      6: { name: "Maul", formula: "1d6+2", twoHanded: true },
+    },
+    wonders: {
+      1: { name: "Perfume", text: "Perfume (It won't stink anymore).", effect: { kind: "flavor" } },
+      2: {
+        name: "Potty",
+        text: "Potty (It's like a Helm; 3 HP).",
+        grantsHp: 3,
+        effect: { kind: "flavor" },
+      },
+      // "Makes monsters open the door" / "Goblins flee on hearing" both need a monster-behavior
+      // system this codebase doesn't have -- flavor, same tier as the Tiger's dungeon-presence rule.
+      3: { name: "Bell", text: "Bell (Makes monsters open the door).", effect: { kind: "flavor" } },
+      4: {
+        name: "Goblin Whistle",
+        text: "Goblin Whistle (Goblins flee on hearing).",
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Master key",
+        text: "Master key (Open any door).",
+        effect: { kind: "opensAnyLock" },
+      },
+      6: {
+        name: "Rusty Glaive",
+        text: "Rusty Glaive (Two-handed; 1d6+3 Damage).",
+        grantsWeapon: { name: "Rusty Glaive", formula: "1d6+3", twoHanded: true },
+        effect: { kind: "flavor" },
+      },
+    },
+    magicItem: {
+      // The two Cursed rows are the first negative rewards in the game. Tetanus Armor's "-2 HP" is
+      // applied as a real penalty via `extraHp`; the Ring of Bad Luck's "reroll the 6" needs an
+      // attack-reroll hook that doesn't exist, so it stays flavor.
+      1: {
+        name: "Tetanus",
+        grants: "armor",
+        text: "Tetanus [Armor] (Cursed; -2 HP).",
+        effect: { kind: "extraHp", amount: -2 },
+      },
+      2: {
+        name: "Ring of Bad Luck",
+        grants: "armor",
+        text: "Ring of Bad Luck (Cursed; Reroll the '6' on attacks).",
+        effect: { kind: "flavor" },
+      },
+      3: {
+        name: "Hamelin flute",
+        grants: "armor",
+        text: "Hamelin flute (Rats, worms and insects flee).",
+        effect: { kind: "flavor" },
+      },
+      4: {
+        name: "of the Rat Swarm",
+        grants: "armor",
+        text: "[Armor] of the Rat Swarm (+1 HP, but it stinks).",
+        effect: { kind: "extraHp", amount: 1 },
+      },
+      5: {
+        name: "of the Fly",
+        grants: "weapon",
+        text: "[Weapon] of the Fly (+1 against Swarms).",
+        effect: { kind: "damageBonusVsTag", tags: ["swarm"], amount: 1 },
+      },
+      6: {
+        name: "Tetanus",
+        grants: "weapon",
+        text: "Tetanus [Weapon] (+3 against humanoids).",
+        effect: { kind: "damageBonusVsTag", tags: ["goblin", "bandit", "orc"], amount: 3 },
       },
     },
   },

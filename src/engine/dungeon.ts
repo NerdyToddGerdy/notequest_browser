@@ -49,6 +49,10 @@ export function sizeFor(type: SegmentType, dir: Direction | null): { w: number; 
       return { w: 7 * UNIT, h: 4 * UNIT };
     case "room-big":
       return { w: 7 * UNIT, h: 5 * UNIT };
+    // Sewers (issue #30): drawn like a corridor -- long and narrow -- since that's what it is
+    // spatially; what makes it a tunnel is the Monsters-but-not-Content roll, not its shape.
+    case "tunnel":
+      return { w: 5 * UNIT, h: 2 * UNIT };
     case "room-large":
       return { w: 8 * UNIT, h: 6 * UNIT };
     case "staircase":
@@ -145,10 +149,24 @@ export function columnFor(type: SegmentType): SegmentsColumn {
 /** Deadly Dungeons (issue #30): unlike the Core 6, several new dungeon types print their own
  * Segments table -- `SEGMENTS_TABLE_BY_TYPE` is checked first, falling back to the shared
  * `SEGMENTS_TABLE` for the Core 6 (and any new type whose own table happens to match it exactly). */
-export function rollSegment(fromType: SegmentType, roll: number, dungeonKey: DungeonTypeKey) {
+export function rollSegment(
+  fromType: SegmentType,
+  roll: number,
+  dungeonKey: DungeonTypeKey,
+  /** Sewers (issue #30): true when the door being opened is the tunnel's own forward continuation
+   * rather than a side door -- the rulebook prints those as two separate columns ("Following a
+   * Tunnel" yields more tunnel; "Open from a Tunnel" yields rooms). Ignored by every other type. */
+  continuesTunnel = false,
+) {
   const table = SEGMENTS_TABLE_BY_TYPE[dungeonKey] ?? SEGMENTS_TABLE;
   const row = table[roll];
   if (!row) throw new Error(`No Segments row for roll ${roll}`);
+  if (fromType === "tunnel") {
+    const column = continuesTunnel ? row.tunnelForward : row.tunnelSide;
+    // Falls back to the room column for any type that somehow produced a tunnel without printing
+    // tunnel columns -- only Sewers does today, and it defines both.
+    if (column) return column;
+  }
   return row[columnFor(fromType)];
 }
 
@@ -163,11 +181,23 @@ export function resolveRoomExtras(
   dungeonKey: DungeonTypeKey,
   rng: RNG = Math.random,
   isEntrance = false,
-): { roomContent: RoomContentEntry; monsters: MonsterTemplate | null } | undefined {
-  if (!type.startsWith("room-")) return undefined;
+): { roomContent: RoomContentEntry | undefined; monsters: MonsterTemplate | null } | undefined {
+  // Sewers (issue #30): "In a tunnel you must roll to add Monster but not Content." A tunnel sits
+  // between a corridor (neither) and a room (both) -- which is exactly why it's its own SegmentType
+  // rather than a reskinned corridor.
+  const isTunnel = type === "tunnel";
+  if (!isTunnel && !type.startsWith("room-")) return undefined;
   const tables = DUNGEON_TABLES[dungeonKey];
   const contentSum = rollDie(rng) + rollDie(rng);
   const monsterSum = rollDie(rng) + rollDie(rng);
+  if (isTunnel) {
+    // The Content dice are still rolled above, so a tunnel consumes exactly as much RNG as a room
+    // does -- the same parity reason the entrance discards its Monsters roll rather than skipping it.
+    return {
+      roomContent: undefined,
+      monsters: isEntrance ? null : (tables.monsters[monsterSum] ?? null),
+    };
+  }
   const roomContent = tables.roomContent[contentSum];
   if (!roomContent) {
     throw new Error(`Missing Room Content entry for ${dungeonKey} sum=${contentSum}`);
@@ -241,18 +271,25 @@ export function classifyDoorOpen(
   const isEntranceStaircase = seg.type === "staircase" && seg.isEntrance;
   const isDescent = seg.type === "staircase" && !seg.isEntrance;
 
+  // Sewers (issue #30): "This dungeon does not have a Final Room or Dungeon Boss." Checked before
+  // every Final-Room path below -- the depth-3 descent, the dead-end, and the reuse of an existing
+  // Final Room level -- so none of them can ever fire here. A Sewers run ends by climbing out
+  // instead (Room Content 10's ladder, `DungeonState.exitUsed`).
+  const hasFinalRoom = state.dungeonTypeKey !== "sewers";
+
   if (isDescent && level.stairwayTarget != null) {
     const targetLevel = level.stairwayTarget;
     const target = state.levels[targetLevel];
     if (!target) throw new Error(`Target level ${targetLevel} not found`);
-    return target.isFinalRoomLevel
+    return target.isFinalRoomLevel && hasFinalRoom
       ? { kind: "reuse-final", targetLevel }
       : { kind: "reuse-normal", targetLevel };
   }
-  if (isDescent && level.depth + 1 >= 3) return { kind: "descend-final" };
+  if (isDescent && level.depth + 1 >= 3 && hasFinalRoom) return { kind: "descend-final" };
   if (isDescent) return { kind: "descend-normal" };
 
   const triggersDeadEnd =
+    hasFinalRoom &&
     !isEntranceStaircase &&
     !level.finalRoomPlaced &&
     level.doorsRemaining === 1 &&

@@ -632,11 +632,32 @@ describe("meetsAdvancedClassRequirement", () => {
     ).toBe(false);
   });
 
-  it("a class with no requirement check at all is never met, regardless of state", () => {
-    // Janitor (needs a Sewer dungeon type, issue #30) is still untrackable -- unlike Noble, which
-    // issue #27 made real.
-    expect(isAdvancedClassTrackable("Janitor")).toBe(false);
+  it("every Advanced Class is now trackable -- 45 of 45 (issue #62 closed by Sewers)", () => {
+    // This used to assert the opposite, with Janitor as the example of a permanently unacquirable
+    // class. Sewers (issue #30) made Janitor real and Pyramid's mummies made Hotep real, so the
+    // meaningful invariant flipped: there is no longer any class the UI shows but can never grant.
+    for (const name of Object.keys(ADVANCED_CLASS_TABLE)) {
+      expect(isAdvancedClassTrackable(name), `${name} has no requirement check`).toBe(true);
+    }
+  });
+
+  it("Janitor needs a Sewer actually cleared, not merely entered", () => {
     expect(meetsAdvancedClassRequirement("Janitor", makeCtx({ coins: 999999 }))).toBe(false);
+    const cleared = makeCtx({ coins: 999999 });
+    cleared.resources.milestones.clearedASewer = true;
+    expect(meetsAdvancedClassRequirement("Janitor", cleared)).toBe(true);
+  });
+
+  it("Hotep counts every mummy name Pyramid prints, singular and plural", () => {
+    expect(
+      meetsAdvancedClassRequirement(
+        "Hotep",
+        makeCtx({ killsByName: { mummy: 1, "mummified soldiers": 1, "mummified priestess": 1 } }),
+      ),
+    ).toBe(true);
+    expect(meetsAdvancedClassRequirement("Hotep", makeCtx({ killsByName: { mummy: 2 } }))).toBe(
+      false,
+    );
   });
 });
 

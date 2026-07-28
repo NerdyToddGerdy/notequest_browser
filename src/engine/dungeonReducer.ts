@@ -32,6 +32,7 @@ import {
   boxFromCenter,
   buildConnector,
   classifyDoorOpen,
+  OPPOSITE,
   assignDirections,
   isTeleportDestination,
   placeChild,
@@ -64,6 +65,7 @@ import {
   type CombatMonsterState,
   type CombatState,
   type Direction,
+  type DoorState,
   type DungeonAction,
   type DungeonState,
   type DungeonStats,
@@ -222,15 +224,32 @@ function buildSegment(
   flavor: string | null,
   rng: RNG,
   isEntrance = false,
+  /** Sewers (issue #30): the rolled row said this segment has a Floodgate. */
+  hasFloodgate = false,
 ): Draft<SegmentState> {
   const id = draft.nextSegmentId;
   draft.nextSegmentId += 1;
-  const doors = assignDirections(cameFromDir, doorCount).map((dir) => ({
+  const doors: Draft<DoorState>[] = assignDirections(cameFromDir, doorCount).map((dir) => ({
     dir,
     opened: false,
     childId: null,
     leadsToLevel: null,
   }));
+  // Sewers (issue #30). The forward door is the one opposite the way in, matching "each tunnel
+  // segment continues the previous one"; an entrance tunnel (the 4-way manhole intersection) has no
+  // way in, so every one of its doors continues a tunnel. The Floodgate, if any, is put on a
+  // *different* door where possible -- a floodgate on the only way forward would dead-end the
+  // tunnel behind a lock that can't be broken.
+  if (type === "tunnel") {
+    const forwardDir = cameFromDir ? OPPOSITE[cameFromDir] : null;
+    for (const door of doors) {
+      if (forwardDir === null || door.dir === forwardDir) door.continuesTunnel = true;
+    }
+  }
+  if (hasFloodgate && doors.length > 0) {
+    const gate = doors.find((d) => !d.continuesTunnel) ?? doors[0]!;
+    gate.floodgate = true;
+  }
   const extras = draft.dungeonTypeKey
     ? resolveRoomExtras(type, draft.dungeonTypeKey, rng, isEntrance)
     : undefined;
@@ -1720,7 +1739,10 @@ export function dungeonReducer(
         const door = seg?.doors[action.doorIdx];
         if (!seg || !door || door.opened) return;
 
-        const outcome = OPEN_DOOR_TABLE[action.doorRoll];
+        // Sewers (issue #30): "Floodgate: works like normal doors but cannot be destroyed, has no
+        // traps, and will always be locked." So the door roll is overridden entirely rather than
+        // filtered -- a floodgate has no trap outcome and no unlocked outcome to fall through to.
+        const outcome = door.floodgate ? "locked" : OPEN_DOOR_TABLE[action.doorRoll];
         if (outcome === "trap") {
           if (!draft.dungeonTypeKey || action.trapRoll == null) return;
           const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
@@ -1774,6 +1796,9 @@ export function dungeonReducer(
               );
             }
           } else if (action.lockChoice === "breakDoor") {
+            // A Floodgate "cannot be destroyed" -- the UI doesn't offer this, and the reducer
+            // refuses it too (reducer decides, UI mirrors).
+            if (door.floodgate) return;
             // Issue #96: remembered so the alarm can travel back through it later.
             door.broken = true;
             pushLog(
@@ -1940,7 +1965,12 @@ export function dungeonReducer(
 
           case "descend-normal": {
             if (action.roll == null) throw new Error("descend-normal requires a roll");
-            const row = rollSegment(seg.type, action.roll, draft.dungeonTypeKey!);
+            const row = rollSegment(
+              seg.type,
+              action.roll,
+              draft.dungeonTypeKey!,
+              !!door.continuesTunnel,
+            );
             const newLevel = makeLevel(level.depth + 1);
             const box = boxFromCenter(0, 0, sizeFor(row.type, null));
             const rootSeg = buildSegment(
@@ -1951,6 +1981,8 @@ export function dungeonReducer(
               row.doors,
               row.flavor ?? null,
               rng,
+              false,
+              !!row.floodgate,
             );
             newLevel.segments.push(rootSeg);
             newLevel.doorsRemaining += row.doors;
@@ -1981,7 +2013,12 @@ export function dungeonReducer(
 
           case "normal": {
             if (action.roll == null) throw new Error("normal requires a roll");
-            const row = rollSegment(seg.type, action.roll, draft.dungeonTypeKey!);
+            const row = rollSegment(
+              seg.type,
+              action.roll,
+              draft.dungeonTypeKey!,
+              !!door.continuesTunnel,
+            );
             const box = placeChild(seg, door.dir, row.type, level.segments);
             const childSeg = buildSegment(
               draft,
@@ -1991,6 +2028,8 @@ export function dungeonReducer(
               row.doors,
               row.flavor ?? null,
               rng,
+              false,
+              !!row.floodgate,
             );
             level.segments.push(childSeg);
             level.connectors.push(buildConnector(seg, door.dir, box));
@@ -2010,6 +2049,24 @@ export function dungeonReducer(
             break;
           }
         }
+      });
+    }
+
+    case "CLIMB_OUT": {
+      // Sewers (issue #30): "A metal ladder leads to the surface." The only way a run without a Boss
+      // can be finished. Gated exactly like every other room action -- alive, not mid-fight, nothing
+      // pending, and standing in the room that actually has the ladder.
+      if (!state.alive || state.combat || isActionBlocked(state) || state.exitUsed) return state;
+      if (action.segId !== state.currentSegId) return state;
+      const seg = state.levels[state.activeLevel]?.segments.find((sg) => sg.id === action.segId);
+      if (!seg?.roomContent?.isExit) return state;
+      return produce(state, (draft) => {
+        draft.exitUsed = true;
+        // Janitor (issue #62): "Killed all creatures from a Sewer." Getting out is what counts as
+        // having done the place -- see the milestone's own note for why "all creatures" can't be
+        // taken literally against a lazily-generated map.
+        if (draft.dungeonTypeKey === "sewers") draft.milestones.clearedASewer = true;
+        pushLog(draft, "You climb the ladder and haul yourself up into the daylight.", "descend");
       });
     }
 
@@ -2050,10 +2107,15 @@ export function dungeonReducer(
         // in the Boss)" -- Boss rooms never reach this action at all (see startCombatIfMonsters's
         // direct, unconditional calls for descend-final/dead-end-final), so no extra check needed.
         const isHalfling = draft.raceName === "Halfling";
+        // Sewers (issue #30): "If you try to move silently in a tunnel, monsters detect you if you
+        // land 1 or 2 on the die." Everywhere else only a 1 gives you away -- a tunnel you can't see
+        // the end of is twice as likely to betray you. Halfling's discard-the-lowest still applies
+        // on top, so the two rules compose rather than one overriding the other.
+        const detectOn = seg.type === "tunnel" ? 2 : 1;
         const detected = Array.from({ length: monsterCount }, () => {
           const rolls = isHalfling ? [rollDie(rng), rollDie(rng)] : [rollDie(rng)];
           return Math.max(...rolls);
-        }).some((roll) => roll === 1);
+        }).some((roll) => roll <= detectOn);
         if (detected) {
           pushLog(draft, `Segment ${seg.id}: you're spotted! The monsters attack first.`);
           startCombat(draft, seg.id, monsters, true, rng);
@@ -2775,6 +2837,22 @@ export function dungeonReducer(
               draft,
               { name: outcome.effect.name, worth },
               `Treasure: ${outcome.text} (worth ${worth} coins)`,
+            );
+            break;
+          }
+          case "grantTorchesRoll": {
+            // Sewers (issue #30): "1d6 Torches" -- capped at MAX_TORCHES like every other torch
+            // grant, so a full bag simply wastes the excess rather than overfilling.
+            // Every torch grant in the book is d6-based, and `rollDie` is this codebase's only die
+            // primitive -- `sides` is carried on the effect for honesty about the printed table
+            // rather than because anything rolls anything else.
+            let rolled = 0;
+            for (let i = 0; i < outcome.effect.dice; i++) rolled += rollDie(rng);
+            const gained = Math.min(rolled, MAX_TORCHES - draft.torches);
+            draft.torches += gained;
+            pushLog(
+              draft,
+              `Treasure: ${outcome.text} (+${gained} torch${gained === 1 ? "" : "es"})`,
             );
             break;
           }

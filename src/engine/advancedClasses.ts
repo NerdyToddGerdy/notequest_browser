@@ -56,6 +56,16 @@ const VAMPIRE_MONSTER_NAMES = ["vampire servant", "master vampire", "vampiric be
 // type's Monster table: Giant Spider/Giant Spiders/Spider Queen (Crypt/Tomb/Sanctuary, arachnids),
 // Scorpions/Scorpion (Tomb, arachnid), Deadly Stinger Giant Wasp (Prison, insect). Giant Leech
 // (Crypt) is a worm/annelid, not an insect or arachnid, so it's deliberately excluded.
+// Hotep (issue #62): every mummy-type name across every dungeon type's Monster/Trap tables -- all
+// three are Pyramid's (issue #30). `killsByName` splits singular from plural (issue #65), so both
+// forms of the Mummified Soldiers swarm are listed.
+const MUMMY_MONSTER_NAMES = [
+  "mummy",
+  "mummified soldier",
+  "mummified soldiers",
+  "mummified priestess",
+];
+
 const BUG_MONSTER_NAMES = [
   "giant spider",
   "giant spiders",
@@ -164,6 +174,13 @@ const REQUIREMENT_CHECKS: Partial<Record<string, (ctx: AdvancedClassContext) => 
   // entry recorded before this field existed simply never satisfies this (rather than throwing).
   Lich: (ctx) => ctx.graveyard.some((entry) => entry.advancedClasses?.includes("Necromancer")),
   Helsing: (ctx) => sumKillsByName(ctx.resources, VAMPIRE_MONSTER_NAMES) >= 2,
+  // Hotep (issue #62): "killed 3 mummies" -- Pyramid (issue #30) is the only type with any, and it
+  // has three distinct names. Same curated-list shape as Helsing/Bugcatcher above. The Mummified
+  // Priestess is included on a name reading rather than a tag one: she is a mummy the table calls a
+  // mummy, even though she carries Sorcery rather than Undead like the other two.
+  Hotep: (ctx) => sumKillsByName(ctx.resources, MUMMY_MONSTER_NAMES) >= 3,
+  // Janitor (issue #62): "Killed all creatures from a Sewer" -- see `clearedASewer`.
+  Janitor: (ctx) => ctx.resources.milestones.clearedASewer,
   Bugcatcher: (ctx) => sumKillsByName(ctx.resources, BUG_MONSTER_NAMES) >= 10,
   // Buildings and Politics (issue #27): "Talk to the King of a Fortress" -- approximated as having
   // attempted a Political Affinity roll at a Fortress at least once (see `politics.ts`).

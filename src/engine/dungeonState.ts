@@ -22,6 +22,14 @@ export interface DoorState {
    * and defaulted at the read site, per the back-compat convention, so an older persisted
    * `dungeonHistory` blob still loads (its doors simply count as intact). */
   broken?: boolean;
+  /** Sewers (issue #30): "Floodgate: works like normal doors but cannot be destroyed, has no traps,
+   * and will always be locked." So `RESOLVE_DOOR_LOCK` forces the locked outcome regardless of the
+   * roll, never fires a trap, and the Break Door choice isn't offered. */
+  floodgate?: boolean;
+  /** Sewers (issue #30): this tunnel's forward continuation, as opposed to a side door. Decides
+   * which of the two tunnel columns `rollSegment()` reads -- following a tunnel yields more tunnel,
+   * opening off it yields rooms. */
+  continuesTunnel?: boolean;
 }
 
 export interface Box {
@@ -354,6 +362,11 @@ export interface DungeonState {
    *
    * Optional-with-default at every read site (`?? false`) so an older persisted run still loads. */
   noExit?: boolean;
+  /** Sewers (issue #30): the metal ladder out has been climbed. Sewers has no Final Room or Boss, so
+   * this is what *finishes* a run there -- `isDungeonBeaten()` accepts it in place of a cleared
+   * Final Room, which in turn drives the map's cleared badge, the dungeon gate copy, and
+   * `DungeonsList`'s status. Optional/back-compat like every other later addition. */
+  exitUsed?: boolean;
   /** The active character's weapon damage formula (e.g. "1d6+1"), rolled on each PLAYER_ATTACK. */
   weaponFormula: string;
   /** Remaining uses per spell, keyed by `character.ts`'s `spellKey(table, roll)` composite (not a
@@ -392,7 +405,12 @@ export interface PendingDungeon {
  * already baked in as `false` and can't retroactively fix itself. Scanning every segment's own
  * `type`/`monstersDefeated` instead works immediately for saves from before this fix too, since
  * `monstersDefeated` was always being set correctly. */
+/** A run is finished either by clearing the Final Room's Boss, or -- for Sewers (issue #30), which
+ * the rulebook gives neither -- by climbing the metal ladder back to the surface. Both are checked
+ * here rather than at the ~8 call sites, so the map badge, the gate copy, `DungeonsList`, Miner's
+ * `survivedRunIds` and the Hireling's per-trip expiry all agree without any of them knowing why. */
 export function isDungeonBeaten(state: DungeonState): boolean {
+  if (state.exitUsed) return true;
   return state.levels.some((lvl) =>
     lvl.segments.some((seg) => seg.type === "final" && seg.monstersDefeated === true),
   );
@@ -561,6 +579,8 @@ export type DungeonAction =
    * inside the reducer via its `rng` param, same as every other hidden roll in this engine (e.g.
    * a fresh room's monster count) -- there's nothing for the client to pre-roll or animate. */
   | { type: "RESOLVE_ROOM_ENTRY"; segId: number; choice: "attack" | "moveSilently" }
+  /** Sewers (issue #30): climb Room Content 10's metal ladder and finish the run. */
+  | { type: "CLIMB_OUT"; segId: number }
   /** `segId`: only set when triggered by physically stepping through an already-opened staircase
    * (DungeonMap's descend button) -- moves the player there too. Omitted for a plain LevelTabs
    * click, which only changes which level's map is *displayed*, not where the player stands. */

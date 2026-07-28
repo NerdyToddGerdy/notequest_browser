@@ -383,10 +383,13 @@ export function DungeonScreen({
 
                 {state.alive && bossDefeated && (
                   <div className={styles.victoryPanel}>
-                    <p className={styles.victoryTitle}>The Dungeon Boss Falls</p>
+                    <p className={styles.victoryTitle}>
+                      {state.exitUsed ? "Out, and Breathing Air" : "The Dungeon Boss Falls"}
+                    </p>
                     <p>
-                      {character.name} stands victorious over the dungeon&apos;s master. The depths
-                      grow quiet.
+                      {state.exitUsed
+                        ? `${character.name} climbs the ladder and shoulders the manhole aside. Whatever is still down there can stay there.`
+                        : `${character.name} stands victorious over the dungeon's master. The depths grow quiet.`}
                     </p>
                     {state.noExit ? (
                       <>
@@ -458,6 +461,7 @@ export function DungeonScreen({
                         dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })
                       }
                       onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
+                      onClimbOut={(segId) => dispatch({ type: "CLIMB_OUT", segId })}
                       onTrapTriggered={triggerTrapToast}
                     />
                   </div>

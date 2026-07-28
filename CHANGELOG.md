@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.49.0] - 2026-07-28
+
+### Added
+
+- The Sewers (part of #30): a new dungeon type under the fortresses,
+  and the strangest one yet. There is no Boss and no Final Room --
+  you finish a Sewer by finding the metal ladder and climbing out.
+- Tunnels: long, dark stretches you can't see the end of. Monsters
+  lurk in them, but there's nothing to find, and moving silently is
+  twice as likely to give you away.
+- Floodgates: doors that are always locked, never trapped, and cannot
+  be broken down. Pick them, or find a key.
+- Two cursed rewards -- Tetanus armor that costs you HP, and a Ring of
+  Bad Luck.
+- The last two Advanced Classes are now obtainable, closing #62 at
+  45 of 45: Janitor (clear a Sewer) and Hotep (kill 3 mummies).
+
 ## [2.48.0] - 2026-07-28
 
 ### Added

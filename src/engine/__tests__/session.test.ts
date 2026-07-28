@@ -211,6 +211,7 @@ describe("loadSession", () => {
       ...oldMilestones,
       talkedToKing: false,
       vassalCount: 0,
+      clearedASewer: false,
     });
   });
 
