@@ -18,7 +18,7 @@ import {
   type WorldState,
 } from "./engine/hexState.ts";
 import { hasAffinity } from "./data/affinity.ts";
-import { DUNGEON_TYPE_BY_TERRAIN } from "./data/hexTables.ts";
+import { DUNGEON_TYPE_BY_TERRAIN, isOverworldTerrain } from "./data/hexTables.ts";
 import { rollDie } from "./engine/dice.ts";
 import { clearSession, loadSession, saveSession } from "./engine/session.ts";
 import { addGraveyardEntry, clearGraveyard, type TownDeathCause } from "./engine/graveyard.ts";
@@ -110,6 +110,7 @@ export default function App() {
       travelStats: createInitialTravelStats(),
       survivedRunIds: [],
       flyActive: false,
+      catatonic: false,
       nextDungeonDamageBonus: 0,
     });
     setActiveRunId(null);
@@ -226,6 +227,7 @@ export default function App() {
       // Fly (issue #61) isn't tracked on DungeonState at all (nothing inside a dungeon run needs
       // it) -- carried over untouched, same as provisions/travelStats/troops above.
       flyActive: prev?.flyActive ?? false,
+      catatonic: false,
       // Ziggurat's Effect of the Forgotten Gods (issue #30): already consumed into
       // dungeon.runDamageBonus the moment this trip started (see DungeonScreen.tsx), so this is
       // always 0 by the time a retreat/return happens -- carried over the same way flyActive is.
@@ -291,6 +293,10 @@ export default function App() {
             // ritual for it. Mint this run's id now (DungeonScreen would otherwise self-mint one on
             // mount, too late for World to learn it) and stamp it onto the hex right away -- always
             // safe, since there's no way to leave DungeonScreen before a dungeon actually exists.
+            // Other Worlds (issue #105) have no dungeons -- the realm scope stops at survival, and
+            // there's no dungeon-type row for Magma or a Caramel Plain. `WorldScreen` hides the
+            // button there; this is the reducer-side half of the same gate.
+            if (!isOverworldTerrain(tile.terrain)) return;
             setForcedTypeRoll(DUNGEON_TYPE_BY_TERRAIN[tile.terrain][rollDie()]!);
             const newRunId = crypto.randomUUID();
             setWorldFreshRunId(newRunId);

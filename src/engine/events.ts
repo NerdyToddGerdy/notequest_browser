@@ -1,5 +1,5 @@
 import { EVENT_TABLE, eventBandFor, type EventBand, type EventEffect, type EventRow } from "../data/events.ts";
-import type { Terrain } from "../data/hexTables.ts";
+import type { OverworldTerrain } from "../data/hexTables.ts";
 import { HIRELING_BY_NAME } from "../data/hirelings.ts";
 import { SPELL_TABLE_BY_KEY, spellKey } from "./character.ts";
 import {
@@ -45,7 +45,7 @@ export type TravelEventRoll =
   | { kind: "skipped"; reason: string }
   /** "If it's 7 or more, nothing happened." */
   | { kind: "none"; total: number; dice: [number, number] }
-  | { kind: "event"; total: number; dice: [number, number]; terrain: Terrain; band: EventBand; row: EventRow };
+  | { kind: "event"; total: number; dice: [number, number]; terrain: OverworldTerrain; band: EventBand; row: EventRow };
 
 /** Patovsky (race, `races.ts`) and Elf Ranger (hireling) both simply never have Events. Checked
  * before any dice are rolled, so an Event is never even generated for them.
@@ -68,7 +68,7 @@ export function eventSkipReason(resources: AdventurerResources, raceName: string
 export function rollTravelEvent(
   resources: AdventurerResources,
   raceName: string,
-  terrain: Terrain,
+  terrain: OverworldTerrain,
   rng: RNG = Math.random,
 ): TravelEventRoll {
   const skip = eventSkipReason(resources, raceName);
@@ -89,12 +89,12 @@ const CAMOUFLAGE_KEY = spellKey("nature", 3);
  * where an Event can't exist. Instead it's offered only on the pending-Event panel itself, which is
  * also the only moment the choice is meaningful -- unlike every other spell, this one is cast
  * *in response to* a specific rolled outcome, not proactively. */
-export function canIgnoreEvent(resources: AdventurerResources, terrain: Terrain): boolean {
+export function canIgnoreEvent(resources: AdventurerResources, terrain: OverworldTerrain): boolean {
   if (terrain !== "forest" && terrain !== "swamp") return false;
   return (resources.spellUses[CAMOUFLAGE_KEY] ?? 0) > 0;
 }
 
-export function ignoreEvent(resources: AdventurerResources, terrain: Terrain): AdventurerResources {
+export function ignoreEvent(resources: AdventurerResources, terrain: OverworldTerrain): AdventurerResources {
   if (!canIgnoreEvent(resources, terrain)) return resources;
   return {
     ...resources,
@@ -126,7 +126,7 @@ export interface EventRerollResult {
 export function rerollEvent(
   resources: AdventurerResources,
   raceName: string,
-  terrain: Terrain,
+  terrain: OverworldTerrain,
   rng: RNG = Math.random,
 ): EventRerollResult {
   if (!canRerollEvent(resources)) return { resources, roll: { kind: "none", total: 7, dice: [3, 4] } };

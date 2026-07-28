@@ -46,6 +46,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     travelStats: createInitialTravelStats(),
     survivedRunIds: [],
     flyActive: false,
+    catatonic: false,
     nextDungeonDamageBonus: 0,
     ...overrides,
   };
@@ -80,8 +81,8 @@ describe("PORTAL_TABLE completeness", () => {
   });
 });
 
-describe("rollPortal (stage 1 re-rolls Other Worlds)", () => {
-  it("settles on a resolvable row and reports it", () => {
+describe("rollPortal", () => {
+  it("settles on whatever the dice say", () => {
     // 3 + 3 + 3 = 9 -> nearest town.
     const roll = rollPortal(fixedDie(3));
     expect(roll.total).toBe(9);
@@ -90,27 +91,27 @@ describe("rollPortal (stage 1 re-rolls Other Worlds)", () => {
     expect(roll.skippedWorlds).toEqual([]);
   });
 
-  it("re-rolls past an Other-World row and names what it skipped", () => {
-    // First 1+1+2 = 4 (Hell), then 3+3+3 = 9 (nearest town).
-    const roll = rollPortal(sequenceDie([1, 1, 2, 3, 3, 3]));
-    expect(roll.total).toBe(9);
-    expect(roll.skippedWorlds).toEqual(["Hell"]);
-    expect(roll.row.outcome.kind).not.toBe("otherWorld");
+  it("reaches the Other Worlds -- they are no longer re-rolled past (issue #105)", () => {
+    // 1 + 1 + 2 = 4 -> Hell. Stage 1 used to discard this and roll again.
+    const roll = rollPortal(sequenceDie([1, 1, 2]));
+    expect(roll.total).toBe(4);
+    expect(roll.row.outcome).toEqual({ kind: "otherWorld", world: "hell" });
+    expect(roll.skippedWorlds).toEqual([]);
   });
 
-  it("never settles on an Other-World row, however the dice fall", () => {
-    for (let seed = 1; seed <= 40; seed++) {
-      // A die that always yields 6 would be 18 (Hell) forever -- exercise every fixed value instead.
-      const roll = rollPortal(fixedDie(((seed - 1) % 6) + 1));
-      expect(roll.row.outcome.kind).not.toBe("otherWorld");
+  it("reaches every world row at its printed total", () => {
+    const worlds: Record<number, string> = { 4: "hell", 5: "pesadelum", 8: "underworld", 16: "pesadelum", 17: "candyWorld", 18: "hell" };
+    for (const [total, world] of Object.entries(worlds)) {
+      const outcome = PORTAL_TABLE[Number(total)]!.outcome;
+      expect(outcome, `total ${total}`).toEqual({ kind: "otherWorld", world });
     }
   });
 
-  it("falls back to a safe resolvable row if every attempt lands on a world", () => {
-    // A constant 6 gives 18 (Hell) on every single attempt.
+  it("a constant 6 now lands on Hell rather than falling back", () => {
+    // 6 + 6 + 6 = 18. Stage 1's fallback existed only because this row was unresolvable.
     const roll = rollPortal(fixedDie(6));
-    expect(roll.row.outcome).toEqual({ kind: "nearestTown" });
-    expect(roll.skippedWorlds.length).toBeGreaterThan(1);
+    expect(roll.total).toBe(18);
+    expect(roll.row.outcome).toEqual({ kind: "otherWorld", world: "hell" });
   });
 });
 
@@ -120,8 +121,10 @@ describe("establishedPortal", () => {
     expect(established?.row.outcome).toEqual({ kind: "goldenRoom", coins: 300 });
   });
 
-  it("refuses an Other-World total, so a stage-2 row can never be resurrected by a stale save", () => {
-    for (const total of [4, 5, 8, 16, 17, 18]) expect(establishedPortal(total)).toBeNull();
+  it("replays an Other-World total -- a portal that led to Hell keeps leading to Hell (issue #105)", () => {
+    for (const total of [4, 5, 8, 16, 17, 18]) {
+      expect(establishedPortal(total)?.row.outcome.kind, `total ${total}`).toBe("otherWorld");
+    }
   });
 
   it("refuses a nonsense total", () => {

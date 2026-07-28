@@ -13,6 +13,14 @@ import { CITY_OR_FORTRESS, type LocationKind } from "../hexTables.ts";
 
 const ALL_CULTURES: CityCulture[] = ["human", "dwarven", "elven", "gnome", "goblin", "orc"];
 
+const REALM_CITIES = new Set<LocationKind>([
+  "demonCity",
+  "cityOfSurvivors",
+  "goblinFortress",
+  "chocolateCity",
+  "mandolateFortress",
+]);
+
 describe("RACE_AFFINITY completeness", () => {
   it("defines an answer for every playable race, for every culture", () => {
     const raceNames = Object.values(RACE_TABLE).map((r) => r.name);
@@ -23,9 +31,21 @@ describe("RACE_AFFINITY completeness", () => {
     }
   });
 
-  it("maps every City/Fortress LocationKind to a culture", () => {
+  it("maps every *overworld* City/Fortress LocationKind to a culture", () => {
     for (const loc of CITY_OR_FORTRESS) {
+      if (REALM_CITIES.has(loc)) continue;
       expect(CULTURE_BY_LOCATION[loc], `missing culture for ${loc}`).toBeDefined();
+    }
+  });
+
+  it("deliberately gives the Other Worlds' cities no culture", () => {
+    // Issue #105: realm cities are in CITY_OR_FORTRESS so `TownScreen` renders (Rest and Buy are
+    // what make a realm survivable), but a culture is what drives hireling rosters and Culture
+    // Actions -- neither of which exists in Hell. `hirelingsFor(undefined)` and
+    // `cultureActionFor(undefined)` both degrade to nothing, which is the intended behavior.
+    for (const loc of REALM_CITIES) {
+      expect(CITY_OR_FORTRESS.has(loc), `${loc} should still render a town`).toBe(true);
+      expect(CULTURE_BY_LOCATION[loc], `${loc} should have no culture`).toBeUndefined();
     }
   });
 });

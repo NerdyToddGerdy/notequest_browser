@@ -15,6 +15,7 @@ import {
 import { CULTURE_BY_LOCATION, hasAffinity, type CityCulture } from "../data/affinity.ts";
 import { CITY_NAME_PREFIX, CITY_NAME_SUFFIX } from "../data/cityNames.ts";
 import type { AnimalDef, BuildingKind } from "../data/types.ts";
+import type { RealmKey } from "../data/realms.ts";
 
 export interface HexCoord {
   q: number;
@@ -120,6 +121,30 @@ export interface WorldState {
    * plain becomes"). Optional for back-compat like `bannedHexes`; applied inside `nextTerrain()`,
    * the single chokepoint every newly-revealed tile's terrain goes through. */
   plainsRevealAsWater?: boolean;
+  /** Other Worlds (issue #105): which map `tiles`/`player`/`home` currently describe. Optional and
+   * read via `currentRealm()` so a session saved before realms existed still loads as
+   * `"overworld"`. */
+  realm?: RealmKey;
+  /** The maps you *aren't* standing in. `WorldState` deliberately still means "the map you're in",
+   * so all ~22 of its consumers kept working unchanged; switching realms swaps the live
+   * `tiles`/`player`/`home`/`hasBoat` into here and pulls the destination's back out.
+   *
+   * This is also why the realm-scoped systems stop at survival (see `otherWorlds.ts`): `bannedHexes`,
+   * `politicalStatus` and `HexTile.dungeonRunId` are all keyed by a bare `hexKey`, so two realms'
+   * `"0,0"` would collide. Rather than realm-qualify every one of those maps, Buildings/Politics/
+   * Warfare/dungeons simply don't operate in a realm -- and `bannedHexes`/`politicalStatus` stay
+   * top-level, describing the overworld only. */
+  stashedRealms?: Partial<Record<RealmKey, StashedRealm>>;
+}
+
+/** Everything that makes one realm's map distinct from another's. Deliberately *not* the whole
+ * `WorldState`: `climate`, `bannedHexes`, `politicalStatus` and `plainsRevealAsWater` are properties
+ * of the traveller or the overworld, and follow them across realms rather than being stashed. */
+export interface StashedRealm {
+  tiles: Record<string, HexTile>;
+  player: HexCoord;
+  home: HexCoord;
+  hasBoat: boolean;
 }
 
 /** `current` is trusted to belong to `climate`'s own terrain set (a hot-climate world only ever
@@ -330,6 +355,17 @@ export function withPlayerMovedTo(world: WorldState, dest: HexCoord, rng: RNG): 
   const tiles = { ...world.tiles };
   revealNeighborsInPlace(tiles, dest, world.climate, rng, world.plainsRevealAsWater);
   return { ...world, player: dest, hasBoat: false, tiles };
+}
+
+/** Hell's Infernal Baron (issue #105): "With the death of the Infernal Baron, a Portal is opened in
+ * place of his body." The only place in the game where a hex *gains* a location mid-play. Leaves an
+ * existing location alone -- the Baron can only be met on an Event, and Events fire on hexes whose
+ * own location has already been rolled. */
+export function withPortalHere(world: WorldState, coord: HexCoord): WorldState {
+  const key = hexKey(coord);
+  const tile = world.tiles[key];
+  if (!tile || tile.location === "portal") return world;
+  return { ...world, tiles: { ...world.tiles, [key]: { ...tile, location: "portal" } } };
 }
 
 /** Portals (issue #21): remembers the 3d6 total a portal hex was established at, so every later trip

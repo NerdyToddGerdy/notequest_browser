@@ -5,6 +5,7 @@ import {
   hasWaterWalk,
   isFortressLocation,
   isImpassable,
+  isOverworldTerrain,
   locationHasDungeon,
   TERRAIN_LABEL,
   travelCost,
@@ -25,6 +26,7 @@ import {
   qualifiesForTraining,
   withBannedHex,
   withPlayerMovedTo,
+  withPortalHere,
   withPortalTotal,
   type HexCoord,
   type HexTile,
@@ -88,6 +90,18 @@ import {
   type EventCombatState,
   type TravelEventRoll,
 } from "../../../engine/events.ts";
+import {
+  applyRealmVictoryReward,
+  currentRealm,
+  currentRealmDef,
+  isInOtherWorld,
+  realmLabel,
+  realmTerrainHazard,
+  rollRealmEvent,
+  switchRealm,
+  type RealmHazard,
+} from "../../../engine/realms.ts";
+import { REALMS, type RealmEventRow } from "../../../data/otherWorlds.ts";
 import {
   establishedPortal,
   resolvePortalOutcome,
@@ -176,6 +190,16 @@ const TERRAIN_FILL: Record<Terrain, string> = {
   water: "#2a4a5e",
   glacier: "#bfe3ec",
   tundra: "#8fa3ab",
+  // Other Worlds (issue #105) -- each realm's palette reads as its own place at a glance: Hell hot
+  // and dark, Pesadelum bruised, Candy World sugary.
+  magma: "#8c2f14",
+  seaOfBlood: "#5c1a1e",
+  forestOfImpaled: "#3b2b39",
+  plainOfThorns: "#5a4550",
+  milkShakeSea: "#e6c9d8",
+  lollipopForest: "#b5628f",
+  marshmallowMountain: "#e8dcd2",
+  caramelPlain: "#c98f4e",
 };
 
 /** City/Fortress/Ruins/Rocks and (since issue #21) Portal are interactive -- everything else
@@ -200,6 +224,15 @@ const LOCATION_LABEL: Record<LocationKind, string> = {
   reef: "Reef",
   thinIce: "Thin Ice",
   nothing: "",
+  // Other Worlds (issue #105).
+  demonCity: "Demon City",
+  cityOfSurvivors: "City of Survivors",
+  denseFog: "Dense Fog",
+  abandonedHouse: "Abandoned House",
+  goblinFortress: "Goblin Fortress",
+  chocolateCity: "Chocolate City",
+  mandolateFortress: "Fortress of King Mandolate",
+  peanuts: "",
 };
 
 export function WorldScreen({
@@ -258,6 +291,19 @@ export function WorldScreen({
    * used for the ordinary "nothing happened" 7+ result, which is the common case on most moves and
    * would be pure noise. */
   const [eventNote, setEventNote] = useState<string | null>(null);
+  /** Other Worlds (issue #105): a terrain hazard fired on arrival (Magma's 6d6, the Sea of Blood's
+   * shove, the Plain of Thorns, the Forest of the Impaled's catatonia). Resolved before the realm's
+   * own Event roll, since Magma can kill you first. */
+  const [realmHazard, setRealmHazard] = useState<RealmHazard | null>(null);
+  /** A realm's own 2d6 Event, in the same three stages `travelEvent` uses. Kept separate rather than
+   * widened into `travelEvent` because the two draw from different tables and different effect
+   * unions -- merging them would mean a discriminant on every field. */
+  const [realmEvent, setRealmEvent] = useState<{
+    row: RealmEventRow;
+    dice: [number, number];
+    combat: EventCombatState | null;
+    resolvedMessage: string | null;
+  } | null>(null);
   /** Portals (issue #21). `pendingPortalConfirm` gates the irreversible step ("there is no turning
    * back"); `portal` then holds the resolved trip until dismissed. `awaitDestination` is only ever
    * true for rolls 11/14, which need a chosen hex before anything moves. Not persisted, same call as
@@ -334,7 +380,14 @@ export function WorldScreen({
   // redisplay the existing victory panel, not let the Boss be re-fought or re-looted. A hex "Ask"
   // marked (dungeonMarked) offers the same button as a City/Fortress/Ruins hex does, even though it
   // has no location of its own -- see HexTile.dungeonMarked.
+  /** Other Worlds (issue #105): the realm scope stops at survival, so the systems that key per-hex
+   * data by a bare `hexKey` -- dungeons, Buildings, Politics, Warfare -- plus Ask and Animal
+   * training are all overworld-only. One flag gates every one of them, and `App.tsx`'s dungeon
+   * handler re-checks independently (reducer decides, UI mirrors). */
+  const inRealm = isInOtherWorld(world);
+  const realmName = realmLabel(currentRealm(world));
   const canEnterDungeon =
+    !inRealm &&
     !!currentTile &&
     (locationHasDungeon(currentTile.location) || !!currentTile.dungeonMarked) &&
     currentDungeonStatus !== "beaten";
@@ -353,16 +406,18 @@ export function WorldScreen({
   const currentMatchingNeighbors = currentTile
     ? countMatchingNeighbors(world.tiles, world.player, currentTile.terrain)
     : 0;
-  const trainableAnimals = currentTile
-    ? Object.values(ANIMAL_BY_NAME).filter((a) =>
-        qualifiesForTraining(currentTile, currentMatchingNeighbors, a),
-      )
-    : [];
-  const buyableMounts = currentTile
-    ? Object.values(MOUNT_TABLE).filter((m) =>
-        qualifiesForBuyingMount(currentTile, currentMatchingNeighbors, m),
-      )
-    : [];
+  const trainableAnimals =
+    currentTile && !isInOtherWorld(world)
+      ? Object.values(ANIMAL_BY_NAME).filter((a) =>
+          qualifiesForTraining(currentTile, currentMatchingNeighbors, a),
+        )
+      : [];
+  const buyableMounts =
+    currentTile && !isInOtherWorld(world)
+      ? Object.values(MOUNT_TABLE).filter((m) =>
+          qualifiesForBuyingMount(currentTile, currentMatchingNeighbors, m),
+        )
+      : [];
   const isFortress = isFortressLocation(currentTile?.location ?? null);
   /** Portals' rolls 11/14 ("you go to whatever hexagon you want"): every revealed hex the player could
    * legally stand in, nearest first. Bounded to known geography for the same reason
@@ -444,8 +499,25 @@ export function WorldScreen({
     setTravelEvent(null);
     setEventNote(null);
 
+    if (!rollEvent) return;
+
+    // Other Worlds (issue #105) roll on their *own* Event table, and do so on every hex rather than
+    // only location-less ones -- a realm's Location table is rolled unconditionally, so "has a
+    // location" carries none of the meaning it does on the overworld. Terrain hazards fire first:
+    // Magma's 6d6 can kill you before anything else gets a turn.
+    const realmDef = currentRealmDef(world);
+    if (realmDef) {
+      const hazard = realmTerrainHazard(tile.terrain);
+      if (hazard) {
+        setRealmHazard(hazard);
+        return; // the hazard panel resolves, then rolls this realm's Event itself
+      }
+      rollRealmEventInto(realmDef);
+      return;
+    }
+
     // "Whenever you enter a hex that doesn't have a location, roll 2d6."
-    if (!rollEvent || tile.location !== null) return;
+    if (tile.location !== null || !isOverworldTerrain(tile.terrain)) return;
     const roll = rollTravelEvent(updated, character.race.name, tile.terrain);
     if (roll.kind === "skipped") setEventNote(roll.reason);
     else if (roll.kind === "event") setTravelEvent({ roll, combat: null, resolvedMessage: null });
@@ -635,6 +707,124 @@ export function WorldScreen({
     setTravelEvent({ ...travelEvent, combat: result.state });
   }
 
+  // --- Other Worlds (issue #105) -----------------------------------------------------------------
+
+  /** Rolls the realm's own 2d6 Event and puts it on screen. Split out so both the ordinary arrival
+   * path and the hazard panel's "continue" can call it -- a hazard resolves first, then the Event. */
+  function rollRealmEventInto(realm: NonNullable<ReturnType<typeof currentRealmDef>>) {
+    const roll = rollRealmEvent(realm);
+    if (!roll.row) return; // 7+ -- "Nothing happens...", deliberately silent like the overworld's
+    setRealmEvent({ row: roll.row, dice: roll.dice, combat: null, resolvedMessage: null });
+  }
+
+  /** Applies a resolved terrain hazard, then hands off to the realm's Event roll. Magma can kill
+   * outright, which is why it resolves before anything else gets a turn. */
+  function handleResolveRealmHazard() {
+    const hazard = realmHazard;
+    const realmDef = currentRealmDef(world);
+    setRealmHazard(null);
+    if (!hazard || !realmDef) return;
+
+    const effect = hazard.effect;
+    if (effect.kind === "loseHp") {
+      // Unlike every other HP cost outside a dungeon, Magma is *not* floored at 1 -- the rulebook
+      // gives it a flat 6d6 with no survival clause, and a realm that can kill you is the point.
+      const hp = resources.hp - effect.amount;
+      if (hp <= 0) {
+        onCharacterDied("realm", realmLabel(currentRealm(world)));
+        return;
+      }
+      onUpdateResources({ ...resources, hp });
+    } else if (effect.kind === "catatonic") {
+      onUpdateResources({ ...resources, catatonic: true });
+    } else if (effect.kind === "moveToRandomAdjacent") {
+      const damaged = effect.damage ? Math.max(1, resources.hp - effect.damage) : resources.hp;
+      onUpdateResources({ ...resources, hp: damaged });
+      onUpdateWorld(hexReducer(world, { type: "STORM_RELOCATE", raceName: character.race.name }));
+    }
+    rollRealmEventInto(realmDef);
+  }
+
+  /** Accepting a realm Event: a monster row becomes a fight, anything else applies immediately. */
+  function handleAcceptRealmEvent() {
+    if (!realmEvent) return;
+    const row = realmEvent.row;
+    if (row.monsters) {
+      setRealmEvent({ ...realmEvent, combat: startEventCombat({ text: row.text, monsters: row.monsters }) });
+      return;
+    }
+    const effect = row.effect;
+    if (!effect) {
+      setRealmEvent({ ...realmEvent, resolvedMessage: "" });
+      return;
+    }
+    if (effect.kind === "ancientSoul") {
+      // "If you want to help him, roll 1d6. If it's 6 his soul will follow you and resurrect when he
+      // returns to the world of the living." Modelled as a straight reward on a 6 -- there's no
+      // NPC-follower concept to carry, so the resurrection is paid out immediately as the HP a
+      // rescued companion would represent. A documented simplification.
+      const roll = 1 + Math.floor(Math.random() * 6);
+      const helped = roll === 6;
+      if (helped) onUpdateResources({ ...resources, hp: resources.maxHp, coins: resources.coins + 50 });
+      setRealmEvent({
+        ...realmEvent,
+        resolvedMessage: helped
+          ? "His soul follows you out, and something of him stays behind in you — you are made whole, and 50 coins richer."
+          : "His soul slips away to hell, and you are alone again.",
+      });
+      return;
+    }
+    if (effect.kind === "catatonic") {
+      onUpdateResources({ ...resources, catatonic: true });
+      setRealmEvent({ ...realmEvent, resolvedMessage: "You lose your next move." });
+      return;
+    }
+    if (effect.kind === "moveToRandomAdjacent") {
+      const damaged = effect.damage ? Math.max(1, resources.hp - effect.damage) : resources.hp;
+      onUpdateResources({ ...resources, hp: damaged });
+      onUpdateWorld(hexReducer(world, { type: "STORM_RELOCATE", raceName: character.race.name }));
+      setRealmEvent({ ...realmEvent, resolvedMessage: "You come to somewhere else entirely." });
+      return;
+    }
+    const applied = applyEventEffect(resources, effect);
+    if (applied.died) {
+      onCharacterDied("realm", realmLabel(currentRealm(world)));
+      return;
+    }
+    onUpdateResources(applied.resources);
+    if (applied.relocate) {
+      onUpdateWorld(hexReducer(world, { type: "STORM_RELOCATE", raceName: character.race.name }));
+    }
+    setRealmEvent({ ...realmEvent, resolvedMessage: applied.message });
+  }
+
+  /** One round of a realm Event fight -- the same shape as `handleEventAttack`, but crediting each
+   * realm's own victory reward (issue #105). */
+  function handleRealmEventAttack(targetId: number, roll: number) {
+    if (!realmEvent?.combat || !resources.weapon) return;
+    const result = resolveEventRound(realmEvent.combat, resources.hp, resources.weapon.formula, targetId, roll);
+    if (result.died) {
+      onCharacterDied("realm", realmLabel(currentRealm(world)));
+      return;
+    }
+    if (result.state.outcome === "victory") {
+      const template = realmEvent.row.monsters!;
+      const reward = applyRealmVictoryReward(
+        applyEventVictory(resources, result.state, result.hp, template.name, result.state.monsters.length),
+        currentRealm(world),
+        template.name,
+      );
+      onUpdateResources(reward.resources);
+      if (reward.opensPortalHere) {
+        onUpdateWorld(withPortalHere(world, world.player));
+      }
+      setRealmEvent({ ...realmEvent, combat: result.state, resolvedMessage: reward.message });
+      return;
+    }
+    onUpdateResources({ ...resources, hp: result.hp });
+    setRealmEvent({ ...realmEvent, combat: result.state });
+  }
+
   // --- Portals (issue #21) ----------------------------------------------------------------------
 
   /** Applies one settled portal roll against explicit resources/world, so a chained roll can build on
@@ -670,6 +860,20 @@ export function WorldScreen({
     if (result.enterNoExitDungeon) {
       setPortal(null);
       onEnterNoExitDungeon();
+      return;
+    }
+    if (result.enterOtherWorld) {
+      // Issue #105: the map is swapped wholesale. Done here rather than in `resolvePortalOutcome`
+      // because generating a realm on a first visit needs an RNG, and that function is a pure
+      // outcome classifier.
+      const moved = switchRealm(result.world, result.enterOtherWorld, Math.random);
+      onUpdateWorld(moved);
+      setPortal({
+        roll,
+        applied: true,
+        resolvedMessage: REALMS[result.enterOtherWorld].arrivalFlavor,
+        awaitDestination: false,
+      });
       return;
     }
     if (result.chainAnotherPortal && depth < MAX_PORTAL_CHAIN) {
@@ -1041,6 +1245,43 @@ export function WorldScreen({
     }
   }
 
+  /** Other Worlds (issue #105) -- the hazard and the realm's own Event share the portal overlay's
+   * slot, since all three are interruptions that must be resolved before the map is usable again. */
+  const realmOverlay = realmHazard ? (
+    <div className={styles.portalOverlay}>
+      <div className={styles.realmPanel}>
+        <p className={styles.realmEyebrow}>{realmName}</p>
+        <p className={styles.realmFlavor}>{realmHazard.text}</p>
+        <button type="button" className={styles.realmBtn} onClick={handleResolveRealmHazard}>
+          Continue
+        </button>
+      </div>
+    </div>
+  ) : realmEvent ? (
+    <div className={styles.portalOverlay}>
+      <EventPanel
+        row={{ text: realmEvent.row.text, monsters: realmEvent.row.monsters }}
+        dice={realmEvent.dice}
+        combat={realmEvent.combat}
+        hp={resources.hp}
+        maxHp={resources.maxHp}
+        weaponName={resources.weapon?.name}
+        weaponFormula={resources.weapon?.formula}
+        resolvedMessage={realmEvent.resolvedMessage}
+        // Camouflage and the Star Stone are overworld Events-on-Travel abilities; a realm's own
+        // Event table is a different thing the rulebook gives no way to dodge.
+        canIgnore={false}
+        ignoreLabel=""
+        canReroll={false}
+        onAccept={handleAcceptRealmEvent}
+        onIgnore={() => {}}
+        onReroll={() => {}}
+        onAttack={handleRealmEventAttack}
+        onDismiss={() => setRealmEvent(null)}
+      />
+    </div>
+  ) : null;
+
   /** Portals (issue #21) -- rendered in *both* branches below, as a viewport-level modal. A portal can
    * deposit the player inside a City/Fortress (rolls 9/10), which flips this screen to `TownScreen`
    * wholesale; an overlay living inside the map card would unmount before the outcome could be read. */
@@ -1071,14 +1312,14 @@ export function WorldScreen({
           dungeonHistory={sortedDungeonHistory}
           culture={culture}
           cityName={currentPlaceLabel}
-          showHireBoat={besideWater}
-          askedDungeonKnown={askedDungeonKnown}
+          showHireBoat={!inRealm && besideWater}
+          askedDungeonKnown={inRealm || askedDungeonKnown}
           isFortress={isFortress}
           buyableMounts={buyableMounts}
           politicalStatus={politicalStatusFor(world, world.player)}
-          canPoliticalAffinity={canAttemptPoliticalAffinity(world, world.player, currentTile)}
-          canRecruitTroop={canRecruitTroop(resources, world, world.player, currentTile)}
-          canAttack={canAttack(world, world.player, currentTile)}
+          canPoliticalAffinity={!inRealm && canAttemptPoliticalAffinity(world, world.player, currentTile)}
+          canRecruitTroop={!inRealm && canRecruitTroop(resources, world, world.player, currentTile)}
+          canAttack={!inRealm && canAttack(world, world.player, currentTile)}
           attackMessage={attackMessage}
           pendingStorm={pendingStorm}
           onUpdateResources={onUpdateResources}
@@ -1097,6 +1338,7 @@ export function WorldScreen({
           onHardReset={onHardReset}
         />
         {portalOverlay}
+        {realmOverlay}
       </>
     );
   }
@@ -1307,12 +1549,13 @@ export function WorldScreen({
                     resources={resources}
                     onTrainAnimal={handleTrainAnimal}
                     trainResultMessage={trainResultMessage}
-                    isEmptyHex={inspectedTile.location === null}
+                    isEmptyHex={!inRealm && inspectedTile.location === null}
                     currentBuilding={inspectedTile.building}
                     raceName={character.race.name}
                     onBuildBuilding={handleBuildBuilding}
                     politicalStatus={politicalStatusFor(world, inspectedCoord)}
                     canRecruitTroopHere={
+                      !inRealm &&
                       isInspectingCurrentTile &&
                       canRecruitTroop(resources, world, inspectedCoord, inspectedTile)
                     }
@@ -1390,6 +1633,7 @@ export function WorldScreen({
       )}
 
       {portalOverlay}
+      {realmOverlay}
 
       <Footer screenLabel="THE WORLD" onHardReset={onHardReset} />
     </div>

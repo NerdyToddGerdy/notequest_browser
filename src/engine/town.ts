@@ -99,6 +99,10 @@ export interface AdventurerResources {
    * a meaningless dungeon-side case. World/Town-only, not mirrored on `DungeonState`, same shape as
    * `travelStats`/`troops` above. */
   flyActive: boolean;
+  /** Pesadelum's Forest of the Impaled (issue #105): "roll a die. If it's 1 you are catatonic."
+   * Read as losing your next move -- the next travel action is consumed doing nothing and clears
+   * this. World/Town-only, like `flyActive`; `loadSession()` back-fills `?? false`. */
+  catatonic: boolean;
   /** Ziggurat's "Effect of the Forgotten Gods" Special Rule (issue #30): "A divine light
    * illuminates you and you gain +1 damage on all attacks on the next dungeon exploration you
    * make" -- armed here, consumed into `DungeonState.runDamageBonus` the moment a genuinely fresh

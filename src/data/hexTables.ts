@@ -1,26 +1,130 @@
 export type HotTerrain = "plain" | "mountain" | "forest" | "swamp" | "desert" | "water";
 export type ColdTerrain = "plain" | "mountain" | "forest" | "glacier" | "tundra" | "water";
-export type Terrain = HotTerrain | ColdTerrain;
+/** The eight terrains the ordinary hexcrawl generates. Kept as its own name (rather than letting
+ * `Terrain` mean this) so the overworld-only tables below -- `EVENT_TABLE`, `DUNGEON_TYPE_BY_TERRAIN`
+ * -- stay exhaustive over exactly the terrains they can actually see, instead of growing
+ * meaningless rows for Magma and Caramel Plain when the Other Worlds (issue #105) widened
+ * `Terrain`. */
+export type OverworldTerrain = HotTerrain | ColdTerrain;
+
+/** Terrain that only exists inside one of the four Other Worlds (issue #105). Each realm draws from
+ * its own 1d6 table (`src/data/otherWorlds.ts`) rather than the Hot/Cold terrain tables, and several
+ * of these hurt you just for standing on them -- see `REALM_TERRAIN_HAZARD`. */
+export type RealmTerrain =
+  | "magma"
+  | "seaOfBlood"
+  | "forestOfImpaled"
+  | "plainOfThorns"
+  | "milkShakeSea"
+  | "lollipopForest"
+  | "marshmallowMountain"
+  | "caramelPlain";
+
+export type Terrain = OverworldTerrain | RealmTerrain;
 export type Climate = "hot" | "cold";
 
 /** Table: Terrain (Hot climate) (1d6) -- rolled against the *current* hex's own terrain. */
 export const HOT_TERRAIN_TABLE: Record<number, Record<HotTerrain, HotTerrain>> = {
-  1: { plain: "water", mountain: "desert", forest: "water", swamp: "water", desert: "desert", water: "water" },
-  2: { plain: "mountain", mountain: "mountain", forest: "swamp", swamp: "water", desert: "desert", water: "water" },
-  3: { plain: "forest", mountain: "mountain", forest: "mountain", swamp: "forest", desert: "swamp", water: "water" },
-  4: { plain: "plain", mountain: "forest", forest: "forest", swamp: "forest", desert: "swamp", water: "mountain" },
-  5: { plain: "plain", mountain: "forest", forest: "forest", swamp: "swamp", desert: "mountain", water: "swamp" },
-  6: { plain: "plain", mountain: "plain", forest: "plain", swamp: "swamp", desert: "mountain", water: "plain" },
+  1: {
+    plain: "water",
+    mountain: "desert",
+    forest: "water",
+    swamp: "water",
+    desert: "desert",
+    water: "water",
+  },
+  2: {
+    plain: "mountain",
+    mountain: "mountain",
+    forest: "swamp",
+    swamp: "water",
+    desert: "desert",
+    water: "water",
+  },
+  3: {
+    plain: "forest",
+    mountain: "mountain",
+    forest: "mountain",
+    swamp: "forest",
+    desert: "swamp",
+    water: "water",
+  },
+  4: {
+    plain: "plain",
+    mountain: "forest",
+    forest: "forest",
+    swamp: "forest",
+    desert: "swamp",
+    water: "mountain",
+  },
+  5: {
+    plain: "plain",
+    mountain: "forest",
+    forest: "forest",
+    swamp: "swamp",
+    desert: "mountain",
+    water: "swamp",
+  },
+  6: {
+    plain: "plain",
+    mountain: "plain",
+    forest: "plain",
+    swamp: "swamp",
+    desert: "mountain",
+    water: "plain",
+  },
 };
 
 /** Table: Terrain (Cold climate) (1d6) -- an alternate table for cold/glacial continents. */
 export const COLD_TERRAIN_TABLE: Record<number, Record<ColdTerrain, ColdTerrain>> = {
-  1: { plain: "water", mountain: "tundra", forest: "water", glacier: "water", tundra: "water", water: "water" },
-  2: { plain: "glacier", mountain: "mountain", forest: "glacier", glacier: "water", tundra: "tundra", water: "water" },
-  3: { plain: "mountain", mountain: "mountain", forest: "mountain", glacier: "water", tundra: "tundra", water: "water" },
-  4: { plain: "forest", mountain: "forest", forest: "forest", glacier: "glacier", tundra: "tundra", water: "water" },
-  5: { plain: "tundra", mountain: "forest", forest: "forest", glacier: "mountain", tundra: "glacier", water: "water" },
-  6: { plain: "plain", mountain: "plain", forest: "forest", glacier: "glacier", tundra: "mountain", water: "plain" },
+  1: {
+    plain: "water",
+    mountain: "tundra",
+    forest: "water",
+    glacier: "water",
+    tundra: "water",
+    water: "water",
+  },
+  2: {
+    plain: "glacier",
+    mountain: "mountain",
+    forest: "glacier",
+    glacier: "water",
+    tundra: "tundra",
+    water: "water",
+  },
+  3: {
+    plain: "mountain",
+    mountain: "mountain",
+    forest: "mountain",
+    glacier: "water",
+    tundra: "tundra",
+    water: "water",
+  },
+  4: {
+    plain: "forest",
+    mountain: "forest",
+    forest: "forest",
+    glacier: "glacier",
+    tundra: "tundra",
+    water: "water",
+  },
+  5: {
+    plain: "tundra",
+    mountain: "forest",
+    forest: "forest",
+    glacier: "mountain",
+    tundra: "glacier",
+    water: "water",
+  },
+  6: {
+    plain: "plain",
+    mountain: "plain",
+    forest: "forest",
+    glacier: "glacier",
+    tundra: "mountain",
+    water: "plain",
+  },
 };
 
 /** Every outcome of the Location table (1d6, by land type) -- kept in full even though only a
@@ -45,9 +149,28 @@ export type LocationKind =
   | "portal"
   | "reef"
   | "thinIce"
-  | "nothing";
+  | "nothing"
+  // Other Worlds (issue #105) -- these only ever appear inside a realm, rolled from that realm's
+  // own Location table rather than `LOCATION_TABLE`.
+  /** Hell, "like the Orc City" -- hostile, but a city. */
+  | "demonCity"
+  /** Hell and Pesadelum, "like Human City" -- the one refuge in either place. */
+  | "cityOfSurvivors"
+  /** Underworld: "cannot pass through" -- but unlike Rocks, "you can spend 1 provision to wait for
+   * it to dissipate," so it's *conditionally* impassable. */
+  | "denseFog"
+  /** Pesadelum: "Abandoned House (find 1d6-1 coins)." */
+  | "abandonedHouse"
+  /** Pesadelum's own Goblin Fortress -- the overworld's Location table never rolls one. */
+  | "goblinFortress"
+  /** Candy World, both hostile. */
+  | "chocolateCity"
+  | "mandolateFortress"
+  /** Candy World: "Nothing. Just peanuts on the floor." */
+  | "peanuts";
 
-export type Land = "plain" | "mountain" | "forest" | "water" | "swamp" | "desert" | "glacier" | "tundra";
+export type Land =
+  "plain" | "mountain" | "forest" | "water" | "swamp" | "desert" | "glacier" | "tundra";
 
 /** Table: Location (1d6, by land) -- only rolled if the "is there a location" check (1d6, a 6)
  * already succeeded. */
@@ -125,6 +248,15 @@ export const CITY_OR_FORTRESS: ReadonlySet<LocationKind> = new Set([
   "elvenCity",
   "elvenFortress",
   "gnomeCity",
+  // Other Worlds (issue #105): "Demon City (like the Orc City)", "City of Survivors (like Human
+  // City)", Pesadelum's Goblin Fortress, and Candy World's own two. Included so `TownScreen` still
+  // renders -- Rest and Buy are what make a realm survivable at all. The overworld-only City
+  // Actions (Ask/Politics/Recruit/Attack/Hire Boat) are gated separately, by realm.
+  "demonCity",
+  "cityOfSurvivors",
+  "goblinFortress",
+  "chocolateCity",
+  "mandolateFortress",
 ]);
 
 /** "In the city you can discover dungeons" / "Ruins: Explore as if it were a dungeon." City,
@@ -145,7 +277,11 @@ export function isFortressLocation(loc: LocationKind | null): boolean {
 /** "It is not possible to move on water without a boat" / "Rocks: It is not possible to pass
  * here." `hasBoat` (see `WorldState.hasBoat`, set by the "Hire Boat" City Action) lifts the water
  * restriction specifically -- "you travel normally" on water once hired, no exception for Rocks. */
-export function isImpassable(terrain: Terrain, location: LocationKind | null, hasBoat = false): boolean {
+export function isImpassable(
+  terrain: Terrain,
+  location: LocationKind | null,
+  hasBoat = false,
+): boolean {
   return (terrain === "water" && !hasBoat) || location === "rocks";
 }
 
@@ -161,7 +297,44 @@ export const TERRAIN_LABEL: Record<Terrain, string> = {
   water: "Water",
   glacier: "Glacier",
   tundra: "Tundra",
+  // Other Worlds (issue #105).
+  magma: "Magma",
+  seaOfBlood: "Sea of Blood",
+  forestOfImpaled: "Forest of the Impaled",
+  plainOfThorns: "Plain of Thorns",
+  milkShakeSea: "Milk Shake Sea",
+  lollipopForest: "Lollipop Forest",
+  marshmallowMountain: "Marshmallow Mountain",
+  caramelPlain: "Caramel Plain",
 };
+
+/** Terrain you cannot cross without a boat -- the overworld's Water plus the two Other-World seas
+ * (issue #105), which are water by another name. Kept as a set rather than a string comparison so
+ * `isImpassable()` and the boat-clearing rule in `hexReducer` can't drift apart. */
+export const WATER_TERRAIN: ReadonlySet<Terrain> = new Set<Terrain>([
+  "water",
+  "seaOfBlood",
+  "milkShakeSea",
+]);
+
+const OVERWORLD_TERRAINS: ReadonlySet<string> = new Set<OverworldTerrain>([
+  "plain",
+  "mountain",
+  "forest",
+  "swamp",
+  "desert",
+  "water",
+  "glacier",
+  "tundra",
+]);
+
+/** Narrows a `Terrain` to the eight the ordinary hexcrawl generates. The overworld-only tables
+ * (`DUNGEON_TYPE_BY_TERRAIN`, `EVENT_TABLE`) are keyed by `OverworldTerrain`, so every site that
+ * might now be looking at an Other World's hex (issue #105) has to say which case it's in rather
+ * than index blindly -- the compiler makes those sites impossible to miss, which is the point. */
+export function isOverworldTerrain(terrain: Terrain): terrain is OverworldTerrain {
+  return OVERWORLD_TERRAINS.has(terrain);
+}
 
 /** "Plains take 1 day (1 provision); Mountains take 3 days (3 provisions); any other land type
  * takes 2 days (2 provisions)." */
@@ -202,7 +375,7 @@ export function travelCostMultiplier(raceName: string): number {
  * unreachable in practice today (no City/Fortress/Ruins ever rolls on water per `LOCATION_TABLE`;
  * `glacier` only exists in the still-unused `COLD_TERRAIN_TABLE`) but are filled in for
  * `Record<Terrain, ...>`'s type completeness rather than left to throw. */
-export const DUNGEON_TYPE_BY_TERRAIN: Record<Terrain, Record<number, number>> = {
+export const DUNGEON_TYPE_BY_TERRAIN: Record<OverworldTerrain, Record<number, number>> = {
   plain: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 }, // Palace, Crypt, Tomb, Sanctuary, Temple, Prison
   mountain: { 1: 2, 2: 4, 3: 6, 4: 7, 5: 6, 6: 6 }, // Crypt, Sanctuary, Prison, Citadel, Mine->Prison, Cave->Prison
   forest: { 1: 3, 2: 5, 3: 1, 4: 5, 5: 1, 6: 6 }, // Tomb, Temple, Palace, Temple, Laboratory->Palace, Cave->Prison

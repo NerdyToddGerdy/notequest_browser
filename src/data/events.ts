@@ -1,5 +1,5 @@
 import type { MonsterTemplate } from "./dungeonTables.ts";
-import type { Terrain } from "./hexTables.ts";
+import type { OverworldTerrain } from "./hexTables.ts";
 
 /** "Events on Travel" (`docs/game-rules-reference.md` lines 908-926, issue #91): "Whenever you enter
  * a hex that doesn't have a location, roll 2d6. If it's 7 or more, nothing happened. If not, you
@@ -70,7 +70,7 @@ const CRACKED_ICE: EventRow = {
 
 /** "Creatures with Loot will have 1d6-1 coins" -- the `loot` ability, resolved by `combat.ts`'s
  * existing `rollLoot()` on victory, exactly as a dungeon monster's would be. */
-export const EVENT_TABLE: Record<Terrain, Record<EventBand, EventRow>> = {
+export const EVENT_TABLE: Record<OverworldTerrain, Record<EventBand, EventRow>> = {
   water: {
     2: { text: "A Kraken rises from the deep.", monsters: { name: "Kraken", hp: 50, damage: 10, abilities: [], count: 1 } },
     34: {

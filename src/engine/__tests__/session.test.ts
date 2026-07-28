@@ -76,6 +76,7 @@ const RESOURCES: AdventurerResources = {
   travelStats: createInitialTravelStats(),
   survivedRunIds: [],
   flyActive: false,
+  catatonic: false,
   nextDungeonDamageBonus: 0,
 };
 

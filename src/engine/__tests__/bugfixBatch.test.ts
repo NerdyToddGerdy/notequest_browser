@@ -40,7 +40,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     monsterKills: 0, bossKills: 0, killsByName: {}, killsByAbility: {}, provisions: 10,
     advancedClasses: [], hireling: null, animals: [], milestones: createInitialMilestones(),
     buildings: [], troops: 0, troopSources: [], travelStats: createInitialTravelStats(),
-    survivedRunIds: [], flyActive: false, nextDungeonDamageBonus: 0,
+    survivedRunIds: [], flyActive: false, catatonic: false, nextDungeonDamageBonus: 0,
     ...overrides,
   };
 }

@@ -34,6 +34,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     travelStats: createInitialTravelStats(),
     survivedRunIds: [],
     flyActive: false,
+    catatonic: false,
     nextDungeonDamageBonus: 0,
     ...overrides,
   };

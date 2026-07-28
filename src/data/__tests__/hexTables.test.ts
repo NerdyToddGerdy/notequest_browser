@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { DUNGEON_TYPES } from "../dungeonTypes.ts";
 import { DUNGEON_TYPE_BY_TERRAIN, hasWaterWalk, isFortressLocation, travelCostMultiplier } from "../hexTables.ts";
-import type { Terrain } from "../hexTables.ts";
+import type { OverworldTerrain } from "../hexTables.ts";
 
-const ALL_TERRAINS: Terrain[] = ["plain", "mountain", "forest", "swamp", "desert", "tundra", "water", "glacier"];
+// Deliberately `OverworldTerrain`, not `Terrain`: the Other Worlds' terrain (issue #105) never
+// reaches this table -- realms have no dungeons.
+const ALL_TERRAINS: OverworldTerrain[] = ["plain", "mountain", "forest", "swamp", "desert", "tundra", "water", "glacier"];
 
 describe("DUNGEON_TYPE_BY_TERRAIN completeness", () => {
   it("has a full 1-6 row for every terrain", () => {

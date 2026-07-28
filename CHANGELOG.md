@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.47.0] - 2026-07-28
+
+### Added
+
+- The four Other Worlds (#105): Hell, the Underworld, Pesadelum and
+  Candy World. A portal can now actually send you to one -- the rows
+  that used to be silently re-rolled are all live.
+- Each world is its own map, generated from its own terrain, location
+  and event tables, and remembers where you left it if you go back.
+- Terrain that hurts: Magma (6d6, and it will not spare you), the Sea
+  of Blood (3 damage and it throws you somewhere else), the Plain of
+  Thorns, and the Forest of the Impaled, which can leave you unable to
+  move for a turn.
+- Each world has its own reward for killing the right thing: Magic
+  Items in Hell (and a Portal where the Infernal Baron falls), the way
+  home from anywhere for beating Death, the Dream Potion in Pesadelum
+  (drink it to reverse your HP -- 34 becomes 43), and a candy treasure
+  for every monster you put down in Candy World.
+- A new Graveyard cause of death, "Died in Another World."
+
+### Changed
+
+- Dungeons, buildings, politics, warfare, Ask and animal training are
+  overworld-only. You are a visitor in the other worlds -- though
+  their cities still let you rest and buy.
+
 ## [2.46.3] - 2026-07-28
 
 ### Changed

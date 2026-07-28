@@ -1,4 +1,4 @@
-import { OTHER_WORLD_LABELS, PORTAL_TABLE, type PortalOutcome, type PortalRow } from "../data/portals.ts";
+import { PORTAL_TABLE, type OtherWorldKey, type PortalOutcome, type PortalRow } from "../data/portals.ts";
 import { rollDie } from "./dice.ts";
 import {
   findNearestTown,
@@ -21,11 +21,6 @@ import type { AdventurerResources } from "./town.ts";
  * `PORTAL_TABLE` but re-rolled here (see `rollPortal`), pending issue #21 stage 2's multi-map model.
  */
 
-/** How many times `rollPortal` will re-roll an Other-World row before giving up. Six of sixteen rows
- * are Other Worlds, so the chance of exhausting this is about (6/16)^12 -- vanishingly small, but a
- * bound beats a `while (true)`. */
-const MAX_REROLLS = 12;
-
 export interface PortalRoll {
   /** The 3d6 total finally settled on -- the value persisted to `HexTile.portalTotal`. */
   total: number;
@@ -42,30 +37,20 @@ function roll3d6(rng: RNG): { total: number; dice: [number, number, number] } {
   return { total: dice[0] + dice[1] + dice[2], dice };
 }
 
-/** Rolls a fresh portal destination, re-rolling any Other-World row (stage 1 only). Falls back to
- * the nearest-town row if every attempt somehow lands on a world -- a safe outcome that always
- * resolves, rather than throwing in the player's face. */
+/** Rolls a fresh portal destination. Every row of the table is now reachable -- stage 1 (#21) used
+ * to re-roll the six Other-World rows because there was no multi-map model to send you to; #105
+ * built one, so the re-roll and its `skippedWorlds` explanation are gone. */
 export function rollPortal(rng: RNG = Math.random): PortalRoll {
-  const skippedWorlds: string[] = [];
-  for (let attempt = 0; attempt <= MAX_REROLLS; attempt++) {
-    const { total, dice } = roll3d6(rng);
-    const row = PORTAL_TABLE[total]!;
-    if (row.outcome.kind === "otherWorld") {
-      skippedWorlds.push(OTHER_WORLD_LABELS[row.outcome.world]);
-      continue;
-    }
-    return { total, dice, row, skippedWorlds };
-  }
-  return { total: 9, dice: [3, 3, 3], row: PORTAL_TABLE[9]!, skippedWorlds };
+  const { total, dice } = roll3d6(rng);
+  return { total, dice, row: PORTAL_TABLE[total]!, skippedWorlds: [] };
 }
 
 /** Reads an already-established portal instead of rolling ("once you've established where a portal
- * leads, you don't need to roll again for it"). A remembered total is always a stage-1-resolvable
- * one, since `rollPortal` never settles on an Other-World row -- so this can't resurrect a row stage
- * 1 has no handler for. */
+ * leads, you don't need to roll again for it"). Since #105 every row is resolvable, so unlike stage
+ * 1 this no longer refuses an Other-World total -- a portal that led to Hell keeps leading to Hell. */
 export function establishedPortal(total: number): PortalRoll | null {
   const row = PORTAL_TABLE[total];
-  if (!row || row.outcome.kind === "otherWorld") return null;
+  if (!row) return null;
   return { total, dice: [0, 0, 0], row, skippedWorlds: [] };
 }
 
@@ -81,6 +66,9 @@ export interface PortalResolution {
   /** Roll 15 -- the coins are credited and a *second* portal must be rolled, since a doorless golden
    * room offers no other way out. */
   chainAnotherPortal: boolean;
+  /** Rolls 4/5/8/16/17/18 (issue #105) -- which Other World to move the player into. Null for every
+   * other outcome. */
+  enterOtherWorld: OtherWorldKey | null;
   /** What actually happened, appended to the row's own text by the panel. */
   message: string;
 }
@@ -97,6 +85,7 @@ function unchanged(
     awaitDestination: false,
     enterNoExitDungeon: false,
     chainAnotherPortal: false,
+    enterOtherWorld: null,
     message,
   };
 }
@@ -172,9 +161,10 @@ export function resolvePortalOutcome(
       };
 
     case "otherWorld":
-      // Unreachable in stage 1 -- `rollPortal`/`establishedPortal` both filter these out. Kept as a
-      // real branch (rather than an exhaustiveness `never`) so stage 2 has one obvious place to fill in.
-      return unchanged(resources, world, "The portal refuses to take you there.");
+      // Issue #105. The realm switch itself is the caller's job -- `switchRealm()` needs an RNG to
+      // generate the map on a first visit and this function is meant to stay a pure outcome
+      // classifier, so it reports *which* world and lets `WorldScreen` perform the move.
+      return { ...unchanged(resources, world, ""), enterOtherWorld: outcome.world };
   }
 }
 

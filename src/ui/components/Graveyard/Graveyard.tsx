@@ -19,6 +19,7 @@ const CAUSE_LABELS: Record<GraveyardEntry["causeOfDeath"], string> = {
   warfare: "Died in Battle",
   event: "Lost on the Road",
   portal: "Vanished from Existence",
+  realm: "Died in Another World",
 };
 
 /** The Graveyard play-sheet -- a running record of every character who died exploring these dungeons. */

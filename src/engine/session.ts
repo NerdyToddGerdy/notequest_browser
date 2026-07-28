@@ -93,6 +93,7 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
             survivedRunIds: p.resources.survivedRunIds ?? [],
             flyActive: p.resources.flyActive ?? false,
             nextDungeonDamageBonus: p.resources.nextDungeonDamageBonus ?? 0,
+        catatonic: p.resources.catatonic ?? false,
           }
         : null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],

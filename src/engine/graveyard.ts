@@ -8,11 +8,13 @@
  * Events on Travel) is the same shape again, and the only one that happens out in the wilderness rather
  * than at a City/Fortress -- either losing an Event fight or Glacier's Cracked Ice. "portal" (issue
  * #21) is the 3d6 roll of 3, "your character has disappeared from existence" -- no body and no
- * dungeon, so `dungeon` holds wherever the portal stood. */
+ * dungeon, so `dungeon` holds wherever the portal stood. "realm" (issue #105) is dying in one of
+ * the four Other Worlds -- to its terrain (Magma's 6d6 is the only HP cost in the game with no
+ * survival floor) or to one of its Events; `dungeon` holds the world's name. */
 export interface GraveyardEntry {
   name: string;
   dungeon: string;
-  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena" | "warfare" | "event" | "portal";
+  causeOfDeath: "darkness" | "combat" | "gamble" | "thug-life" | "arena" | "warfare" | "event" | "portal" | "realm";
   race?: string;
   cls?: string;
   monsterKills?: number;

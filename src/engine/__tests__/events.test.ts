@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EVENT_TABLE, eventBandFor, type EventBand } from "../../data/events.ts";
-import type { Terrain } from "../../data/hexTables.ts";
+import type { OverworldTerrain } from "../../data/hexTables.ts";
 import { fixedDie } from "../../test/mulberry32.ts";
 import { spellKey } from "../character.ts";
 import {
@@ -50,6 +50,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     travelStats: createInitialTravelStats(),
     survivedRunIds: [],
     flyActive: false,
+    catatonic: false,
     nextDungeonDamageBonus: 0,
     ...overrides,
   };
@@ -74,7 +75,7 @@ describe("eventBandFor", () => {
 });
 
 describe("EVENT_TABLE completeness", () => {
-  const terrains: Terrain[] = [
+  const terrains: OverworldTerrain[] = [
     "plain",
     "mountain",
     "forest",
