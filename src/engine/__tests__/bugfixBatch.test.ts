@@ -253,6 +253,39 @@ describe("#95: spending a Key on a locked door", () => {
     expect(next.combat).toBeNull();
   });
 
+  it("the Master key opens the lock at 0 keys, spending nothing (issue #95)", () => {
+    const state = {
+      ...doorState(0, 10),
+      armor: [
+        {
+          piece: "wonderItem" as const,
+          hp: 0,
+          maxHp: 0,
+          itemName: "Master key",
+          effect: { kind: "opensAnyLock" as const },
+        },
+      ],
+    };
+    const next = useKey(state);
+    expect(next.keys).toBe(0);
+    expect(next.torches).toBe(10);
+    expect(next.milestones.locksOpened).toBe(1);
+    expect(next.log[0]!.message).toContain("Master key");
+  });
+
+  it("the Master key is never consumed -- it still works on the next door", () => {
+    const master = {
+      piece: "wonderItem" as const,
+      hp: 0,
+      maxHp: 0,
+      itemName: "Master key",
+      effect: { kind: "opensAnyLock" as const },
+    };
+    const first = useKey({ ...doorState(0, 10), armor: [master] });
+    expect(first.armor).toHaveLength(1);
+    expect(first.armor[0]!.effect).toEqual({ kind: "opensAnyLock" });
+  });
+
   it("is a no-op with no keys -- no torch spent, no lock opened", () => {
     const next = useKey(doorState(0, 10));
     expect(next.keys).toBe(0);

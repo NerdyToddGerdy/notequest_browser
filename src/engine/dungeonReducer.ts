@@ -1095,7 +1095,12 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
     draft.raceName === "Ogre" &&
     entry.grantsWeapon === undefined &&
     (entry.grantsHp !== undefined || entry.effect.kind !== "flavor") &&
-    !(entry.effect.kind === "rerollBaseTable" && entry.effect.table === "weapon");
+    !(entry.effect.kind === "rerollBaseTable" && entry.effect.table === "weapon") &&
+    // The Master key (issue #95) is a key, not armor, a potion or a scroll -- none of the three
+    // things Ogre "cannot use" -- so it's kept rather than sold. This is the first Wonder that fits
+    // neither side of #83's wear-it-or-sell-it split, and the exemption is deliberately narrow: it
+    // names the one effect rather than widening the rule.
+    entry.effect.kind !== "opensAnyLock";
   if (isOgreUnusable) {
     const worth =
       entry.grantsHp !== undefined ? Math.max(1, entry.grantsHp) : OGRE_UNUSABLE_TREASURE_WORTH;
@@ -1752,10 +1757,22 @@ export function dungeonReducer(
             // Thief's `locksOpened` (its requirement is "opened at least 4 locks," and a key opens
             // the lock; breaking the door destroys it without ever opening it, which is why the
             // break branch below still doesn't count).
-            if (draft.keys < 1) return;
-            draft.keys -= 1;
-            draft.milestones.locksOpened += 1;
-            pushLog(draft, `Segment ${seg.id}: a key turns the lock quietly. (${draft.keys} left)`);
+            //
+            // "The Master Key opens any door in any dungeon" -- a standing item effect, so it spends
+            // nothing at all and works at 0 keys.
+            const hasMasterKey = equippedEffects(draft).some((e) => e.kind === "opensAnyLock");
+            if (!hasMasterKey && draft.keys < 1) return;
+            if (hasMasterKey) {
+              draft.milestones.locksOpened += 1;
+              pushLog(draft, `Segment ${seg.id}: the Master key turns without resistance.`);
+            } else {
+              draft.keys -= 1;
+              draft.milestones.locksOpened += 1;
+              pushLog(
+                draft,
+                `Segment ${seg.id}: a key turns the lock quietly. (${draft.keys} left)`,
+              );
+            }
           } else if (action.lockChoice === "breakDoor") {
             // Issue #96: remembered so the alarm can travel back through it later.
             door.broken = true;

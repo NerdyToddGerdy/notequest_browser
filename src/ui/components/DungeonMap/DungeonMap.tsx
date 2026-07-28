@@ -249,6 +249,12 @@ export function DungeonMap({
     });
   }
 
+  /** Issue #95: the Master key is a standing effect on a carried Wonder, so it needs no key count
+   * and never depletes. Mirrors the reducer's own check -- reducer decides, UI mirrors. */
+  const hasMasterKey =
+    state.armor.some((p) => p.effect?.kind === "opensAnyLock") ||
+    state.weapon?.bonusEffect?.kind === "opensAnyLock";
+
   function handleLockChoice(choice: LockChoice) {
     if (!doorFlow || doorFlow.kind !== "lockChoice") return;
     const { segId, doorIdx, x, y, doorRoll } = doorFlow;
@@ -430,9 +436,9 @@ export function DungeonMap({
               <button
                 type="button"
                 onClick={() => handleLockChoice("useKey")}
-                disabled={state.keys < 1}
+                disabled={!hasMasterKey && state.keys < 1}
               >
-                Use a Key ({state.keys})
+                {hasMasterKey ? "Master Key" : `Use a Key (${state.keys})`}
               </button>
               <button type="button" onClick={() => handleLockChoice("breakDoor")}>
                 Break Door (free)

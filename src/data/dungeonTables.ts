@@ -192,6 +192,11 @@ export type ItemEffect =
    * `trapImmunity` it is not one-shot: the rulebook gives it no use limit, and the provision is the
    * cost that bounds it. */
   | { kind: "rerollEvent" }
+  /** The Master key (issue #95): "opens any door in any dungeon." A standing effect, read at the
+   * locked-door prompt -- unlike `trapImmunity`, it is never consumed, and unlike an ordinary Key it
+   * isn't spent. Closest existing precedent is `doubleChestCoins`: a permanent property of a carried
+   * item, checked at one decision point. */
+  | { kind: "opensAnyLock" }
   | { kind: "flavor" };
 
 export interface WonderEntry {
@@ -357,6 +362,8 @@ export function describeItemEffect(effect: ItemEffect): string | null {
       return `Recovers ${effect.amount} HP`;
     case "rerollEvent":
       return "Spend 1 provision to reroll a travel Event";
+    case "opensAnyLock":
+      return "Opens any locked door, without a torch or a key";
     case "extraHp":
     case "flavor":
       return null;
@@ -741,7 +748,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: {
         name: "Master key",
         text: "Master key (Open any door).",
-        effect: { kind: "flavor" },
+        effect: { kind: "opensAnyLock" },
       },
       6: {
         name: "Potion of Luminescence",
@@ -1082,7 +1089,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: {
         name: "Master key",
         text: "Master key (Open any door).",
-        effect: { kind: "flavor" },
+        effect: { kind: "opensAnyLock" },
       },
       6: {
         name: "Potion of Luminescence",
@@ -1262,7 +1269,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: {
         name: "Master key",
         text: "Master key (Open any door).",
-        effect: { kind: "flavor" },
+        effect: { kind: "opensAnyLock" },
       },
       6: {
         name: "Sapphire of Magic",
@@ -1406,7 +1413,7 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
       5: {
         name: "Master key",
         text: "Master key (Open any door).",
-        effect: { kind: "flavor" },
+        effect: { kind: "opensAnyLock" },
       },
       6: {
         name: "Lamp",

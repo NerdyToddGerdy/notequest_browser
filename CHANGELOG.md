@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.48.0] - 2026-07-28
+
+### Added
+
+- The Master key now works: it opens any locked door, in any dungeon,
+  without spending a torch or a key -- and it is never used up (#95).
+  An Ogre keeps it rather than selling it, since a key isn't armor, a
+  potion or a scroll.
+
 ## [2.47.1] - 2026-07-28
 
 ### Changed
