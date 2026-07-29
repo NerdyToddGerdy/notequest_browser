@@ -1,7 +1,6 @@
 import { produce, type Draft } from "immer";
 import {
-  DUNGEON_NAME_SECOND,
-  DUNGEON_NAME_THIRD,
+  composeDungeonName,
   DUNGEON_TYPES,
   OPEN_DOOR_TABLE,
   SECRET_PASSAGE_TABLE,
@@ -1418,8 +1417,6 @@ export function dungeonReducer(
     case "ROLL_DUNGEON": {
       const dtype = DUNGEON_TYPES[action.typeRoll];
       if (!dtype) throw new Error(`No dungeon type for roll ${action.typeRoll}`);
-      const second = DUNGEON_NAME_SECOND[action.secondRoll];
-      const third = DUNGEON_NAME_THIRD[action.thirdRoll];
 
       return produce(state, (draft) => {
         // Issue #92: the entry torch goes through `spendTorches()` like every other spend, rather
@@ -1431,7 +1428,9 @@ export function dungeonReducer(
         if (!spendTorches(draft, 1, "Entering the dungeon costs 1 torch to light the way.")) return;
 
         draft.dungeonTypeKey = dtype.key;
-        draft.dungeonName = `${dtype.name} ${second ?? ""} ${third ?? ""}`.trim();
+        // Issue #101: the Expanded World's four-part name, with the dungeon type sitting *inside*
+        // it rather than leading -- "The Cursed Palace of the Frost Queen".
+        draft.dungeonName = composeDungeonName(dtype.name, ...action.nameRolls);
         draft.entranceFlavor = dtype.entrance;
         draft.levels = [makeLevel(1)];
         draft.activeLevel = 0;

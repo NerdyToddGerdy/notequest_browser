@@ -19,7 +19,7 @@ import {
   type WorldState,
 } from "./engine/hexState.ts";
 import { hasAffinity } from "./data/affinity.ts";
-import { DUNGEON_TYPE_BY_TERRAIN, isOverworldTerrain } from "./data/hexTables.ts";
+import { DUNGEON_TYPE_BY_TERRAIN, isOverworldTerrain, type Climate } from "./data/hexTables.ts";
 /** Issue #99: the Sewers' own `DUNGEON_TYPES` roll number -- the Fortress sub-roll names the type
  * outright, so it bypasses `DUNGEON_TYPE_BY_TERRAIN` entirely. */
 const SEWERS_TYPE_ROLL = 11;
@@ -83,7 +83,10 @@ export default function App() {
   // Issue #78: a race with no Affinity for home's Human City (today, only Orc/Ogre) can't stand
   // there at all -- findOrRevealCompatibleHome() finds (or generates) a compatible city instead.
   // Every other race's behavior here is completely unchanged.
-  function handleCharacterCreated(newCharacter: CreatedCharacter) {
+  /** Issue #101: `climate` is only consulted when this is the very first world -- `WorldState`
+   * outlives characters, so a later adventurer inherits the continent rather than re-choosing it.
+   * `CharacterCreationScreen` hides the control in that case (see `needsWorldClimate`). */
+  function handleCharacterCreated(newCharacter: CreatedCharacter, climate: Climate = "hot") {
     setCharacter(newCharacter);
     setResources({
       torches: newCharacter.torches,
@@ -119,7 +122,7 @@ export default function App() {
     });
     setActiveRunId(null);
     setWorld((prev) => {
-      const w = prev ?? createInitialWorldState();
+      const w = prev ?? createInitialWorldState(Math.random, climate);
       const homeTile = w.tiles[hexKey(w.home)];
       if (hasAffinity(newCharacter.race.name, homeTile?.location ?? null)) {
         return { ...w, player: w.home };
@@ -260,6 +263,7 @@ export default function App() {
     return (
       <CharacterCreationScreen
         onCharacterCreated={handleCharacterCreated}
+        needsWorldClimate={world === null}
         dungeonHistory={dungeonHistory}
         onHardReset={handleHardReset}
       />

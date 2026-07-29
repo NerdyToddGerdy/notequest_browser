@@ -170,7 +170,7 @@ export function DungeonScreen({
       noExit,
     );
   });
-  const [diceValues, setDiceValues] = useState<number[]>([1, 1, 1]);
+  const [diceValues, setDiceValues] = useState<number[]>(() => Array<number>(10).fill(1));
   const [diceRollToken, setDiceRollToken] = useState(0);
   const [rollingDungeon, setRollingDungeon] = useState(false);
   const [treasureDie, setTreasureDie] = useState(1);
@@ -297,21 +297,25 @@ export function DungeonScreen({
 
   function handleRollDungeon() {
     if (rollingDungeon || state.torches < 1) return;
-    // The type die still animates like any other roll -- it's just fated by the hex's terrain
-    // instead of free chance when arriving from World (forcedTypeRoll), same ritual either way.
-    const rolls = [forcedTypeRoll ?? rollDie(), rollDie(), rollDie()];
-    setDiceValues(rolls);
+    // One die picks the type -- fated by the hex's terrain when arriving from World
+    // (`forcedTypeRoll`), free chance otherwise, same ritual either way. The Expanded World's
+    // dungeon-name table (issue #101) then wants a *3d6 total per column*, not one die per column:
+    // its rows run 3-18. So nine more dice are rolled and animated alongside, in three groups of
+    // three, and each group's sum indexes one column.
+    const typeRoll = forcedTypeRoll ?? rollDie();
+    const nameDice = Array.from({ length: 9 }, () => rollDie());
+    const nameRolls: [number, number, number] = [
+      nameDice[0]! + nameDice[1]! + nameDice[2]!,
+      nameDice[3]! + nameDice[4]! + nameDice[5]!,
+      nameDice[6]! + nameDice[7]! + nameDice[8]!,
+    ];
+    setDiceValues([typeRoll, ...nameDice]);
     setDiceRollToken((t) => t + 1);
     setRollingDungeon(true);
     window.setTimeout(() => {
       setRollingDungeon(false);
-      dispatch({
-        type: "ROLL_DUNGEON",
-        typeRoll: rolls[0]!,
-        secondRoll: rolls[1]!,
-        thirdRoll: rolls[2]!,
-      });
-    }, revealDelay(3));
+      dispatch({ type: "ROLL_DUNGEON", typeRoll, nameRolls });
+    }, revealDelay(10));
   }
 
   function handleOpenTreasure() {
@@ -343,11 +347,12 @@ export function DungeonScreen({
                 {!hasDungeon && (
                   <section>
                     <h2 className={styles.trackTitle}>
-                      <span className={styles.dieBadge}>3d6</span>Roll for Dungeon
+                      <span className={styles.dieBadge}>1d6 + 3×3d6</span>Roll for Dungeon
                     </h2>
                     <p className={styles.gateCopy}>
-                      One die picks the dungeon&apos;s type, two more shape its name. The dungeon is
-                      built as you explore it — door by door, from here on out.
+                      One die picks the dungeon&apos;s type; nine more — three per column — shape
+                      its name. The dungeon is built as you explore it, door by door, from here on
+                      out.
                     </p>
                     <div className={styles.diceRow}>
                       <DicePool values={diceValues} rollToken={diceRollToken} />

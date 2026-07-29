@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.51.0] - 2026-07-29
+
+### Added
+
+- Dungeons now use the Expanded World's richer naming table (#101):
+  four parts instead of two, with the dungeon's own type sitting in
+  the middle -- "The Cursed Palace of the Frost Queen". 4,096 possible
+  names, up from 36. Dungeons you've already found keep their names.
+- You can now choose a Frozen world (#101). The choice is offered once,
+  when the world is first made -- every adventurer after you inherits
+  the same continent. A frozen world finally makes glacier and tundra
+  terrain, Thin Ice, and the Events table's Cracked Ice row reachable;
+  all of it was written but unusable before.
+
 ## [2.50.0] - 2026-07-28
 
 ### Added

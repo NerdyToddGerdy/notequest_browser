@@ -196,7 +196,7 @@ describe("a room-type dungeon entrance never rolls Monsters (#43)", () => {
     const rng = sequenceDie([1, 1, 2, 2]); // content sum 2, monster sum 4 -> a single Orc on a non-entrance room
     const next = dungeonReducer(
       createInitialDungeonState(),
-      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 1, nameRolls: [3, 3, 3] },
       rng,
     );
     expect(next.combat).toBeNull();

@@ -11,6 +11,7 @@ import {
   SPELL_TABLE_BY_KEY,
   type RaceTableKey,
 } from "../../../engine/character.ts";
+import type { Climate } from "../../../data/hexTables.ts";
 import { loadGraveyard } from "../../../engine/graveyard.ts";
 import type { PendingDungeon } from "../../../engine/dungeonState.ts";
 import type {
@@ -86,8 +87,14 @@ const SPELL_TABLE_LABELS: Record<SpellTableKey, string> = {
 };
 
 export interface CharacterCreationScreenProps {
-  /** The character heads to Town next, not straight into a dungeon -- see App.tsx's screen state. */
-  onCharacterCreated: (character: CreatedCharacter) => void;
+  /** The character heads to Town next, not straight into a dungeon -- see App.tsx's screen state.
+   * `climate` is only meaningful when `needsWorldClimate` is true; App.tsx ignores it otherwise. */
+  onCharacterCreated: (character: CreatedCharacter, climate: Climate) => void;
+  /** Issue #101: true only when no world exists yet -- a first adventurer, or the first after a hard
+   * reset. `WorldState` outlives every character, so the climate is a one-time property of the
+   * *continent*, not something each new adventurer re-picks; the choice is simply hidden once the
+   * map exists. */
+  needsWorldClimate: boolean;
   /** Every dungeon any character has touched -- shown here read-only, alongside the Graveyard, via
    * RecordsPanel's tab switcher. */
   dungeonHistory: PendingDungeon[];
@@ -96,11 +103,14 @@ export interface CharacterCreationScreenProps {
 
 export function CharacterCreationScreen({
   onCharacterCreated,
+  needsWorldClimate,
   dungeonHistory,
   onHardReset,
 }: CharacterCreationScreenProps) {
   const [name, setName] = useState("");
   const [raceTable, setRaceTable] = useState<RaceTableKey>("core");
+  /** Issue #101 -- see `needsWorldClimate`. Defaults to the world every existing save already has. */
+  const [climate, setClimate] = useState<Climate>("hot");
   const [race, setRace] = useState<RollState<RaceDef>>(() => initialRoll(2));
   const [cls, setCls] = useState<RollState<ClassDef>>(() => initialRoll(2));
   // "New Spells" (issue #24) -- keyed by table rather than one flat roll, since a race and class
@@ -231,7 +241,7 @@ export function CharacterCreationScreen({
       torches: STARTING_TORCHES,
       coins: STARTING_COINS,
     };
-    window.setTimeout(() => onCharacterCreated(character), SEAL_TO_DESCEND_MS);
+    window.setTimeout(() => onCharacterCreated(character, climate), SEAL_TO_DESCEND_MS);
   }
 
   const spellsNoteText = useMemo(() => {
@@ -301,6 +311,37 @@ export function CharacterCreationScreen({
           </div>
 
           <div className={styles.tracks}>
+            {needsWorldClimate && (
+              <section>
+                <h2 className={styles.trackTitle}>
+                  <span className={styles.trackIndex}>—</span>
+                  World
+                </h2>
+                <p className={styles.spellsNote}>
+                  Chosen once, for the whole continent — every adventurer after you inherits it.
+                </p>
+                <div className={styles.raceTableRow}>
+                  {(
+                    [
+                      ["hot", "Temperate"],
+                      ["cold", "Frozen"],
+                    ] as [Climate, string][]
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={climate === key ? styles.raceTableBtnActive : styles.raceTableBtn}
+                      data-testid={`climate-${key}`}
+                      disabled={sealed}
+                      onClick={() => setClimate(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <section>
               <h2 className={styles.trackTitle}>
                 <span className={styles.trackIndex}>{raceTable === "core" ? "2d6" : "1d6"}</span>

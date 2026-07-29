@@ -561,7 +561,10 @@ export function createInitialDungeonState(
 export type LockChoice = "pickLock" | "breakDoor" | "useKey";
 
 export type DungeonAction =
-  | { type: "ROLL_DUNGEON"; typeRoll: number; secondRoll: number; thirdRoll: number }
+  /** Issue #101: `nameRolls` are three **3d6 totals** (3-18), one per column of the Expanded World's
+   * dungeon-name table -- not three single dice. `typeRoll` is still a plain 1d6 into
+   * `DUNGEON_TYPES`, fated by terrain when arriving from the World map. */
+  | { type: "ROLL_DUNGEON"; typeRoll: number; nameRolls: [number, number, number] }
   | {
       type: "RESOLVE_DOOR_LOCK";
       segId: number;

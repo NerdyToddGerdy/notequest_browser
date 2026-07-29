@@ -558,9 +558,17 @@ export function findOrRevealCompatibleHome(
  * rolled via `rollCityName()`, same "fixed, not rolled" precedent as its terrain/location -- rolling
  * it would also shift every existing `rng` fixture's die sequence by two for no rules-driven reason
  * (the rulebook doesn't roll a name for the starting hex either). */
-export function createInitialWorldState(rng: RNG = Math.random): WorldState {
+/** Issue #101: `climate` was hardcoded `"hot"`, which made `COLD_TERRAIN_TABLE`, glacier/tundra
+ * terrain, Thin Ice and the Events table's Glacier row all permanently unreachable despite being
+ * fully authored. It's now chosen once, when the world itself is first created -- the rulebook
+ * treats climate as a property of the continent, and `WorldState` outlives every character, so this
+ * is a world-scoped decision rather than a per-character one. `CharacterCreationScreen` only offers
+ * the choice when there's no world yet (a first adventurer, or the first after a hard reset). */
+export function createInitialWorldState(
+  rng: RNG = Math.random,
+  climate: Climate = "hot",
+): WorldState {
   const home: HexCoord = { q: 0, r: 0 };
-  const climate: Climate = "hot";
   const tiles: Record<string, HexTile> = {
     [hexKey(home)]: { terrain: "plain", location: "humanCity", name: "Haven" },
   };

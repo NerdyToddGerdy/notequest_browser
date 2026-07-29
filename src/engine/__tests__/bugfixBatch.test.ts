@@ -179,7 +179,7 @@ describe("#92: entering a dungeon spends its torch through spendTorches()", () =
   const enter = (state: DungeonState) =>
     dungeonReducer(
       state,
-      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 1, nameRolls: [3, 3, 3] },
       mulberry32(3),
     );
 

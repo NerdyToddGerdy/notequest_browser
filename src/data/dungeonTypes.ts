@@ -509,6 +509,94 @@ export const DUNGEON_NAME_THIRD: Record<number, string> = {
   6: "Darkness",
 };
 
+/** "Table: Dungeon Name -- extra parts" (Expanded World, `docs/game-rules-reference.md` lines
+ * 1002-1024, issue #101). Replaces the Core Book's two 1d6 columns above with three **3d6** columns
+ * -- note the 3-18 index range, which is why each column needs its own 3d6 roll rather than a single
+ * die. 16 x 16 x 16 = 4,096 names against the old table's 36.
+ *
+ * The rulebook's format is `[Part 2] + [Dungeon Type] + [Part 3] + [Part 4]`, with the type sitting
+ * *inside* the name rather than leading it -- so "The Cursed" + "Palace" + "of the Frost" + "Queen".
+ * `DUNGEON_TYPES[n].name` already carries its own leading "The " ("The Palace"), which is stripped
+ * when composing (see `composeDungeonName()`), or every name would read "The Cursed The Palace...".
+ *
+ * The Core Book's `DUNGEON_NAME_SECOND`/`DUNGEON_NAME_THIRD` above are kept, not deleted: names are
+ * persisted on `PendingDungeon` as plain strings, so existing saves keep whatever they were given,
+ * and those tables remain the honest record of what produced them. */
+export const DUNGEON_NAME_PART2: Record<number, string> = {
+  3: "The Sacred",
+  4: "The Pale",
+  5: "The Deceitful",
+  6: "The Bloody",
+  7: "The Sinister",
+  8: "The Misty",
+  9: "The Secret",
+  10: "The Lost",
+  11: "The Cursed",
+  12: "The Abandoned",
+  13: "The Evil",
+  14: "The Grimy",
+  15: "The Ruined",
+  16: "The Twisted",
+  17: "The Stinky",
+  18: "The Demonic",
+};
+
+export const DUNGEON_NAME_PART3: Record<number, string> = {
+  3: "of the Heavenly",
+  4: "of the Sacred",
+  5: "of the Lucky",
+  6: "of the Bloody",
+  7: "of the Gloomy",
+  8: "of the Dark",
+  9: "of the Ethernal",
+  10: "of the Dead",
+  11: "of the Frost",
+  12: "of the Flaming",
+  13: "of the Night",
+  14: "of the Radiant",
+  15: "of the Raging",
+  16: "of the Unlucky",
+  17: "of the Feathered",
+  18: "of the Demonic",
+};
+
+export const DUNGEON_NAME_PART4: Record<number, string> = {
+  3: "Angels",
+  4: "Statues",
+  5: "Serpent",
+  6: "Road",
+  7: "Sadness",
+  8: "Vale",
+  9: "Silence",
+  10: "King",
+  11: "Queen",
+  12: "Horror",
+  13: "Death",
+  14: "Path",
+  15: "Sorceress",
+  16: "Soldier",
+  17: "Hound",
+  18: "Hell",
+};
+
+/** Joins the four parts. `typeName` arrives as e.g. "The Palace"; its leading article is dropped so
+ * Part 2's own "The ..." leads the name instead, per the rulebook's format. */
+export function composeDungeonName(
+  typeName: string,
+  part2Roll: number,
+  part3Roll: number,
+  part4Roll: number,
+): string {
+  const bareType = typeName.replace(/^The\s+/i, "");
+  const parts = [
+    DUNGEON_NAME_PART2[part2Roll],
+    bareType,
+    DUNGEON_NAME_PART3[part3Roll],
+    DUNGEON_NAME_PART4[part4Roll],
+  ];
+  return parts.filter(Boolean).join(" ");
+}
+
 export const TYPE_LABELS: Record<SegmentType, string> = {
   corridor: "Corridor",
   staircase: "Staircase",

@@ -47,11 +47,13 @@ describe("ROLL_DUNGEON", () => {
     const rng = mulberry32(1);
     const state = dungeonReducer(
       createInitialDungeonState(),
-      { type: "ROLL_DUNGEON", typeRoll: 2, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 2, nameRolls: [3, 3, 3] },
       rng,
     );
     expect(state.dungeonTypeKey).toBe("crypt");
-    expect(state.dungeonName).toBe("The Crypt of the Secret Horrors");
+    // Issue #101: the Expanded World's four-part name -- [Part 2] + type (article stripped) +
+    // [Part 3] + [Part 4]. A 3d6 of 3 on every column is the table's first row.
+    expect(state.dungeonName).toBe("The Sacred Crypt of the Heavenly Angels");
     expect(state.levels).toHaveLength(1);
     const entrance = state.levels[0]!.segments[0]!;
     expect(entrance.type).toBe("staircase");
@@ -75,7 +77,7 @@ describe("ROLL_DUNGEON", () => {
     const rng = sequenceDie([3]); // staircase column, roll 3 -> "Corridor with two other doors."
     const rolled = dungeonReducer(
       createInitialDungeonState(),
-      { type: "ROLL_DUNGEON", typeRoll: 2, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 2, nameRolls: [3, 3, 3] },
       rng,
     );
     const entrance = rolled.levels[0]!.segments[0]!;
@@ -101,7 +103,7 @@ describe("ROLL_DUNGEON", () => {
     const rng = sequenceDie([2, 2, 3, 3]);
     const state = dungeonReducer(
       createInitialDungeonState(),
-      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 1, nameRolls: [3, 3, 3] },
       rng,
     );
     const entrance = state.levels[0]!.segments[0]!;
@@ -303,7 +305,7 @@ describe("Room Content rewards", () => {
     const rng = sequenceDie([1, 2, 3, 4, 5]);
     const state = dungeonReducer(
       createInitialDungeonState(),
-      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 1, nameRolls: [3, 3, 3] },
       rng,
     );
     expect(state.dungeonTypeKey).toBe("palace");
@@ -316,7 +318,7 @@ describe("Room Content rewards", () => {
     const rng = sequenceDie([2, 3, 4, 5, 3, 3, 3, 3]);
     const state = dungeonReducer(
       createInitialDungeonState(),
-      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 1, nameRolls: [3, 3, 3] },
       rng,
     );
     expect(state.spellUses).toEqual({ "basic:3": 3 }); // three scrolls, all rolling spell 3 (Teleport)
@@ -328,7 +330,7 @@ describe("Room Content rewards", () => {
     const rng = sequenceDie([2, 3, 4, 5, 3, 3, 3, 3]);
     const state = dungeonReducer(
       { ...createInitialDungeonState(), raceName: "Ogre" },
-      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 1, nameRolls: [3, 3, 3] },
       rng,
     );
     expect(state.spellUses).toEqual({});
@@ -342,7 +344,7 @@ describe("Room Content rewards", () => {
     const rng = sequenceDie([6, 6, 6, 6, 1, 1, 1, 1, 1, 1]);
     const state = dungeonReducer(
       createInitialDungeonState(),
-      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 1, nameRolls: [3, 3, 3] },
       rng,
     );
     // Magic Item roll 1 -> [Armor] of Royalty (grants: armor); roll 1 again for the base Armor
@@ -356,7 +358,7 @@ describe("Room Content rewards", () => {
     const rng = sequenceDie([1, 1, 3, 4]);
     const state = dungeonReducer(
       createInitialDungeonState(),
-      { type: "ROLL_DUNGEON", typeRoll: 1, secondRoll: 1, thirdRoll: 1 },
+      { type: "ROLL_DUNGEON", typeRoll: 1, nameRolls: [3, 3, 3] },
       rng,
     );
     expect(state.coins).toBe(0);
