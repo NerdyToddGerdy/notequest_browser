@@ -91,6 +91,8 @@ import {
   type EventCombatState,
   type TravelEventRoll,
 } from "../../../engine/events.ts";
+import { effectForLocation, resolveLocationEffect } from "../../../engine/locationEffects.ts";
+import { LOCATION_EFFECT_NOTES } from "../../../data/locationEffects.ts";
 import {
   applyRealmVictoryReward,
   currentRealm,
@@ -110,6 +112,7 @@ import {
   type PortalRoll,
 } from "../../../engine/portals.ts";
 import { CharacterSheet } from "../../components/CharacterSheet/CharacterSheet.tsx";
+import { DicePool } from "../../components/DicePool/DicePool.tsx";
 import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog.tsx";
 import { EventPanel } from "../../components/EventPanel/EventPanel.tsx";
 import { HexInspector } from "../../components/HexInspector/HexInspector.tsx";
@@ -303,6 +306,12 @@ export function WorldScreen({
   /** A realm's own 2d6 Event, in the same three stages `travelEvent` uses. Kept separate rather than
    * widened into `travelEvent` because the two draw from different tables and different effect
    * unions -- merging them would mean a discriminant on every field. */
+  /** Location entry effects (issue #98): the outcome of arriving on an Oasis / Thin Ice / Reef hex.
+   * Mutually exclusive with `travelEvent` by construction -- an Event only rolls on a hex with no
+   * location at all, and every one of these has one. */
+  const [locationEffect, setLocationEffect] = useState<{ roll: number; message: string } | null>(
+    null,
+  );
   const [realmEvent, setRealmEvent] = useState<{
     row: RealmEventRow;
     dice: [number, number];
@@ -524,6 +533,7 @@ export function WorldScreen({
     setPendingStorm(false);
     setTravelEvent(null);
     setEventNote(null);
+    setLocationEffect(null);
 
     if (!rollEvent) return;
 
@@ -539,6 +549,21 @@ export function WorldScreen({
         return; // the hazard panel resolves, then rolls this realm's Event itself
       }
       rollRealmEventInto(realmDef);
+      return;
+    }
+
+    // Location entry effects (issue #98) -- Oasis/Thin Ice/Reef roll the moment you arrive. Checked
+    // before the Event roll below, which only ever applies to a hex with *no* location, so the two
+    // can never both fire.
+    const entry = effectForLocation(tile.location);
+    if (entry) {
+      const outcome = resolveLocationEffect(entry, updated);
+      if (outcome.died) {
+        onCharacterDied("thin-ice", tile.location ? LOCATION_LABEL[tile.location] : "the wilds");
+        return;
+      }
+      onUpdateResources(outcome.resources);
+      setLocationEffect({ roll: outcome.roll, message: outcome.message });
       return;
     }
 
@@ -1289,6 +1314,23 @@ export function WorldScreen({
 
   /** Other Worlds (issue #105) -- the hazard and the realm's own Event share the portal overlay's
    * slot, since all three are interruptions that must be resolved before the map is usable again. */
+  const locationOverlay = locationEffect ? (
+    <div className={styles.portalOverlay}>
+      <div className={styles.realmPanel}>
+        <p className={styles.realmEyebrow}>
+          {currentTile?.location ? LOCATION_LABEL[currentTile.location] : "Arrival"}
+        </p>
+        <div className={styles.locationDieRow}>
+          <DicePool values={[locationEffect.roll]} rollToken={locationEffect.roll} size={34} />
+        </div>
+        <p className={styles.realmFlavor}>{locationEffect.message}</p>
+        <button type="button" className={styles.realmBtn} onClick={() => setLocationEffect(null)}>
+          Continue
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   const realmOverlay = realmHazard ? (
     <div className={styles.portalOverlay}>
       <div className={styles.realmPanel}>
@@ -1386,6 +1428,7 @@ export function WorldScreen({
         />
         {portalOverlay}
         {realmOverlay}
+        {locationOverlay}
       </>
     );
   }
@@ -1619,7 +1662,17 @@ export function WorldScreen({
                     canUseForgottenGodsHere={canUseForgottenGods(resources)}
                     onForgottenGods={handleForgottenGods}
                     forgottenGodsMessage={isInspectingCurrentTile ? forgottenGodsMessage : null}
-                    eventNote={isInspectingCurrentTile ? eventNote : null}
+                    eventNote={
+                      // Issue #98: a Volcano's only content is a Volcanic Cave (#30), so it has
+                      // nothing to roll -- but the hex says what's there rather than leaving the
+                      // label inert. Shown for any inspected Volcano, current tile or not; an actual
+                      // arrival note (issue #91's suppressed Event) wins on the tile you're on.
+                      (isInspectingCurrentTile ? eventNote : null) ??
+                      (inspectedTile.location
+                        ? LOCATION_EFFECT_NOTES[inspectedTile.location]
+                        : null) ??
+                      null
+                    }
                     canEnterPortal={isInspectingCurrentTile && inspectedTile.location === "portal"}
                     portalEstablished={inspectedTile.portalTotal != null}
                     onEnterPortal={() => setPendingPortalConfirm(true)}
@@ -1681,6 +1734,7 @@ export function WorldScreen({
 
       {portalOverlay}
       {realmOverlay}
+      {locationOverlay}
 
       <Footer screenLabel="THE WORLD" onHardReset={onHardReset} />
     </div>

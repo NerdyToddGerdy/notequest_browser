@@ -270,8 +270,13 @@ export function locationHasDungeon(loc: LocationKind | null): boolean {
  * ever roll a City per "Table: Location," never a Fortress. "Getting Money" (issue #58) needs this
  * to distinguish Hard Work (City-only) and Arena (Fortress-only) from the rest of "Cities and
  * Fortresses," which the rulebook applies to both uniformly. */
-export function isFortressLocation(loc: LocationKind | null): boolean {
-  return loc !== null && loc.endsWith("Fortress");
+export function isFortressLocation(loc: LocationKind | null | undefined): boolean {
+  // Tolerates `undefined`, not just `null`: `nextTerrain()` documents that a hex's terrain is trusted
+  // to belong to its world's own climate set, and that invariant holds for every generated world --
+  // but a hand-built or hand-edited `WorldState` mixing e.g. a glacier tile into a hot world makes
+  // the terrain lookup miss, and every downstream lookup with it. Better a false answer than a crash
+  // in a helper this widely called (issue #98 added a call inside hex generation itself).
+  return !!loc && loc.endsWith("Fortress");
 }
 
 /** "It is not possible to move on water without a boat" / "Rocks: It is not possible to pass
@@ -378,6 +383,100 @@ export function travelCostMultiplier(raceName: string): number {
  * unreachable in practice today (no City/Fortress/Ruins ever rolls on water per `LOCATION_TABLE`;
  * `glacier` only exists in the still-unused `COLD_TERRAIN_TABLE`) but are filled in for
  * `Record<Terrain, ...>`'s type completeness rather than left to throw. */
+/** The four terrains a Ruins hex can generate on, per `LOCATION_TABLE` -- exactly the four columns
+ * the Ruins table prints, which is why it needs no Swamp/Desert/Water/Glacier rows. */
+export type RuinsTerrain = "plain" | "mountain" | "forest" | "tundra";
+
+const RUINS_TERRAINS: ReadonlySet<string> = new Set<RuinsTerrain>([
+  "plain",
+  "mountain",
+  "forest",
+  "tundra",
+]);
+
+export function isRuinsTerrain(terrain: Terrain): terrain is RuinsTerrain {
+  return RUINS_TERRAINS.has(terrain);
+}
+
+/** Issue #98: the two dungeons the Ruins table marks with an asterisk -- "once you put one on your
+ * map it can't appear again; if rolled again, roll again."
+ *
+ * Tracked by the **notional rulebook type**, not by whatever type is actually built. Neither Entrails
+ * nor Mega Dungeon exists yet (both are #30's), so a roll of 12 currently builds a thematic
+ * substitute -- and attaching the once-per-world rule to the *substitute* would be flatly wrong,
+ * silently locking a common type out of the whole world. Keying it to the name means the rule is
+ * honored today and stays correct the moment those types are real. */
+export type UniqueDungeonKey = "entrails" | "megaDungeon";
+
+/** "Table: Dungeon Type (2d6, by ruins terrain)" (`docs/game-rules-reference.md` lines 1078-1088,
+ * issue #98) -- a Ruins hex has its own table, genuinely different from the 1d6
+ * `DUNGEON_TYPE_BY_TERRAIN` every other hex uses: 2d6, banded rows, and a different type spread.
+ *
+ * Values are `DUNGEON_TYPES` roll numbers, same as `DUNGEON_TYPE_BY_TERRAIN`. Five of its cells name
+ * types #30 hasn't built, substituted with the closest thematic match among those that exist -- the
+ * same documented approach that table already uses: Cave (a tunnel complex) -> Sewers (11), Mine ->
+ * Sewers (11), Laboratory -> Palace (1). `unique` marks the asterisked cells. */
+export interface RuinsDungeonResult {
+  typeRoll: number;
+  unique?: UniqueDungeonKey;
+}
+
+export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeonResult>> = {
+  //  2-4 Cave->Sewers | 5-7 as printed | 8-9 Laboratory->Palace / Citadel / Ziggurat | 10-11 | 12 unique
+  plain: {
+    2: { typeRoll: 11 },
+    3: { typeRoll: 11 },
+    4: { typeRoll: 11 },
+    5: { typeRoll: 1 },
+    6: { typeRoll: 1 },
+    7: { typeRoll: 1 },
+    8: { typeRoll: 1 },
+    9: { typeRoll: 1 },
+    10: { typeRoll: 8 },
+    11: { typeRoll: 8 },
+    12: { typeRoll: 8, unique: "entrails" },
+  },
+  mountain: {
+    2: { typeRoll: 11 },
+    3: { typeRoll: 11 },
+    4: { typeRoll: 11 },
+    5: { typeRoll: 2 },
+    6: { typeRoll: 2 },
+    7: { typeRoll: 2 },
+    8: { typeRoll: 7 },
+    9: { typeRoll: 7 },
+    10: { typeRoll: 11 },
+    11: { typeRoll: 11 },
+    12: { typeRoll: 7, unique: "megaDungeon" },
+  },
+  forest: {
+    2: { typeRoll: 11 },
+    3: { typeRoll: 11 },
+    4: { typeRoll: 11 },
+    5: { typeRoll: 3 },
+    6: { typeRoll: 3 },
+    7: { typeRoll: 3 },
+    8: { typeRoll: 1 },
+    9: { typeRoll: 1 },
+    10: { typeRoll: 9 },
+    11: { typeRoll: 9 },
+    12: { typeRoll: 9, unique: "entrails" },
+  },
+  tundra: {
+    2: { typeRoll: 11 },
+    3: { typeRoll: 11 },
+    4: { typeRoll: 11 },
+    5: { typeRoll: 6 },
+    6: { typeRoll: 6 },
+    7: { typeRoll: 6 },
+    8: { typeRoll: 9 },
+    9: { typeRoll: 9 },
+    10: { typeRoll: 10 },
+    11: { typeRoll: 10 },
+    12: { typeRoll: 10, unique: "megaDungeon" },
+  },
+};
+
 export const DUNGEON_TYPE_BY_TERRAIN: Record<OverworldTerrain, Record<number, number>> = {
   plain: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 }, // Palace, Crypt, Tomb, Sanctuary, Temple, Prison
   mountain: { 1: 2, 2: 4, 3: 6, 4: 7, 5: 11, 6: 6 }, // Crypt, Sanctuary, Prison, Citadel, Mine->Sewers, Cave->Prison

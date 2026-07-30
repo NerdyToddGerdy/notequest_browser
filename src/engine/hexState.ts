@@ -4,6 +4,8 @@ import {
   CITY_OR_FORTRESS,
   COLD_TERRAIN_TABLE,
   isFortressLocation,
+  isRuinsTerrain,
+  RUINS_DUNGEON_TYPE,
   HOT_TERRAIN_TABLE,
   LOCATION_TABLE,
   type Climate,
@@ -11,7 +13,9 @@ import {
   type HotTerrain,
   type Land,
   type LocationKind,
+  type RuinsDungeonResult,
   type Terrain,
+  type UniqueDungeonKey,
 } from "../data/hexTables.ts";
 import { CULTURE_BY_LOCATION, hasAffinity, type CityCulture } from "../data/affinity.ts";
 import { CITY_NAME_PREFIX, CITY_NAME_SUFFIX } from "../data/cityNames.ts";
@@ -147,6 +151,11 @@ export interface WorldState {
    * Warfare/dungeons simply don't operate in a realm -- and `bannedHexes`/`politicalStatus` stay
    * top-level, describing the overworld only. */
   stashedRealms?: Partial<Record<RealmKey, StashedRealm>>;
+  /** Issue #98: which of the Ruins table's asterisked dungeons this world has already placed --
+   * "once you put one on your map it can't appear again; if rolled again, roll again." Keyed by the
+   * *notional* rulebook type, not the substitute currently built for it (see `UniqueDungeonKey`).
+   * Optional for back-compat; always read via `rollRuinsDungeon()`, which owns the re-roll. */
+  uniqueDungeonsPlaced?: UniqueDungeonKey[];
 }
 
 /** Everything that makes one realm's map distinct from another's. Deliberately *not* the whole
@@ -180,6 +189,43 @@ function nextTerrain(
  * culture's `CITY_NAME_PREFIX`/`CITY_NAME_SUFFIX` tables (`data/cityNames.ts`), joined into one
  * compound word (e.g. "Iron" + "hold" -> "Ironhold"). Not from the rulebook, mirroring
  * `dungeonTypes.ts`'s own "second part"/"third part" flavor-name combination. */
+/** Issue #98: rolls a Ruins hex's own 2d6 dungeon table, honoring the asterisk rule -- "once you put
+ * one on your map it can't appear again; if rolled again, roll again."
+ *
+ * The re-roll is bounded rather than a `while (true)`: only one cell per column is unique (a 12, 1 in
+ * 36), so exhausting the cap is effectively impossible, but a bound beats trusting the dice. On the
+ * (unreachable) cap, the 12 row is taken anyway without re-marking it -- better a repeated dungeon
+ * than a hang.
+ *
+ * Returns null for a Ruins on terrain the table has no column for, which `LOCATION_TABLE` never
+ * generates today; the caller then falls back to the ordinary terrain table. */
+export function rollRuinsDungeon(
+  world: WorldState,
+  terrain: Terrain,
+  rng: RNG = Math.random,
+): { typeRoll: number; placed: UniqueDungeonKey | null } | null {
+  if (!isRuinsTerrain(terrain)) return null;
+  const column = RUINS_DUNGEON_TYPE[terrain];
+  const alreadyPlaced = world.uniqueDungeonsPlaced ?? [];
+
+  let result: RuinsDungeonResult | undefined;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    result = column[rollDie(rng) + rollDie(rng)];
+    if (!result) continue;
+    if (!result.unique || !alreadyPlaced.includes(result.unique)) break;
+  }
+  if (!result) return null;
+  const placed = result.unique && !alreadyPlaced.includes(result.unique) ? result.unique : null;
+  return { typeRoll: result.typeRoll, placed };
+}
+
+/** Records an asterisked Ruins dungeon as used up for this world. */
+export function withUniqueDungeonPlaced(world: WorldState, key: UniqueDungeonKey): WorldState {
+  const placed = world.uniqueDungeonsPlaced ?? [];
+  if (placed.includes(key)) return world;
+  return { ...world, uniqueDungeonsPlaced: [...placed, key] };
+}
+
 /** Issue #99: "on a 3 or more it has Sewers under the fortress." Always read through this rather
  * than the raw field, so the back-compat default (a hex revealed before the roll existed has no
  * sewers) lives in one place -- the same shape `isBannedHex`/`politicalStatusFor` already use. */

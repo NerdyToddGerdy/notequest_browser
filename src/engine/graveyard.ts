@@ -23,7 +23,8 @@ export interface GraveyardEntry {
     | "warfare"
     | "event"
     | "portal"
-    | "realm";
+    | "realm"
+    | "thin-ice";
   race?: string;
   cls?: string;
   monsterKills?: number;

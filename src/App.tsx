@@ -14,8 +14,10 @@ import {
   createInitialWorldState,
   findOrRevealCompatibleHome,
   hexKey,
+  rollRuinsDungeon,
   withDungeonRunId,
   withSewerRunId,
+  withUniqueDungeonPlaced,
   type WorldState,
 } from "./engine/hexState.ts";
 import { hasAffinity } from "./data/affinity.ts";
@@ -305,10 +307,18 @@ export default function App() {
             // there's no dungeon-type row for Magma or a Caramel Plain. `WorldScreen` hides the
             // button there; this is the reducer-side half of the same gate.
             if (!isOverworldTerrain(tile.terrain)) return;
-            setForcedTypeRoll(DUNGEON_TYPE_BY_TERRAIN[tile.terrain][rollDie()]!);
+            // Issue #98: a Ruins hex rolls its *own* 2d6 table, not the generic 1d6 terrain one --
+            // a different spread entirely, plus the once-per-world asterisk rule. Falls back to the
+            // terrain table if the Ruins sits on terrain that table has no column for (which
+            // LOCATION_TABLE never generates today).
+            const ruins =
+              tile.location === "ruins" ? rollRuinsDungeon(resolvedWorld, tile.terrain) : null;
+            setForcedTypeRoll(ruins?.typeRoll ?? DUNGEON_TYPE_BY_TERRAIN[tile.terrain][rollDie()]!);
             const newRunId = crypto.randomUUID();
             setWorldFreshRunId(newRunId);
-            setWorld(withDungeonRunId(resolvedWorld, resolvedWorld.player, newRunId));
+            let nextWorld = withDungeonRunId(resolvedWorld, resolvedWorld.player, newRunId);
+            if (ruins?.placed) nextWorld = withUniqueDungeonPlaced(nextWorld, ruins.placed);
+            setWorld(nextWorld);
             setSelectedRunId(null);
           }
           setScreen("dungeon");

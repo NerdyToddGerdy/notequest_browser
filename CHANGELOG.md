@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.52.0] - 2026-07-30
+
+### Added
+
+- Arriving at a special hex now actually does something (#98):
+  - **Oasis** -- roll a die. Four or less and it was a mirage; five or
+    six and you drink your fill, recovering all lost HP.
+  - **Thin Ice** -- roll a die. On a 1 the ice gives out and you drown.
+  - **Reef** -- on a 1 you run aground and lose a provision; on a 3 or
+    more you spot an Underwater Cave, though there's no way in yet.
+  - **Volcano** now says what's down there (a Volcanic Cave) instead of
+    being a bare label -- that dungeon type isn't built yet.
+- Ruins use their own dungeon table (#98), which is quite different
+  from the one every other hex uses -- so a ruin on the plains turns up
+  a different spread of dungeons than the plains around it.
+- Two dungeons in that table are unique: once one has appeared in your
+  world, rolling it again rolls something else instead.
+- A new Graveyard cause of death, "Fell Through the Ice."
+
 ## [2.51.0] - 2026-07-29
 
 ### Added
