@@ -2,6 +2,7 @@ import { produce, type Draft } from "immer";
 import {
   composeDungeonName,
   DUNGEON_TYPES,
+  isHiddenChestResult,
   OPEN_DOOR_TABLE,
   SECRET_PASSAGE_TABLE,
   SECRET_PASSAGE_TABLE_BY_TYPE,
@@ -18,6 +19,7 @@ import {
   type MagicItemEntry,
   type MonsterAbility,
   type MonsterTemplate,
+  type PotionEntry,
   type RoomContentReward,
   type TrapEntry,
   type WonderEntry,
@@ -72,6 +74,8 @@ import {
   type LevelState,
   type SegmentState,
 } from "./dungeonState.ts";
+import { MUTATION_IDS } from "../data/mutations.ts";
+import { rollMutationEntry } from "./mutations.ts";
 import { createInitialMilestones, MAX_TORCHES, maxHeldItemsFor } from "./town.ts";
 import type { RNG } from "./rng.ts";
 
@@ -175,6 +179,28 @@ function tryRavenSurvival(draft: Draft<DungeonState>, rng: RNG): boolean {
   return true;
 }
 
+/** The zombie mutation (Laboratory, issue #30): "You come back to life with half your maximum hit
+ * points. If you die again, you come back with half of that, and so on."
+ *
+ * Third in the same family as Samambro and Raven above, and checked after both -- but unlike them it
+ * is *not* a roll: it always fires while there's still HP left to halve down to. That's why it goes
+ * last, so a character with several survival abilities spends the rollable ones first and only falls
+ * back on the mutation, which degrades permanently each time it saves them. */
+function tryZombieRevival(draft: Draft<DungeonState>): boolean {
+  if (!(draft.mutations ?? []).includes(MUTATION_IDS.zombie)) return false;
+  const revivals = draft.zombieRevivals ?? 0;
+  const hp = Math.floor(draft.maxHp / 2 ** (revivals + 1));
+  if (hp < 1) return false; // halved away to nothing -- this time it's permanent
+  draft.hp = hp;
+  draft.zombieRevivals = revivals + 1;
+  pushLog(
+    draft,
+    `Rotten flesh knits itself back together -- you rise again with ${hp} HP.`,
+    "descend",
+  );
+  return true;
+}
+
 /** Spends `cost` torches, logging `message`; if there aren't enough, the Darkness kills the character instead. */
 function spendTorches(
   draft: Draft<DungeonState>,
@@ -197,7 +223,8 @@ function spendTorches(
       return false;
     }
     if (trySamambroSurvival(draft, rng)) return false; // still out of torches, but alive
-    if (tryRavenSurvival(draft, rng)) return false; // still out of torches, but alive
+    if (tryRavenSurvival(draft, rng)) return false;
+    if (tryZombieRevival(draft)) return false; // still out of torches, but alive
     draft.alive = false;
     // Set explicitly rather than left null: every reader already treats null as the Darkness
     // (`deathCause ?? "darkness"`, `deathCause !== "combat"`), but the field exists precisely to
@@ -456,6 +483,7 @@ function applyTrapEffect(
       draft.hp = 0;
       if (trySamambroSurvival(draft, rng)) return;
       if (tryRavenSurvival(draft, rng)) return;
+      if (tryZombieRevival(draft)) return;
       draft.alive = false;
       draft.deathCause = "combat";
       pushLog(draft, "The blade finds its mark. The dungeon keeps what it took.", "descend");
@@ -472,6 +500,7 @@ function applyTrapEffect(
     if (draft.hp <= 0) {
       if (trySamambroSurvival(draft, rng)) return;
       if (tryRavenSurvival(draft, rng)) return;
+      if (tryZombieRevival(draft)) return;
       draft.alive = false;
       draft.deathCause = "combat";
       pushLog(draft, "The trap finishes you. The dungeon keeps what it took.", "descend");
@@ -570,6 +599,14 @@ function resolveTrapOutcome(
 /** Every currently-equipped item's ability, whether it lives on the weapon or an armor piece --
  * e.g. Emperor's Sandals (a Wonder, "wonderItem" armor piece) grants a damage bonus exactly like
  * a [Weapon] of War would, so damage-bonus effects aren't only ever looked for on the weapon. */
+/** Ogre ("cannot wear armor", issue #60) and the bubbles mutation ("cannot wear armor", issue #30)
+ * are the identical restriction from two sources -- one OR'd condition, not two code paths. Only
+ * covers *armour*: Ogre's separate potion/scroll restrictions are its own, and no mutation grants
+ * them. Armour already equipped is kept either way; the rule is that you cannot *put it on*. */
+function cannotWearArmor(draft: Draft<DungeonState>): boolean {
+  return draft.raceName === "Ogre" || (draft.mutations ?? []).includes(MUTATION_IDS.noArmor);
+}
+
 function equippedEffects(draft: Draft<DungeonState>): ItemEffect[] {
   const effects: ItemEffect[] = [];
   if (draft.weapon?.bonusEffect) effects.push(draft.weapon.bonusEffect);
@@ -694,7 +731,11 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
   // apart from every other monster's damage, which the player may still choose to absorb.
   // Pirate (Advanced Class, issue #72): "Ignores Poison" -- the damage still lands, but no longer
   // bypasses armor, so it folds into absorbableDamage below instead of the poison-only pool.
-  const ignoresPoison = draft.advancedClasses.includes("Pirate");
+  // Pirate's "ignores Poison" and the green-blood mutation (issue #30) grant the identical effect --
+  // one OR'd condition, the same "two entries, one bonus" precedent as Grave Digger/Gravedigger.
+  const ignoresPoison =
+    draft.advancedClasses.includes("Pirate") ||
+    (draft.mutations ?? []).includes(MUTATION_IDS.poisonImmune);
   let poisonDamage = 0;
   let absorbableDamage = 0;
   let deathtouchKill = false;
@@ -728,6 +769,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
     draft.hp = 0;
     if (trySamambroSurvival(draft, rng)) return;
     if (tryRavenSurvival(draft, rng)) return;
+    if (tryZombieRevival(draft)) return;
     draft.alive = false;
     draft.deathCause = "combat";
     pushLog(draft, "A deathly touch stops your heart instantly.", "descend");
@@ -777,6 +819,7 @@ function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>
   if (draft.hp <= 0) {
     if (trySamambroSurvival(draft, rng)) return;
     if (tryRavenSurvival(draft, rng)) return;
+    if (tryZombieRevival(draft)) return;
     draft.alive = false;
     draft.deathCause = "combat";
     pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
@@ -1212,6 +1255,84 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
   pushLog(draft, `Treasure: ${entry.text}`);
 }
 
+/** Laboratory's Potions column (issue #30) -- a fourth reward column no other dungeon type has, so
+ * it gets its own resolver rather than being squeezed into `resolveWonder`'s trinket/HP shape. Every
+ * row is a drunk-on-the-spot potion, which is exactly why an Ogre ("cannot use potions") sells it
+ * instead (see CLAUDE.md's "Unusable gear is sellable"). */
+function resolvePotion(draft: Draft<DungeonState>, entry: PotionEntry, rng: RNG): void {
+  if (draft.raceName === "Ogre") {
+    addHeldItem(
+      draft,
+      { name: entry.name, worth: OGRE_UNUSABLE_TREASURE_WORTH },
+      `Treasure: ${entry.text} Ogres cannot drink potions -- sold instead.`,
+    );
+    return;
+  }
+
+  if (entry.rollsMutation) {
+    // The one row that reaches into the dungeon's Special Rule early: the potion mutates you now,
+    // rather than on the way out (`App.tsx`'s own leaving-the-dungeon roll).
+    pushLog(draft, `Treasure: ${entry.text}`);
+    applyMutationToDungeon(draft, rng);
+    return;
+  }
+
+  switch (entry.effect.kind) {
+    case "grantsTorches": {
+      const gained = Math.min(entry.effect.amount, MAX_TORCHES - draft.torches);
+      draft.torches += gained;
+      break;
+    }
+    case "randomSpell": {
+      // "Learn 3 Random Basic Spells" -- three separate rolls, the same Basic-only shape every other
+      // spell grant in this file uses.
+      const names: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const spellRoll = rollDie(rng);
+        const key = spellKey("basic", spellRoll);
+        draft.spellUses[key] = (draft.spellUses[key] ?? 0) + 1;
+        draft.maxSpellUses[key] = (draft.maxSpellUses[key] ?? 0) + 1;
+        names.push(SPELL_TABLE[spellRoll]?.name ?? "a spell");
+      }
+      pushLog(draft, `Treasure: ${entry.text} — learned ${names.join(", ")}!`);
+      return;
+    }
+    default:
+      break;
+  }
+  pushLog(draft, `Treasure: ${entry.text}`);
+}
+
+/** Applies one Mutation-table roll to a dungeon run in progress (the Mutation Potion). The
+ * leaving-the-dungeon path applies the identical table to `AdventurerResources` instead -- see
+ * `mutations.ts`'s `rollMutationEntry` for why the walk is shared and the application isn't. */
+function applyMutationToDungeon(draft: Draft<DungeonState>, rng: RNG): void {
+  const { entry } = rollMutationEntry(rng);
+  const effect = entry.effect;
+
+  if (effect.kind === "death") {
+    pushLog(draft, `Mutation: ${entry.text}`);
+    if (trySamambroSurvival(draft, rng)) return;
+    if (tryRavenSurvival(draft, rng)) return;
+    if (tryZombieRevival(draft)) return;
+    draft.alive = false;
+    // Not "combat" and not the Darkness -- but those are the only two values `deathCause` has, and
+    // "darkness" is what every reader already treats as "died in the dungeon, not in a fight."
+    draft.deathCause = "darkness";
+    leaveRemains(draft, draft.currentSegId);
+    draft.combat = null;
+    return;
+  }
+
+  draft.mutations = [...(draft.mutations ?? []), entry.id];
+  if (effect.kind === "maxHp") {
+    // Floored at 1 exactly like the resources-side applier and Hard Work's own maxHp cost.
+    draft.maxHp = Math.max(1, draft.maxHp + effect.amount);
+    draft.hp = Math.min(draft.hp, draft.maxHp);
+  }
+  pushLog(draft, `Mutation: ${entry.text}`);
+}
+
 /** A Magic Item is always "[Armor] of X" or "[Weapon] of X" -- roll the base table for the
  * concrete piece/weapon, then layer the named item's bonus on top (an armor bonus is baked into
  * the piece's HP if it's `extraHp`, or attached as `effect` for anything else the piece grants;
@@ -1245,7 +1366,7 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
     const base = entry.fixedArmor
       ? { piece: entry.fixedArmor.piece, maxHp: entry.fixedArmor.maxHp }
       : ARMOR_TABLE[rollDie(rng)]!;
-    if (draft.raceName === "Ogre") {
+    if (cannotWearArmor(draft)) {
       addHeldItem(
         draft,
         { name: entry.name, worth: Math.max(1, base.maxHp) },
@@ -1562,8 +1683,7 @@ export function dungeonReducer(
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (!seg || seg.chestOpened) return;
         const chestAvailable =
-          !!seg.roomContent?.hasChest ||
-          seg.secretPassageResult === "You have found a hidden Chest!";
+          !!seg.roomContent?.hasChest || isHiddenChestResult(seg.secretPassageResult);
         if (!chestAvailable) return;
 
         seg.chestOpened = true;
@@ -2174,7 +2294,10 @@ export function dungeonReducer(
           return;
         }
 
-        const useHorn = action.useHorn === true && draft.raceName === "Rinoceroid";
+        // Rinoceroid's horn and the horns mutation (issue #30) are the same attack.
+        const useHorn =
+          action.useHorn === true &&
+          (draft.raceName === "Rinoceroid" || (draft.mutations ?? []).includes(MUTATION_IDS.horns));
         const weaponBonus = useHorn ? undefined : draft.weapon?.bonusEffect;
         if (weaponBonus?.kind === "instantKillOnRoll" && action.roll === weaponBonus.roll) {
           pushLog(
@@ -2249,6 +2372,7 @@ export function dungeonReducer(
           if (draft.hp <= 0) {
             if (trySamambroSurvival(draft, rng)) return;
             if (tryRavenSurvival(draft, rng)) return;
+            if (tryZombieRevival(draft)) return;
             draft.alive = false;
             draft.deathCause = "combat";
             pushLog(draft, "The explosion kills you instantly.", "descend");
@@ -2531,6 +2655,7 @@ export function dungeonReducer(
         if (draft.hp <= 0) {
           if (trySamambroSurvival(draft, rng)) return;
           if (tryRavenSurvival(draft, rng)) return;
+          if (tryZombieRevival(draft)) return;
           draft.alive = false;
           draft.deathCause = "combat";
           pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
@@ -2937,6 +3062,12 @@ export function dungeonReducer(
               resolveWonder(draft, DUNGEON_TABLES[draft.dungeonTypeKey!].wonders[roll]!, rng);
             } else if (outcome.effect.column === "magicItem") {
               resolveMagicItem(draft, DUNGEON_TABLES[draft.dungeonTypeKey!].magicItem[roll]!, rng);
+            } else if (outcome.effect.column === "potions") {
+              // Only the Laboratory prints a Potions column, and only its own Reward table
+              // redirects here -- the optional lookup keeps a hypothetical redirect from a type
+              // without one from crashing.
+              const potion = DUNGEON_TABLES[draft.dungeonTypeKey!].potions?.[roll];
+              if (potion) resolvePotion(draft, potion, rng);
             } else {
               const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
               draft.spareWeapons.push({
@@ -2992,6 +3123,11 @@ export function dungeonReducer(
           [],
         ),
         (draft) => {
+          // Laboratory (issue #30): mutations belong to the *character*, not the run, so the
+          // arriving character brings their own -- a new adventurer on a dead one's map does not
+          // inherit the dead character's mutations.
+          draft.mutations = action.mutations ?? [];
+          draft.zombieRevivals = action.zombieRevivals ?? 0;
           restoreMapFromPersisted(
             draft,
             persisted,
@@ -3043,6 +3179,9 @@ export function dungeonReducer(
           // RESUME_DUNGEON deliberately does *not* do this -- a new character taking over someone
           // else's map doesn't inherit their blessing, same as every other character-specific field.
           draft.runDamageBonus = persisted.runDamageBonus ?? 0;
+          // Same character, so their mutations come along unchanged (issue #30).
+          draft.mutations = action.mutations ?? [];
+          draft.zombieRevivals = action.zombieRevivals ?? 0;
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);
         },
       );

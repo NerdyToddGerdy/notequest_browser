@@ -24,7 +24,8 @@ export interface GraveyardEntry {
     | "event"
     | "portal"
     | "realm"
-    | "thin-ice";
+    | "thin-ice"
+    | "mutation";
   race?: string;
   cls?: string;
   monsterKills?: number;

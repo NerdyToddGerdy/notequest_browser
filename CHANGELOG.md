@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.53.0] - 2026-07-31
+
+### Added
+
+- **The Laboratory** (#30) — the 6th Deadly Dungeons type, with its own Segments, Secret Passage,
+  Trap, Room Content, Monsters, Reward and Boss tables. Its Room column is the notable shape: large
+  halls, then corridors, then staircases, never a room. Reachable from Forest roll 5 and the Ruins
+  2d6 table's 8-9 band on Plains and Forest, all three of which previously substituted a Palace.
+- **Mutations** — the Laboratory's Special Rule: "any hero or creature that leaves this dungeon will
+  mutate." A full three-column Mutation table (`src/data/mutations.ts`), rolled on the way out of a
+  Laboratory run, with every mechanically-expressible outcome real: max-HP swings, a horn attack,
+  immunity to Poison, and losing the ability to wear armor (or just boots). Recorded permanently on
+  the character and shown on the Adventurer sheet.
+- **The zombie mutation** — dying returns you at half your maximum HP, then half of that again each
+  subsequent death, until halving reaches nothing. Honored at every death in the game, in a dungeon
+  or out of it, and a mutation can now be a cause of death in its own right.
+- **A Potions reward column** — the Laboratory prints one where every other type prints Magic Item.
+  The Mutation Potion rolls the mutation table without waiting for you to leave; an Ogre sells any
+  potion instead of drinking it.
+
+### Fixed
+
+- A Chest found through a Secret Passage was unopenable in any dungeon whose Secret Passage table
+  words that row differently from the shared one — the check was exact string equality.
+
 ## [2.52.0] - 2026-07-30
 
 ### Added

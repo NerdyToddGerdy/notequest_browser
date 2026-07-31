@@ -160,6 +160,11 @@ export interface WorldScreenProps {
   /** Portals (issue #21): true when the player just stepped through a no-exit dungeon's Boss-room
    * Portal, so a fresh portal roll fires the moment this screen mounts rather than dumping them back
    * on the map with nothing happening. `onAutoPortalConsumed` clears it so it fires exactly once. */
+  /** Laboratory's Special Rule (issue #30): what mutating on the way out did, shown once as a quiet
+   * `HexInspector` line -- the same treatment a suppressed Event note gets, rather than a blocking
+   * panel, since there's nothing to decide. */
+  arrivalNote?: string | null;
+  onArrivalNoteSeen?: () => void;
   autoPortalOnMount?: boolean;
   onAutoPortalConsumed?: () => void;
   /** A death outside a dungeon (Getting Money's Gamble/Thug Life/Arena, issue #58) -- App.tsx's own
@@ -252,6 +257,8 @@ export function WorldScreen({
   onEnterDungeon,
   onEnterNoExitDungeon,
   onEnterSewers,
+  arrivalNote,
+  onArrivalNoteSeen,
   autoPortalOnMount = false,
   onAutoPortalConsumed,
   onCharacterDied,
@@ -534,6 +541,8 @@ export function WorldScreen({
     setTravelEvent(null);
     setEventNote(null);
     setLocationEffect(null);
+    // A mutation note describes the trip that just ended, so the next move clears it.
+    onArrivalNoteSeen?.();
 
     if (!rollEvent) return;
 
@@ -1667,7 +1676,7 @@ export function WorldScreen({
                       // nothing to roll -- but the hex says what's there rather than leaving the
                       // label inert. Shown for any inspected Volcano, current tile or not; an actual
                       // arrival note (issue #91's suppressed Event) wins on the tile you're on.
-                      (isInspectingCurrentTile ? eventNote : null) ??
+                      (isInspectingCurrentTile ? (arrivalNote ?? eventNote) : null) ??
                       (inspectedTile.location
                         ? LOCATION_EFFECT_NOTES[inspectedTile.location]
                         : null) ??
@@ -1707,6 +1716,7 @@ export function WorldScreen({
             killsByName={resources.killsByName}
             hireling={resources.hireling}
             animals={resources.animals}
+            mutations={resources.mutations}
             canCastOutOfCombat
             onCastSpell={(table, spellRoll) =>
               onUpdateResources(castSpell(resources, table, spellRoll))

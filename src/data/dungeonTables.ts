@@ -109,7 +109,10 @@ export type RewardEffect =
    * than letting the player choose, so it needs no picker UI. A no-op (flavor log only) if the
    * character knows no spells at all yet. */
   | { kind: "restoreRandomSpellUse" }
-  | { kind: "rerollColumn"; column: "wonders" | "magicItem" | "weapon" }
+  /** Laboratory (issue #30) is the one type whose third Reward column is **Potions** rather than
+   * Magic Item -- a different set with different semantics (drinkable one-shots, not equipment), so
+   * it gets its own column rather than being squeezed into `magicItem`. */
+  | { kind: "rerollColumn"; column: "wonders" | "magicItem" | "weapon" | "potions" }
   | { kind: "flavor" };
 
 export interface RewardOutcome {
@@ -248,6 +251,18 @@ export interface MagicItemEntry {
   grantsSpells?: number;
 }
 
+/** Laboratory's Potions column (issue #30). Deliberately not `MagicItemEntry`: a potion is drunk, not
+ * worn, so it has no base-table roll and no armour/weapon slot. Each maps onto an existing effect
+ * vocabulary entry where one fits, and says so where one doesn't. */
+export interface PotionEntry {
+  name: string;
+  text: string;
+  effect: ItemEffect;
+  /** Laboratory's own Mutation table (its Special Rule) -- the Mutation Potion rolls on it directly
+   * rather than waiting to leave the dungeon. */
+  rollsMutation?: boolean;
+}
+
 export interface DungeonTypeTables {
   /** Table: Trap (1d6). Row 1 is identical across all types. */
   trap: Record<number, TrapEntry>;
@@ -267,6 +282,8 @@ export interface DungeonTypeTables {
   wonders: Record<number, WonderEntry>;
   /** Table: Reward's "Magic Item" column (1d6). */
   magicItem: Record<number, MagicItemEntry>;
+  /** Only Laboratory has one -- see `PotionEntry`. */
+  potions?: Record<number, PotionEntry>;
   /** Citadel's "Dwarf Hallows" / Necropolis's "Forgotten Hallows" (issue #30): "Once you defeat the
    * Dungeon Boss, in addition to the 2d6 Treasures, you've found one of the Hallows (roll below)."
    * Optional -- only these two types have this Special Rule; `finishIfVictorious()` rolls it (1d6)
@@ -2464,6 +2481,291 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         grants: "weapon",
         text: "Tetanus [Weapon] (+3 against humanoids).",
         effect: { kind: "damageBonusVsTag", tags: ["goblin", "bandit", "orc"], amount: 3 },
+      },
+    },
+  },
+
+  /** Laboratory (issue #30, rules 2230-2336). Two things make it structurally distinct: its third
+   * Reward column is **Potions** rather than Magic Item, and its Special Rule -- "any hero or
+   * creature that leaves this dungeon will mutate" -- is the first effect in the game that fires on
+   * *leaving* a dungeon rather than inside it (see `src/data/mutations.ts`). */
+  laboratory: {
+    trap: {
+      // "A blade cuts off one of your hands" -- the same shape as the shared Blade Trap's roll-of-2
+      // arm loss, and flavor-only for the same reason: there is no hand economy (see #100).
+      1: { text: "A blade cuts off one of your hands." },
+      2: {
+        text: "Acid squirts from the ceiling, destroying a piece of armor you're wearing.",
+        destroysArmor: true,
+      },
+      3: { text: "You fall into a hole with stakes (3 damage).", damage: 3 },
+      4: {
+        text: "Emerges a Killer Blob (9 HP; 3 dmg; Regen).",
+        monsters: { name: "Killer Blob", hp: 9, damage: 3, abilities: ["regeneration"], count: 1 },
+      },
+      5: CLICK_NOTHING,
+      6: CLICK_NOTHING,
+    },
+    roomContent: {
+      2: {
+        text: "Cabinets with bodies of dead creatures stuffed or in glass jars. It may have Secret Passage.",
+        secretPassage: true,
+      },
+      3: { text: "Table with a dry human body. It may have Secret Passage.", secretPassage: true },
+      4: {
+        text: "Three cells with dead animals. It may have Secret Passage.",
+        secretPassage: true,
+      },
+      5: {
+        text: "Wardrobe with 1d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
+      },
+      6: { text: "Large library of alchemy books.", secretPassage: false },
+      7: {
+        text: "Large table with 1d6 Treasures.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: { dice: 1, sides: 6 } },
+      },
+      8: { text: "Table with some books and notes.", secretPassage: false },
+      // "If you drink, roll on the Potion table" -- an optional action with its own sub-roll and no UI
+      // to drive it, so flavor for now, same call the Sewers' 8-crate investigation gets.
+      9: {
+        text: "Large cauldron with strange liquid. If you drink, roll on the Potion table.",
+        secretPassage: false,
+      },
+      10: {
+        text: "Well covered by garbage and 1 treasure.",
+        secretPassage: false,
+        reward: { kind: "treasures", count: 1 },
+      },
+      11: {
+        text: "Table with various kitchen items. It may have Secret Passage.",
+        secretPassage: true,
+      },
+      12: {
+        text: "Room with a crown under the bed and a Chest.",
+        secretPassage: false,
+        hasChest: true,
+      },
+    },
+    monsters: {
+      2: { name: "Sewn Ogre", hp: 40, damage: 3, abilities: ["undead", "weakness"], count: 1 },
+      3: { name: "Floating Evil Eye", hp: 20, damage: 2, abilities: ["paralyze"], count: 1 },
+      4: {
+        name: "Toxic Zombies",
+        singularName: "Toxic Zombie",
+        hp: 4,
+        damage: 3,
+        abilities: ["undead", "poison"],
+        count: 2,
+      },
+      5: { name: "Toxic Zombie", hp: 4, damage: 3, abilities: ["undead", "poison"], count: 1 },
+      6: {
+        name: "Living Chairs",
+        singularName: "Living Chair",
+        hp: 2,
+        damage: 1,
+        abilities: [],
+        count: { dice: 1, sides: 6 },
+      },
+      7: null,
+      8: null,
+      9: { name: "Killer Blob", hp: 9, damage: 3, abilities: ["regeneration"], count: 1 },
+      10: {
+        name: "Mutant Rats",
+        singularName: "Mutant Rat",
+        hp: 6,
+        damage: 3,
+        abilities: [],
+        count: 3,
+      },
+      11: {
+        name: "Toxic Hounds",
+        singularName: "Toxic Hound",
+        hp: 5,
+        damage: 3,
+        abilities: ["poison"],
+        count: 3,
+      },
+      12: { name: "Aberration", hp: 29, damage: 4, abilities: ["weakness"], count: 1 },
+    },
+    treasure: {
+      1: { text: "Mana Potion (Recovers all Spells).", effect: { kind: "restoreAllSpells" } },
+      2: HEALTH_POTION,
+      3: MAGIC_SCROLL,
+      4: {
+        text: "Bottle with Gold Powder (worth 20 coins in the town).",
+        effect: { kind: "heldValue", name: "Bottle of Gold Powder", amount: 20 },
+      },
+      5: {
+        text: "[Roll in the 'Wonders' column]",
+        effect: { kind: "rerollColumn", column: "wonders" },
+      },
+      6: {
+        text: "[Roll in the 'Potions' column]",
+        effect: { kind: "rerollColumn", column: "potions" },
+      },
+    },
+    // Laboratory prints no Weapon table of its own; the Alchemist King's Sword in its Wonders column
+    // is the only weapon it grants, so this falls back to the Palace's for any base-table roll.
+    weapon: {
+      1: { name: "Dagger", formula: "1d6-1" },
+      2: { name: "Sword", formula: "1d6" },
+      3: { name: "Mace", formula: "1d6" },
+      4: { name: "Axe", formula: "1d6" },
+      5: { name: "Spear", formula: "1d6+1", twoHanded: true },
+      6: { name: "Great Sword", formula: "1d6+2", twoHanded: true },
+    },
+    wonders: {
+      // "You appear anywhere in the world" is the Portal table's roll-11 picker (issue #21) in potion
+      // form, but nothing outside a portal can open that picker yet -- flavor, documented.
+      1: {
+        name: "Distant Place Potion",
+        text: "Distant Place Potion (You appear anywhere in the world).",
+        effect: { kind: "flavor" },
+      },
+      // No Cursed-item removal exists to hook; the two Cursed items shipped in Sewers are the only
+      // ones, and nothing tracks "cursed" as a state.
+      2: {
+        name: "Purification Potion",
+        text: "Purification Potion (remove a Cursed item).",
+        effect: { kind: "flavor" },
+      },
+      // "Load up to 3 potions" is a carry-capacity rule with no potion inventory to apply it to.
+      3: {
+        name: "Leather breastplate",
+        text: "Leather breastplate (6 HP; Load up to 3 potions).",
+        grantsHp: 6,
+        effect: { kind: "flavor" },
+      },
+      4: {
+        name: "Alchemist's Mask",
+        text: "Alchemist's Mask (3 HP).",
+        grantsHp: 3,
+        effect: { kind: "flavor" },
+      },
+      5: {
+        name: "Alchemist King's Sword",
+        text: "Alchemist King's Sword (1d6 Damage; +3 if it has Poison).",
+        grantsWeapon: { name: "Alchemist King's Sword", formula: "1d6" },
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Philosophical Stone",
+        text: "Philosophical Stone (Talking Stone; doesn't shut up).",
+        effect: { kind: "flavor" },
+      },
+    },
+    // Laboratory's third Reward column is Potions, not Magic Item -- it prints no Magic Item table
+    // at all, so this falls back to the Palace's, exactly like `weapon` above. Unreachable today by
+    // construction (nothing in Laboratory's own tables redirects to "magicItem"), but the field is
+    // required and a plausible table beats an invented one.
+    magicItem: {
+      1: {
+        name: "[Armor] of Royalty",
+        text: "[Armor] of Royalty (It is very elegant).",
+        grants: "armor",
+        effect: { kind: "flavor" },
+      },
+      2: {
+        name: "Leprechaun's [Armor]",
+        text: "Leprechaun's [Armor] (Earn double coins in chests).",
+        grants: "armor",
+        effect: { kind: "doubleChestCoins" },
+      },
+      3: {
+        name: "Centurion's [Armor]",
+        text: "Centurion's [Armor] (+1 HP).",
+        grants: "armor",
+        effect: { kind: "extraHp", amount: 1 },
+      },
+      4: {
+        name: "[Weapon] of Destruction",
+        text: "[Weapon] of Destruction (Deals +2 damage).",
+        grants: "weapon",
+        effect: { kind: "weaponDamageBonus", amount: 2 },
+      },
+      5: {
+        name: "[Weapon] of War",
+        text: "[Weapon] of War (Deals +2 damage to Angels).",
+        grants: "weapon",
+        effect: { kind: "damageBonusVsTag", tags: ["angel"], amount: 2 },
+      },
+      6: {
+        name: "[Weapon] of the Dragon Slayer",
+        text: "[Weapon] of the Dragon Slayer (Double damage against Dragons).",
+        grants: "weapon",
+        effect: { kind: "damageMultiplierVsTag", tags: ["dragon"], multiplier: 2 },
+      },
+    },
+    potions: {
+      1: {
+        name: "Mutation Potion",
+        text: "Mutation Potion (roll in the Mutation table).",
+        effect: { kind: "flavor" },
+        rollsMutation: true,
+      },
+      2: {
+        name: "Goblin Potion",
+        text: "Goblin Potion (visually transforms into goblin).",
+        effect: { kind: "flavor" },
+      },
+      // "If dies, returns with 1 HP max" -- a revive-on-death, distinct from the Mutation table's own
+      // zombie row (which returns you with *half* max HP, halving each time). Left flavor: the
+      // mutation version is the one the Special Rule makes reachable, and two subtly different
+      // revive rules would be worse than one.
+      3: {
+        name: "Zombie Potion",
+        text: "Zombie Potion (if dies, returns with 1 HP max).",
+        effect: { kind: "flavor" },
+      },
+      4: {
+        name: "Luminescence Potion",
+        text: "Luminescence Potion (equal to 2 torches).",
+        effect: { kind: "grantsTorches", amount: 2 },
+      },
+      5: {
+        name: "Extra Hand Potion",
+        text: "Extra Hand Potion (Create a new arm).",
+        effect: { kind: "flavor" },
+      },
+      6: {
+        name: "Fool's Potion",
+        text: "Fool's Potion (Learn 3 Random Basic Spells).",
+        effect: { kind: "randomSpell" },
+      },
+    },
+    boss: {
+      1: {
+        name: "Undead Alchemist King",
+        hp: 20,
+        damage: 5,
+        abilities: ["undead", "poison"],
+        count: 1,
+      },
+      2: {
+        name: "Alchemical Abomination",
+        hp: 50,
+        damage: 3,
+        abilities: ["poison", "paralyze"],
+        count: 1,
+      },
+      3: {
+        name: "Explosive Blob",
+        hp: 60,
+        damage: 2,
+        abilities: ["poison", "explosive"],
+        count: 1,
+      },
+      4: { name: "Toxic Beast", hp: 40, damage: 3, abilities: ["poison"], count: 1 },
+      5: { name: "Flammable Monster", hp: 35, damage: 4, abilities: ["firebreath"], count: 1 },
+      6: {
+        name: "Undead Alchemist King",
+        hp: 30,
+        damage: 5,
+        abilities: ["undead", "poison"],
+        count: 1,
       },
     },
   },

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { DungeonState, SegmentState } from "../../../engine/dungeonState.ts";
 import { rollDie } from "../../../engine/dice.ts";
-import { TYPE_LABELS } from "../../../data/dungeonTypes.ts";
+import { isHiddenChestResult, TYPE_LABELS } from "../../../data/dungeonTypes.ts";
 import { formatMonsterTemplate } from "../../../data/dungeonTables.ts";
 import { DicePool } from "../DicePool/DicePool.tsx";
 import { revealDelay } from "../../rollTiming.ts";
@@ -22,9 +22,7 @@ export interface RoomInspectorProps {
 }
 
 function hasChest(seg: SegmentState): boolean {
-  return (
-    !!seg.roomContent?.hasChest || seg.secretPassageResult === "You have found a hidden Chest!"
-  );
+  return !!seg.roomContent?.hasChest || isHiddenChestResult(seg.secretPassageResult);
 }
 
 /** "The remains of Bram lie here — 5 coins, 2 Treasures, 1 Key." */

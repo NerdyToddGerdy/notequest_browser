@@ -112,6 +112,8 @@ export function DungeonScreen({
         characterName: character.name,
         raceName: character.race.name,
         className: character.cls.name,
+        mutations: resources.mutations,
+        zombieRevivals: resources.zombieRevivals,
         monsterKills: resources.monsterKills,
         bossKills: resources.bossKills,
         killsByName: resources.killsByName,
@@ -137,6 +139,8 @@ export function DungeonScreen({
         characterName: character.name,
         raceName: character.race.name,
         className: character.cls.name,
+        mutations: resources.mutations,
+        zombieRevivals: resources.zombieRevivals,
       });
     }
     return createInitialDungeonState(
@@ -168,6 +172,10 @@ export function DungeonScreen({
       resources.spareArmor,
       resources.nextDungeonDamageBonus,
       noExit,
+      // Laboratory (issue #30): mutations and the zombie counter follow the character into the run --
+      // all three mechanically-real mutations are read inside the dungeon.
+      resources.mutations,
+      resources.zombieRevivals,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>(() => Array<number>(10).fill(1));
@@ -613,6 +621,7 @@ export function DungeonScreen({
               killsByName={state.killsByName}
               hireling={state.hireling}
               animals={state.animals}
+              mutations={state.mutations}
             />
 
             {!state.alive && state.deathCause === "combat" && (

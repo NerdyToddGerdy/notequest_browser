@@ -77,6 +77,8 @@ const RESOURCES: AdventurerResources = {
   survivedRunIds: [],
   flyActive: false,
   catatonic: false,
+  mutations: [],
+  zombieRevivals: 0,
   nextDungeonDamageBonus: 0,
 };
 
@@ -243,6 +245,19 @@ describe("loadSession", () => {
       "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
     });
     expect(loadSession(storage).resources).toEqual({ ...oldResources, flyActive: false });
+  });
+
+  it("back-fills resources.mutations/zombieRevivals (issue #30) for a session persisted before they existed", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { mutations, zombieRevivals, ...oldResources } = RESOURCES;
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ ...FULL_SESSION, resources: oldResources }),
+    });
+    expect(loadSession(storage).resources).toEqual({
+      ...oldResources,
+      mutations: [],
+      zombieRevivals: 0,
+    });
   });
 
   it("back-fills resources.maxSpellUses (issue #75) from character.spells/fixedGrants for a session persisted before it existed", () => {

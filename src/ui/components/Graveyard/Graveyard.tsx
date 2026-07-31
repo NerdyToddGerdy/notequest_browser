@@ -21,6 +21,7 @@ const CAUSE_LABELS: Record<GraveyardEntry["causeOfDeath"], string> = {
   portal: "Vanished from Existence",
   realm: "Died in Another World",
   "thin-ice": "Fell Through the Ice",
+  mutation: "Undone by Mutation",
 };
 
 /** The Graveyard play-sheet -- a running record of every character who died exploring these dungeons. */

@@ -14,7 +14,8 @@ export type DungeonTypeKey =
   | "pyramid"
   | "ziggurat"
   | "necropolis"
-  | "sewers";
+  | "sewers"
+  | "laboratory";
 
 export type SegmentType =
   | "corridor"
@@ -343,6 +344,75 @@ const SEWERS_SECRET_PASSAGE: Record<number, string> = {
   6: "There is a hidden door here.",
 };
 
+/** Laboratory (issue #30, rules 2235-2245). Its Corridor column matches the shared table, but its
+ * Room column is entirely its own -- large halls, then corridors, then staircases, where every other
+ * type's Room column produces rooms. */
+const LABORATORY_SEGMENTS: Record<number, SegmentsRow> = {
+  1: {
+    staircase: { type: "corridor", doors: 1, text: "Corridor with another door." },
+    corridor: { type: "room-small", doors: 1, text: "Small room with another door." },
+    room: {
+      type: "room-large",
+      doors: 0,
+      text: "Large hall with pillars.",
+      flavor: "Pillars line the walls.",
+    },
+  },
+  2: {
+    staircase: { type: "corridor", doors: 1, text: "Corridor with another door." },
+    corridor: { type: "room-medium", doors: 1, text: "Medium size room with another door." },
+    room: {
+      type: "room-large",
+      doors: 0,
+      text: "Large hall with pillars.",
+      flavor: "Pillars line the walls.",
+    },
+  },
+  3: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-medium", doors: 1, text: "Medium size room with another door." },
+    room: { type: "corridor", doors: 1, text: "Corridor with another door." },
+  },
+  4: {
+    staircase: { type: "corridor", doors: 2, text: "Corridor with two other doors." },
+    corridor: { type: "room-wide", doors: 2, text: "Wide room with two other doors." },
+    room: { type: "corridor", doors: 1, text: "Corridor with another door." },
+  },
+  5: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "room-wide", doors: 2, text: "Wide room with two other doors." },
+    room: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+  },
+  6: {
+    staircase: { type: "corridor", doors: 3, text: "Corridor with three other doors." },
+    corridor: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+    room: { type: "staircase", doors: 1, text: "Staircase with a door in the end." },
+  },
+};
+
+/** Laboratory's own Secret Passage table (rules 2247-2256) -- chests on 4-5 where the shared table
+ * has other outcomes, and a staircase on 6. */
+const LABORATORY_SECRET_PASSAGE: Record<number, string> = {
+  1: "You have activated a Trap!",
+  2: "There's nothing here.",
+  3: "There's nothing here.",
+  4: "Found a hidden Chest!",
+  5: "Found a hidden Chest!",
+  6: "Passage to a Staircase.",
+};
+
+/** Whether a Secret Passage result is the "hidden Chest" row, for the two places that offer the
+ * chest (`dungeonReducer.ts`'s `ROLL_CHEST` guard and `RoomInspector`'s button).
+ *
+ * A substring check rather than string equality because the per-type tables use the rulebook's own
+ * wording, and it isn't uniform -- the shared table says "You have found a hidden Chest!" while the
+ * Laboratory's says "Found a hidden Chest!" (issue #30). Exact equality silently made the
+ * Laboratory's chests unopenable; the same "no formal taxonomy, substring matching instead"
+ * convention the monster tags use applies just as well here. */
+export function isHiddenChestResult(result: string | null | undefined): boolean {
+  return !!result && result.toLowerCase().includes("hidden chest");
+}
+
 export const SEGMENTS_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, SegmentsRow>>> =
   {
     citadel: CITADEL_PYRAMID_SEGMENTS,
@@ -350,6 +420,7 @@ export const SEGMENTS_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<numbe
     ziggurat: ZIGGURAT_SEGMENTS,
     necropolis: NECROPOLIS_SEGMENTS,
     sewers: SEWERS_SEGMENTS,
+    laboratory: LABORATORY_SEGMENTS,
   };
 
 /** Deadly Dungeons (issue #30): Citadel's own Secret Passage table is explicitly printed in the
@@ -380,6 +451,7 @@ export const SECRET_PASSAGE_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record
     pyramid: PYRAMID_SECRET_PASSAGE,
     necropolis: NECROPOLIS_SECRET_PASSAGE,
     sewers: SEWERS_SECRET_PASSAGE,
+    laboratory: LABORATORY_SECRET_PASSAGE,
   };
 
 /** Table: Dungeon Name, "first part" column (1d6) -- also selects the dungeon type. Keys 1-6 are
@@ -478,6 +550,15 @@ export const DUNGEON_TYPES: Record<number, DungeonTypeDef> = {
     doors: 1,
     entrance:
       "Beyond the heavy metal double doors, the smell of death grows stronger. A long, dark staircase leads straight down to a metal door.",
+  },
+  12: {
+    key: "laboratory",
+    roll: 12,
+    name: "The Laboratory",
+    entranceType: "staircase",
+    doors: 1,
+    entrance:
+      "An abandoned tower in ruins. Inside, a large trapdoor already stands open over a stairway slick with slime and creeping plants. At the bottom, a rusty metal door.",
   },
   11: {
     key: "sewers",

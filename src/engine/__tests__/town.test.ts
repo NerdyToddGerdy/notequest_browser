@@ -81,6 +81,8 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     survivedRunIds: [],
     flyActive: false,
     catatonic: false,
+    mutations: [],
+    zombieRevivals: 0,
     nextDungeonDamageBonus: 0,
     ...overrides,
   };

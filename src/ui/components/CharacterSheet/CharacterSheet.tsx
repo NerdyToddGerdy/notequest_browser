@@ -4,6 +4,7 @@ import { computeSpellUses, parseSpellKey, SPELL_TABLE_BY_KEY } from "../../../en
 import { COMBAT_ONLY_SPELL_NAMES, KNOWN_CASTABLE_SPELL_NAMES } from "../../../engine/combat.ts";
 import { HIRELING_BY_NAME } from "../../../data/hirelings.ts";
 import { ANIMAL_BY_NAME } from "../../../data/animals.ts";
+import { MUTATION_BY_ID } from "../../../data/mutations.ts";
 import { KillBreakdownModal } from "../KillBreakdownModal/KillBreakdownModal.tsx";
 import styles from "./CharacterSheet.module.css";
 
@@ -58,6 +59,10 @@ export interface CharacterSheetProps {
   /** Owned animal/mount names (issue #26), same "permanent status line" treatment as `hireling`
    * above. */
   animals?: string[];
+  /** Mutation ids picked up in a Laboratory (issue #30), same treatment again -- they're permanent
+   * per character, and several are load-bearing (a horn attack, poison immunity, no armor), so the
+   * sheet is where a player finds out why their options changed. */
+  mutations?: string[];
 }
 
 export function CharacterSheet({
@@ -79,6 +84,7 @@ export function CharacterSheet({
   killsByName,
   hireling = null,
   animals = [],
+  mutations = [],
 }: CharacterSheetProps) {
   const [showKills, setShowKills] = useState(false);
   const hirelingDef = hireling ? HIRELING_BY_NAME[hireling] : null;
@@ -187,6 +193,12 @@ export function CharacterSheet({
                   return def ? `${def.name}${def.isMount ? " (Mount)" : ""} (${def.hp} HP)` : name;
                 })
                 .join(", ")}
+            </li>
+          )}
+          {mutations.length > 0 && (
+            <li>
+              <strong>Mutations:</strong>{" "}
+              {mutations.map((id) => MUTATION_BY_ID[id]?.text ?? id).join(" ")}
             </li>
           )}
         </ul>

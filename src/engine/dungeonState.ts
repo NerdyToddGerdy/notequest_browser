@@ -362,6 +362,15 @@ export interface DungeonState {
    *
    * Optional-with-default at every read site (`?? false`) so an older persisted run still loads. */
   noExit?: boolean;
+  /** Laboratory's mutations (issue #30), mirrored from `AdventurerResources` because all three of the
+   * mechanically-real ones are read *inside* a dungeon: poison immunity in `applyMonsterTurn()`, the
+   * horn attack in `PLAYER_ATTACK`, and the armour restrictions at every armour-granting site.
+   * Optional and read via `?? []` so no existing construction site had to change. */
+  mutations?: string[];
+  /** How many times the zombie mutation has already revived this character (issue #30) -- mirrored
+   * from `AdventurerResources` so the halving keeps compounding across a dungeon run, and carried
+   * back out by `handleReturnToTown`. */
+  zombieRevivals?: number;
   /** Sewers (issue #30): the metal ladder out has been climbed. Sewers has no Final Room or Boss, so
    * this is what *finishes* a run there -- `isDungeonBeaten()` accepts it in place of a cleared
    * Final Room, which in turn drives the map's cleared badge, the dungeon gate copy, and
@@ -504,6 +513,9 @@ export function createInitialDungeonState(
   runDamageBonus = 0,
   // Portals (issue #21) -- true only for the roll-of-7 dungeon; every other caller leaves it false.
   noExit = false,
+  /** Laboratory (issue #30) -- see `DungeonState.mutations`. */
+  mutations: string[] = [],
+  zombieRevivals = 0,
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -545,6 +557,8 @@ export function createInitialDungeonState(
     buildings,
     runDamageBonus,
     noExit,
+    mutations,
+    zombieRevivals,
     weaponFormula,
     spellUses,
     maxSpellUses,
@@ -665,6 +679,9 @@ export type DungeonAction =
       characterName: string;
       raceName: string;
       className: string;
+      /** Laboratory (issue #30) -- the *arriving* character's own mutations, not the dead one's. */
+      mutations?: string[];
+      zombieRevivals?: number;
     }
   | {
       /** The same still-living character coming back from a Town visit -- unlike RESUME_DUNGEON
@@ -697,4 +714,7 @@ export type DungeonAction =
       killsByAbility: Partial<Record<MonsterAbility, number>>;
       milestones: AdvancedClassMilestones;
       buildings: OwnedBuilding[];
+      /** Laboratory (issue #30) -- optional/back-compat, see `DungeonState.mutations`. */
+      mutations?: string[];
+      zombieRevivals?: number;
     };

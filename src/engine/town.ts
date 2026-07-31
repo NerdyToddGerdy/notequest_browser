@@ -2,6 +2,8 @@ import type { MonsterAbility } from "../data/dungeonTables.ts";
 import type { Terrain } from "../data/hexTables.ts";
 import type { SpellTableKey } from "../data/types.ts";
 import { HEAL_AMOUNT, OUT_OF_COMBAT_SPELL_NAMES } from "./combat.ts";
+import { MUTATION_IDS } from "../data/mutations.ts";
+import type { ArmorPieceKind } from "../data/dungeonTables.ts";
 import type { ArmorPiece, EquippedWeapon, HeldItem, OwnedBuilding } from "./dungeonState.ts";
 import { rollSpell, spellKey, SPELL_TABLE_BY_KEY } from "./character.ts";
 import { rollDie } from "./dice.ts";
@@ -103,6 +105,14 @@ export interface AdventurerResources {
    * Read as losing your next move -- the next travel action is consumed doing nothing and clears
    * this. World/Town-only, like `flyActive`; `loadSession()` back-fills `?? false`. */
   catatonic: boolean;
+  /** Laboratory's Special Rule (issue #30): every mutation this character has accumulated, by
+   * `MutationEntry.id`. Permanent once acquired, like `advancedClasses` -- a mutation is not
+   * something you recover from. Flavor-only outcomes are recorded too, so `CharacterSheet` can list
+   * them; the mechanical ones are read back by id (see `MUTATION_IDS`). */
+  mutations: string[];
+  /** How many times the zombie mutation has already brought this character back -- the exponent in
+   * "half your maximum hit points, then half of that, and so on." */
+  zombieRevivals: number;
   /** Ziggurat's "Effect of the Forgotten Gods" Special Rule (issue #30): "A divine light
    * illuminates you and you gain +1 damage on all attacks on the next dungeon exploration you
    * make" -- armed here, consumed into `DungeonState.runDamageBonus` the moment a genuinely fresh
@@ -408,6 +418,10 @@ export function wieldWeapon(resources: AdventurerResources, index: number): Adve
 export function wieldArmor(resources: AdventurerResources, index: number): AdventurerResources {
   const chosen = resources.spareArmor[index];
   if (!chosen) return resources;
+  // Laboratory's mutations (issue #30): the bubbles mutation forbids armour outright; the extra-toe
+  // one forbids just boots. Enforced here rather than by hiding the button, so the rule holds however
+  // the swap is reached (`Equipment` also disables the row -- reducer decides, UI mirrors).
+  if (!canWearArmorPiece(resources, chosen.piece)) return resources;
   const remaining = resources.spareArmor.filter((_, i) => i !== index);
   const displaced = resources.armor.find((p) => p.piece === chosen.piece);
   return {
@@ -415,6 +429,16 @@ export function wieldArmor(resources: AdventurerResources, index: number): Adven
     armor: [...resources.armor.filter((p) => p.piece !== chosen.piece), chosen],
     spareArmor: displaced ? [...remaining, displaced] : remaining,
   };
+}
+
+/** Laboratory's mutations (issue #30). `noArmor` (bubbles) blocks every piece; `noBoots` (an extra
+ * toe) blocks only the Boots slot. Ogre's own "cannot wear armor" is *not* folded in here: it's a
+ * race check the dungeon reducer already applies at every grant site, and Town has no armour-granting
+ * path of its own to guard. */
+export function canWearArmorPiece(resources: AdventurerResources, piece: ArmorPieceKind): boolean {
+  if (resources.mutations.includes(MUTATION_IDS.noArmor)) return false;
+  if (piece === "boots" && resources.mutations.includes(MUTATION_IDS.noBoots)) return false;
+  return true;
 }
 
 /** Issue #82: a free, anywhere-usable discard from the Pack -- Town's own equivalent of

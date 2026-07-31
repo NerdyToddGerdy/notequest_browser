@@ -28,6 +28,7 @@ const SEWERS_TYPE_ROLL = 11;
 import { rollDie } from "./engine/dice.ts";
 import { clearSession, loadSession, saveSession } from "./engine/session.ts";
 import { addGraveyardEntry, clearGraveyard, type TownDeathCause } from "./engine/graveyard.ts";
+import { applyZombieRevival, rollMutation, zombieRevivalHp } from "./engine/mutations.ts";
 
 // Home is just another hex, rendered by WorldScreen like any other City -- there's no separate
 // "town" screen anymore (see per-hex dungeon persistence / Town-Square unification in CLAUDE.md).
@@ -70,6 +71,9 @@ export default function App() {
   /** Set when a no-exit run's Boss-room Portal is used, so `WorldScreen` immediately rolls a fresh
    * portal on arrival rather than dropping the player back onto the map with nothing happening. */
   const [pendingPortalOnArrival, setPendingPortalOnArrival] = useState(false);
+  /** Laboratory's Special Rule (issue #30): what the mutation did on the way out, shown once on the
+   * World screen. Cleared by `WorldScreen` when the player travels. */
+  const [arrivalNote, setArrivalNote] = useState<string | null>(null);
 
   // Persists the whole session in one blob whenever any piece of it changes -- mirrors
   // addGraveyardEntry's "mutate then persist immediately" behavior, just via an effect instead
@@ -120,6 +124,8 @@ export default function App() {
       survivedRunIds: [],
       flyActive: false,
       catatonic: false,
+      mutations: [],
+      zombieRevivals: 0,
       nextDungeonDamageBonus: 0,
     });
     setActiveRunId(null);
@@ -149,6 +155,20 @@ export default function App() {
   // label), standing in for `dungeon` on a GraveyardEntry that isn't about a dungeon at all.
   function handleTownDeath(cause: TownDeathCause, place: string) {
     if (!character || !resources) return;
+    // The zombie mutation (Laboratory, issue #30) saves a character out here too, not just inside a
+    // dungeon -- `dungeonReducer.ts`'s own `tryZombieRevival` covers the seven in-dungeon death
+    // sites, and this single funnel covers every death that isn't one of them (Gamble's life bet,
+    // Thug Life, the Arena, a travel Event, a Portal, a realm's hazards, and a fatal mutation
+    // itself). Checked before anything is written to the Graveyard, since a revived character never
+    // died at all.
+    const revivalHp = zombieRevivalHp(resources);
+    if (revivalHp !== null) {
+      setResources(applyZombieRevival(resources, revivalHp));
+      setArrivalNote(
+        `Rotten flesh knits itself back together -- you rise again with ${revivalHp} HP.`,
+      );
+      return;
+    }
     addGraveyardEntry({
       name: character.name,
       dungeon: place,
@@ -183,6 +203,11 @@ export default function App() {
   // them, and remembers the runId so re-entering that hex's dungeon jumps straight back in later.
   function handleReturnToTown(runId: string, dungeon: DungeonState) {
     setNoExitRun(false);
+    // Laboratory's Special Rule (issue #30): "any hero or creature that leaves this dungeon will
+    // mutate." Fired here, the one place a *living* character leaves a dungeon -- and it can kill,
+    // so it has to run where the death handler lives. `handleLeaveDungeon`'s unmount cleanup is the
+    // wrong hook: it also fires on death, and a corpse doesn't mutate on the way out.
+    const mutating = dungeon.dungeonTypeKey === "laboratory" && dungeon.alive;
     setResources((prev) => ({
       torches: dungeon.torches,
       hp: dungeon.hp,
@@ -237,6 +262,12 @@ export default function App() {
       // it) -- carried over untouched, same as provisions/travelStats/troops above.
       flyActive: prev?.flyActive ?? false,
       catatonic: false,
+      // Laboratory's mutations (issue #30) are permanent per character, like advancedClasses --
+      // carried over untouched, then possibly added to by the Special Rule just below.
+      mutations: dungeon.mutations ?? prev?.mutations ?? [],
+      // Carried from the *dungeon*, not `prev`: the zombie mutation can fire mid-run and
+      // increment there, and that halving must not be forgotten on the way out.
+      zombieRevivals: dungeon.zombieRevivals ?? prev?.zombieRevivals ?? 0,
       // Ziggurat's Effect of the Forgotten Gods (issue #30): already consumed into
       // dungeon.runDamageBonus the moment this trip started (see DungeonScreen.tsx), so this is
       // always 0 by the time a retreat/return happens -- carried over the same way flyActive is.
@@ -246,6 +277,24 @@ export default function App() {
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,
     );
     setScreen("world");
+
+    // The mutation itself. Rolled against `resources` (which is what the updater above saw as `prev`)
+    // so the outcome can be applied and, if fatal, routed to the death handler -- neither of which is
+    // safe to do inside a setState updater.
+    if (mutating && resources) {
+      const result = rollMutation({
+        ...resources,
+        hp: dungeon.hp,
+        maxHp: dungeon.maxHp,
+      });
+      if (result.died) {
+        setArrivalNote(null);
+        handleTownDeath("mutation", "the Laboratory");
+        return;
+      }
+      setResources((prev) => (prev ? { ...prev, ...result.resources } : prev));
+      setArrivalNote(`You mutate on the way out: ${result.message}`);
+    }
   }
 
   // Called whenever a dungeon run ends (death, a voluntary retreat, or beating the Final Room),
@@ -323,6 +372,8 @@ export default function App() {
           }
           setScreen("dungeon");
         }}
+        arrivalNote={arrivalNote}
+        onArrivalNoteSeen={() => setArrivalNote(null)}
         autoPortalOnMount={pendingPortalOnArrival}
         onAutoPortalConsumed={() => setPendingPortalOnArrival(false)}
         onEnterSewers={() => {

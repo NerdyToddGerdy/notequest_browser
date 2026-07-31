@@ -373,10 +373,11 @@ export function travelCostMultiplier(raceName: string): number {
  * `typeRoll` would be, not a parallel table of its own. The rulebook's real table references 8
  * dungeon types beyond the Core 6 -- Citadel/Pyramid/Ziggurat/Necropolis shipped in issue #30 and
  * now use their real roll numbers (7/8/9/10 in `DUNGEON_TYPES`, see `dungeonTypes.ts`) below; Mine/
- * Cave/Laboratory are still unbuilt (tracked as the rest of #30) and stay substituted with the
+ * Cave is still unbuilt (tracked as the rest of #30) and stays substituted with the
  * closest thematic match among the types that exist, same "documented, deliberate simplification"
  * precedent as `bladeTrap`'s roll-of-2 flavor-only outcome or `WeaponEntry.twoHanded`: Cave
- * (a tunneled stronghold) -> Prison (6), Laboratory -> Palace (1). Mine now maps to **Sewers** (11)
+ * (a tunneled stronghold) -> Prison (6). Laboratory is real as of the same issue and uses its own
+ * roll number (12). Mine now maps to **Sewers** (11)
  * instead, which is a far closer match -- both are tunnel complexes -- now that Sewers exists.
  * Sewers also has its own rulebook route that this table doesn't cover: "every fortress has a sewer
  * complex," a sub-roll on entering a Fortress (issue #99, still unbuilt). `water` and `glacier` rows are
@@ -415,14 +416,15 @@ export type UniqueDungeonKey = "entrails" | "megaDungeon";
  * Values are `DUNGEON_TYPES` roll numbers, same as `DUNGEON_TYPE_BY_TERRAIN`. Five of its cells name
  * types #30 hasn't built, substituted with the closest thematic match among those that exist -- the
  * same documented approach that table already uses: Cave (a tunnel complex) -> Sewers (11), Mine ->
- * Sewers (11), Laboratory -> Palace (1). `unique` marks the asterisked cells. */
+ * Sewers (11). Laboratory needs no substitute anymore -- it's real (12) as of the same issue.
+ * `unique` marks the asterisked cells. */
 export interface RuinsDungeonResult {
   typeRoll: number;
   unique?: UniqueDungeonKey;
 }
 
 export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeonResult>> = {
-  //  2-4 Cave->Sewers | 5-7 as printed | 8-9 Laboratory->Palace / Citadel / Ziggurat | 10-11 | 12 unique
+  //  2-4 Cave->Sewers | 5-7 as printed | 8-9 Laboratory / Citadel / Ziggurat | 10-11 | 12 unique
   plain: {
     2: { typeRoll: 11 },
     3: { typeRoll: 11 },
@@ -430,8 +432,8 @@ export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeo
     5: { typeRoll: 1 },
     6: { typeRoll: 1 },
     7: { typeRoll: 1 },
-    8: { typeRoll: 1 },
-    9: { typeRoll: 1 },
+    8: { typeRoll: 12 },
+    9: { typeRoll: 12 },
     10: { typeRoll: 8 },
     11: { typeRoll: 8 },
     12: { typeRoll: 8, unique: "entrails" },
@@ -456,8 +458,8 @@ export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeo
     5: { typeRoll: 3 },
     6: { typeRoll: 3 },
     7: { typeRoll: 3 },
-    8: { typeRoll: 1 },
-    9: { typeRoll: 1 },
+    8: { typeRoll: 12 },
+    9: { typeRoll: 12 },
     10: { typeRoll: 9 },
     11: { typeRoll: 9 },
     12: { typeRoll: 9, unique: "entrails" },
@@ -480,7 +482,7 @@ export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeo
 export const DUNGEON_TYPE_BY_TERRAIN: Record<OverworldTerrain, Record<number, number>> = {
   plain: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 }, // Palace, Crypt, Tomb, Sanctuary, Temple, Prison
   mountain: { 1: 2, 2: 4, 3: 6, 4: 7, 5: 11, 6: 6 }, // Crypt, Sanctuary, Prison, Citadel, Mine->Sewers, Cave->Prison
-  forest: { 1: 3, 2: 5, 3: 1, 4: 5, 5: 1, 6: 6 }, // Tomb, Temple, Palace, Temple, Laboratory->Palace, Cave->Prison
+  forest: { 1: 3, 2: 5, 3: 1, 4: 5, 5: 12, 6: 6 }, // Tomb, Temple, Palace, Temple, Laboratory, Cave->Prison
   swamp: { 1: 2, 2: 3, 3: 4, 4: 5, 5: 11, 6: 10 }, // Crypt, Tomb, Sanctuary, Temple, Sewers, Necropolis
   desert: { 1: 6, 2: 1, 3: 4, 4: 5, 5: 8, 6: 8 }, // Prison, Palace, Sanctuary, Temple, Pyramid, Pyramid
   tundra: { 1: 6, 2: 1, 3: 2, 4: 3, 5: 9, 6: 9 }, // Prison, Palace, Crypt, Tomb, Ziggurat, Ziggurat
