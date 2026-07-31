@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.55.0] - 2026-07-31
+
+### Added
+
+- **Selling armor and weapons** (#117) — `Equipment` gained a Sell button on every row: worn armor,
+  spare armor, the equipped weapon and spare weapons. Neither carried a price before, which is why no
+  sell path existed. Armor is worth its HP (a Breastplate 10, a Ring 1), reusing the same formula an
+  Ogre's unusable-armor sale already used; a weapon is priced off its damage formula, so a Dagger
+  (1d6-1) fetches 2 and a Halberd (1d6+3) fetches 6. Both stack with the Fortress and
+  Cat-Person/Merchant multipliers exactly like a Pack sale. Selling the equipped weapon is safe — it's
+  an override, so your class weapon takes back over.
+- **Collector is real** (#103) — "Sell a piece of armor for 5 coins" now floors every armor sale at 5,
+  so cheap pieces are worth more to a Collector while a Breastplate already worth 10 isn't
+  double-counted.
+- **Assassin is real** (#103) — "Deals 3 times damage on your first attack" triples the first weapon
+  hit of each fight. Read as the first hit of the fight rather than against each monster, and it
+  applies to a Rinoceroid's horn too, since it's the character's own training rather than a weapon
+  effect. A paralyzed turn isn't an attack, so the opening strike survives it.
+
+### Changed
+
+- The equipped weapon's Equipment row is stacked rather than a single line, so name, damage and the
+  new Sell button all fit in the sidebar.
+
 ## [2.54.0] - 2026-07-31
 
 ### Fixed

@@ -21,14 +21,22 @@
   padding-bottom: 8px;
 }
 
+/* Stacked rather than a single baseline row: with issue #117's Sell button the equipped weapon has
+   three things to show, and name + formula + button overflowed the sidebar card. Same shape the
+   spare-weapon rows already use. */
 .weaponRow {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
+  flex-direction: column;
+  gap: 2px;
   margin: 0 0 8px;
   padding-bottom: 8px;
   border-bottom: 1px dotted rgba(42, 32, 22, 0.25);
+}
+.weaponRowTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
 }
 .weaponName {
   font-family: var(--font-display);

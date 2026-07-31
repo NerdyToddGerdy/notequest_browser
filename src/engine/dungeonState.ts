@@ -220,6 +220,12 @@ export interface CombatState {
    * combat action), capped at once per round by this flag -- set when used, reset back to `false`
    * at the top of `applyMonsterTurn()`, the one chokepoint every round-ending action already calls. */
   hirelingAttackedThisRound: boolean;
+  /** Whether the player has taken a weapon attack yet in this fight (Assassin, issue #103): "Deals 3
+   * times damage on your first attack." Read as the first hit *of the fight* rather than the first
+   * against each monster -- confirmed with the user, and the plainer reading of "your first attack"
+   * (an opening strike, not an opener against everything in the room). Optional so an in-flight
+   * persisted fight from before this existed simply reads as false. */
+  playerHasAttacked?: boolean;
   /** Snake (Animals, issue #26/#29/#67): ANIMAL_ATTACK's own once-per-round cap, same shape as
    * `hirelingAttackedThisRound` -- unlike a Hireling, no HP/absorption slot exists for the animal
    * itself (the rulebook never describes an Animal being harmed or dying in combat, so this is a

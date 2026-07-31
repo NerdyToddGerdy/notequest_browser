@@ -1,5 +1,6 @@
 import { ARMOR_PIECE_LABELS, describeItemEffect } from "../../../data/dungeonTables.ts";
 import type { ArmorPiece, EquippedWeapon } from "../../../engine/dungeonState.ts";
+import type { EquipmentSaleTarget } from "../../../engine/town.ts";
 import styles from "./Equipment.module.css";
 
 export interface EquipmentProps {
@@ -19,6 +20,12 @@ export interface EquipmentProps {
   onFixArmor?: (index: number) => void;
   /** Blacksmith: "You can repair an armor by spending 1 Torch" instead of the usual 1 coin. */
   isBlacksmith?: boolean;
+  /** Set only in Town (issue #117) -- renders a "Sell" button on every gear row. One callback for all
+   * four lists rather than four props, since the target already names which list it came from. */
+  onSell?: (target: EquipmentSaleTarget) => void;
+  /** What a given row would fetch, used to label its Sell button so the price shown is the price
+   * paid. Required alongside `onSell`; ignored without it. */
+  saleWorth?: (target: EquipmentSaleTarget) => number | null;
 }
 
 /** A named piece has to say *where* it's worn (issue #116): `itemName` used to replace the slot
@@ -39,11 +46,26 @@ export function Equipment({
   onWieldArmor,
   onFixArmor,
   isBlacksmith = false,
+  onSell,
+  saleWorth,
 }: EquipmentProps) {
   if (armor.length === 0 && !weapon && spareWeapons.length === 0 && spareArmor.length === 0)
     return null;
 
   const weaponEffectText = weapon?.bonusEffect ? describeItemEffect(weapon.bonusEffect) : null;
+
+  /** Rendered on every gear row in Town (issue #117). Omitted entirely rather than disabled when the
+   * row can't be priced, since an unsellable row has nothing to explain. */
+  function sellButton(target: EquipmentSaleTarget) {
+    if (!onSell || !saleWorth) return null;
+    const worth = saleWorth(target);
+    if (worth === null) return null;
+    return (
+      <button type="button" className={styles.fixBtn} onClick={() => onSell(target)}>
+        Sell ({worth}c)
+      </button>
+    );
+  }
 
   return (
     <div className={styles.panel}>
@@ -51,8 +73,11 @@ export function Equipment({
 
       {weapon && (
         <p className={styles.weaponRow} title={weaponEffectText ?? undefined}>
-          <span className={`${styles.weaponName} ${weaponEffectText ? styles.hasEffect : ""}`}>
-            {weapon.name}
+          <span className={styles.weaponRowTop}>
+            <span className={`${styles.weaponName} ${weaponEffectText ? styles.hasEffect : ""}`}>
+              {weapon.name}
+            </span>
+            {sellButton({ list: "weapon", index: 0 })}
           </span>
           <span className={styles.weaponFormula}>
             {weapon.formula} damage{weapon.twoHanded ? " · Two-handed" : ""}
@@ -81,6 +106,7 @@ export function Equipment({
                         Wield
                       </button>
                     )}
+                    {sellButton({ list: "spareWeapons", index })}
                   </div>
                   <span className={styles.weaponFormula}>
                     {spare.formula} damage{spare.twoHanded ? " · Two-handed" : ""}
@@ -122,6 +148,7 @@ export function Equipment({
                       Fix ({isBlacksmith ? "1 torch" : "1 coin"})
                     </button>
                   )}
+                  {sellButton({ list: "armor", index })}
                 </li>
               );
             })}
@@ -151,6 +178,7 @@ export function Equipment({
                         Wield
                       </button>
                     )}
+                    {sellButton({ list: "spareArmor", index })}
                   </div>
                   {piece.maxHp > 0 && (
                     <span className={`${styles.hp} ${piece.hp <= 0 ? styles.destroyed : ""}`}>

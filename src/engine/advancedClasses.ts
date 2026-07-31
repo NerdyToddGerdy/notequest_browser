@@ -219,10 +219,6 @@ const FLAVOR_ONLY_ABILITIES: ReadonlySet<string> = new Set([
   // Both need a second weapon slot; `DungeonState.weapon` is a single `EquippedWeapon` (see #100).
   "Ambidextrous",
   "Multidextrous",
-  // Needs a sell action on `Equipment`'s armor list, and `ArmorPiece` carries no price (see #117).
-  "Collector",
-  // Needs a "has this fight's first attack happened yet" flag on `CombatState`.
-  "Assassin",
   // Needs per-turn ability suppression; `ignoresMonsterAbility` is all-or-nothing.
   "Ghostbuster",
   // Provisions aren't tracked inside a dungeon run, which is where monsters are defeated.
@@ -291,11 +287,9 @@ export function grantSpellUses(
 
 /** Applies the acquired class's ability, where it grants something mechanically real (see
  * CLAUDE.md's Advanced Classes note for the full list) -- every other class in `REQUIREMENT_CHECKS`
- * either has no ability ("None.") or one left flavor-only (Ambidextrous/Multidextrous's dual-wield,
- * Ghostbuster's first-turn Intangible immunity, Collector's "sell an armor piece for 5 coins" --
- * would need a new sell action on `Equipment`'s armor list, no precedent for selling armor exists
- * yet -- and Assassin's "3x damage on your first attack," which would need a new `CombatState`
- * field to track "has this fight's first attack happened yet"), so falls through untouched. */
+ * either has no ability ("None."), one that's a passive check at its own use site (Pirate, Merchant,
+ * Collector's armor sell price, Assassin's opening strike), or one left flavor-only -- see
+ * `FLAVOR_ONLY_ABILITIES` below for that list and what each is blocked on. */
 function applyAdvancedClassAbility(
   name: string,
   resources: AdventurerResources,

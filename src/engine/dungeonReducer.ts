@@ -693,8 +693,15 @@ function attackMultiplier(
   draft: Draft<DungeonState>,
   monster: Draft<CombatMonsterState>,
   isHorn = false,
+  isFirstAttack = false,
 ): number {
   let multiplier = 1;
+  // Assassin (Advanced Class, issue #103): "Deals 3 times damage on your first attack." Checked
+  // *before* the isHorn early return below, because this is a class ability rather than an equipped
+  // weapon's effect -- a Rinoceroid's horn skips the weapon, not the character's own training.
+  if (isFirstAttack && draft.advancedClasses.includes("Assassin")) {
+    multiplier *= ASSASSIN_FIRST_HIT_MULTIPLIER;
+  }
   if (isHorn) return multiplier;
   for (const effect of equippedEffects(draft)) {
     if (effect.kind === "damageMultiplierVsTag" && matchesTags(monster, effect.tags)) {
@@ -703,6 +710,8 @@ function attackMultiplier(
   }
   return multiplier;
 }
+
+const ASSASSIN_FIRST_HIT_MULTIPLIER = 3;
 
 /** True if any equipped item (weapon or armor) ignores this specific monster ability. */
 function ignoresAbility(draft: Draft<DungeonState>, ability: MonsterAbility): boolean {
@@ -2307,6 +2316,13 @@ export function dungeonReducer(
         const monster = combat.monsters.find((m) => m.id === action.targetId);
         if (!monster) return;
 
+        // Assassin (issue #103) reads this, so it has to be captured before it's set -- and set here,
+        // not at each of the handler's several exits, so no branch can forget to spend the opening
+        // strike. A paralyzed turn returned above without reaching this, which is right: being unable
+        // to act isn't attacking.
+        const isFirstAttack = !combat.playerHasAttacked;
+        combat.playerHasAttacked = true;
+
         // Goblin (New Races, issue #60): "If you roll 1 on the damage die, you explode. Dealing 5
         // damage to everyone in the room." Confirmed with the user: monsters only, the Goblin
         // themselves isn't harmed -- mirroring the Hireling Goblin Helper's own explosion (#84,
@@ -2351,8 +2367,13 @@ export function dungeonReducer(
             : parseWeaponFormula(draft.weapon?.formula ?? draft.weaponFormula);
           const baseTotal = Math.max(0, action.roll + modifier);
           const weaponTotal =
-            baseTotal * attackMultiplier(draft, monster, useHorn) +
+            baseTotal * attackMultiplier(draft, monster, useHorn, isFirstAttack) +
             attackBonus(draft, monster, useHorn);
+          // Legibility: a tripled hit otherwise looks like an ordinary lucky roll, and Assassin
+          // costs 200 coins plus a Boss kill -- the player should see it fire.
+          if (isFirstAttack && draft.advancedClasses.includes("Assassin")) {
+            pushLog(draft, "You strike before they know you're there — triple damage!");
+          }
           const result = resolvePlayerAttack(
             monster,
             action.roll,

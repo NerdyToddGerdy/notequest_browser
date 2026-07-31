@@ -1,7 +1,7 @@
 import type { MonsterAbility } from "../data/dungeonTables.ts";
 import type { Terrain } from "../data/hexTables.ts";
 import type { SpellTableKey } from "../data/types.ts";
-import { HEAL_AMOUNT, OUT_OF_COMBAT_SPELL_NAMES } from "./combat.ts";
+import { HEAL_AMOUNT, OUT_OF_COMBAT_SPELL_NAMES, parseWeaponFormula } from "./combat.ts";
 import { MUTATION_IDS } from "../data/mutations.ts";
 import type { ArmorPieceKind } from "../data/dungeonTables.ts";
 import type { ArmorPiece, EquippedWeapon, HeldItem, OwnedBuilding } from "./dungeonState.ts";
@@ -373,6 +373,126 @@ export function sellItem(
     ...resources,
     coins: resources.coins + item.worth * multiplier,
     heldItems: resources.heldItems.filter((_, i) => i !== index),
+    milestones: { ...resources.milestones, hasSoldItem: true },
+  };
+}
+
+/** Selling gear (issue #117). Neither armor nor weapons carry a printed price anywhere in the
+ * rulebook, which is exactly why no sell path for them existed -- `HeldItem` has a `worth` and
+ * `ArmorPiece`/`EquippedWeapon` don't. Both formulas below are this project's own, chosen to be
+ * consistent rather than invented per item, and documented as such.
+ *
+ * Armor reuses #83's existing basis: an unusable piece is already worth `Math.max(1, maxHp)` when an
+ * Ogre sells it, so a Breastplate fetches 10 and a Ring 1. **Collector** ("Sell a piece of armor for
+ * 5 coins," issue #103) floors that at 5 rather than replacing it -- a real upgrade on the cheap
+ * pieces, and no double-count on a Breastplate already worth more. Confirmed with the user as the
+ * reading that satisfies both the class and #117's "anyone should be able to unload a benched
+ * Breastplate." */
+export function armorWorth(piece: ArmorPiece, isCollector = false): number {
+  const base = Math.max(1, piece.maxHp);
+  return isCollector ? Math.max(COLLECTOR_ARMOR_FLOOR, base) : base;
+}
+
+const COLLECTOR_ARMOR_FLOOR = 5;
+
+/** A weapon's price comes from the one thing the rulebook does give it -- its damage formula -- so a
+ * Dagger (1d6-1) is cheap and a Halberd (1d6+3) isn't. `#48` scoped selling weapons out precisely
+ * because no price data exists; this is the documented simplification that unblocks it. Floored at 1
+ * so nothing is ever worthless. */
+export function weaponWorth(weapon: EquippedWeapon): number {
+  const { modifier } = parseWeaponFormula(weapon.formula);
+  return Math.max(1, WEAPON_BASE_WORTH + modifier);
+}
+
+const WEAPON_BASE_WORTH = 3;
+
+/** Which of the four gear lists a sale refers to. `weapon` holds a single item, so its `index` is
+ * always 0 -- kept in the same shape as the others so `Equipment` has one callback, not four. */
+export type EquipmentList = "armor" | "spareArmor" | "weapon" | "spareWeapons";
+
+export interface EquipmentSaleTarget {
+  list: EquipmentList;
+  index: number;
+}
+
+export interface SellOptions {
+  /** Cat-Person or the Merchant Advanced Class -- "sell items for double the value." */
+  isDoubler?: boolean;
+  /** "If it is a Fortress, double this value" (issue #94) -- a property of the place, so it stacks. */
+  isFortress?: boolean;
+  /** Collector (issue #103) -- floors an armor piece's price at 5 coins. */
+  isCollector?: boolean;
+}
+
+/** The multiplier shared by every sale, so the Pack and the Equipment lists can't drift apart. */
+function sellMultiplier(opts: SellOptions): number {
+  return (opts.isDoubler ? 2 : 1) * (opts.isFortress ? 2 : 1);
+}
+
+/** What this piece of gear would fetch right now, multipliers included -- `null` if the slot is
+ * empty. `Equipment` labels its Sell button with this, so the price shown is the price paid. */
+export function equipmentSaleWorth(
+  resources: AdventurerResources,
+  target: EquipmentSaleTarget,
+  opts: SellOptions = {},
+): number | null {
+  const base = baseWorthOf(resources, target, opts);
+  return base === null ? null : base * sellMultiplier(opts);
+}
+
+function baseWorthOf(
+  resources: AdventurerResources,
+  target: EquipmentSaleTarget,
+  opts: SellOptions,
+): number | null {
+  switch (target.list) {
+    case "armor": {
+      const piece = resources.armor[target.index];
+      return piece ? armorWorth(piece, opts.isCollector) : null;
+    }
+    case "spareArmor": {
+      const piece = resources.spareArmor[target.index];
+      return piece ? armorWorth(piece, opts.isCollector) : null;
+    }
+    case "weapon":
+      return resources.weapon ? weaponWorth(resources.weapon) : null;
+    case "spareWeapons": {
+      const spare = resources.spareWeapons[target.index];
+      return spare ? weaponWorth(spare) : null;
+    }
+  }
+}
+
+/** Sells one piece of gear, crediting `equipmentSaleWorth()` and removing it. A no-op on an empty
+ * slot, like every other Town action. Selling the *equipped* weapon is allowed and safe: `weapon` is
+ * an override, so the character falls back to their class's own `weaponFormula` rather than being
+ * left unarmed. Sets `hasSoldItem` (Merchant's requirement, issue #70) exactly like `sellItem()`. */
+export function sellEquipment(
+  resources: AdventurerResources,
+  target: EquipmentSaleTarget,
+  opts: SellOptions = {},
+): AdventurerResources {
+  const worth = equipmentSaleWorth(resources, target, opts);
+  if (worth === null) return resources;
+  const withoutIt: AdventurerResources = {
+    ...resources,
+    armor:
+      target.list === "armor"
+        ? resources.armor.filter((_, i) => i !== target.index)
+        : resources.armor,
+    spareArmor:
+      target.list === "spareArmor"
+        ? resources.spareArmor.filter((_, i) => i !== target.index)
+        : resources.spareArmor,
+    weapon: target.list === "weapon" ? null : resources.weapon,
+    spareWeapons:
+      target.list === "spareWeapons"
+        ? resources.spareWeapons.filter((_, i) => i !== target.index)
+        : resources.spareWeapons,
+  };
+  return {
+    ...withoutIt,
+    coins: resources.coins + worth,
     milestones: { ...resources.milestones, hasSoldItem: true },
   };
 }

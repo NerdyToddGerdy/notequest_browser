@@ -13,11 +13,15 @@ import {
 } from "../dungeonState.ts";
 import { hireHireling } from "../hirelings.ts";
 import {
+  armorWorth,
   buyLamp,
   canBuyLamp,
   createInitialMilestones,
   createInitialTravelStats,
+  equipmentSaleWorth,
   ownsLamp,
+  sellEquipment,
+  weaponWorth,
   type AdventurerResources,
 } from "../town.ts";
 import { fixedDie, sequenceDie } from "../../test/mulberry32.ts";
@@ -250,15 +254,8 @@ describe("issue #111: an ability that does nothing says so", () => {
       .filter((def) => !hasImplementedAbility(def.name))
       .map((def) => def.name)
       .sort();
-    expect(flavorOnly).toEqual([
-      "Ambidextrous",
-      "Assassin",
-      "Collector",
-      "Cook",
-      "Emperor",
-      "Ghostbuster",
-      "Multidextrous",
-    ]);
+    // Collector and Assassin came off this list in v2.55.0 (issue #103).
+    expect(flavorOnly).toEqual(["Ambidextrous", "Cook", "Emperor", "Ghostbuster", "Multidextrous"]);
   });
 
   it("never marks a class whose ability text already admits it does nothing", () => {
@@ -451,5 +448,183 @@ describe("issue #109: the Dwarven Lamp is one per character", () => {
 
   it("is still gated on affording it", () => {
     expect(canBuyLamp(makeResources({ coins: 39 }))).toBe(false);
+  });
+});
+
+describe("issue #117: gear can be sold", () => {
+  const BREASTPLATE = { piece: "breastplate" as const, hp: 10, maxHp: 10 };
+  const RING = { piece: "ring" as const, hp: 0, maxHp: 0 };
+
+  it("prices armor at its HP, floored at 1 so nothing is worthless", () => {
+    expect(armorWorth(BREASTPLATE)).toBe(10);
+    expect(armorWorth({ piece: "boots", hp: 3, maxHp: 3 })).toBe(3);
+    expect(armorWorth(RING)).toBe(1); // a Ring is 0 HP by the rulebook's own table
+  });
+
+  it("prices a weapon off its damage formula, the one number the rulebook gives it", () => {
+    expect(weaponWorth({ name: "Dagger", formula: "1d6-1" })).toBe(2);
+    expect(weaponWorth({ name: "Sword", formula: "1d6" })).toBe(3);
+    expect(weaponWorth({ name: "Great Sword", formula: "1d6+2" })).toBe(5);
+    expect(weaponWorth({ name: "Halberd", formula: "1d6+3" })).toBe(6);
+  });
+
+  it("sells a benched spare piece, which previously had no way out of the list at all", () => {
+    const before = makeResources({ coins: 0, spareArmor: [BREASTPLATE] });
+    const target = { list: "spareArmor" as const, index: 0 };
+    expect(equipmentSaleWorth(before, target)).toBe(10);
+    const after = sellEquipment(before, target);
+    expect(after.coins).toBe(10);
+    expect(after.spareArmor).toEqual([]);
+    expect(after.milestones.hasSoldItem).toBe(true); // Merchant's requirement, like sellItem
+  });
+
+  it("sells the equipped weapon safely -- it's an override, so the class weapon takes back over", () => {
+    const before = makeResources({ coins: 0, weapon: { name: "Sword", formula: "1d6" } });
+    const after = sellEquipment(before, { list: "weapon", index: 0 });
+    expect(after.coins).toBe(3);
+    expect(after.weapon).toBeNull();
+  });
+
+  it("removes only the piece sold, leaving the rest of the list in order", () => {
+    const before = makeResources({
+      armor: [RING, BREASTPLATE, { piece: "helm", hp: 4, maxHp: 4 }],
+    });
+    const after = sellEquipment(before, { list: "armor", index: 1 });
+    expect(after.armor.map((p) => p.piece)).toEqual(["ring", "helm"]);
+  });
+
+  it("stacks the Fortress and Merchant multipliers exactly like the Pack's own sell action", () => {
+    const before = makeResources({ coins: 0, spareArmor: [BREASTPLATE] });
+    const target = { list: "spareArmor" as const, index: 0 };
+    expect(equipmentSaleWorth(before, target, { isFortress: true })).toBe(20);
+    expect(equipmentSaleWorth(before, target, { isDoubler: true })).toBe(20);
+    expect(equipmentSaleWorth(before, target, { isDoubler: true, isFortress: true })).toBe(40);
+  });
+
+  it("is a no-op on an empty slot rather than crediting anything", () => {
+    const before = makeResources({ coins: 7 });
+    expect(equipmentSaleWorth(before, { list: "weapon", index: 0 })).toBeNull();
+    expect(sellEquipment(before, { list: "weapon", index: 0 })).toEqual(before);
+    expect(sellEquipment(before, { list: "spareArmor", index: 3 }).coins).toBe(7);
+  });
+});
+
+describe("issue #103: Collector", () => {
+  it("floors a cheap piece at 5 coins, which is the whole of its ability", () => {
+    expect(armorWorth({ piece: "ring", hp: 0, maxHp: 0 }, true)).toBe(5);
+    expect(armorWorth({ piece: "boots", hp: 3, maxHp: 3 }, true)).toBe(5);
+  });
+
+  it("doesn't double-count on a piece already worth more than 5", () => {
+    expect(armorWorth({ piece: "breastplate", hp: 10, maxHp: 10 }, true)).toBe(10);
+  });
+
+  it("applies through the sale itself, and still stacks with the place and the seller", () => {
+    const before = makeResources({ coins: 0, spareArmor: [{ piece: "ring", hp: 0, maxHp: 0 }] });
+    const target = { list: "spareArmor" as const, index: 0 };
+    expect(equipmentSaleWorth(before, target, { isCollector: true })).toBe(5);
+    expect(equipmentSaleWorth(before, target, { isCollector: true, isFortress: true })).toBe(10);
+    expect(sellEquipment(before, target, { isCollector: true }).coins).toBe(5);
+  });
+
+  it("changes nothing for a weapon -- the ability names armor specifically", () => {
+    const weapon = { name: "Dagger", formula: "1d6-1" };
+    const before = makeResources({ coins: 0, spareWeapons: [weapon] });
+    const target = { list: "spareWeapons" as const, index: 0 };
+    expect(equipmentSaleWorth(before, target, { isCollector: true })).toBe(2);
+  });
+});
+
+describe("issue #103: Assassin", () => {
+  /** One weapon attack for `roll`, against a monster tough enough to survive a tripled hit. */
+  function strike(state: DungeonState, roll: number): DungeonState {
+    return dungeonReducer(state, { type: "PLAYER_ATTACK", targetId: 1, roll });
+  }
+
+  function fight(advancedClasses: string[], overrides: Partial<DungeonState> = {}): DungeonState {
+    return palaceState({
+      advancedClasses,
+      weaponFormula: "1d6",
+      combat: makeCombat({
+        monsters: [
+          {
+            id: 1,
+            name: "Aberration",
+            hp: 60,
+            maxHp: 60,
+            damage: 0,
+            abilities: [],
+            bonusDamage: 0,
+            deathtouchPending: false,
+            paralyzePending: 0,
+            skipNextAttack: false,
+            silencedTurns: 0,
+          },
+        ],
+      }),
+      ...overrides,
+    });
+  }
+
+  it("triples the first hit of the fight", () => {
+    const plain = strike(fight([]), 4);
+    const assassin = strike(fight(["Assassin"]), 4);
+    expect(60 - plain.combat!.monsters[0]!.hp).toBe(4);
+    expect(60 - assassin.combat!.monsters[0]!.hp).toBe(12);
+  });
+
+  it("only the first -- the second hit of the same fight is ordinary", () => {
+    const first = strike(fight(["Assassin"]), 4);
+    expect(first.combat!.playerHasAttacked).toBe(true);
+    const second = strike(first, 4);
+    // 12 from the opener, then 4.
+    expect(60 - second.combat!.monsters[0]!.hp).toBe(16);
+  });
+
+  it("is per fight, not per monster -- a second target gets no opener", () => {
+    const twoMonsters = fight(["Assassin"]);
+    const withPair: DungeonState = {
+      ...twoMonsters,
+      combat: {
+        ...twoMonsters.combat!,
+        monsters: [
+          twoMonsters.combat!.monsters[0]!,
+          { ...twoMonsters.combat!.monsters[0]!, id: 2, name: "Aberration II" },
+        ],
+      },
+    };
+    const first = strike(withPair, 4);
+    const second = dungeonReducer(first, { type: "PLAYER_ATTACK", targetId: 2, roll: 4 });
+    expect(60 - second.combat!.monsters[0]!.hp).toBe(12); // the opener
+    expect(60 - second.combat!.monsters[1]!.hp).toBe(4); // an ordinary hit
+  });
+
+  it("applies to a Rinoceroid's horn too -- it's the character's training, not the weapon's", () => {
+    const horned = fight(["Assassin"], { raceName: "Rinoceroid" });
+    const next = dungeonReducer(horned, {
+      type: "PLAYER_ATTACK",
+      targetId: 1,
+      roll: 4,
+      useHorn: true,
+    });
+    expect(60 - next.combat!.monsters[0]!.hp).toBe(12);
+  });
+
+  it("a paralyzed turn isn't an attack, so the opener survives it", () => {
+    const paralyzed = fight(["Assassin"]);
+    const withParalysis: DungeonState = {
+      ...paralyzed,
+      combat: { ...paralyzed.combat!, paralyzedTurns: 1 },
+    };
+    const skipped = strike(withParalysis, 4);
+    expect(skipped.combat!.playerHasAttacked ?? false).toBe(false);
+    const opener = strike(skipped, 4);
+    expect(60 - opener.combat!.monsters[0]!.hp).toBe(12);
+  });
+
+  it("a fight persisted before this field existed reads as 'not yet struck'", () => {
+    const legacy = fight(["Assassin"]);
+    expect(legacy.combat!.playerHasAttacked).toBeUndefined();
+    expect(60 - strike(legacy, 4).combat!.monsters[0]!.hp).toBe(12);
   });
 });

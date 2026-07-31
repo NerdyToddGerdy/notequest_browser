@@ -41,6 +41,8 @@ import {
   learnRandomSpell,
   removeCurse,
   rest,
+  sellEquipment,
+  equipmentSaleWorth,
   sellItem,
   wieldWeapon,
   wieldArmor,
@@ -324,6 +326,10 @@ export function TownScreen({
     if (reasons.length === 0) return "";
     return ` (${isCatPerson && isFortress ? "quadrupled" : "doubled"}, ${reasons.join(" + ")})`;
   })();
+  /** Issue #117: the same multipliers the Pack's own sell action uses, plus Collector's armor floor
+   * (issue #103), bundled once so `Equipment`'s price label and its Sell action can't disagree. */
+  const isCollector = resources.advancedClasses.includes("Collector");
+  const sellOptions = { isDoubler: isCatPerson, isFortress, isCollector };
   const isChampion = resources.advancedClasses.includes("Champion");
   const isAlchemist = resources.advancedClasses.includes("Alchemist");
   // Ogre (New Races, issue #60): "Cannot use potions, scrolls or wear armor."
@@ -800,8 +806,12 @@ export function TownScreen({
                         )}
                       </div>
                       <p className={styles.sellNote}>
-                        Sell items from your Pack for their listed worth in coins
-                        {sellMultiplierNote}, or fix a damaged armor piece from your Equipment, for{" "}
+                        Sell items from your Pack, or any armor and weapons from your Equipment
+                        {sellMultiplierNote}
+                        {isCollector
+                          ? ", with armor never fetching less than 5 coins (Collector)"
+                          : ""}
+                        . Fix a damaged armor piece for{" "}
                         {isBlacksmith
                           ? `1 torch (${character.cls.name === "Blacksmith" ? "Blacksmith" : "Advanced Class"})`
                           : "1 coin"}
@@ -923,6 +933,8 @@ export function TownScreen({
             onWieldArmor={(index) => onUpdateResources(wieldArmor(resources, index))}
             onFixArmor={(index) => onUpdateResources(fixArmor(resources, index, isBlacksmith))}
             isBlacksmith={isBlacksmith}
+            onSell={(target) => onUpdateResources(sellEquipment(resources, target, sellOptions))}
+            saleWorth={(target) => equipmentSaleWorth(resources, target, sellOptions)}
           />
           <Pack
             items={resources.heldItems}
