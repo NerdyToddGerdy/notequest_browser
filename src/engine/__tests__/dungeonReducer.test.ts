@@ -350,7 +350,7 @@ describe("Room Content rewards", () => {
     // Magic Item roll 1 -> [Armor] of Royalty (grants: armor); roll 1 again for the base Armor
     // table -> Ring (0 HP). Two magic items rolled (2d6 count 1+1=2), both identical here.
     expect(state.armor).toHaveLength(2);
-    expect(state.armor[0]!.itemName).toBe("[Armor] of Royalty");
+    expect(state.armor[0]!.itemName).toBe("Ring of Royalty"); // issue #116: substituted, not a template
   });
 
   it("does nothing extra for a row with no reward field", () => {
@@ -933,7 +933,7 @@ describe("ROLL_CHEST", () => {
           piece: "boots" as const,
           hp: 3,
           maxHp: 3,
-          itemName: "Leprechaun's [Armor]",
+          itemName: "Leprechaun's Helm",
           effect: { kind: "doubleChestCoins" as const },
         },
       ],
@@ -1848,7 +1848,7 @@ describe("RESOLVE_DOOR_LOCK", () => {
           piece: "wonderItem" as const,
           hp: 0,
           maxHp: 0,
-          itemName: "Cultist's [Armor]",
+          itemName: "Cultist's Helm",
           effect: { kind: "trapImmunity" as const },
         },
       ],
@@ -2200,7 +2200,7 @@ describe("OPEN_TREASURE", () => {
     // Magic Item roll 3 -> Centurion's [Armor] (+1 HP); base Armor roll 3 (same forced die) -> Boots (3 HP).
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(3));
     expect(next.armor).toEqual([
-      { piece: "boots", hp: 4, maxHp: 4, itemName: "Centurion's [Armor]", effect: undefined },
+      { piece: "boots", hp: 4, maxHp: 4, itemName: "Centurion's Boots", effect: undefined },
     ]);
   });
 
@@ -2212,7 +2212,9 @@ describe("OPEN_TREASURE", () => {
     expect(next.weapon).toBeNull();
     expect(next.spareWeapons).toEqual([
       {
-        name: "Whip",
+        // Issue #116: "[Weapon] of Destruction" rolled a Whip, so it's the Whip of Destruction --
+        // the item's own name used to be discarded in favour of the bare base weapon.
+        name: "Whip of Destruction",
         formula: "1d6+1",
         twoHanded: undefined,
         bonusEffect: { kind: "weaponDamageBonus", amount: 2 },
@@ -2395,7 +2397,7 @@ describe("OPEN_TREASURE", () => {
     expect(next.weapon).toBeNull();
     expect(next.spareWeapons).toEqual([
       {
-        name: "Sickle",
+        name: "Vampiric Sickle", // issue #116: "Vampiric [Weapon]" over Crypt's own base roll
         formula: "1d6+1",
         twoHanded: undefined,
         bonusEffect: { kind: "lifesteal", amount: 1 },
@@ -2419,7 +2421,7 @@ describe("OPEN_TREASURE", () => {
     expect(next.armor).toEqual([]);
     // Ring's own maxHp is 0 -- Math.max(1, 0) keeps the sellable item from being worth literally
     // nothing.
-    expect(next.heldItems).toEqual([{ name: "[Armor] of Royalty", worth: 1 }]);
+    expect(next.heldItems).toEqual([{ name: "Ring of Royalty", worth: 1 }]);
     expect(next.log[0]!.message).toContain("Ogres cannot wear armor");
   });
 
@@ -2437,7 +2439,7 @@ describe("OPEN_TREASURE", () => {
       fixedDie(3), // Magic Item roll 3 -> Centurion's [Armor]; base Armor roll 3 -> Boots (3 HP)
     );
     expect(next.armor).toEqual([]);
-    expect(next.heldItems).toEqual([{ name: "Centurion's [Armor]", worth: 3 }]);
+    expect(next.heldItems).toEqual([{ name: "Centurion's Boots", worth: 3 }]);
   });
 
   it("Ogre (New Races, issue #60): Potion of Fury never touches playerDamageBonus, even mid-fight -- sells instead (issue #83)", () => {
@@ -2503,7 +2505,7 @@ describe("OPEN_TREASURE", () => {
       fixedDie(1), // "[Armor] of Royalty"
     );
     expect(next.heldItems).toEqual(tenItems); // untouched
-    expect(next.pendingPackItem).toEqual({ name: "[Armor] of Royalty", worth: 1 });
+    expect(next.pendingPackItem).toEqual({ name: "Ring of Royalty", worth: 1 });
   });
 
   it("Ogre (New Races, issue #60): a Magic Item's weapon grant is unaffected -- the restriction never mentions weapons", () => {
@@ -2520,7 +2522,9 @@ describe("OPEN_TREASURE", () => {
     );
     expect(next.spareWeapons).toEqual([
       {
-        name: "Whip",
+        // Issue #116: "[Weapon] of Destruction" rolled a Whip, so it's the Whip of Destruction --
+        // the item's own name used to be discarded in favour of the bare base weapon.
+        name: "Whip of Destruction",
         formula: "1d6+1",
         twoHanded: undefined,
         bonusEffect: { kind: "weaponDamageBonus", amount: 2 },
@@ -2554,7 +2558,7 @@ describe("OPEN_TREASURE", () => {
     // Magic Item roll 1 -> Bone [Armor] (-1 HP); base Armor roll 1 (same forced die) -> Ring (0 HP).
     const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 6 }, fixedDie(1));
     expect(next.armor).toEqual([
-      { piece: "ring", hp: 0, maxHp: 0, itemName: "Bone [Armor]", effect: undefined },
+      { piece: "ring", hp: 0, maxHp: 0, itemName: "Bone Ring", effect: undefined },
     ]);
   });
 
@@ -2948,6 +2952,8 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByAbility: { loot: 2 },
       advancedClasses: [],
       hireling: null,
+      hirelingHp: null,
+      curiosities: {},
       animals: [],
       milestones: createInitialMilestones(),
       buildings: [],
@@ -3010,6 +3016,8 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      hirelingHp: null,
+      curiosities: {},
       animals: [],
       milestones: createInitialMilestones(),
       buildings: [],
@@ -3092,6 +3100,8 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      hirelingHp: null,
+      curiosities: {},
       animals: [],
       milestones: createInitialMilestones(),
       buildings: [],
@@ -3145,6 +3155,8 @@ describe("RETURN_TO_DUNGEON", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      hirelingHp: null,
+      curiosities: {},
       animals: [],
       milestones: createInitialMilestones(),
       buildings: [],
@@ -3207,6 +3219,8 @@ describe("Monster table re-roll on return", () => {
         killsByAbility: {},
         advancedClasses: [],
         hireling: null,
+        hirelingHp: null,
+        curiosities: {},
         animals: [],
         milestones: createInitialMilestones(),
         buildings: [],
@@ -3342,6 +3356,8 @@ describe("Monster table re-roll on return", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      hirelingHp: null,
+      curiosities: {},
       animals: [],
       milestones: createInitialMilestones(),
       buildings: [],
@@ -3505,6 +3521,8 @@ describe("Resuming a fight abandoned via Teleport", () => {
       killsByAbility: {},
       advancedClasses: [],
       hireling: null,
+      hirelingHp: null,
+      curiosities: {},
       animals: [],
       milestones: createInitialMilestones(),
       buildings: [],
@@ -3702,7 +3720,7 @@ describe("Armor slot uniqueness / spareArmor (issue #82)", () => {
     expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3 }]); // untouched
     expect(next.spareArmor).toHaveLength(1);
     expect(next.spareArmor[0]!.piece).toBe("boots");
-    expect(next.spareArmor[0]!.itemName).toBe("[Armor] of Royalty");
+    expect(next.spareArmor[0]!.itemName).toBe("Boots of Royalty");
   });
 
   it("an empty slot doesn't bench -- the piece is worn directly", () => {

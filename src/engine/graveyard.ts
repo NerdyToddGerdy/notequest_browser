@@ -36,6 +36,10 @@ export interface GraveyardEntry {
    * past character die while holding Necromancer?), the only Advanced Class currently checked this
    * way, but reusable for any future "died while holding X" requirement. */
   advancedClasses?: string[];
+  /** Flavor-only finds this character had accumulated (issues #109/#115) -- "died with 4 arms and 3
+   * tails" is a better epitaph than the bare stat line, and the Graveyard is the moment a player most
+   * wants to look back. Optional, same back-compat shape as everything else here. */
+  curiosities?: Record<string, number>;
 }
 
 /** The subset of `causeOfDeath` that can strike outside a dungeon -- Town/World's own equivalent of

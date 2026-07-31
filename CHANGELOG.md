@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.54.0] - 2026-07-31
+
+### Fixed
+
+- **Hirelings healed to full at the start of every fight** (#114) — a Hireling's HP was re-derived
+  from the roster table each time combat began, so one hire bought unlimited damage absorption for a
+  whole dungeon trip. Its current HP now persists across fights and across a trip paused in Town;
+  resting heals the character, never the hired help.
+- **Magic item names showed a literal `[Armor]` placeholder** (#116) — an item's name is now
+  substituted with the concrete piece it rolled, so "Centurion's `[Armor]`" is "Centurion's Boots."
+  Weapons keep their own name too, instead of being renamed to the bare base weapon.
+- **Equipment didn't say where armor was worn** (#116) — a named piece showed its name and nothing
+  else, hiding which of the five body slots it occupied. Rows now read "Centurion's Helm (Helm)", and
+  the worn-armor list has a heading of its own.
+- **Found items vanished** (#109) — a Wonder with no mechanical effect (Goblin Whistle, Lamp,
+  Salamander Potion, Potion of the Helping hand) was announced in the log and then granted nothing at
+  all. It's now recorded in Curiosities.
+- **The Dwarven Lamp could be bought over and over** (#109) — 40 coins and a Pack slot each time, for
+  an item that is unique by definition. One per character now.
+
+### Added
+
+- **Curiosities** (#115) — a running tally of the odd things that have happened to you, on the
+  Adventurer sheet next to Kills and opening the same kind of breakdown modal. A player finished a run
+  with "4 arms and 3 tails" and had no way to look at it; now they do, and the Graveyard records it as
+  an epitaph.
+- **A "flavor only" marker on unimplemented Advanced Class abilities** (#111) — Ambidextrous,
+  Multidextrous, Collector, Assassin, Ghostbuster, Cook and Emperor charge coins and grant their HP
+  bonus, but their ability text describes something this app doesn't do yet. A player bought
+  Ambidextrous and spent an evening hunting for a dual-wield control that was never built.
+
 ## [2.53.0] - 2026-07-31
 
 ### Added

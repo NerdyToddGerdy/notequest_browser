@@ -21,6 +21,14 @@ export interface EquipmentProps {
   isBlacksmith?: boolean;
 }
 
+/** A named piece has to say *where* it's worn (issue #116): `itemName` used to replace the slot
+ * label outright, so "Helm of the Dead" gave the player no way to tell which of the five body slots
+ * it occupied -- the exact thing a player reported being unable to check. */
+function armorLabel(piece: ArmorPiece): string {
+  const slot = ARMOR_PIECE_LABELS[piece.piece];
+  return piece.itemName ? `${piece.itemName} (${slot})` : slot;
+}
+
 /** Worn armor pieces and an acquired weapon override -- see ArmorPiece/EquippedWeapon for how they're earned. */
 export function Equipment({
   armor,
@@ -85,30 +93,40 @@ export function Equipment({
       )}
 
       {armor.length > 0 && (
-        <ul className={styles.list}>
-          {armor.map((piece, index) => {
-            const label = piece.itemName ?? ARMOR_PIECE_LABELS[piece.piece];
-            const needsFixing = piece.maxHp > 0 && piece.hp < piece.maxHp;
-            const effectText = piece.effect ? describeItemEffect(piece.effect) : null;
-            return (
-              <li key={index} className={styles.row} title={effectText ?? undefined}>
-                <span className={`${styles.name} ${effectText ? styles.hasEffect : ""}`}>
-                  {label}
-                </span>
-                {piece.maxHp > 0 && (
-                  <span className={`${styles.hp} ${piece.hp <= 0 ? styles.destroyed : ""}`}>
-                    {piece.hp}/{piece.maxHp} HP
+        <>
+          {/* Was the one unlabelled list here, so it read as a continuation of "Spare Weapons" above
+              whenever no weapon was equipped -- part of the same "where is this worn?" confusion
+              issue #116 reported. */}
+          <h4 className={styles.subheading}>Worn Armor</h4>
+          <ul className={styles.list}>
+            {armor.map((piece, index) => {
+              const label = armorLabel(piece);
+              const needsFixing = piece.maxHp > 0 && piece.hp < piece.maxHp;
+              const effectText = piece.effect ? describeItemEffect(piece.effect) : null;
+              return (
+                <li key={index} className={styles.row} title={effectText ?? undefined}>
+                  <span className={`${styles.name} ${effectText ? styles.hasEffect : ""}`}>
+                    {label}
                   </span>
-                )}
-                {onFixArmor && needsFixing && (
-                  <button type="button" className={styles.fixBtn} onClick={() => onFixArmor(index)}>
-                    Fix ({isBlacksmith ? "1 torch" : "1 coin"})
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                  {piece.maxHp > 0 && (
+                    <span className={`${styles.hp} ${piece.hp <= 0 ? styles.destroyed : ""}`}>
+                      {piece.hp}/{piece.maxHp} HP
+                    </span>
+                  )}
+                  {onFixArmor && needsFixing && (
+                    <button
+                      type="button"
+                      className={styles.fixBtn}
+                      onClick={() => onFixArmor(index)}
+                    >
+                      Fix ({isBlacksmith ? "1 torch" : "1 coin"})
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
 
       {spareArmor.length > 0 && (
@@ -116,7 +134,7 @@ export function Equipment({
           <h4 className={styles.subheading}>Spare Armor</h4>
           <ul className={styles.list}>
             {spareArmor.map((piece, index) => {
-              const label = piece.itemName ?? ARMOR_PIECE_LABELS[piece.piece];
+              const label = armorLabel(piece);
               const effectText = piece.effect ? describeItemEffect(piece.effect) : null;
               return (
                 <li key={index} className={styles.spareRow} title={effectText ?? undefined}>

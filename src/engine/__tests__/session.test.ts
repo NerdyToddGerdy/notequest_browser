@@ -68,6 +68,8 @@ const RESOURCES: AdventurerResources = {
   provisions: 17,
   advancedClasses: [],
   hireling: null,
+  hirelingHp: null,
+  curiosities: {},
   animals: [],
   milestones: createInitialMilestones(),
   buildings: [],

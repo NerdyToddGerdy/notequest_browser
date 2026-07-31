@@ -292,6 +292,8 @@ function makeState(levels: LevelState[], activeLevel = 0): DungeonState {
     className: "",
     advancedClasses: [],
     hireling: null,
+    hirelingHp: null,
+    curiosities: {},
     animals: [],
     milestones: createInitialMilestones(),
     buildings: [],

@@ -12,6 +12,7 @@ import {
 import {
   ARMOR_PIECE_LABELS,
   ARMOR_TABLE,
+  substituteItemPlaceholder,
   DUNGEON_TABLES,
   type ArmorPieceKind,
   type BonusLootEntry,
@@ -330,8 +331,10 @@ function startCombat(
     },
     rng,
   );
-  // Issue #84: a copy of the employed Hireling's own hp, not a reference -- combat is the only
-  // place a Hireling's HP is ever tracked, since it's purely cosmetic everywhere else.
+  // Issue #84: a copy of the employed Hireling's own hp, not a reference. Its *current* HP lives on
+  // `draft.hirelingHp` between fights (issue #114) -- seeding from the data table every time is what
+  // made one hire an unlimited meat shield. `?? def.hp` covers a Hireling hired before that field
+  // existed, and `maxHp` still comes from the table, since that never changes.
   const hirelingDef = draft.hireling ? HIRELING_BY_NAME[draft.hireling] : undefined;
   draft.combat = {
     segId,
@@ -348,7 +351,11 @@ function startCombat(
     absorbSoulActive: false,
     fireOfTheDeadActive: false,
     hireling: hirelingDef
-      ? { name: hirelingDef.name, hp: hirelingDef.hp, maxHp: hirelingDef.hp }
+      ? {
+          name: hirelingDef.name,
+          hp: Math.min(draft.hirelingHp ?? hirelingDef.hp, hirelingDef.hp),
+          maxHp: hirelingDef.hp,
+        }
       : null,
     hirelingAttackedThisRound: false,
     animalAttackedThisRound: false,
@@ -1251,8 +1258,25 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
       itemName: entry.name,
       effect: entry.effect,
     });
+  } else {
+    // Issue #109: a pure-flavor Wonder with no `grantsHp` (Goblin Whistle, Lamp, Salamander Potion,
+    // Potion of the Helping hand) matched no arm above, so the player was told they found it and
+    // then given nothing whatsoever -- "vanish into the void," in the report's words. It has no
+    // mechanical effect to grant and no HP to wear, so it lands in the Curiosities tally instead
+    // (issue #115), which is also the running count of arms and tails a player asked to be able to
+    // look at.
+    recordCuriosity(draft, entry.name);
   }
   pushLog(draft, `Treasure: ${entry.text}`);
+}
+
+/** Tallies a flavor-only find by name (issues #109/#115) -- `killsByName`'s exact shape, for the same
+ * reason: repeats are the interesting part ("4 arms and 3 tails"), and a flat list of four identical
+ * rows would be noise. Optional/back-filled per the usual convention. */
+function recordCuriosity(draft: Draft<DungeonState>, name: string): void {
+  const tally = draft.curiosities ?? {};
+  tally[name] = (tally[name] ?? 0) + 1;
+  draft.curiosities = tally;
 }
 
 /** Laboratory's Potions column (issue #30) -- a fourth reward column no other dungeon type has, so
@@ -1298,6 +1322,9 @@ function resolvePotion(draft: Draft<DungeonState>, entry: PotionEntry, rng: RNG)
       return;
     }
     default:
+      // A flavor potion (Goblin/Zombie/Extra Hand) is drunk and remembered rather than dropped --
+      // same reasoning as a flavor Wonder above (issues #109/#115).
+      recordCuriosity(draft, entry.name);
       break;
   }
   pushLog(draft, `Treasure: ${entry.text}`);
@@ -1366,11 +1393,16 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
     const base = entry.fixedArmor
       ? { piece: entry.fixedArmor.piece, maxHp: entry.fixedArmor.maxHp }
       : ARMOR_TABLE[rollDie(rng)]!;
+    // Issue #116: the concrete piece is only known now, so this is where "[Armor] of the Dead"
+    // becomes "Helm of the Dead" -- in the name that gets stored *and* in the log line.
+    const pieceLabel = ARMOR_PIECE_LABELS[base.piece];
+    const itemName = substituteItemPlaceholder(entry.name, pieceLabel);
+    const itemText = substituteItemPlaceholder(entry.text, pieceLabel);
     if (cannotWearArmor(draft)) {
       addHeldItem(
         draft,
-        { name: entry.name, worth: Math.max(1, base.maxHp) },
-        `Treasure: ${entry.text} Ogres cannot wear armor -- sold instead.`,
+        { name: itemName, worth: Math.max(1, base.maxHp) },
+        `Treasure: ${itemText} Ogres cannot wear armor -- sold instead.`,
       );
       return;
     }
@@ -1380,13 +1412,15 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
       piece: base.piece,
       hp: maxHp,
       maxHp,
-      itemName: entry.name,
+      itemName,
       effect: entry.effect.kind === "extraHp" ? undefined : entry.effect,
     });
-    pushLog(draft, `Treasure: ${entry.text} (${ARMOR_PIECE_LABELS[base.piece]}, ${maxHp} HP)`);
+    pushLog(draft, `Treasure: ${itemText} (${pieceLabel}, ${maxHp} HP)`);
   } else if (entry.fixedFormula) {
+    // A uniquely-named weapon: no base roll, so nothing to substitute in (its name is already
+    // concrete), but run it through anyway so no template can leak through this branch.
     draft.spareWeapons.push({
-      name: entry.name,
+      name: substituteItemPlaceholder(entry.name, entry.name),
       formula: entry.fixedFormula,
       twoHanded: entry.twoHanded,
       bonusEffect: entry.effect.kind !== "flavor" ? entry.effect : undefined,
@@ -1395,13 +1429,18 @@ function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng
   } else {
     const roll = rollDie(rng);
     const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
+    // Issue #116: "[Weapon] of Destruction" rolled a Mace, so it's the "Mace of Destruction" --
+    // previously the item's own name was discarded entirely in favour of the bare base weapon.
     draft.spareWeapons.push({
-      name: base.name,
+      name: substituteItemPlaceholder(entry.name, base.name),
       formula: base.formula,
       twoHanded: base.twoHanded,
       bonusEffect: entry.effect.kind !== "flavor" ? entry.effect : undefined,
     });
-    pushLog(draft, `Treasure: ${entry.text} (${base.name}, ${base.formula} damage)`);
+    pushLog(
+      draft,
+      `Treasure: ${substituteItemPlaceholder(entry.text, base.name)} (${base.formula} damage)`,
+    );
   }
 }
 
@@ -2602,6 +2641,7 @@ export function dungeonReducer(
         // A genuine self-destruct -- gone for good, not just this fight's own copy.
         combat.hireling = null;
         draft.hireling = null;
+        draft.hirelingHp = null;
         finishIfVictorious(draft, combat, rng);
       });
     }
@@ -2634,7 +2674,14 @@ export function dungeonReducer(
               ? `${h.name} absorbs ${absorbed} damage and falls!`
               : `${h.name} absorbs ${absorbed} damage (${h.hp}/${h.maxHp} HP left).`,
           );
-          if (h.hp <= 0) draft.hireling = null;
+          // The single place a Hireling's HP ever drops, so the single place the persisted value
+          // needs writing back (issue #114) -- it has to survive this fight ending.
+          if (h.hp <= 0) {
+            draft.hireling = null;
+            draft.hirelingHp = null;
+          } else {
+            draft.hirelingHp = h.hp;
+          }
         } else {
           const piece = draft.armor[action.absorbWith];
           if (!piece) return;
@@ -3128,6 +3175,7 @@ export function dungeonReducer(
           // inherit the dead character's mutations.
           draft.mutations = action.mutations ?? [];
           draft.zombieRevivals = action.zombieRevivals ?? 0;
+          draft.curiosities = action.curiosities ?? {};
           restoreMapFromPersisted(
             draft,
             persisted,
@@ -3182,6 +3230,10 @@ export function dungeonReducer(
           // Same character, so their mutations come along unchanged (issue #30).
           draft.mutations = action.mutations ?? [];
           draft.zombieRevivals = action.zombieRevivals ?? 0;
+          draft.curiosities = action.curiosities ?? {};
+          // Same trip, so the Hireling comes back as battered as it left (issue #114) -- resting in
+          // Town heals the character, never the hired help.
+          draft.hirelingHp = action.hirelingHp ?? null;
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);
         },
       );

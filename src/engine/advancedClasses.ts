@@ -203,6 +203,40 @@ export function isAdvancedClassTrackable(name: string): boolean {
   return name in REQUIREMENT_CHECKS;
 }
 
+/** Acquirable classes whose ability text describes an effect this app doesn't implement (issue #111).
+ *
+ * These are the genuinely misleading ones: the requirement is real, the coins are really spent, and
+ * the ability reads like a control the player should be able to find. A player saved 100 coins, killed
+ * two Bosses, bought Ambidextrous, and then spent an evening hunting for a dual-wield button that was
+ * never built. Kept here rather than on `ADVANCED_CLASS_TABLE` because it's a fact about this app,
+ * not about the rulebook, and it lives next to `applyAdvancedClassAbility()`, whose `switch` is the
+ * thing it has to stay in step with.
+ *
+ * Classes whose ability text is literally "None." are deliberately absent -- they already say they do
+ * nothing. `isAdvancedClassTrackable()` covers the *unbuyable* ones; this is its counterpart for the
+ * ones you can buy and shouldn't expect anything from. */
+const FLAVOR_ONLY_ABILITIES: ReadonlySet<string> = new Set([
+  // Both need a second weapon slot; `DungeonState.weapon` is a single `EquippedWeapon` (see #100).
+  "Ambidextrous",
+  "Multidextrous",
+  // Needs a sell action on `Equipment`'s armor list, and `ArmorPiece` carries no price (see #117).
+  "Collector",
+  // Needs a "has this fight's first attack happened yet" flag on `CombatState`.
+  "Assassin",
+  // Needs per-turn ability suppression; `ignoresMonsterAbility` is all-or-nothing.
+  "Ghostbuster",
+  // Provisions aren't tracked inside a dungeon run, which is where monsters are defeated.
+  "Cook",
+  // "Rule the world." -- the capstone's reward is the title itself; there is nothing to grant.
+  "Emperor",
+]);
+
+/** Whether this class's ability text corresponds to something that actually happens (issue #111).
+ * True for "None." classes -- they promise nothing and deliver it. */
+export function hasImplementedAbility(name: string): boolean {
+  return !FLAVOR_ONLY_ABILITIES.has(name);
+}
+
 export function meetsAdvancedClassRequirement(name: string, ctx: AdvancedClassContext): boolean {
   const check = REQUIREMENT_CHECKS[name];
   return check ? check(ctx) : false;

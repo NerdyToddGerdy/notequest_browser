@@ -329,6 +329,20 @@ export interface DungeonState {
    * actually beaten. Burglar/Minstrel/Dwarf Soldier's abilities check this field directly (a passive
    * check, not a one-time grant) -- see `attackBonus()`/`RESOLVE_DOOR_LOCK`/`RoomInspector.tsx`. */
   hireling: string | null;
+  /** The employed Hireling's *current* HP, persisted across fights within a trip (issue #114).
+   *
+   * Before this existed, `startCombat()` reseeded the fighting copy from `HIRELING_BY_NAME`'s static
+   * `hp` every encounter, so one hire bought unlimited damage absorption: absorb until the Hireling
+   * is nearly dead, take the last hit yourself, and it's back at full next fight. Optional and
+   * defaulted at the read site (`?? def.hp`) per the usual back-compat convention -- an old save, or
+   * a Hireling hired before this field existed, simply starts at full HP once. Cleared to `null`
+   * alongside `hireling` itself whenever the Hireling is lost. */
+  hirelingHp?: number | null;
+  /** Flavor-only finds, tallied by name (issues #109/#115) -- Goblin Whistles, Lamps, Salamander
+   * Potions, extra arms. These grant nothing mechanically, which is exactly why they need somewhere
+   * to land: before this they were announced in the log and then dropped entirely. Same
+   * `Record<name, count>` shape and lifecycle as `killsByName`, and permanent per character. */
+  curiosities?: Record<string, number>;
   /** Animals (issue #26) -- trained/bought companions carried on this run, by name, mirroring
    * `AdventurerResources.animals`. Threaded like `advancedClasses` (permanent -- `RESUME_DUNGEON`
    * resets to `[]`, `RETURN_TO_DUNGEON` carries it over exactly), not like `hireling` (which
@@ -516,6 +530,10 @@ export function createInitialDungeonState(
   /** Laboratory (issue #30) -- see `DungeonState.mutations`. */
   mutations: string[] = [],
   zombieRevivals = 0,
+  /** Issue #114 -- the employed Hireling's current HP; `null` means "full" (see the field's own doc). */
+  hirelingHp: number | null = null,
+  /** Issues #109/#115 -- flavor-only finds tallied by name; permanent per character. */
+  curiosities: Record<string, number> = {},
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -552,6 +570,8 @@ export function createInitialDungeonState(
     className,
     advancedClasses,
     hireling,
+    hirelingHp,
+    curiosities,
     animals,
     milestones,
     buildings,
@@ -682,6 +702,8 @@ export type DungeonAction =
       /** Laboratory (issue #30) -- the *arriving* character's own mutations, not the dead one's. */
       mutations?: string[];
       zombieRevivals?: number;
+      /** Issues #109/#115 -- permanent per character, so the arriving character brings their own. */
+      curiosities?: Record<string, number>;
     }
   | {
       /** The same still-living character coming back from a Town visit -- unlike RESUME_DUNGEON
@@ -707,6 +729,10 @@ export type DungeonAction =
       className: string;
       advancedClasses: string[];
       hireling: string | null;
+      /** Issue #114 -- the Hireling's current HP, carried over exactly like the Hireling itself. */
+      hirelingHp?: number | null;
+      /** Issues #109/#115 -- flavor-only finds, carried over exactly like every other permanent. */
+      curiosities?: Record<string, number>;
       animals: string[];
       monsterKills: number;
       bossKills: number;

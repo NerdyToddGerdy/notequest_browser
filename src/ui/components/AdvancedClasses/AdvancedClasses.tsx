@@ -2,6 +2,7 @@ import { ADVANCED_CLASS_TABLE } from "../../../data/advancedClasses.ts";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import {
   canAcquireAdvancedClass,
+  hasImplementedAbility,
   isAdvancedClassTrackable,
   meetsAdvancedClassRequirement,
   type AdvancedClassContext,
@@ -17,6 +18,12 @@ export interface AdvancedClassesProps {
   graveyard: GraveyardEntry[];
   onAcquire: (name: string) => void;
 }
+
+/** Shown next to any ability this app doesn't implement (issue #111) -- a player bought Ambidextrous
+ * and went looking for a dual-wield control that doesn't exist, which is the cost of an unimplemented
+ * ability being indistinguishable from a working one. */
+const FLAVOR_ABILITY_NOTE =
+  "This ability isn't implemented yet -- the class still costs coins and grants its HP bonus.";
 
 /** Advanced Classes (Expanded World, issue #23) -- every rulebook entry is listed for flavor and
  * completeness, always visible and `disabled` (not omitted) with an explanatory reason when it
@@ -66,7 +73,14 @@ export function AdvancedClasses({
                 </button>
               </div>
               <p className={styles.requirement}>{def.requirementText}</p>
-              <p className={styles.ability}>{def.abilityText}</p>
+              <p className={styles.ability}>
+                {def.abilityText}
+                {!hasImplementedAbility(def.name) && (
+                  <span className={styles.flavorTag} title={FLAVOR_ABILITY_NOTE}>
+                    flavor only
+                  </span>
+                )}
+              </p>
               {reason && <p className={styles.reason}>{reason}</p>}
             </li>
           );

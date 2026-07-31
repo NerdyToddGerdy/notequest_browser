@@ -52,6 +52,8 @@ const RESOURCES = {
   provisions: 20,
   advancedClasses: [],
   hireling: null,
+  hirelingHp: null,
+  curiosities: {},
   animals: [],
   buildings: [],
   troops: 0,

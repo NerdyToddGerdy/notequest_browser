@@ -103,3 +103,19 @@
   color: var(--ink-soft);
   margin: 3px 0 0;
 }
+
+/* Issue #111: marks an ability whose text describes something this app doesn't implement. */
+.flavorTag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--ink-soft);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  vertical-align: 1px;
+  cursor: help;
+}

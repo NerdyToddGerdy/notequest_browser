@@ -67,6 +67,9 @@ export function hireHireling(
     ...resources,
     coins: resources.coins - def.cost,
     hireling: name,
+    // Fresh hire, full HP -- and since hiring replaces whoever was employed, this correctly discards
+    // the previous Hireling's remaining HP rather than carrying it onto the new one (issue #114).
+    hirelingHp: def.hp,
   };
   return applyHirelingAbility(name, withHire, rng);
 }

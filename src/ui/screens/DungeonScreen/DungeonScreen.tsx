@@ -114,12 +114,14 @@ export function DungeonScreen({
         className: character.cls.name,
         mutations: resources.mutations,
         zombieRevivals: resources.zombieRevivals,
+        curiosities: resources.curiosities,
         monsterKills: resources.monsterKills,
         bossKills: resources.bossKills,
         killsByName: resources.killsByName,
         killsByAbility: resources.killsByAbility,
         advancedClasses: resources.advancedClasses,
         hireling: resources.hireling,
+        hirelingHp: resources.hirelingHp,
         animals: resources.animals,
         milestones: resources.milestones,
         maxSpellUses: resources.maxSpellUses,
@@ -141,6 +143,7 @@ export function DungeonScreen({
         className: character.cls.name,
         mutations: resources.mutations,
         zombieRevivals: resources.zombieRevivals,
+        curiosities: resources.curiosities,
       });
     }
     return createInitialDungeonState(
@@ -176,6 +179,11 @@ export function DungeonScreen({
       // all three mechanically-real mutations are read inside the dungeon.
       resources.mutations,
       resources.zombieRevivals,
+      // Issue #114: a fresh trip consumes `resources.hireling`, and its HP comes along -- normally
+      // full (set at hire time), but a Hireling hired and then damaged on an *earlier* leg of the
+      // same trip keeps its wounds.
+      resources.hirelingHp,
+      resources.curiosities,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>(() => Array<number>(10).fill(1));
@@ -247,7 +255,14 @@ export function DungeonScreen({
       !resumeDungeon &&
       (resources.hireling || resources.nextDungeonDamageBonus > 0)
     ) {
-      onUpdateResources({ ...resources, hireling: null, nextDungeonDamageBonus: 0 });
+      // Only the two per-trip things are spent here. Nothing permanent (curiosities, mutations,
+      // advancedClasses) may be touched -- this effect exists to expire a hire, not to reset state.
+      onUpdateResources({
+        ...resources,
+        hireling: null,
+        hirelingHp: null,
+        nextDungeonDamageBonus: 0,
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -265,6 +280,7 @@ export function DungeonScreen({
       monsterKills: state.monsterKills,
       bossKills: state.bossKills,
       advancedClasses: state.advancedClasses,
+      curiosities: state.curiosities,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.alive]);
@@ -622,6 +638,7 @@ export function DungeonScreen({
               hireling={state.hireling}
               animals={state.animals}
               mutations={state.mutations}
+              curiosities={state.curiosities}
             />
 
             {!state.alive && state.deathCause === "combat" && (

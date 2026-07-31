@@ -138,6 +138,15 @@ export const ARMOR_PIECE_LABELS: Record<ArmorPieceKind, string> = {
   wonderItem: "Trinket",
 };
 
+/** Magic Item names and texts are templates -- "[Armor] of Royalty", "Leprechaun's [Armor]",
+ * "[Weapon] of Destruction" -- because the concrete piece isn't known until the base Armor/Weapon
+ * table is rolled. Substituting at grant time (issue #116) is what stops a literal "[Armor] of the
+ * Dead" reaching the player's Equipment list. Case-insensitive on the tag, and a no-op for any
+ * name without one. */
+export function substituteItemPlaceholder(text: string, concrete: string): string {
+  return text.replace(/\[(Armor|Weapon)\]/gi, concrete);
+}
+
 export interface ArmorTableEntry {
   piece: ArmorPieceKind;
   maxHp: number;

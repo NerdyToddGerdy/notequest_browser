@@ -30,6 +30,8 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     provisions: 20,
     advancedClasses: [],
     hireling: null,
+    hirelingHp: null,
+    curiosities: {},
     animals: [],
     milestones: createInitialMilestones(),
     buildings: [],

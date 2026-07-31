@@ -10,6 +10,15 @@ export interface GraveyardProps {
   compact?: boolean;
 }
 
+/** "4 arms and 3 tails" -- the epitaph a player asked for (issue #115). Names only the tallies worth
+ * reading aloud (count > 1 gets a count), joined plainly; null when there's nothing to say. */
+function describeCuriosities(tally: Record<string, number> | undefined): string | null {
+  const entries = Object.entries(tally ?? {}).sort(([, a], [, b]) => b - a);
+  if (entries.length === 0) return null;
+  const parts = entries.map(([name, count]) => (count > 1 ? `${name} x${count}` : name));
+  return `Carried: ${parts.join(", ")}`;
+}
+
 const CAUSE_LABELS: Record<GraveyardEntry["causeOfDeath"], string> = {
   darkness: "Lost to the Darkness",
   combat: "Slain in Combat",
@@ -53,6 +62,9 @@ export function Graveyard({ entries, compact = false }: GraveyardProps) {
                   ? ` · ${entry.bossKills} Boss${entry.bossKills === 1 ? "" : "es"}`
                   : ""}
               </span>
+            )}
+            {describeCuriosities(entry.curiosities) && (
+              <span className={styles.kills}>{describeCuriosities(entry.curiosities)}</span>
             )}
             <span className={styles.cause}>{CAUSE_LABELS[entry.causeOfDeath]}</span>
           </li>

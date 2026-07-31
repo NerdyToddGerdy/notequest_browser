@@ -94,6 +94,8 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
             flyActive: p.resources.flyActive ?? false,
             nextDungeonDamageBonus: p.resources.nextDungeonDamageBonus ?? 0,
             catatonic: p.resources.catatonic ?? false,
+            hirelingHp: p.resources.hirelingHp ?? null,
+            curiosities: p.resources.curiosities ?? {},
             mutations: p.resources.mutations ?? [],
             zombieRevivals: p.resources.zombieRevivals ?? 0,
           }

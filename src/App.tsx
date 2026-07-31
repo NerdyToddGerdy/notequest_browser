@@ -115,6 +115,8 @@ export default function App() {
       provisions: 20,
       advancedClasses: [],
       hireling: null,
+      hirelingHp: null,
+      curiosities: {},
       animals: [],
       milestones: createInitialMilestones(),
       buildings: [],
@@ -178,6 +180,7 @@ export default function App() {
       monsterKills: resources.monsterKills,
       bossKills: resources.bossKills,
       advancedClasses: resources.advancedClasses,
+      curiosities: resources.curiosities,
     });
     handleNewAdventurer();
   }
@@ -235,6 +238,12 @@ export default function App() {
       // but a beaten dungeon spends it for good, same as starting a genuinely new trip would need a
       // fresh hire.
       hireling: isDungeonBeaten(dungeon) ? null : dungeon.hireling,
+      // ...and its remaining HP comes with it (issue #114), so pausing in Town is not a free heal for
+      // the hired help the way Rest is for the character.
+      hirelingHp: isDungeonBeaten(dungeon) ? null : (dungeon.hirelingHp ?? null),
+      // Curiosities (issues #109/#115) are permanent per character, like mutations -- carried from the
+      // dungeon, since that's where they're found.
+      curiosities: dungeon.curiosities ?? prev?.curiosities ?? {},
       // Animals (issue #26) persist permanently once acquired, same as advancedClasses -- no
       // isDungeonBeaten gate needed here (unlike hireling, they don't expire).
       animals: dungeon.animals,

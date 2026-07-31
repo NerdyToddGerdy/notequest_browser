@@ -58,6 +58,13 @@ export interface AdventurerResources {
    * CLAUDE.md's Hirelings note for exactly how it's threaded through `DungeonState`/App.tsx so a
    * hire is spent the moment it's actually used to enter a new dungeon. */
   hireling: string | null;
+  /** The employed Hireling's current HP, or `null` for "at full" (issue #114) -- mirrors
+   * `DungeonState.hirelingHp`, so a trip paused in Town and resumed doesn't heal the hired help.
+   * Set at hire time, written back by the dungeon's own `RESOLVE_DAMAGE`, cleared when the trip ends. */
+  hirelingHp: number | null;
+  /** Flavor-only finds tallied by name (issues #109/#115) -- mirrors `DungeonState.curiosities`.
+   * Permanent per character, like `advancedClasses`/`mutations`. */
+  curiosities: Record<string, number>;
   /** Animals (issue #26) -- trained or bought companions, by name, up to `MAX_ANIMALS`. Persists
    * permanently once acquired, same "stacks freely, never expires" shape as `advancedClasses`
    * (not `hireling`'s per-trip expiry) -- see `src/engine/animals.ts`. At most one entry is ever a
@@ -607,8 +614,18 @@ export function removeCurse(resources: AdventurerResources): AdventurerResources
 }
 
 const DWARF_LAMP_COST = 40;
+/** Named once so the buy action and the not-already-owned check (issue #109) can't drift apart. */
+const DWARF_LAMP_NAME = "Dwarven Lamp";
 export function canBuyLamp(resources: AdventurerResources): boolean {
+  // Issue #109: a Lamp is a permanent, unique utility item -- a second one is meaningless by
+  // definition, and with no ownership check a Dwarf with coins could buy an unbounded pile of them,
+  // each competing for a Pack slot. Same not-already-owned shape `canAcquireAdvancedClass()` uses.
+  if (ownsLamp(resources)) return false;
   return resources.coins >= DWARF_LAMP_COST;
+}
+
+export function ownsLamp(resources: AdventurerResources): boolean {
+  return resources.heldItems.some((item) => item.name === DWARF_LAMP_NAME);
 }
 /** Dwarf: "Buy a Lamp for 40 coins. With the lamp you can use both hands in combat." Two-handed
  * weapons are already tracked-but-unenforced (`WeaponEntry.twoHanded`, no hand-economy system) --
@@ -617,7 +634,7 @@ export function buyLamp(resources: AdventurerResources): AdventurerResources {
   return {
     ...resources,
     coins: resources.coins - DWARF_LAMP_COST,
-    heldItems: [...resources.heldItems, { name: "Dwarven Lamp", worth: 5 }],
+    heldItems: [...resources.heldItems, { name: DWARF_LAMP_NAME, worth: 5 }],
   };
 }
 

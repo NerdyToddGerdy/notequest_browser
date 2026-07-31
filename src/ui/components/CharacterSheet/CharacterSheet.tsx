@@ -5,7 +5,7 @@ import { COMBAT_ONLY_SPELL_NAMES, KNOWN_CASTABLE_SPELL_NAMES } from "../../../en
 import { HIRELING_BY_NAME } from "../../../data/hirelings.ts";
 import { ANIMAL_BY_NAME } from "../../../data/animals.ts";
 import { MUTATION_BY_ID } from "../../../data/mutations.ts";
-import { KillBreakdownModal } from "../KillBreakdownModal/KillBreakdownModal.tsx";
+import { TallyModal } from "../TallyModal/TallyModal.tsx";
 import styles from "./CharacterSheet.module.css";
 
 export interface CharacterSheetProps {
@@ -28,6 +28,9 @@ export interface CharacterSheetProps {
   /** Total monsters defeated (any/Boss combined) -- the stat row's own displayed count; falls back
    * to 0 for a brand-new character with no kills yet. */
   monsterKills?: number;
+  /** Flavor-only finds tallied by name (issues #109/#115), backing the "Curiosities" stat's modal --
+   * see DungeonState.curiosities. Shown only once at least one has been found. */
+  curiosities?: Record<string, number>;
   /** Per-monster-name breakdown backing the "Kills" stat's modal -- see DungeonState.killsByName. */
   killsByName?: Record<string, number>;
   /** Live Provisions count while exploring the World map; omitted entirely (not shown) anywhere
@@ -81,12 +84,14 @@ export function CharacterSheet({
   canCastOutOfCombat,
   onCastSpell,
   monsterKills,
+  curiosities,
   killsByName,
   hireling = null,
   animals = [],
   mutations = [],
 }: CharacterSheetProps) {
   const [showKills, setShowKills] = useState(false);
+  const [showCuriosities, setShowCuriosities] = useState(false);
   const hirelingDef = hireling ? HIRELING_BY_NAME[hireling] : null;
   const maxHpValue = maxHp ?? character.totalHp;
   const maxSpellUses =
@@ -103,6 +108,10 @@ export function CharacterSheet({
   const treasureCount = treasures ?? 0;
   const keyCount = keys ?? 0;
   const killCount = monsterKills ?? 0;
+  // Issue #115: the total, not the distinct count -- "4 arms and 3 tails" is 7 curiosities, and the
+  // repeats are the whole joke. Hidden entirely at 0 rather than shown as a bare "Curiosities 0",
+  // since most characters never find one.
+  const curiosityCount = Object.values(curiosities ?? {}).reduce((sum, n) => sum + n, 0);
   const displayWeaponName = weaponName ?? character.cls.weapon;
   const displayWeaponFormula = weaponFormula ?? character.cls.weaponDamage;
 
@@ -155,6 +164,17 @@ export function CharacterSheet({
             <span className={styles.statLabel}>Kills</span>
             <span className={styles.statValue}>{killCount}</span>
           </button>
+          {curiosityCount > 0 && (
+            <button
+              type="button"
+              className={styles.statClickable}
+              onClick={() => setShowCuriosities(true)}
+              title="See what odd things you've collected"
+            >
+              <span className={styles.statLabel}>Curiosities</span>
+              <span className={styles.statValue}>{curiosityCount}</span>
+            </button>
+          )}
           {provisions != null && (
             <div className={styles.stat}>
               <span className={styles.statLabel}>Provisions</span>
@@ -261,7 +281,20 @@ export function CharacterSheet({
         )}
       </div>
       {showKills && (
-        <KillBreakdownModal killsByName={killsByName ?? {}} onClose={() => setShowKills(false)} />
+        <TallyModal
+          title="Kills"
+          tally={killsByName ?? {}}
+          emptyText="No monsters defeated yet."
+          onClose={() => setShowKills(false)}
+        />
+      )}
+      {showCuriosities && (
+        <TallyModal
+          title="Curiosities"
+          tally={curiosities ?? {}}
+          emptyText="Nothing strange has happened to you yet."
+          onClose={() => setShowCuriosities(false)}
+        />
       )}
     </>
   );
