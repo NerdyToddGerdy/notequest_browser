@@ -301,12 +301,16 @@ describe("moving silently in a tunnel", () => {
 });
 
 describe("the Sewers Treasure table", () => {
-  it("grants rolled torches, capped at the carry limit", () => {
+  it("is stowed on discovery, then grants rolled torches capped at the carry limit", () => {
     const state = { ...sewersState({ ...makeLevel(1), segments: [] }), treasures: 1, torches: 8 };
-    // Treasure roll 1 -> "1d6 Torches"; the 1d6 then rolls 6, but only 2 fit.
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 }, sequenceDie([6]));
+    // Issue #110: the torches are rolled when the bundle is *used*, not when it's found, so a full
+    // bag no longer wastes it.
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(found.torches).toBe(8);
+    expect(found.treasures).toBe(0);
+    // The 1d6 then rolls 6, but only 2 fit.
+    const next = dungeonReducer(found, { type: "USE_CONSUMABLE", index: 0 }, sequenceDie([6]));
     expect(next.torches).toBe(10);
-    expect(next.treasures).toBe(0);
   });
 });
 

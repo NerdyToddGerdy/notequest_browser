@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ArmorPiece, CombatState } from "../../../engine/dungeonState.ts";
+import type { ArmorPiece, CombatState, Consumable } from "../../../engine/dungeonState.ts";
 import {
   ABILITY_DESCRIPTIONS,
   ARMOR_PIECE_LABELS,
@@ -42,6 +42,11 @@ export interface CombatPanelProps {
   hasPendingPackItem?: boolean;
   onAttack: (targetId: number, roll: number, useHorn?: boolean) => void;
   onCastSpell: (table: SpellTableKey, spellRoll: number, targetId?: number) => void;
+  /** Held potions (issue #110) -- drinking one consumes the round exactly like casting a spell, so
+   * they belong here beside the Cast buttons rather than only in the sidebar Pack, which this panel's
+   * own overlay covers mid-fight. Every one of them is usable in a fight, Potion of Fury included. */
+  consumables?: Consumable[];
+  onUseConsumable?: (index: number) => void;
   /** Teleport needs a destination room first -- the parent screen owns that picker, so this just
    * signals "the player wants to flee" instead of dispatching CAST_SPELL directly. */
   onFlee: () => void;
@@ -114,6 +119,8 @@ export function CombatPanel({
   hasPendingPackItem = false,
   onAttack,
   onCastSpell,
+  consumables = [],
+  onUseConsumable,
   onFlee,
   onResolveDamage,
   onEngulfBody,
@@ -357,6 +364,23 @@ export function CombatPanel({
             >
               {s.name === "Teleport" ? "Flee — " : ""}
               {s.name} ({s.uses})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {consumables.length > 0 && onUseConsumable && (
+        <div className={styles.spellRow}>
+          {consumables.map((item, index) => (
+            <button
+              key={index}
+              type="button"
+              className={styles.spellBtn}
+              disabled={!canAct}
+              title={item.text}
+              onClick={() => onUseConsumable(index)}
+            >
+              Drink {item.name}
             </button>
           ))}
         </div>

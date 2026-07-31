@@ -96,6 +96,7 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
             catatonic: p.resources.catatonic ?? false,
             hirelingHp: p.resources.hirelingHp ?? null,
             curiosities: p.resources.curiosities ?? {},
+            consumables: p.resources.consumables ?? [],
             mutations: p.resources.mutations ?? [],
             zombieRevivals: p.resources.zombieRevivals ?? 0,
           }

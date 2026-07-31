@@ -102,6 +102,7 @@ export default function App() {
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       spareWeapons: [],
@@ -219,6 +220,8 @@ export default function App() {
       treasures: dungeon.treasures,
       keys: dungeon.keys,
       heldItems: dungeon.heldItems,
+      // Undrunk potions come back out with everything else the character was carrying (issue #110).
+      consumables: dungeon.consumables ?? [],
       armor: dungeon.armor,
       weapon: dungeon.weapon,
       spareWeapons: dungeon.spareWeapons,

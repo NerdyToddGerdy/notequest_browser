@@ -2641,7 +2641,9 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         text: "Purification Potion (remove a Cursed item).",
         effect: { kind: "flavor" },
       },
-      // "Load up to 3 potions" is a carry-capacity rule with no potion inventory to apply it to.
+      // "Load up to 3 potions": potions *are* carryable now (issue #110), but they share the Pack's
+      // one 10-item limit rather than having a cap of their own, so there's no separate potion
+      // capacity for this to raise. Still flavor, for a different reason than before.
       3: {
         name: "Leather breastplate",
         text: "Leather breastplate (6 HP; Load up to 3 potions).",

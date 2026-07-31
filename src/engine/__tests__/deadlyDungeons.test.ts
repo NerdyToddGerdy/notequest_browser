@@ -256,17 +256,25 @@ describe("Citadel Wonders (issue #30): grantsWeapon", () => {
   });
 });
 
+/** Issue #110: a timing-dependent reward is stowed rather than drunk on discovery, so these tests
+ * open the Treasure and then drink the potion it produced. */
+function drinkFirstConsumable(state: DungeonState, rng?: () => number): DungeonState {
+  return dungeonReducer(state, { type: "USE_CONSUMABLE", index: 0 }, rng);
+}
+
 describe("Ziggurat Wonders (issue #30): healAmount", () => {
-  it("Addictive Sweet Drink heals a small fixed amount immediately, capped at maxHp", () => {
+  it("is stowed when found, then heals a small fixed amount when drunk", () => {
     const state = { ...doorState("ziggurat"), treasures: 1, hp: 10, maxHp: 20 };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(1));
-    expect(next.hp).toBe(11);
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(1));
+    expect(found.hp).toBe(10); // issue #110: not drunk on discovery anymore
+    expect(found.consumables).toHaveLength(1);
+    expect(drinkFirstConsumable(found).hp).toBe(11);
   });
 
   it("never overheals past maxHp", () => {
     const state = { ...doorState("ziggurat"), treasures: 1, hp: 20, maxHp: 20 };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(1));
-    expect(next.hp).toBe(20);
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(1));
+    expect(drinkFirstConsumable(found).hp).toBe(20);
   });
 });
 
@@ -278,7 +286,7 @@ describe("Ziggurat Treasure (issue #30): restoreRandomSpellUse", () => {
       spellUses: { "basic:1": 1 },
       maxSpellUses: { "basic:1": 3 },
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    const next = drinkFirstConsumable(dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 }));
     expect(next.spellUses).toEqual({ "basic:1": 2 });
   });
 
@@ -289,13 +297,13 @@ describe("Ziggurat Treasure (issue #30): restoreRandomSpellUse", () => {
       spellUses: { "basic:1": 3 },
       maxSpellUses: { "basic:1": 3 },
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    const next = drinkFirstConsumable(dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 }));
     expect(next.spellUses).toEqual({ "basic:1": 3 });
   });
 
   it("is a no-op (flavor log only) when no spells are known at all", () => {
     const state = { ...doorState("ziggurat"), treasures: 1, spellUses: {} };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    const next = drinkFirstConsumable(dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 }));
     expect(next.spellUses).toEqual({});
     expect(next.log.some((e) => e.message.includes("don't know any spells"))).toBe(true);
   });

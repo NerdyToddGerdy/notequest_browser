@@ -148,3 +148,18 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+
+/* Issue #110: the held-potions section inside the Pack. */
+.subheading {
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 10px 0 4px;
+}
+.sellBtn:disabled,
+.discardBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -59,6 +59,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     treasures: 0,
     keys: 0,
     heldItems: [],
+    consumables: [],
     armor: [],
     weapon: null,
     spareWeapons: [],

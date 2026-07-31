@@ -553,6 +553,7 @@ describe("PLAYER_ATTACK", () => {
       treasures: 1,
       keys: 2,
       heldItems: [],
+      consumables: [],
       armor: [],
       spareArmor: [],
       weapon: null,

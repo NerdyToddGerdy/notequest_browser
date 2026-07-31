@@ -83,6 +83,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     treasures: 0,
     keys: 0,
     heldItems: [],
+    consumables: [],
     armor: [],
     weapon: null,
     spareWeapons: [],
@@ -482,11 +483,13 @@ describe("the Mutation Potion", () => {
   });
 
   it("Luminescence Potion is worth two torches; Fool's Potion teaches three Basic Spells", () => {
-    const lit = dungeonReducer(
+    const found = dungeonReducer(
       labState({ torches: 3 }),
       { type: "OPEN_TREASURE", roll: 6 },
       sequenceDie([4]),
     );
+    expect(found.torches).toBe(3); // held, not drunk (issue #110)
+    const lit = dungeonReducer(found, { type: "USE_CONSUMABLE", index: 0 });
     expect(lit.torches).toBe(5);
 
     const learned = dungeonReducer(

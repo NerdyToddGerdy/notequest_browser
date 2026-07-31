@@ -103,6 +103,7 @@ export function DungeonScreen({
         treasures: resources.treasures,
         keys: resources.keys,
         heldItems: resources.heldItems,
+        consumables: resources.consumables,
         armor: resources.armor,
         weapon: resources.weapon,
         spareWeapons: resources.spareWeapons,
@@ -184,6 +185,7 @@ export function DungeonScreen({
       // same trip keeps its wounds.
       resources.hirelingHp,
       resources.curiosities,
+      resources.consumables,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>(() => Array<number>(10).fill(1));
@@ -561,6 +563,8 @@ export function DungeonScreen({
                           onCastSpell={(table, spellRoll, targetId) =>
                             dispatch({ type: "CAST_SPELL", table, spellRoll, targetId })
                           }
+                          consumables={state.consumables}
+                          onUseConsumable={(index) => dispatch({ type: "USE_CONSUMABLE", index })}
                           onFlee={() => setPickingTeleport(true)}
                           onResolveDamage={(absorbWith) =>
                             dispatch({ type: "RESOLVE_DAMAGE", absorbWith })
@@ -704,6 +708,10 @@ export function DungeonScreen({
             onDiscard={(index) => dispatch({ type: "DISCARD_ITEM", index })}
             onResolveSwap={(discardIndex) => dispatch({ type: "RESOLVE_PACK_SWAP", discardIndex })}
             maxItems={maxHeldItemsFor(state.hireling, state.animals)}
+            consumables={state.consumables}
+            onUseConsumable={(index) => dispatch({ type: "USE_CONSUMABLE", index })}
+            onDiscardConsumable={(index) => dispatch({ type: "DISCARD_CONSUMABLE", index })}
+            inCombatContext={state.combat != null}
           />
 
           {hasDungeon && (

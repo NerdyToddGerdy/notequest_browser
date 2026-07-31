@@ -716,6 +716,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
       treasures: 2,
       keys: 1,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       weapons: [],
@@ -734,6 +735,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
         treasures: 2,
         keys: 1,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -762,6 +764,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
       treasures: 2,
       keys: 2,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       weapons: [],
@@ -780,6 +783,7 @@ describe("ROLL_SECRET_PASSAGE", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [{ name: "Dagger", formula: "1d6-1" }],
@@ -1060,6 +1064,7 @@ describe("COLLECT_REMAINS", () => {
         treasures: 2,
         keys: 1,
         heldItems: [{ name: "Ornament", worth: 5 }],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -1090,6 +1095,7 @@ describe("COLLECT_REMAINS", () => {
         treasures: 2,
         keys: 1,
         heldItems: [{ name: "Ornament", worth: 5 }],
+        consumables: [],
         armor: [{ piece: "boots", hp: 3, maxHp: 3 }],
         weapon: { name: "Sword", formula: "1d6+1" },
         weapons: [],
@@ -1103,6 +1109,7 @@ describe("COLLECT_REMAINS", () => {
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       spareWeapons: [],
       raceName: "Ogre",
@@ -1138,6 +1145,7 @@ describe("COLLECT_REMAINS", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -1162,6 +1170,7 @@ describe("COLLECT_REMAINS", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: { name: "Halberd", formula: "1d6+3", twoHanded: true },
         weapons: [{ name: "Dagger", formula: "1d6-1" }],
@@ -2113,15 +2122,22 @@ describe("OPEN_TREASURE", () => {
     expect(next.log[0]!.message).toContain("Ornament");
   });
 
-  it("Health Potion (Palace roll 2) heals to full but never past it", () => {
+  it("Health Potion (Palace roll 2) is stowed on discovery, then heals to full when drunk", () => {
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       treasures: 1,
       hp: 12,
       maxHp: 20,
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 2 });
-    expect(next.hp).toBe(20);
+    // Issue #110: a Health Potion found at full HP used to be wasted outright.
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 2 });
+    expect(found.hp).toBe(12);
+    expect(found.consumables).toEqual([
+      { name: "Health Potion", text: expect.any(String), effect: { kind: "healAll" } },
+    ]);
+    const drunk = dungeonReducer(found, { type: "USE_CONSUMABLE", index: 0 });
+    expect(drunk.hp).toBe(20);
+    expect(drunk.consumables).toEqual([]);
   });
 
   it("Ogre (New Races, issue #60): Health Potion doesn't heal -- 'Cannot use potions' -- but sells instead (issue #83)", () => {
@@ -2230,7 +2246,9 @@ describe("OPEN_TREASURE", () => {
       spellUses: { "basic:1": 0, "basic:6": 1 },
       maxSpellUses: { "basic:1": 3, "basic:6": 3 },
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 1 });
+    expect(found.spellUses).toEqual({ "basic:1": 0, "basic:6": 1 }); // held, not drunk (#110)
+    const next = dungeonReducer(found, { type: "USE_CONSUMABLE", index: 0 });
     expect(next.spellUses).toEqual({ "basic:1": 3, "basic:6": 3 });
   });
 
@@ -2256,7 +2274,9 @@ describe("OPEN_TREASURE", () => {
       treasures: 1,
       torches: 5,
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(6));
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(6));
+    expect(found.torches).toBe(5); // held, not drunk (#110)
+    const next = dungeonReducer(found, { type: "USE_CONSUMABLE", index: 0 });
     expect(next.torches).toBe(7);
   });
 
@@ -2319,7 +2339,8 @@ describe("OPEN_TREASURE", () => {
       treasures: 1,
       torches: 9,
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(6));
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(6));
+    const next = dungeonReducer(found, { type: "USE_CONSUMABLE", index: 0 });
     expect(next.torches).toBe(10);
   });
 
@@ -2360,19 +2381,24 @@ describe("OPEN_TREASURE", () => {
         animalAttackedThisRound: false,
       },
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(5));
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(5));
+    expect(found.combat!.playerDamageBonus).toBe(0); // held, not drunk (#110)
+    const next = dungeonReducer(found, { type: "USE_CONSUMABLE", index: 0 });
     expect(next.combat!.playerDamageBonus).toBe(2);
   });
 
-  it("Palace roll 5 redirects to the Wonders table; Potion of Fury (wonders roll 5) has no effect outside combat, and logs so rather than silently discarding it", () => {
+  it("Potion of Fury found outside combat is kept for the next fight rather than discarded (issue #110)", () => {
+    // This was the clearest case in #110: outside a fight the bonus used to be thrown away outright,
+    // which the code itself documented as a known cost.
     const state: DungeonState = {
       ...stateWithLevel(makeLevel(1)),
       dungeonTypeKey: "palace",
       treasures: 1,
     };
-    const next = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(5));
-    expect(next.combat).toBeNull();
-    expect(next.log[0]!.message).toContain("no effect");
+    const found = dungeonReducer(state, { type: "OPEN_TREASURE", roll: 5 }, fixedDie(5));
+    expect(found.combat).toBeNull();
+    expect(found.consumables).toHaveLength(1);
+    expect(found.consumables![0]!.effect).toEqual({ kind: "combatDamageBonus", amount: 2 });
   });
 
   it("Tomb roll 5 redirects to the Wonders table; Sapphire of Magic (wonders roll 5) grants a random Spell use", () => {
@@ -2601,6 +2627,7 @@ describe("RESUME_DUNGEON", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -2672,6 +2699,7 @@ describe("RESUME_DUNGEON", () => {
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       weapons: [],
@@ -2936,6 +2964,7 @@ describe("RETURN_TO_DUNGEON", () => {
       treasures: 1,
       keys: 2,
       heldItems: [{ name: "Ornament", worth: 5 }],
+      consumables: [],
       armor: [],
       weapon: null,
       spareWeapons: [],
@@ -3000,6 +3029,7 @@ describe("RETURN_TO_DUNGEON", () => {
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       spareWeapons: [],
@@ -3084,6 +3114,7 @@ describe("RETURN_TO_DUNGEON", () => {
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       spareWeapons: [],
@@ -3139,6 +3170,7 @@ describe("RETURN_TO_DUNGEON", () => {
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       spareWeapons: [],
@@ -3203,6 +3235,7 @@ describe("Monster table re-roll on return", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         spareWeapons: [],
@@ -3340,6 +3373,7 @@ describe("Monster table re-roll on return", () => {
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       spareWeapons: [],
@@ -3505,6 +3539,7 @@ describe("Resuming a fight abandoned via Teleport", () => {
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       spareWeapons: [],
@@ -3584,6 +3619,7 @@ describe("hasUnlootedRemains", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -3605,6 +3641,7 @@ describe("hasUnlootedRemains", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -3639,6 +3676,7 @@ describe("countUnlootedRemains", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -3655,6 +3693,7 @@ describe("countUnlootedRemains", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -3676,6 +3715,7 @@ describe("countUnlootedRemains", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -3692,6 +3732,7 @@ describe("countUnlootedRemains", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -3747,6 +3788,7 @@ describe("Armor slot uniqueness / spareArmor (issue #82)", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [{ piece: "ring", hp: 0, maxHp: 0 }],
         weapon: null,
         weapons: [],
@@ -3777,6 +3819,7 @@ describe("Armor slot uniqueness / spareArmor (issue #82)", () => {
         treasures: 0,
         keys: 0,
         heldItems: [],
+        consumables: [],
         armor: [{ piece: "boots", hp: 3, maxHp: 3, itemName: "Dara's Boots" }],
         weapon: null,
         weapons: [],
@@ -3875,6 +3918,7 @@ describe("Pack cap / pendingPackItem (issue #82)", () => {
         treasures: 0,
         keys: 0,
         heldItems: remainsItems,
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],
@@ -3895,6 +3939,7 @@ describe("Pack cap / pendingPackItem (issue #82)", () => {
       treasures: 0,
       keys: 0,
       heldItems: [{ name: "C", worth: 1 }],
+      consumables: [],
       armor: [],
       weapon: null,
       weapons: [],
@@ -3913,6 +3958,7 @@ describe("Pack cap / pendingPackItem (issue #82)", () => {
         treasures: 2,
         keys: 1,
         heldItems: [{ name: "A", worth: 1 }],
+        consumables: [],
         armor: [],
         weapon: { name: "Sword", formula: "1d6" },
         weapons: [],
@@ -3978,6 +4024,7 @@ describe("Cargo Ogre raises the Pack cap to 40 (issue #63)", () => {
         treasures: 0,
         keys: 0,
         heldItems: [{ name: "A", worth: 1 }],
+        consumables: [],
         armor: [],
         weapon: null,
         weapons: [],

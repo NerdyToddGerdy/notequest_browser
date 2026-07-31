@@ -41,7 +41,9 @@ import {
   learnRandomSpell,
   removeCurse,
   rest,
+  discardConsumable,
   sellEquipment,
+  drinkConsumable,
   equipmentSaleWorth,
   sellItem,
   wieldWeapon,
@@ -943,6 +945,9 @@ export function TownScreen({
             }
             onDiscard={(index) => onUpdateResources(discardItem(resources, index))}
             maxItems={maxHeldItemsFor(resources.hireling, resources.animals)}
+            consumables={resources.consumables}
+            onUseConsumable={(index) => onUpdateResources(drinkConsumable(resources, index))}
+            onDiscardConsumable={(index) => onUpdateResources(discardConsumable(resources, index))}
           />
         </aside>
       </div>

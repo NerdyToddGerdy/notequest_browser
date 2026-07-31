@@ -62,8 +62,11 @@ import {
 } from "./combat.ts";
 import {
   createInitialDungeonState,
+  isHoldableItemEffect,
+  isHoldableRewardEffect,
   makeLevel,
   type ArmorPiece,
+  type Consumable,
   type CombatMonsterState,
   type CombatState,
   type Direction,
@@ -116,6 +119,7 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
     draft.treasures === 0 &&
     draft.keys === 0 &&
     draft.heldItems.length === 0 &&
+    (draft.consumables?.length ?? 0) === 0 &&
     draft.armor.length === 0 &&
     draft.spareArmor.length === 0 &&
     !draft.weapon &&
@@ -133,6 +137,7 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
     seg.remains.treasures += draft.treasures;
     seg.remains.keys += draft.keys;
     seg.remains.heldItems.push(...draft.heldItems);
+    seg.remains.consumables = [...(seg.remains.consumables ?? []), ...(draft.consumables ?? [])];
     seg.remains.armor.push(...draft.armor);
     seg.remains.spareArmor.push(...draft.spareArmor);
     if (!seg.remains.weapon) seg.remains.weapon = draft.weapon;
@@ -144,6 +149,7 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
       treasures: draft.treasures,
       keys: draft.keys,
       heldItems: [...draft.heldItems],
+      consumables: [...(draft.consumables ?? [])],
       armor: [...draft.armor],
       spareArmor: [...draft.spareArmor],
       weapon: draft.weapon,
@@ -1135,7 +1141,7 @@ function addArmorPieces(draft: Draft<DungeonState>, pieces: ArmorPiece[]): void 
  * `foundText` is still logged either way (the item was still found), with a note appended when it
  * doesn't fit yet. */
 function addHeldItem(draft: Draft<DungeonState>, item: HeldItem, foundText: string): void {
-  if (draft.heldItems.length >= maxHeldItemsFor(draft.hireling, draft.animals)) {
+  if (packIsFull(draft)) {
     draft.pendingPackItem = item;
     pushLog(draft, `${foundText} Your Pack is full -- choose what to do.`);
   } else {
@@ -1143,6 +1149,109 @@ function addHeldItem(draft: Draft<DungeonState>, item: HeldItem, foundText: stri
     pushLog(draft, foundText);
   }
 }
+
+/** Held potions (issue #110) share the Pack's 10 slots with sellables -- the rulebook's own limit is
+ * "up to 10 items in your backpack" (rules 200), not ten of each. Counting them together is also what
+ * keeps Cargo Ogre's 40 and Monkey's +1 applying to potions for free. */
+function packUsed(draft: Draft<DungeonState>): number {
+  return draft.heldItems.length + (draft.consumables?.length ?? 0);
+}
+
+function packIsFull(draft: Draft<DungeonState>): boolean {
+  return packUsed(draft) >= maxHeldItemsFor(draft.hireling, draft.animals);
+}
+
+/** Stores a potion for later. A full Pack falls back to *using it now* rather than opening the
+ * `pendingPackItem` swap prompt: that prompt trades one `HeldItem` for another and has no notion of a
+ * consumable, and drinking on the spot is exactly the old behavior -- so an overflowing Pack degrades
+ * to what the game did before #110 instead of losing the find. */
+function addConsumable(
+  draft: Draft<DungeonState>,
+  item: Consumable,
+  foundText: string,
+  rng: RNG,
+): void {
+  if (packIsFull(draft)) {
+    pushLog(draft, `${foundText} Your Pack is full, so you drink it where you stand.`);
+    applyConsumable(draft, item, rng);
+    return;
+  }
+  draft.consumables = [...(draft.consumables ?? []), item];
+  pushLog(draft, `${foundText} Stowed in your Pack for later.`);
+}
+
+/** Applies a potion's effect, wherever it's drunk from. Every branch is the code that used to run at
+ * the moment of discovery, moved here unchanged -- see `USE_CONSUMABLE` for the round-consuming half. */
+function applyConsumable(draft: Draft<DungeonState>, item: Consumable, rng: RNG): void {
+  switch (item.effect.kind) {
+    case "healAll": {
+      const healed = draft.maxHp - draft.hp;
+      draft.hp = draft.maxHp;
+      pushLog(draft, `You drink the ${item.name}${healed > 0 ? ` (+${healed} HP)` : ""}.`);
+      break;
+    }
+    case "healAmount": {
+      const healed = Math.min(item.effect.amount, draft.maxHp - draft.hp);
+      draft.hp += healed;
+      pushLog(draft, `You drink the ${item.name}${healed > 0 ? ` (+${healed} HP)` : ""}.`);
+      break;
+    }
+    case "restoreAllSpells": {
+      draft.spellUses = { ...draft.maxSpellUses };
+      pushLog(draft, `You drink the ${item.name} -- every spell is restored.`);
+      break;
+    }
+    case "restoreRandomSpellUse": {
+      const knownKeys = Object.keys(draft.spellUses);
+      if (knownKeys.length === 0) {
+        pushLog(draft, `You use the ${item.name}, but you don't know any spells yet.`);
+        break;
+      }
+      const key = knownKeys[rollDie(rng) % knownKeys.length]!;
+      const max = draft.maxSpellUses[key] ?? draft.spellUses[key]!;
+      draft.spellUses[key] = Math.min(max, (draft.spellUses[key] ?? 0) + 1);
+      const { table, roll: spellRoll } = parseSpellKey(key);
+      const spellName = SPELL_TABLE_BY_KEY[table]?.[spellRoll]?.name ?? "a spell";
+      pushLog(draft, `You use the ${item.name} -- it recovers a use of ${spellName}.`);
+      break;
+    }
+    case "grantsTorches": {
+      const gained = Math.min(item.effect.amount, MAX_TORCHES - draft.torches);
+      draft.torches += gained;
+      pushLog(draft, `You use the ${item.name} (+${gained} torch${gained === 1 ? "" : "es"}).`);
+      break;
+    }
+    case "grantTorchesRoll": {
+      let rolled = 0;
+      for (let i = 0; i < item.effect.dice; i++) rolled += rollDie(rng);
+      const gained = Math.min(rolled, MAX_TORCHES - draft.torches);
+      draft.torches += gained;
+      pushLog(draft, `You use the ${item.name} (+${gained} torch${gained === 1 ? "" : "es"}).`);
+      break;
+    }
+    case "combatDamageBonus": {
+      // The item that made #110 worth building: outside a fight this used to be discarded outright.
+      if (draft.combat) {
+        draft.combat.playerDamageBonus += item.effect.amount;
+        pushLog(draft, `You drink the ${item.name} -- +${item.effect.amount} damage this fight!`);
+      } else {
+        pushLog(draft, `You drink the ${item.name}, but there's no one to fight.`);
+      }
+      break;
+    }
+  }
+}
+
+/** "Health Potion (Recovers all HP)." -> "Health Potion". The Wonders column carries a real `name`;
+ * the Treasure column only has its printed text, and the parenthetical is the effect description. */
+function rewardItemName(text: string): string {
+  return text.split(" (")[0]!.replace(/\.$/, "").trim();
+}
+
+/** Ogre "cannot use potions" -- the two holdable Treasure outcomes that are actually potions, so an
+ * Ogre keeps #83's sell-instead path rather than stowing one it could never drink. Torches and the
+ * Ziggurat's Strange Fruit aren't in any of Ogre's three restricted categories. */
+const OGRE_RESTRICTED_REWARD_KINDS: ReadonlySet<string> = new Set(["healAll", "restoreAllSpells"]);
 
 /** Issue #83: flat placeholder worth for an Ogre-unusable potion/scroll outcome that has no coin
  * value of its own to draw on (unlike armor, which at least has a `maxHp` to derive one from) --
@@ -1197,6 +1306,18 @@ function resolveWonder(draft: Draft<DungeonState>, entry: WonderEntry, rng: RNG)
       twoHanded: entry.grantsWeapon.twoHanded,
     });
     pushLog(draft, `Treasure: ${entry.text}`);
+    return;
+  }
+  // Issue #110: a Wonder that's really a potion is stowed rather than drunk on the spot. Gated on
+  // `grantsHp === undefined` so a *wearable* trinket that also heals stays a trinket, and reached only
+  // after the Ogre branch above, which sells these instead.
+  if (entry.grantsHp === undefined && isHoldableItemEffect(entry.effect)) {
+    addConsumable(
+      draft,
+      { name: entry.name, text: entry.text, effect: entry.effect },
+      `Treasure: ${entry.text}`,
+      rng,
+    );
     return;
   }
   if (entry.grantsHp !== undefined) {
@@ -1310,12 +1431,20 @@ function resolvePotion(draft: Draft<DungeonState>, entry: PotionEntry, rng: RNG)
     return;
   }
 
+  // Issue #110: the Laboratory's Luminescence Potion is worth nothing at 10 torches, so it stows like
+  // every other timing-dependent potion. Its Mutation/flavor rows are unaffected -- a mutation isn't
+  // something you save for later, and a curiosity has no moment to wait for.
+  if (isHoldableItemEffect(entry.effect)) {
+    addConsumable(
+      draft,
+      { name: entry.name, text: entry.text, effect: entry.effect },
+      `Treasure: ${entry.text}`,
+      rng,
+    );
+    return;
+  }
+
   switch (entry.effect.kind) {
-    case "grantsTorches": {
-      const gained = Math.min(entry.effect.amount, MAX_TORCHES - draft.torches);
-      draft.torches += gained;
-      break;
-    }
     case "randomSpell": {
       // "Learn 3 Random Basic Spells" -- three separate rolls, the same Basic-only shape every other
       // spell grant in this file uses.
@@ -1775,6 +1904,7 @@ export function dungeonReducer(
         if (!seg?.remains) return;
         const { names, coins, treasures, keys, heldItems, armor, spareArmor, weapon, weapons } =
           seg.remains;
+        const remainsPotions = seg.remains.consumables ?? [];
         draft.coins += coins;
         draft.treasures += treasures;
         draft.keys += keys;
@@ -1791,15 +1921,21 @@ export function dungeonReducer(
         // heldItems -- take as many as currently fit, first-overflow becomes pendingPackItem, and
         // anything past that stays behind in a shrunken remains (nothing is ever silently lost;
         // collecting again later, once there's room, picks up the next one the same way).
-        const room = Math.max(
-          0,
-          maxHeldItemsFor(draft.hireling, draft.animals) - draft.heldItems.length,
-        );
+        const capacity = maxHeldItemsFor(draft.hireling, draft.animals);
+        const room = Math.max(0, capacity - packUsed(draft));
         const fitting = heldItems.slice(0, room);
         const overflow = heldItems.slice(room);
         draft.heldItems.push(...fitting);
-        const itemsPart =
-          fitting.length > 0 ? `, and ${fitting.map((item) => item.name).join(", ")}` : "";
+        // Held potions (issue #110) share those same slots, and are taken after sellables with
+        // whatever room is left. Anything that doesn't fit stays in the remains, like an item.
+        const potionRoom = Math.max(0, capacity - packUsed(draft));
+        const fittingPotions = remainsPotions.slice(0, potionRoom);
+        const potionOverflow = remainsPotions.slice(potionRoom);
+        if (fittingPotions.length > 0) {
+          draft.consumables = [...(draft.consumables ?? []), ...fittingPotions];
+        }
+        const recovered = [...fitting, ...fittingPotions].map((item) => item.name);
+        const itemsPart = recovered.length > 0 ? `, and ${recovered.join(", ")}` : "";
         pushLog(
           draft,
           `Segment ${seg.id}: recovered ${coins} coin${coins === 1 ? "" : "s"}, ${treasures} Treasure${treasures === 1 ? "" : "s"}, and ${keys} Key${keys === 1 ? "" : "s"}${itemsPart} from the remains of ${names.join(", ")}.`,
@@ -1812,6 +1948,7 @@ export function dungeonReducer(
             treasures: 0,
             keys: 0,
             heldItems: overflow.slice(1),
+            consumables: potionOverflow,
             armor: [],
             spareArmor: [],
             weapon: null,
@@ -1820,6 +1957,25 @@ export function dungeonReducer(
           pushLog(
             draft,
             `Your Pack is full -- ${overflow[0]!.name} is still waiting in the remains.`,
+          );
+        } else if (potionOverflow.length > 0) {
+          // Potions alone overflowed, so there's no `pendingPackItem` swap to offer (that prompt
+          // trades one sellable for another) -- they simply wait here until the Pack has room.
+          seg.remains = {
+            names,
+            coins: 0,
+            treasures: 0,
+            keys: 0,
+            heldItems: [],
+            consumables: potionOverflow,
+            armor: [],
+            spareArmor: [],
+            weapon: null,
+            weapons: [],
+          };
+          pushLog(
+            draft,
+            `Your Pack is full -- ${potionOverflow.map((p) => p.name).join(", ")} still waiting in the remains.`,
           );
         } else {
           seg.remains = null;
@@ -1866,6 +2022,34 @@ export function dungeonReducer(
         const item = draft.heldItems[action.index];
         if (!item) return;
         draft.heldItems.splice(action.index, 1);
+        pushLog(draft, `You leave the ${item.name} behind.`);
+      });
+    }
+
+    case "USE_CONSUMABLE": {
+      // Issue #110. Deliberately usable mid-fight (that's the whole point of holding a Health Potion
+      // or a Potion of Fury), so unlike DISCARD_ITEM this isn't gated on `!state.combat` -- instead it
+      // consumes the round exactly like CAST_SPELL and OPEN_TREASURE, since drinking is an action.
+      if (!state.alive || isActionBlocked(state)) return state;
+      if (state.combat?.pendingDamage != null) return state;
+      if (!state.consumables?.[action.index]) return state;
+      return produce(state, (draft) => {
+        const item = draft.consumables![action.index]!;
+        draft.consumables!.splice(action.index, 1);
+        applyConsumable(draft, item, rng);
+        if (draft.combat) {
+          applyMonsterTurn(draft, draft.combat, rng);
+        }
+      });
+    }
+
+    case "DISCARD_CONSUMABLE": {
+      // The DISCARD_ITEM equivalent, and gated identically -- dropping a bottle isn't a combat action.
+      if (!state.alive || state.combat || isActionBlocked(state)) return state;
+      return produce(state, (draft) => {
+        const item = draft.consumables?.[action.index];
+        if (!item) return;
+        draft.consumables!.splice(action.index, 1);
         pushLog(draft, `You leave the ${item.name} behind.`);
       });
     }
@@ -3012,142 +3196,163 @@ export function dungeonReducer(
 
         draft.treasures -= 1;
 
-        switch (outcome.effect.kind) {
-          case "heldValue": {
-            addHeldItem(
-              draft,
-              { name: outcome.effect.name, worth: outcome.effect.amount },
-              `Treasure: ${outcome.text}`,
-            );
-            break;
-          }
-          case "heldValueRoll": {
-            let sum = 0;
-            for (let i = 0; i < outcome.effect.dice; i++) sum += rollDie(rng);
-            const worth = sum * outcome.effect.multiplier;
-            addHeldItem(
-              draft,
-              { name: outcome.effect.name, worth },
-              `Treasure: ${outcome.text} (worth ${worth} coins)`,
-            );
-            break;
-          }
-          case "grantTorchesRoll": {
-            // Sewers (issue #30): "1d6 Torches" -- capped at MAX_TORCHES like every other torch
-            // grant, so a full bag simply wastes the excess rather than overfilling.
-            // Every torch grant in the book is d6-based, and `rollDie` is this codebase's only die
-            // primitive -- `sides` is carried on the effect for honesty about the printed table
-            // rather than because anything rolls anything else.
-            let rolled = 0;
-            for (let i = 0; i < outcome.effect.dice; i++) rolled += rollDie(rng);
-            const gained = Math.min(rolled, MAX_TORCHES - draft.torches);
-            draft.torches += gained;
-            pushLog(
-              draft,
-              `Treasure: ${outcome.text} (+${gained} torch${gained === 1 ? "" : "es"})`,
-            );
-            break;
-          }
-          case "healAll": {
-            // Ogre (New Races, issue #60): "Cannot use potions" -- the Treasure is still spent
-            // (already decremented above), but instead of vanishing outright it becomes a sellable
-            // HeldItem (issue #83), same flat placeholder worth every Ogre-unusable potion/scroll
-            // outcome uses.
-            if (draft.raceName === "Ogre") {
+        // Issue #110: a reward whose worth depends on *when* it's used is stowed instead of
+
+        // fired here -- a Health Potion at full HP was simply wasted before. An Ogre keeps #83's
+
+        // sell-instead path for the two that are actually potions.
+
+        const ogreBlocked =
+          draft.raceName === "Ogre" && OGRE_RESTRICTED_REWARD_KINDS.has(outcome.effect.kind);
+
+        if (isHoldableRewardEffect(outcome.effect) && !ogreBlocked) {
+          addConsumable(
+            draft,
+            { name: rewardItemName(outcome.text), text: outcome.text, effect: outcome.effect },
+            `Treasure: ${outcome.text}`,
+            rng,
+          );
+        } else
+          switch (outcome.effect.kind) {
+            case "heldValue": {
               addHeldItem(
                 draft,
-                { name: "Health Potion", worth: OGRE_UNUSABLE_TREASURE_WORTH },
-                `Treasure: ${outcome.text} Ogres cannot use potions -- sold instead.`,
+                { name: outcome.effect.name, worth: outcome.effect.amount },
+                `Treasure: ${outcome.text}`,
               );
               break;
             }
-            const healed = draft.maxHp - draft.hp;
-            draft.hp = draft.maxHp;
-            pushLog(draft, `Treasure: ${outcome.text}${healed > 0 ? ` (+${healed} HP)` : ""}`);
-            break;
-          }
-          case "restoreAllSpells": {
-            if (draft.raceName === "Ogre") {
+            case "heldValueRoll": {
+              let sum = 0;
+              for (let i = 0; i < outcome.effect.dice; i++) sum += rollDie(rng);
+              const worth = sum * outcome.effect.multiplier;
               addHeldItem(
                 draft,
-                { name: "Mana Potion", worth: OGRE_UNUSABLE_TREASURE_WORTH },
-                `Treasure: ${outcome.text} Ogres cannot use potions -- sold instead.`,
+                { name: outcome.effect.name, worth },
+                `Treasure: ${outcome.text} (worth ${worth} coins)`,
               );
               break;
             }
-            // Reads the persisted ceiling directly (issue #75) rather than a client-computed value
-            // passed through the action -- the same fix `rest()` needed, and for the same reason.
-            draft.spellUses = { ...draft.maxSpellUses };
-            pushLog(draft, `Treasure: ${outcome.text}`);
-            break;
-          }
-          case "randomSpell": {
-            // Ogre (New Races, issue #60): "Cannot use scrolls" -- the scroll is still spent, but
-            // instead of vanishing it becomes a sellable HeldItem (issue #83).
-            if (draft.raceName === "Ogre") {
-              addHeldItem(
+            case "grantTorchesRoll": {
+              // Sewers (issue #30): "1d6 Torches" -- capped at MAX_TORCHES like every other torch
+              // grant, so a full bag simply wastes the excess rather than overfilling.
+              // Every torch grant in the book is d6-based, and `rollDie` is this codebase's only die
+              // primitive -- `sides` is carried on the effect for honesty about the printed table
+              // rather than because anything rolls anything else.
+              let rolled = 0;
+              for (let i = 0; i < outcome.effect.dice; i++) rolled += rollDie(rng);
+              const gained = Math.min(rolled, MAX_TORCHES - draft.torches);
+              draft.torches += gained;
+              pushLog(
                 draft,
-                { name: "Magic Scroll", worth: OGRE_UNUSABLE_TREASURE_WORTH },
-                `Treasure: ${outcome.text} Ogres cannot use scrolls -- sold instead.`,
+                `Treasure: ${outcome.text} (+${gained} torch${gained === 1 ? "" : "es"})`,
               );
               break;
             }
-            const spellRoll = rollDie(rng);
-            const key = spellKey("basic", spellRoll);
-            draft.spellUses[key] = (draft.spellUses[key] ?? 0) + 1;
-            // Raises the ceiling too (issue #75), same as every other spell-granting site.
-            draft.maxSpellUses[key] = (draft.maxSpellUses[key] ?? 0) + 1;
-            const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
-            draft.milestones.hasCastSpell = true; // Scholar (issue #70): "used a spell or scroll"
-            pushLog(draft, `Treasure: ${outcome.text} — learned ${spellName}!`);
-            break;
-          }
-          case "restoreRandomSpellUse": {
-            // Ziggurat's "Strange Fruit" (issue #30): "recover 1 use of a spell" -- a random
-            // currently-known spell, unlike Reload Mana (still deferred), which lets the player
-            // choose. Not one of Ogre's three restricted categories (potions/scrolls/armor), so no
-            // Ogre check here.
-            const knownKeys = Object.keys(draft.spellUses);
-            if (knownKeys.length === 0) {
-              pushLog(draft, `Treasure: ${outcome.text} You don't know any spells yet.`);
+            case "healAll": {
+              // Ogre (New Races, issue #60): "Cannot use potions" -- the Treasure is still spent
+              // (already decremented above), but instead of vanishing outright it becomes a sellable
+              // HeldItem (issue #83), same flat placeholder worth every Ogre-unusable potion/scroll
+              // outcome uses.
+              if (draft.raceName === "Ogre") {
+                addHeldItem(
+                  draft,
+                  { name: "Health Potion", worth: OGRE_UNUSABLE_TREASURE_WORTH },
+                  `Treasure: ${outcome.text} Ogres cannot use potions -- sold instead.`,
+                );
+                break;
+              }
+              const healed = draft.maxHp - draft.hp;
+              draft.hp = draft.maxHp;
+              pushLog(draft, `Treasure: ${outcome.text}${healed > 0 ? ` (+${healed} HP)` : ""}`);
               break;
             }
-            const key = knownKeys[rollDie(rng) % knownKeys.length]!;
-            const max = draft.maxSpellUses[key] ?? draft.spellUses[key]!;
-            draft.spellUses[key] = Math.min(max, (draft.spellUses[key] ?? 0) + 1);
-            const { table, roll: spellRoll } = parseSpellKey(key);
-            const spellName = SPELL_TABLE_BY_KEY[table]?.[spellRoll]?.name ?? "a spell";
-            pushLog(draft, `Treasure: ${outcome.text} — recovers a use of ${spellName}.`);
-            break;
-          }
-          case "flavor": {
-            pushLog(draft, `Treasure: ${outcome.text}`);
-            break;
-          }
-          case "rerollColumn": {
-            const roll = rollDie(rng);
-            if (outcome.effect.column === "wonders") {
-              resolveWonder(draft, DUNGEON_TABLES[draft.dungeonTypeKey!].wonders[roll]!, rng);
-            } else if (outcome.effect.column === "magicItem") {
-              resolveMagicItem(draft, DUNGEON_TABLES[draft.dungeonTypeKey!].magicItem[roll]!, rng);
-            } else if (outcome.effect.column === "potions") {
-              // Only the Laboratory prints a Potions column, and only its own Reward table
-              // redirects here -- the optional lookup keeps a hypothetical redirect from a type
-              // without one from crashing.
-              const potion = DUNGEON_TABLES[draft.dungeonTypeKey!].potions?.[roll];
-              if (potion) resolvePotion(draft, potion, rng);
-            } else {
-              const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
-              draft.spareWeapons.push({
-                name: base.name,
-                formula: base.formula,
-                twoHanded: base.twoHanded,
-              });
-              pushLog(draft, `Treasure: You find a ${base.name} (${base.formula} damage).`);
+            case "restoreAllSpells": {
+              if (draft.raceName === "Ogre") {
+                addHeldItem(
+                  draft,
+                  { name: "Mana Potion", worth: OGRE_UNUSABLE_TREASURE_WORTH },
+                  `Treasure: ${outcome.text} Ogres cannot use potions -- sold instead.`,
+                );
+                break;
+              }
+              // Reads the persisted ceiling directly (issue #75) rather than a client-computed value
+              // passed through the action -- the same fix `rest()` needed, and for the same reason.
+              draft.spellUses = { ...draft.maxSpellUses };
+              pushLog(draft, `Treasure: ${outcome.text}`);
+              break;
             }
-            break;
+            case "randomSpell": {
+              // Ogre (New Races, issue #60): "Cannot use scrolls" -- the scroll is still spent, but
+              // instead of vanishing it becomes a sellable HeldItem (issue #83).
+              if (draft.raceName === "Ogre") {
+                addHeldItem(
+                  draft,
+                  { name: "Magic Scroll", worth: OGRE_UNUSABLE_TREASURE_WORTH },
+                  `Treasure: ${outcome.text} Ogres cannot use scrolls -- sold instead.`,
+                );
+                break;
+              }
+              const spellRoll = rollDie(rng);
+              const key = spellKey("basic", spellRoll);
+              draft.spellUses[key] = (draft.spellUses[key] ?? 0) + 1;
+              // Raises the ceiling too (issue #75), same as every other spell-granting site.
+              draft.maxSpellUses[key] = (draft.maxSpellUses[key] ?? 0) + 1;
+              const spellName = SPELL_TABLE[spellRoll]?.name ?? "a spell";
+              draft.milestones.hasCastSpell = true; // Scholar (issue #70): "used a spell or scroll"
+              pushLog(draft, `Treasure: ${outcome.text} — learned ${spellName}!`);
+              break;
+            }
+            case "restoreRandomSpellUse": {
+              // Ziggurat's "Strange Fruit" (issue #30): "recover 1 use of a spell" -- a random
+              // currently-known spell, unlike Reload Mana (still deferred), which lets the player
+              // choose. Not one of Ogre's three restricted categories (potions/scrolls/armor), so no
+              // Ogre check here.
+              const knownKeys = Object.keys(draft.spellUses);
+              if (knownKeys.length === 0) {
+                pushLog(draft, `Treasure: ${outcome.text} You don't know any spells yet.`);
+                break;
+              }
+              const key = knownKeys[rollDie(rng) % knownKeys.length]!;
+              const max = draft.maxSpellUses[key] ?? draft.spellUses[key]!;
+              draft.spellUses[key] = Math.min(max, (draft.spellUses[key] ?? 0) + 1);
+              const { table, roll: spellRoll } = parseSpellKey(key);
+              const spellName = SPELL_TABLE_BY_KEY[table]?.[spellRoll]?.name ?? "a spell";
+              pushLog(draft, `Treasure: ${outcome.text} — recovers a use of ${spellName}.`);
+              break;
+            }
+            case "flavor": {
+              pushLog(draft, `Treasure: ${outcome.text}`);
+              break;
+            }
+            case "rerollColumn": {
+              const roll = rollDie(rng);
+              if (outcome.effect.column === "wonders") {
+                resolveWonder(draft, DUNGEON_TABLES[draft.dungeonTypeKey!].wonders[roll]!, rng);
+              } else if (outcome.effect.column === "magicItem") {
+                resolveMagicItem(
+                  draft,
+                  DUNGEON_TABLES[draft.dungeonTypeKey!].magicItem[roll]!,
+                  rng,
+                );
+              } else if (outcome.effect.column === "potions") {
+                // Only the Laboratory prints a Potions column, and only its own Reward table
+                // redirects here -- the optional lookup keeps a hypothetical redirect from a type
+                // without one from crashing.
+                const potion = DUNGEON_TABLES[draft.dungeonTypeKey!].potions?.[roll];
+                if (potion) resolvePotion(draft, potion, rng);
+              } else {
+                const base = DUNGEON_TABLES[draft.dungeonTypeKey!].weapon[roll]!;
+                draft.spareWeapons.push({
+                  name: base.name,
+                  formula: base.formula,
+                  twoHanded: base.twoHanded,
+                });
+                pushLog(draft, `Treasure: You find a ${base.name} (${base.formula} damage).`);
+              }
+              break;
+            }
           }
-        }
 
         if (draft.combat) {
           applyMonsterTurn(draft, draft.combat, rng);
@@ -3252,6 +3457,8 @@ export function dungeonReducer(
           draft.mutations = action.mutations ?? [];
           draft.zombieRevivals = action.zombieRevivals ?? 0;
           draft.curiosities = action.curiosities ?? {};
+          // Same trip, so the potions the character walked out with walk back in (issue #110).
+          draft.consumables = action.consumables ?? [];
           // Same trip, so the Hireling comes back as battered as it left (issue #114) -- resting in
           // Town heals the character, never the hired help.
           draft.hirelingHp = action.hirelingHp ?? null;

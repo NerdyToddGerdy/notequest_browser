@@ -4,7 +4,14 @@ import type { SpellTableKey } from "../data/types.ts";
 import { HEAL_AMOUNT, OUT_OF_COMBAT_SPELL_NAMES, parseWeaponFormula } from "./combat.ts";
 import { MUTATION_IDS } from "../data/mutations.ts";
 import type { ArmorPieceKind } from "../data/dungeonTables.ts";
-import type { ArmorPiece, EquippedWeapon, HeldItem, OwnedBuilding } from "./dungeonState.ts";
+import { isUsableOutOfCombat } from "./dungeonState.ts";
+import type {
+  ArmorPiece,
+  Consumable,
+  EquippedWeapon,
+  HeldItem,
+  OwnedBuilding,
+} from "./dungeonState.ts";
 import { rollSpell, spellKey, SPELL_TABLE_BY_KEY } from "./character.ts";
 import { rollDie } from "./dice.ts";
 import type { RNG } from "./rng.ts";
@@ -62,6 +69,10 @@ export interface AdventurerResources {
    * `DungeonState.hirelingHp`, so a trip paused in Town and resumed doesn't heal the hired help.
    * Set at hire time, written back by the dungeon's own `RESOLVE_DAMAGE`, cleared when the trip ends. */
   hirelingHp: number | null;
+  /** Potions held for later (issue #110) -- mirrors `DungeonState.consumables`, and shares the
+   * 10-item Pack cap with `heldItems` (the rulebook's limit is "up to 10 items in your backpack",
+   * not ten of each). Usable in Town/World too, via `drinkConsumable()`. */
+  consumables: Consumable[];
   /** Flavor-only finds tallied by name (issues #109/#115) -- mirrors `DungeonState.curiosities`.
    * Permanent per character, like `advancedClasses`/`mutations`. */
   curiosities: Record<string, number>;
@@ -495,6 +506,76 @@ export function sellEquipment(
     coins: resources.coins + worth,
     milestones: { ...resources.milestones, hasSoldItem: true },
   };
+}
+
+/** Whether this held potion does anything out here (issue #110). Potion of Fury is the one that
+ * doesn't -- there's no fight on the World map -- so its button is disabled rather than hidden,
+ * matching the always-visible-but-disabled convention `Ask` and the spell "Cast" buttons use. */
+export function canDrinkConsumable(resources: AdventurerResources, index: number): boolean {
+  const item = resources.consumables[index];
+  return !!item && isUsableOutOfCombat(item.effect);
+}
+
+/** Drinks a held potion in Town or on the World map. Named `drink...` rather than `use...` so ESLint's
+ * `react-hooks/rules-of-hooks` doesn't mistake a `use`-prefixed plain function for a hook -- the same
+ * rename `resolveForgottenGods()` needed, and it matches `canDrinkVerdosaPotion()` besides. Deliberately a separate implementation from the
+ * dungeon's own `USE_CONSUMABLE` for the same reason `canCastSpell()`/`castSpell()` are: out here
+ * there's no reducer to dispatch against, and no round for it to consume. */
+export function drinkConsumable(
+  resources: AdventurerResources,
+  index: number,
+  rng: RNG = Math.random,
+): AdventurerResources {
+  const item = resources.consumables[index];
+  if (!item || !isUsableOutOfCombat(item.effect)) return resources;
+  const without = {
+    ...resources,
+    consumables: resources.consumables.filter((_, i) => i !== index),
+  };
+  switch (item.effect.kind) {
+    case "healAll":
+      return { ...without, hp: without.maxHp };
+    case "healAmount":
+      return { ...without, hp: Math.min(without.maxHp, without.hp + item.effect.amount) };
+    case "restoreAllSpells":
+      return { ...without, spellUses: { ...without.maxSpellUses } };
+    case "restoreRandomSpellUse": {
+      const knownKeys = Object.keys(without.spellUses);
+      if (knownKeys.length === 0) return without;
+      const key = knownKeys[rollDie(rng) % knownKeys.length]!;
+      const max = without.maxSpellUses[key] ?? without.spellUses[key]!;
+      return {
+        ...without,
+        spellUses: {
+          ...without.spellUses,
+          [key]: Math.min(max, (without.spellUses[key] ?? 0) + 1),
+        },
+      };
+    }
+    case "grantsTorches":
+      return { ...without, torches: Math.min(MAX_TORCHES, without.torches + item.effect.amount) };
+    case "grantTorchesRoll": {
+      let rolled = 0;
+      for (let i = 0; i < item.effect.dice; i++) rolled += rollDie(rng);
+      return { ...without, torches: Math.min(MAX_TORCHES, without.torches + rolled) };
+    }
+    default:
+      return without;
+  }
+}
+
+/** Drops a held potion. Free, like `DISCARD_ITEM`'s Pack equivalent. */
+export function discardConsumable(
+  resources: AdventurerResources,
+  index: number,
+): AdventurerResources {
+  return { ...resources, consumables: resources.consumables.filter((_, i) => i !== index) };
+}
+
+/** How many of the Pack's slots are in use (issue #110): sellables and potions share them, per the
+ * rulebook's "up to 10 items in your backpack." The single place both UI and engine count from. */
+export function packUsedSlots(resources: AdventurerResources): number {
+  return resources.heldItems.length + resources.consumables.length;
 }
 
 /** `isBlacksmith`: "You can repair an armor by spending 1 Torch [instead of a coin]." */

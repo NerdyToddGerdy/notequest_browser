@@ -4,6 +4,7 @@ import type {
   ItemEffect,
   MonsterAbility,
   MonsterTemplate,
+  RewardEffect,
   RoomContentEntry,
 } from "../data/dungeonTables.ts";
 import type { BuildingKind, SpellTableKey } from "../data/types.ts";
@@ -90,6 +91,8 @@ export interface FallenAdventurer {
   weapons: EquippedWeapon[];
   /** Benched armor the fallen character was carrying -- see DungeonState.spareArmor. */
   spareArmor: ArmorPiece[];
+  /** Undrunk potions (issue #110) -- optional, so remains left before the field existed still load. */
+  consumables?: Consumable[];
 }
 
 /** A worn armor piece -- either one of the 5 named pieces (rolled on the Armor table) or a
@@ -235,6 +238,64 @@ export interface CombatState {
 }
 
 /** A "worth N Coins in the town" item found by opening a Treasure -- held until there's a town to sell it in. */
+/** A potion held for later rather than drunk where it was found (issue #110).
+ *
+ * Every one of these effects is worth nothing at the wrong moment -- a Health Potion at full HP, a
+ * Potion of Fury outside a fight, a Potion of Luminescence at 10 torches -- and firing them on
+ * discovery took the one interesting decision (*when*) away from the player, who described it as
+ * drinking every potion they found "like a potion fiend."
+ *
+ * The rulebook supports carrying them rather than being silent on it: a 10-item backpack (rules 200),
+ * the Laboratory's "Leather breastplate (6 HP; Load up to 3 potions)" (2305), and both the Dream
+ * Potion's and the Verdosa Potion's "if you drink it" phrasing (1249, 951). `effect` reuses
+ * `ItemEffect`/`RewardEffect`'s existing vocabulary -- nothing new is invented to describe them. */
+export interface Consumable {
+  name: string;
+  /** The reward row's own text, so the Pack can describe what drinking it will do. */
+  text: string;
+  effect: ConsumableEffect;
+}
+
+/** The subset of the two reward vocabularies that can be held. Deliberately a union of the existing
+ * types rather than a third one -- a potion does exactly what it did before, just later. */
+export type ConsumableEffect =
+  | Extract<RewardEffect, { kind: "healAll" | "restoreAllSpells" | "restoreRandomSpellUse" }>
+  | Extract<RewardEffect, { kind: "grantTorchesRoll" }>
+  | Extract<ItemEffect, { kind: "healAmount" | "grantsTorches" | "combatDamageBonus" }>;
+
+/** Which reward-column outcomes become a held potion instead of firing immediately (issue #110). */
+export function isHoldableRewardEffect(
+  effect: RewardEffect,
+): effect is Extract<
+  RewardEffect,
+  { kind: "healAll" | "restoreAllSpells" | "restoreRandomSpellUse" | "grantTorchesRoll" }
+> {
+  return (
+    effect.kind === "healAll" ||
+    effect.kind === "restoreAllSpells" ||
+    effect.kind === "restoreRandomSpellUse" ||
+    effect.kind === "grantTorchesRoll"
+  );
+}
+
+/** The Wonders-column equivalent. `combatDamageBonus` is the clearest case in the whole set: it was
+ * explicitly *discarded* outside a fight before this existed. */
+export function isHoldableItemEffect(
+  effect: ItemEffect,
+): effect is Extract<ItemEffect, { kind: "healAmount" | "grantsTorches" | "combatDamageBonus" }> {
+  return (
+    effect.kind === "healAmount" ||
+    effect.kind === "grantsTorches" ||
+    effect.kind === "combatDamageBonus"
+  );
+}
+
+/** Only some potions mean anything with no fight underway -- Potion of Fury is the one that doesn't.
+ * Used to disable (never hide) its button, matching the always-visible-but-disabled convention. */
+export function isUsableOutOfCombat(effect: ConsumableEffect): boolean {
+  return effect.kind !== "combatDamageBonus";
+}
+
 export interface HeldItem {
   name: string;
   worth: number;
@@ -349,6 +410,10 @@ export interface DungeonState {
    * to land: before this they were announced in the log and then dropped entirely. Same
    * `Record<name, count>` shape and lifecycle as `killsByName`, and permanent per character. */
   curiosities?: Record<string, number>;
+  /** Potions held for later (issue #110). Shares the 10-item Pack cap with `heldItems`, so Cargo
+   * Ogre's 40 and Monkey's +1 keep applying and `pendingPackItem`'s swap flow covers overflow for
+   * free. Permanent per character, like `heldItems` -- `RESUME_DUNGEON` leaves them as remains. */
+  consumables?: Consumable[];
   /** Animals (issue #26) -- trained/bought companions carried on this run, by name, mirroring
    * `AdventurerResources.animals`. Threaded like `advancedClasses` (permanent -- `RESUME_DUNGEON`
    * resets to `[]`, `RETURN_TO_DUNGEON` carries it over exactly), not like `hireling` (which
@@ -540,6 +605,8 @@ export function createInitialDungeonState(
   hirelingHp: number | null = null,
   /** Issues #109/#115 -- flavor-only finds tallied by name; permanent per character. */
   curiosities: Record<string, number> = {},
+  /** Issue #110 -- potions carried in rather than drunk where they were found. */
+  consumables: Consumable[] = [],
 ): DungeonState {
   return {
     dungeonTypeKey: null,
@@ -578,6 +645,7 @@ export function createInitialDungeonState(
     hireling,
     hirelingHp,
     curiosities,
+    consumables,
     animals,
     milestones,
     buildings,
@@ -693,6 +761,11 @@ export type DungeonAction =
    * onto one of `armor`'s indices, or (issue #84) the employed Hireling ("your call" per the
    * rulebook, generalized one step further). */
   | { type: "RESOLVE_DAMAGE"; absorbWith: "hp" | "hireling" | number }
+  /** Drinks a held potion (issue #110). Mid-fight this consumes the round exactly like `CAST_SPELL`
+   * and `OPEN_TREASURE` -- drinking is an action, not a free extra. */
+  | { type: "USE_CONSUMABLE"; index: number }
+  /** Drops a held potion, the `DISCARD_ITEM` equivalent for the consumables list. */
+  | { type: "DISCARD_CONSUMABLE"; index: number }
   | {
       type: "RESUME_DUNGEON";
       dungeon: DungeonState;
@@ -723,6 +796,8 @@ export type DungeonAction =
       treasures: number;
       keys: number;
       heldItems: HeldItem[];
+      /** Issue #110 -- the same trip's potions, carried back in exactly like `heldItems`. */
+      consumables?: Consumable[];
       armor: ArmorPiece[];
       weapon: EquippedWeapon | null;
       spareWeapons: EquippedWeapon[];

@@ -55,6 +55,7 @@ const RESOURCES: AdventurerResources = {
   treasures: 1,
   keys: 0,
   heldItems: [],
+  consumables: [],
   armor: [],
   weapon: null,
   spareWeapons: [],

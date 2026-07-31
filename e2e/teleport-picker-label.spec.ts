@@ -41,6 +41,7 @@ const RESOURCES = {
   treasures: 0,
   keys: 0,
   heldItems: [],
+  consumables: [],
   armor: [],
   weapon: null,
   spareWeapons: [],

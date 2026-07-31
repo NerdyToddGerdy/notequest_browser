@@ -8,6 +8,7 @@ import {
   createInitialDungeonState,
   makeLevel,
   type CombatState,
+  type Consumable,
   type DungeonState,
   type SegmentState,
 } from "../dungeonState.ts";
@@ -15,6 +16,9 @@ import { hireHireling } from "../hirelings.ts";
 import {
   armorWorth,
   buyLamp,
+  canDrinkConsumable,
+  drinkConsumable,
+  packUsedSlots,
   canBuyLamp,
   createInitialMilestones,
   createInitialTravelStats,
@@ -110,6 +114,7 @@ function resumeSameTrip(persisted: DungeonState, hirelingHp: number | null): Dun
     treasures: 0,
     keys: 0,
     heldItems: [],
+    consumables: [],
     armor: [],
     weapon: null,
     spareWeapons: [],
@@ -159,6 +164,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     treasures: 0,
     keys: 0,
     heldItems: [],
+    consumables: [],
     armor: [],
     weapon: null,
     spareWeapons: [],
@@ -389,6 +395,7 @@ describe("issues #109/#115: a flavor item lands in Curiosities instead of vanish
       treasures: 0,
       keys: 0,
       heldItems: [],
+      consumables: [],
       armor: [],
       weapon: null,
       spareWeapons: [],
@@ -626,5 +633,152 @@ describe("issue #103: Assassin", () => {
     const legacy = fight(["Assassin"]);
     expect(legacy.combat!.playerHasAttacked).toBeUndefined();
     expect(60 - strike(legacy, 4).combat!.monsters[0]!.hp).toBe(12);
+  });
+});
+
+describe("issue #110: potions are held, not drunk on discovery", () => {
+  function potionState(overrides: Partial<DungeonState> = {}): DungeonState {
+    return palaceState({ treasures: 1, hp: 12, maxHp: 20, ...overrides });
+  }
+
+  it("stows a Health Potion found at full HP instead of wasting it", () => {
+    const full = dungeonReducer(potionState({ hp: 20 }), { type: "OPEN_TREASURE", roll: 2 });
+    expect(full.hp).toBe(20);
+    expect(full.consumables).toHaveLength(1);
+    // ...and it's still there to drink after taking damage.
+    const hurt: DungeonState = { ...full, hp: 5 };
+    expect(dungeonReducer(hurt, { type: "USE_CONSUMABLE", index: 0 }).hp).toBe(20);
+  });
+
+  it("names the potion from its printed text, dropping the effect parenthetical", () => {
+    const found = dungeonReducer(potionState(), { type: "OPEN_TREASURE", roll: 2 });
+    expect(found.consumables![0]!.name).toBe("Health Potion");
+    expect(found.consumables![0]!.text).toContain("Recovers all HP");
+  });
+
+  it("keeps a Potion of Fury for the next fight rather than discarding it", () => {
+    const found = dungeonReducer(potionState(), { type: "OPEN_TREASURE", roll: 5 }, fixedDie(5));
+    expect(found.consumables![0]!.effect).toEqual({ kind: "combatDamageBonus", amount: 2 });
+    const fighting: DungeonState = { ...found, combat: makeCombat() };
+    const drunk = dungeonReducer(fighting, { type: "USE_CONSUMABLE", index: 0 });
+    expect(drunk.combat!.playerDamageBonus).toBe(2);
+  });
+
+  it("drinking consumes the combat round, like casting a spell", () => {
+    const found = dungeonReducer(potionState(), { type: "OPEN_TREASURE", roll: 2 });
+    const fighting: DungeonState = { ...found, hp: 12, combat: makeCombat() };
+    const drunk = dungeonReducer(fighting, { type: "USE_CONSUMABLE", index: 0 });
+    // Healed to full, then the monster hit back -- the round ended.
+    expect(drunk.hp).toBeLessThan(20);
+    expect(drunk.consumables).toEqual([]);
+  });
+
+  it("is a no-op on an index that holds nothing", () => {
+    const state = potionState();
+    expect(dungeonReducer(state, { type: "USE_CONSUMABLE", index: 0 })).toEqual(state);
+  });
+
+  it("discards one without drinking it, and not during a fight", () => {
+    const found = dungeonReducer(potionState(), { type: "OPEN_TREASURE", roll: 2 });
+    const dropped = dungeonReducer(found, { type: "DISCARD_CONSUMABLE", index: 0 });
+    expect(dropped.consumables).toEqual([]);
+    expect(dropped.hp).toBe(12); // not drunk on the way out
+
+    const fighting: DungeonState = { ...found, combat: makeCombat() };
+    expect(
+      dungeonReducer(fighting, { type: "DISCARD_CONSUMABLE", index: 0 }).consumables,
+    ).toHaveLength(1);
+  });
+
+  it("shares the Pack's slots with sellables, per the rulebook's one 10-item backpack", () => {
+    const nearlyFull = potionState({
+      heldItems: Array.from({ length: 9 }, (_, i) => ({ name: `Trinket ${i}`, worth: 1 })),
+    });
+    const found = dungeonReducer(nearlyFull, { type: "OPEN_TREASURE", roll: 2 });
+    expect(found.consumables).toHaveLength(1); // the 10th slot
+
+    // At 10 used, a further potion has nowhere to go, so it degrades to the old behavior -- drunk on
+    // the spot rather than lost.
+    const full: DungeonState = { ...found, treasures: 1, hp: 5 };
+    const overflowed = dungeonReducer(full, { type: "OPEN_TREASURE", roll: 2 });
+    expect(overflowed.consumables).toHaveLength(1); // unchanged
+    expect(overflowed.hp).toBe(20); // drunk where they stood
+  });
+
+  it("an Ogre still sells a potion instead of ever holding one (issue #83)", () => {
+    const ogre = dungeonReducer(potionState({ raceName: "Ogre" }), {
+      type: "OPEN_TREASURE",
+      roll: 2,
+    });
+    expect(ogre.consumables ?? []).toEqual([]);
+    expect(ogre.heldItems).toEqual([{ name: "Health Potion", worth: 3 }]);
+  });
+
+  it("a fallen character's undrunk potions are left in their remains, not lost", () => {
+    // The Darkness is the deterministic death: no torch left to enter with.
+    const carrying = potionState({
+      torches: 0,
+      coins: 0,
+      treasures: 0,
+      consumables: [{ name: "Health Potion", text: "Health Potion.", effect: { kind: "healAll" } }],
+    });
+    const dead = dungeonReducer(carrying, {
+      type: "ROLL_DUNGEON",
+      typeRoll: 1,
+      nameRolls: [3, 3, 3],
+    });
+    expect(dead.alive).toBe(false);
+    expect(dead.levels[0]!.segments[0]!.remains?.consumables).toEqual([
+      { name: "Health Potion", text: "Health Potion.", effect: { kind: "healAll" } },
+    ]);
+  });
+
+  it("recovers those potions when a later character collects the remains", () => {
+    const withRemains = palaceState();
+    withRemains.levels[0]!.segments[0]!.remains = {
+      names: ["Doomed Dara"],
+      coins: 0,
+      treasures: 0,
+      keys: 0,
+      heldItems: [],
+      consumables: [{ name: "Health Potion", text: "Health Potion.", effect: { kind: "healAll" } }],
+      armor: [],
+      spareArmor: [],
+      weapon: null,
+      weapons: [],
+    };
+    const next = dungeonReducer(withRemains, { type: "COLLECT_REMAINS", segId: 1 });
+    expect(next.consumables).toHaveLength(1);
+    expect(next.levels[0]!.segments[0]!.remains).toBeNull();
+  });
+
+  it("out in Town, drinking works and Potion of Fury is refused rather than wasted", () => {
+    const healer: Consumable = {
+      name: "Health Potion",
+      text: "Health Potion.",
+      effect: { kind: "healAll" },
+    };
+    const fury: Consumable = {
+      name: "Potion of Fury",
+      text: "Potion of Fury.",
+      effect: { kind: "combatDamageBonus", amount: 2 },
+    };
+    const resources = makeResources({ hp: 4, maxHp: 20, consumables: [healer, fury] });
+    expect(canDrinkConsumable(resources, 0)).toBe(true);
+    expect(canDrinkConsumable(resources, 1)).toBe(false); // no fight out here
+
+    const healed = drinkConsumable(resources, 0);
+    expect(healed.hp).toBe(20);
+    expect(healed.consumables).toEqual([fury]);
+    // Refused, not silently consumed.
+    expect(drinkConsumable(resources, 1)).toEqual(resources);
+  });
+
+  it("counts potions and sellables together for the Pack's own capacity readout", () => {
+    const resources = makeResources({
+      heldItems: [{ name: "Jewel", worth: 20 }],
+      consumables: [{ name: "Health Potion", text: "x", effect: { kind: "healAll" } }],
+    });
+    expect(packUsedSlots(resources)).toBe(2);
   });
 });

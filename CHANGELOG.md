@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.0] - 2026-07-31
+
+### Added
+
+- **A consumable inventory** (#110) — potions are no longer drunk the instant they're found. A Health
+  Potion found at full HP, a Mana Potion with every spell untouched, a Potion of Luminescence at 10
+  torches, and a Potion of Fury outside a fight were all simply wasted; they now go into your Pack, and
+  you choose when to drink them. Covers the Health and Mana Potions, the Potion of Fury, the Potion of
+  Luminescence, the Sewers' torch bundle, the Ziggurat's Addictive Sweet Drink and Strange Fruit, and
+  the Laboratory's Luminescence Potion.
+  - Potions share the Pack's 10 slots with sellable items, per the rulebook's "up to 10 items in your
+    backpack" — so Cargo Ogre's 40 and Monkey's +1 apply to them too.
+  - Drinkable anywhere: in a dungeon (consuming the combat round, exactly like casting a spell), in
+    Town, and on the World map. A Potion of Fury is shown disabled rather than hidden where there's no
+    fight to buff.
+  - A fallen character's undrunk potions are left in their remains for a later adventurer to recover.
+  - An Ogre still can't use potions and still sells them instead — that path is unchanged.
+  - If your Pack is completely full when a potion is found, it's drunk on the spot rather than lost —
+    the old behaviour, as a fallback rather than the rule.
+
 ## [2.55.0] - 2026-07-31
 
 ### Added
