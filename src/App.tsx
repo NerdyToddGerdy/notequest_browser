@@ -14,6 +14,7 @@ import {
   createInitialWorldState,
   findOrRevealCompatibleHome,
   hexKey,
+  ownedBuildings,
   rollRuinsDungeon,
   withDungeonRunId,
   withSewerRunId,
@@ -120,7 +121,10 @@ export default function App() {
       curiosities: {},
       animals: [],
       milestones: createInitialMilestones(),
-      buildings: [],
+      // Issue #121: a Castle stands on a world hex, and the world outlives its builder -- so a new
+      // character inherits whatever is already on the map. Coins, troops and travel counters still
+      // die with the previous one; this is the one thing that doesn't.
+      buildings: world ? ownedBuildings(world) : [],
       troops: 0,
       troopSources: [],
       travelStats: createInitialTravelStats(),

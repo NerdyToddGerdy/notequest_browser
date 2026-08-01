@@ -463,7 +463,7 @@ export function DungeonScreen({
                   onDoorResolved={(segId, doorIdx, roll, wasNoisy) =>
                     dispatch({ type: "OPEN_DOOR", segId, doorIdx, roll, wasNoisy })
                   }
-                  onResolveLock={(segId, doorIdx, doorRoll, trapRoll, lockChoice) =>
+                  onResolveLock={(segId, doorIdx, doorRoll, trapRoll, lockChoice, bladeRoll) =>
                     dispatch({
                       type: "RESOLVE_DOOR_LOCK",
                       segId,
@@ -471,6 +471,7 @@ export function DungeonScreen({
                       doorRoll,
                       trapRoll,
                       lockChoice,
+                      bladeRoll,
                     })
                   }
                   onSelectSegment={(segId) => dispatch({ type: "SELECT_SEGMENT", segId })}
@@ -485,11 +486,11 @@ export function DungeonScreen({
                     <RoomInspector
                       key={state.selectedSegId ?? "none"}
                       state={state}
-                      onRollSecretPassage={(segId, roll, trapRoll) =>
-                        dispatch({ type: "ROLL_SECRET_PASSAGE", segId, roll, trapRoll })
+                      onRollSecretPassage={(segId, roll, trapRoll, bladeRoll) =>
+                        dispatch({ type: "ROLL_SECRET_PASSAGE", segId, roll, trapRoll, bladeRoll })
                       }
-                      onRollChest={(segId, dice, trapRoll) =>
-                        dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll })
+                      onRollChest={(segId, dice, trapRoll, bladeRoll) =>
+                        dispatch({ type: "ROLL_CHEST", segId, dice, trapRoll, bladeRoll })
                       }
                       onCollectRemains={(segId) => dispatch({ type: "COLLECT_REMAINS", segId })}
                       onClimbOut={(segId) => dispatch({ type: "CLIMB_OUT", segId })}

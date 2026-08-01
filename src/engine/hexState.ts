@@ -1,4 +1,5 @@
 import { rollDie } from "./dice.ts";
+import type { OwnedBuilding } from "./dungeonState.ts";
 import type { RNG } from "./rng.ts";
 import {
   CITY_OR_FORTRESS,
@@ -620,4 +621,21 @@ export function createInitialWorldState(
   };
   revealNeighborsInPlace(tiles, home, climate, rng);
   return { climate, home, player: home, tiles, hasBoat: false, bannedHexes: [] };
+}
+
+/** Every building standing on the map, as `AdventurerResources.buildings` entries (issue #121).
+ *
+ * A Castle sits on a world hex, and `WorldState` outlives every character -- so `tile.building` was
+ * always the real record, while `resources.buildings` was a per-character copy that died with its
+ * owner. Two characters in a row saved up for the late game and never reached it, because everything
+ * priced in hundreds of coins had to be re-earned from nothing each time.
+ *
+ * Confirmed with the user: **buildings persist, coins and troops don't.** A successor inherits the
+ * estate they're standing in and the Boss-kill tax it pays, but no army and no money -- permadeath
+ * still costs you everything you were carrying. This function is what makes `resources.buildings` a
+ * *view* of the map rather than a second source of truth: it's re-derived for each new character. */
+export function ownedBuildings(world: WorldState): OwnedBuilding[] {
+  return Object.entries(world.tiles)
+    .filter(([, tile]) => tile.building !== undefined)
+    .map(([hexKey, tile]) => ({ hexKey, kind: tile.building! }));
 }

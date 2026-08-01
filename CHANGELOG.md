@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-01
+
+A major version because combat itself was rebuilt: there is now **one** combat engine, shared by
+dungeons, the wilderness and the Arena, instead of three parallel implementations that quietly
+disagreed about what a character is.
+
+### Fixed
+
+- **Wilderness encounters no longer strip your character** (#120) — an Event fight took only your HP
+  and a weapon formula, so armor, spells, attack bonuses, magic-weapon effects, your Hireling, your
+  Snake and your potions all silently vanished. That was inherited from the Arena, where it was a
+  defensible choice because you _choose_ to enter. An Event fires unbidden and offered exactly one
+  button, so a player was forced into a fight without the character they had built, and lost one to a
+  Wyvern. A wilderness fight is now the same fight a dungeon room is.
+- **A wilderness fight can be left** (#120) — there was no flee, no retreat, no way out at all. Now
+  there's always an exit, costing a provision when you have one and free when you don't.
+- **Survival abilities work outside a dungeon** (#120) — Samambro's resilience, a Raven's return and
+  the zombie mutation never fired on the World map. They do now, everywhere.
+- **The blade trap shows the die that kills you** (#112) — a 1-in-6 that ends the run was rolled
+  silently inside the engine while a _different_ die animated on screen. It's shown now, like every
+  other consequential roll in the game.
+
+### Changed
+
+- **Buildings outlive their builder** (#121) — a Castle stands on a world hex, and the world outlives
+  every character, so a new adventurer now inherits whatever is already on the map, along with the
+  Boss-kill tax it pays. Coins, troops and travel counters still die with you. Two players in a row
+  saved for the late game and never reached it; this is the one thing that carries over.
+- The Arena runs the shared engine too, so your attack bonuses, weapon effects and spells come with
+  you into the pit. It keeps its own "you fight alone" shape — no Hireling — deliberately.
+
 ## [2.56.0] - 2026-07-31
 
 ### Added

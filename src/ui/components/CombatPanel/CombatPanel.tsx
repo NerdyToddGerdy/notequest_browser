@@ -50,17 +50,23 @@ export interface CombatPanelProps {
   /** Teleport needs a destination room first -- the parent screen owns that picker, so this just
    * signals "the player wants to flee" instead of dispatching CAST_SPELL directly. */
   onFlee: () => void;
+  /** Issue #120: a standing way out, offered outside a dungeon where Teleport isn't the only escape.
+   * A wilderness Event is mandatory, so a fight there always has an exit; a dungeon room doesn't get
+   * one (walking back out is what Retreat to Town is for). */
+  fleeLabel?: string;
   onResolveDamage: (absorbWith: "hp" | "hireling" | number) => void;
-  onEngulfBody: () => void;
+  /** Dungeon-only actions -- omitted entirely by an Event or Arena fight, which have no bodies to
+   * engulf and (for the Arena) no Hireling by design. */
+  onEngulfBody?: () => void;
   /** Issue #84: an employed Hireling's own attack -- a free action that doesn't end the round,
    * dispatched separately from onAttack. */
-  onHirelingAttack: (targetId: number, roll: number) => void;
+  onHirelingAttack?: (targetId: number, roll: number) => void;
   /** Issue #63: Goblin Helper's own "explode, dealing 5 damage to every monster" -- a one-time,
    * room-wide, free action that self-destructs the Hireling. */
-  onHirelingExplode: () => void;
+  onHirelingExplode?: () => void;
   /** Snake's own attack -- a free action that doesn't end the round, same shape as
    * `onHirelingAttack` but with no die to roll (Snake's damage is a flat 1, not a formula). */
-  onAnimalAttack: (targetId: number) => void;
+  onAnimalAttack?: (targetId: number) => void;
 }
 
 const HORN_FORMULA = "1d6";
@@ -122,6 +128,7 @@ export function CombatPanel({
   consumables = [],
   onUseConsumable,
   onFlee,
+  fleeLabel,
   onResolveDamage,
   onEngulfBody,
   onHirelingAttack,
@@ -214,7 +221,7 @@ export function CombatPanel({
     setRolling(true);
     window.setTimeout(() => {
       setRolling(false);
-      onHirelingAttack(targetId, rawRoll);
+      onHirelingAttack?.(targetId, rawRoll);
     }, revealDelay(1));
   }
 
@@ -318,12 +325,12 @@ export function CombatPanel({
                   {combat.hireling.name} Attacks
                 </button>
               )}
-              {isSnakeOwner && (
+              {isSnakeOwner && onAnimalAttack && (
                 <button
                   type="button"
                   className={styles.attackBtn}
                   disabled={!canAnimalAttack}
-                  onClick={() => onAnimalAttack(monster.id)}
+                  onClick={() => onAnimalAttack?.(monster.id)}
                 >
                   Snake Attacks
                 </button>
@@ -386,7 +393,15 @@ export function CombatPanel({
         </div>
       )}
 
-      {isSlimemen && combat.engulfableBodies > 0 && (
+      {fleeLabel && (
+        <div className={styles.spellRow}>
+          <button type="button" className={styles.fleeBtn} disabled={!canAct} onClick={onFlee}>
+            {fleeLabel}
+          </button>
+        </div>
+      )}
+
+      {isSlimemen && onEngulfBody && combat.engulfableBodies > 0 && (
         <div className={styles.spellRow}>
           <button
             type="button"
@@ -400,7 +415,7 @@ export function CombatPanel({
         </div>
       )}
 
-      {combat.hireling?.name === "Goblin Helper" && combat.hireling.hp > 0 && (
+      {combat.hireling?.name === "Goblin Helper" && onHirelingExplode && combat.hireling.hp > 0 && (
         <div className={styles.spellRow}>
           <button
             type="button"

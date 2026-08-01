@@ -1,21 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { EVENT_TABLE, eventBandFor, type EventBand } from "../../data/events.ts";
 import type { OverworldTerrain } from "../../data/hexTables.ts";
+import type { CombatState } from "../dungeonState.ts";
 import { fixedDie } from "../../test/mulberry32.ts";
 import { spellKey } from "../character.ts";
 import {
   applyEventEffect,
-  applyEventVictory,
+  eventAnimalAttack,
+  eventFightRound,
+  eventHirelingAttack,
+  eventResolveDamage,
+  fleeEvent,
+  type FighterIdentity,
   canIgnoreEvent,
   canRerollEvent,
   eventSkipReason,
   hasStarStone,
   ignoreEvent,
   rerollEvent,
-  resolveEventRound,
   rollTravelEvent,
   startEventCombat,
-  type EventCombatState,
 } from "../events.ts";
 import { createInitialMilestones, createInitialTravelStats } from "../town.ts";
 import type { AdventurerResources } from "../town.ts";
@@ -265,141 +269,200 @@ describe("applyEventEffect (non-combat outcomes)", () => {
   });
 });
 
+/** Race and class aren't on `AdventurerResources` -- they're threaded into a fight (issue #120). */
+const HUMAN: FighterIdentity = { raceName: "Human", className: "Fighter" };
+
 describe("Event combat", () => {
+  /** Issue #120: a wilderness fight now runs the shared core, so it takes the whole character --
+   * these helpers pass real `AdventurerResources` where the old signature took a bare `hp`. */
+  function fight(row: Parameters<typeof startEventCombat>[0], resources = makeResources()) {
+    return startEventCombat(row, resources, fixedDie(3));
+  }
+
   it("returns null for a non-monster Event row", () => {
-    expect(startEventCombat(EVENT_TABLE.desert[34], fixedDie(3))).toBeNull();
+    expect(fight(EVENT_TABLE.desert[34])).toBeNull();
   });
 
   it("spawns a fixed-count group with distinct ids", () => {
-    const state = startEventCombat(EVENT_TABLE.water[34], fixedDie(3))!;
-    expect(state.monsters).toHaveLength(4);
-    expect(new Set(state.monsters.map((m) => m.id)).size).toBe(4);
-    expect(state.monsters[0]!.name).toBe("Pirates");
-    expect(state.outcome).toBe("ongoing");
+    const combat = fight(EVENT_TABLE.water[34])!;
+    expect(combat.monsters).toHaveLength(4);
+    expect(new Set(combat.monsters.map((m) => m.id)).size).toBe(4);
+    expect(combat.monsters[0]!.name).toBe("Pirates");
+    expect(combat.outcome).toBe("ongoing");
   });
 
   it("uses the singular name when a dice-based count rolls 1", () => {
-    const state = startEventCombat(EVENT_TABLE.forest[34], fixedDie(1))!;
-    expect(state.monsters).toHaveLength(1);
-    expect(state.monsters[0]!.name).toBe("Goblin");
+    const combat = startEventCombat(EVENT_TABLE.forest[34], makeResources(), fixedDie(1))!;
+    expect(combat.monsters).toHaveLength(1);
+    expect(combat.monsters[0]!.name).toBe("Goblin");
   });
 
   it("only the targeted monster takes damage; survivors all counter-attack", () => {
-    const state = startEventCombat(EVENT_TABLE.mountain[34], fixedDie(3))!; // 2 Orcs, 6 HP, 3 dmg
-    // Weapon rolls 4 -> 4 damage to Orc #1 (survives at 2 HP), then both Orcs hit for 3 each.
-    const result = resolveEventRound(state, 20, "1d6", 1, 4, fixedDie(4));
-    expect(result.state.monsters[0]!.hp).toBe(2);
-    expect(result.state.monsters[1]!.hp).toBe(6);
-    expect(result.hp).toBe(14);
-    expect(result.state.outcome).toBe("ongoing");
+    const resources = makeResources({ hp: 20, maxHp: 20 });
+    const combat = fight(EVENT_TABLE.mountain[34], resources)!; // 2 Orcs, 6 HP, 3 dmg
+    const result = eventFightRound(resources, HUMAN, combat, 1, 4, "1d6", fixedDie(4));
+    expect(result.combat.monsters[0]!.hp).toBe(2);
+    expect(result.combat.monsters[1]!.hp).toBe(6);
+    expect(result.resources.hp).toBe(14);
+    expect(result.combat.outcome).toBe("ongoing");
   });
 
   it("a downed monster stops counter-attacking", () => {
-    const state = startEventCombat(EVENT_TABLE.mountain[34], fixedDie(3))!;
-    // 6 damage kills Orc #1 outright; only Orc #2 counters, for 3.
-    const result = resolveEventRound(state, 20, "1d6", 1, 6, fixedDie(6));
-    expect(result.state.monsters[0]!.hp).toBe(0);
-    expect(result.hp).toBe(17);
-    expect(result.state.outcome).toBe("ongoing");
+    const resources = makeResources({ hp: 20, maxHp: 20 });
+    const combat = fight(EVENT_TABLE.mountain[34], resources)!;
+    const result = eventFightRound(resources, HUMAN, combat, 1, 6, "1d6", fixedDie(6));
+    expect(result.combat.monsters).toHaveLength(1); // the dead one is removed, as in a dungeon
+    expect(result.resources.hp).toBe(17);
+    expect(result.combat.outcome).toBe("ongoing");
   });
 
-  it("rolls Loot once per Loot-tagged monster on victory", () => {
-    // A single Orc (Loot), 6 HP: weapon roll 6 kills it, then one loot die of 6 -> 1 Treasure.
-    const state = startEventCombat(EVENT_TABLE.plain[34], fixedDie(3))!;
-    const result = resolveEventRound(state, 20, "1d6", 1, 6, fixedDie(6));
-    expect(result.state.outcome).toBe("victory");
-    expect(result.state.loot).toEqual({ coins: 0, treasures: 1, keys: 0 });
-    expect(result.hp).toBe(20); // dead monsters don't counter
+  it("rolls Loot once per Loot-tagged monster on victory, crediting it directly", () => {
+    const resources = makeResources({ hp: 20, maxHp: 20 });
+    const combat = fight(EVENT_TABLE.plain[34], resources)!; // a single Orc (Loot), 6 HP
+    const result = eventFightRound(resources, HUMAN, combat, 1, 6, "1d6", fixedDie(6));
+    expect(result.combat.outcome).toBe("victory");
+    expect(result.resources.treasures).toBe(1); // one loot die of 6
+    expect(result.resources.hp).toBe(20); // dead monsters don't counter
+    expect(result.resources.monsterKills).toBe(1);
+    expect(result.resources.killsByName).toEqual({ orc: 1 });
   });
 
   it("grants no loot for an untagged monster", () => {
-    // Moss Giant: 20 HP, no Loot. Whittle it down with a big fixed weapon.
-    let state = startEventCombat(EVENT_TABLE.swamp[2], fixedDie(3))!;
-    let hp = 100;
-    for (let i = 0; i < 4 && state.outcome === "ongoing"; i++) {
-      const r = resolveEventRound(state, hp, "1d6+5", 1, 6, fixedDie(6));
-      state = r.state;
-      hp = r.hp;
+    let resources = makeResources({ hp: 100, maxHp: 100 });
+    let combat = fight(EVENT_TABLE.swamp[2], resources)!; // Moss Giant, 20 HP, no Loot
+    for (let i = 0; i < 4 && combat.outcome === "ongoing"; i++) {
+      const r = eventFightRound(resources, HUMAN, combat, 1, 6, "1d6+5", fixedDie(6));
+      resources = r.resources;
+      combat = r.combat;
     }
-    expect(state.outcome).toBe("victory");
-    expect(state.loot).toBeNull();
+    expect(combat.outcome).toBe("victory");
+    expect(resources.treasures).toBe(0);
+    expect(resources.coins).toBe(0);
   });
 
   it("Firebreath queues a +10 counterattack on a raw roll of 1", () => {
-    const state = startEventCombat(EVENT_TABLE.plain[2], fixedDie(3))!; // Wyvern, 12 HP, 6 dmg
-    const result = resolveEventRound(state, 40, "1d6", 1, 1, fixedDie(1));
-    expect(result.state.monsters[0]!.bonusDamage).toBe(10);
-    expect(result.state.monsters[0]!.hp).toBe(11); // the raw-1 roll still dealt its 1 damage
-    expect(result.hp).toBe(40 - (6 + 10)); // base 6 plus the queued Firebreath 10
+    const resources = makeResources({ hp: 40, maxHp: 40 });
+    const combat = fight(EVENT_TABLE.plain[2], resources)!; // Wyvern, 12 HP, 6 dmg
+    const result = eventFightRound(resources, HUMAN, combat, 1, 1, "1d6", fixedDie(1));
+    expect(result.combat.monsters[0]!.hp).toBe(11); // the raw-1 roll still dealt its 1 damage
+    expect(result.resources.hp).toBe(40 - (6 + 10)); // base 6 plus the queued Firebreath 10
   });
 
   it("Regeneration heals the monster on a raw roll of 1", () => {
-    const state = startEventCombat(EVENT_TABLE.forest[2], fixedDie(3))!; // Troll, 10 HP, Regen
-    const damaged: EventCombatState = {
-      ...state,
-      monsters: [{ ...state.monsters[0]!, hp: 2 }],
-    };
-    const result = resolveEventRound(damaged, 40, "1d6", 1, 1, fixedDie(1));
+    const resources = makeResources({ hp: 40, maxHp: 40 });
+    const combat = fight(EVENT_TABLE.forest[2], resources)!; // Troll, 10 HP, Regen
+    const damaged: CombatState = { ...combat, monsters: [{ ...combat.monsters[0]!, hp: 2 }] };
+    const result = eventFightRound(resources, HUMAN, damaged, 1, 1, "1d6", fixedDie(1));
     // 1 damage takes it to 1, then Regeneration's 6 heals back up (capped at maxHp 10).
-    expect(result.state.monsters[0]!.hp).toBe(7);
+    expect(result.combat.monsters[0]!.hp).toBe(7);
   });
 
   it("Explosive kills the player in the same blast that defeats the monster", () => {
-    const state = startEventCombat(EVENT_TABLE.forest[34], fixedDie(1))!; // 1 Goblin, 3 HP, Explosive
-    const result = resolveEventRound(state, 3, "1d6", 1, 1, fixedDie(1));
+    const resources = makeResources({ hp: 3, maxHp: 3 });
+    const combat = startEventCombat(EVENT_TABLE.forest[34], resources, fixedDie(1))!; // 1 Goblin, Explosive
+    const result = eventFightRound(resources, HUMAN, combat, 1, 1, "1d6", fixedDie(1));
     expect(result.died).toBe(true);
-    expect(result.hp).toBe(0);
-    expect(result.state.outcome).toBe("defeat");
+    expect(result.resources.hp).toBe(0);
+    expect(result.combat.outcome).toBe("defeat");
   });
 
   it("defeat when the counter-attack takes the last HP", () => {
-    const state = startEventCombat(EVENT_TABLE.mountain[2], fixedDie(3))!; // Dragon, 7 dmg
-    const result = resolveEventRound(state, 5, "1d6", 1, 4, fixedDie(4));
+    const resources = makeResources({ hp: 5, maxHp: 5 });
+    const combat = fight(EVENT_TABLE.mountain[2], resources)!; // Dragon, 7 dmg
+    const result = eventFightRound(resources, HUMAN, combat, 1, 4, "1d6", fixedDie(4));
     expect(result.died).toBe(true);
-    expect(result.state.outcome).toBe("defeat");
+    expect(result.combat.outcome).toBe("defeat");
   });
 
   it("is a no-op once the fight is over, or against an already-downed target", () => {
-    const won: EventCombatState = { monsters: [], outcome: "victory", loot: null };
-    expect(resolveEventRound(won, 10, "1d6", 1, 6, fixedDie(6)).hp).toBe(10);
+    const resources = makeResources({ hp: 10, maxHp: 10 });
+    const combat = fight(EVENT_TABLE.mountain[34], resources)!;
+    const won: CombatState = { ...combat, monsters: [], outcome: "victory" };
+    expect(eventFightRound(resources, HUMAN, won, 1, 6, "1d6", fixedDie(6)).resources.hp).toBe(10);
 
-    const state = startEventCombat(EVENT_TABLE.mountain[34], fixedDie(3))!;
-    const downed: EventCombatState = {
-      ...state,
-      monsters: [{ ...state.monsters[0]!, hp: 0 }, state.monsters[1]!],
+    const downed: CombatState = {
+      ...combat,
+      monsters: [{ ...combat.monsters[0]!, hp: 0 }, combat.monsters[1]!],
     };
-    const result = resolveEventRound(downed, 10, "1d6", 1, 6, fixedDie(6));
-    expect(result.hp).toBe(10); // no round consumed, no counter-attack
-    expect(result.state).toBe(downed);
+    const result = eventFightRound(resources, HUMAN, downed, 1, 6, "1d6", fixedDie(6));
+    expect(result.resources.hp).toBe(10); // no round consumed, no counter-attack
   });
 });
 
-describe("applyEventVictory", () => {
-  it("credits loot, HP, and kill tallies", () => {
-    const state: EventCombatState = {
-      monsters: [],
-      outcome: "victory",
-      loot: { coins: 2, treasures: 1, keys: 1 },
-    };
-    const after = applyEventVictory(makeResources({ hp: 20, coins: 5 }), state, 14, "Orcs", 2);
-    expect(after.hp).toBe(14);
-    expect(after.coins).toBe(7);
-    expect(after.treasures).toBe(1);
-    expect(after.keys).toBe(1);
-    expect(after.monsterKills).toBe(2);
-    expect(after.killsByName).toEqual({ orcs: 2 });
+describe("issue #120: a wilderness fight is the character you built", () => {
+  const ORCS = EVENT_TABLE.mountain[34]; // 2 Orcs, 6 HP, 3 dmg each
+
+  it("armor absorbs, instead of every hit landing on HP", () => {
+    const resources = makeResources({
+      hp: 20,
+      maxHp: 20,
+      armor: [{ piece: "breastplate", hp: 10, maxHp: 10 }],
+    });
+    const combat = startEventCombat(ORCS, resources, fixedDie(3))!;
+    const round = eventFightRound(resources, HUMAN, combat, 1, 4, "1d6", fixedDie(4));
+    // The 6 incoming damage waits on a choice now, rather than silently hitting HP.
+    expect(round.resources.hp).toBe(20);
+    expect(round.combat.pendingDamage).toBe(6);
+
+    const absorbed = eventResolveDamage(round.resources, HUMAN, round.combat, 0);
+    expect(absorbed.resources.hp).toBe(20);
+    expect(absorbed.resources.armor[0]!.hp).toBe(4);
   });
 
-  it("adds to an existing tally for the same name rather than replacing it", () => {
-    const state: EventCombatState = { monsters: [], outcome: "victory", loot: null };
-    const after = applyEventVictory(
-      makeResources({ monsterKills: 3, killsByName: { orc: 3 } }),
-      state,
-      10,
-      "Orc",
-      1,
-    );
-    expect(after.monsterKills).toBe(4);
-    expect(after.killsByName).toEqual({ orc: 4 });
+  it("attack bonuses and weapon effects apply -- an Ogre really does hit for +2", () => {
+    const plain = makeResources({ hp: 30, maxHp: 30 });
+    const OGRE: FighterIdentity = { raceName: "Ogre", className: "Fighter" };
+    const combat = startEventCombat(ORCS, plain, fixedDie(3))!;
+    const a = eventFightRound(plain, HUMAN, combat, 1, 3, "1d6", fixedDie(3));
+    const b = eventFightRound(plain, OGRE, combat, 1, 3, "1d6", fixedDie(3));
+    expect(a.combat.monsters[0]!.hp).toBe(3);
+    expect(b.combat.monsters[0]!.hp).toBe(1);
+  });
+
+  it("a Hireling shows up, can absorb a hit, and can swing", () => {
+    const resources = makeResources({
+      hp: 20,
+      maxHp: 20,
+      hireling: "Mercenary",
+      hirelingHp: 14,
+    });
+    const combat = startEventCombat(ORCS, resources, fixedDie(3))!;
+    expect(combat.hireling).toEqual({ name: "Mercenary", hp: 14, maxHp: 14 });
+
+    const swung = eventHirelingAttack(resources, HUMAN, combat, 1, 4);
+    expect(swung.combat.monsters[0]!.hp).toBeLessThan(6);
+    expect(swung.combat.hirelingAttackedThisRound).toBe(true);
+  });
+
+  it("a Samambro survives a killing blow out here too, which they never did before", () => {
+    const resources = makeResources({ hp: 1, maxHp: 20 });
+    const samambro: FighterIdentity = { raceName: "Samambro", className: "Fighter" };
+    const combat = startEventCombat(EVENT_TABLE.mountain[2], resources, fixedDie(3))!; // Dragon
+    // fixedDie(4) covers both the attack and Samambro's own 3+ survival roll.
+    const result = eventFightRound(resources, samambro, combat, 1, 1, "1d6", fixedDie(4));
+    expect(result.died).toBe(false);
+    expect(result.resources.hp).toBe(1);
+  });
+
+  it("a Snake bites for free, once per round", () => {
+    const resources = makeResources({ hp: 20, maxHp: 20, animals: ["Snake"] });
+    const combat = startEventCombat(ORCS, resources, fixedDie(3))!;
+    const bitten = eventAnimalAttack(resources, HUMAN, combat, 1);
+    expect(bitten.combat.monsters[0]!.hp).toBe(5);
+    expect(bitten.combat.animalAttackedThisRound).toBe(true);
+    // Capped: a second bite in the same round does nothing.
+    expect(
+      eventAnimalAttack(bitten.resources, HUMAN, bitten.combat, 1).combat.monsters[0]!.hp,
+    ).toBe(5);
+  });
+
+  it("running away is always possible, and costs a provision when you have one", () => {
+    const stocked = fleeEvent(makeResources({ provisions: 4 }));
+    expect(stocked.resources.provisions).toBe(3);
+
+    // Never blocked by having nothing to pay with -- the point is that there's always an exit.
+    const broke = fleeEvent(makeResources({ provisions: 0 }));
+    expect(broke.resources.provisions).toBe(0);
+    expect(broke.message).toBeTruthy();
   });
 });

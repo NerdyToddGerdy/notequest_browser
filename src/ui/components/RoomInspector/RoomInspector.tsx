@@ -2,15 +2,25 @@ import { useState } from "react";
 import type { DungeonState, SegmentState } from "../../../engine/dungeonState.ts";
 import { rollDie } from "../../../engine/dice.ts";
 import { isHiddenChestResult, TYPE_LABELS } from "../../../data/dungeonTypes.ts";
-import { formatMonsterTemplate } from "../../../data/dungeonTables.ts";
+import { DUNGEON_TABLES, formatMonsterTemplate } from "../../../data/dungeonTables.ts";
 import { DicePool } from "../DicePool/DicePool.tsx";
 import { revealDelay } from "../../rollTiming.ts";
 import styles from "./RoomInspector.module.css";
 
 export interface RoomInspectorProps {
   state: DungeonState;
-  onRollSecretPassage: (segId: number, roll: number, trapRoll: number | null) => void;
-  onRollChest: (segId: number, dice: [number, number], trapRoll: number | null) => void;
+  onRollSecretPassage: (
+    segId: number,
+    roll: number,
+    trapRoll: number | null,
+    bladeRoll?: number | null,
+  ) => void;
+  onRollChest: (
+    segId: number,
+    dice: [number, number],
+    trapRoll: number | null,
+    bladeRoll?: number | null,
+  ) => void;
   onCollectRemains: (segId: number) => void;
   /** Sewers (issue #30): Room Content 10's metal ladder -- the only way to finish a dungeon that
    * has no Final Room or Boss. */
@@ -86,8 +96,34 @@ export function RoomInspector({
       const isTrap = roll === 1;
       if (isTrap) onTrapTriggered?.();
       const trapRoll = isTrap ? rollDie() : null;
-      onRollSecretPassage(seg.id, roll, trapRoll);
+      revealBladeThen(trapRoll, setPassageDice, setRollToken, (bladeRoll) =>
+        onRollSecretPassage(seg.id, roll, trapRoll, bladeRoll),
+      );
     }, revealDelay(dice.length));
+  }
+
+  /** Issue #112: a blade trap's kill die decides the run in a single roll, and it used to be rolled
+   * silently inside the reducer -- so the player watched a die that wasn't the one that mattered and
+   * then died. Shown in the same dice slot the action already animates, immediately before it
+   * resolves. Any other trap goes straight through. */
+  function revealBladeThen(
+    trapRoll: number | null,
+    setDice: (values: number[]) => void,
+    bumpToken: (fn: (t: number) => number) => void,
+    apply: (bladeRoll: number | null) => void,
+  ) {
+    const trap =
+      trapRoll != null && state.dungeonTypeKey
+        ? DUNGEON_TABLES[state.dungeonTypeKey].trap[trapRoll]
+        : undefined;
+    if (!trap?.bladeTrap) {
+      apply(null);
+      return;
+    }
+    const bladeRoll = rollDie();
+    setDice([bladeRoll]);
+    bumpToken((t) => t + 1);
+    window.setTimeout(() => apply(bladeRoll), revealDelay(1));
   }
 
   function handleOpenChest() {
@@ -101,7 +137,9 @@ export function RoomInspector({
       const isTrap = dice[0] === 1 && dice[1] === 1;
       if (isTrap) onTrapTriggered?.();
       const trapRoll = isTrap ? rollDie() : null;
-      onRollChest(seg.id, dice, trapRoll);
+      revealBladeThen(trapRoll, setChestDice, setChestRollToken, (bladeRoll) =>
+        onRollChest(seg.id, dice, trapRoll, bladeRoll),
+      );
     }, revealDelay(2));
   }
 

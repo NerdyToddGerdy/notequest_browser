@@ -33,6 +33,8 @@ import {
   type HexTile,
   type WorldState,
 } from "../../../engine/hexState.ts";
+import type { CombatState } from "../../../engine/dungeonState.ts";
+import type { SpellTableKey } from "../../../data/types.ts";
 import { hexReducer } from "../../../engine/hexReducer.ts";
 import {
   hasUnlootedRemains,
@@ -79,16 +81,22 @@ import {
 } from "../../../engine/town.ts";
 import {
   applyEventEffect,
-  applyEventVictory,
+  eventAnimalAttack,
+  eventCastSpell,
+  eventUseConsumable,
+  eventFightRound,
+  eventHirelingAttack,
+  eventResolveDamage,
+  fleeEvent,
+  type FighterIdentity,
+  type WildFight,
   camouflageSpellName,
   canIgnoreEvent,
   canRerollEvent,
   ignoreEvent,
   rerollEvent,
-  resolveEventRound,
   rollTravelEvent,
   startEventCombat,
-  type EventCombatState,
   type TravelEventRoll,
 } from "../../../engine/events.ts";
 import { effectForLocation, resolveLocationEffect } from "../../../engine/locationEffects.ts";
@@ -298,7 +306,9 @@ export function WorldScreen({
    * the same call `DungeonState.pendingPackItem`'s resume path makes. */
   const [travelEvent, setTravelEvent] = useState<{
     roll: Extract<TravelEventRoll, { kind: "event" }>;
-    combat: EventCombatState | null;
+    combat: CombatState | null;
+    /** Newest-first combat transcript, so a wilderness fight is as readable as a dungeon one (#120). */
+    log?: string[];
     resolvedMessage: string | null;
   } | null>(null);
   /** The skip reason ("You slip through unnoticed...") or nothing -- shown as a quiet HexInspector
@@ -322,7 +332,8 @@ export function WorldScreen({
   const [realmEvent, setRealmEvent] = useState<{
     row: RealmEventRow;
     dice: [number, number];
-    combat: EventCombatState | null;
+    combat: CombatState | null;
+    log?: string[];
     resolvedMessage: string | null;
   } | null>(null);
   /** Portals (issue #21). `pendingPortalConfirm` gates the irreversible step ("there is no turning
@@ -678,7 +689,7 @@ export function WorldScreen({
     const row = travelEvent.roll.row;
 
     if (row.monsters) {
-      setTravelEvent({ ...travelEvent, combat: startEventCombat(row) });
+      setTravelEvent({ ...travelEvent, combat: startEventCombat(row, resources) });
       return;
     }
 
@@ -723,48 +734,116 @@ export function WorldScreen({
     }
   }
 
-  /** One round of an Event fight. Resources are only written on a decisive outcome (victory credits
-   * loot/kills, defeat kills the character) -- mid-fight HP lives in the panel's own state until
-   * then, mirroring how `TownScreen` owns an Arena fight's rounds. */
-  function handleEventAttack(targetId: number, roll: number) {
-    if (!travelEvent?.combat || !resources.weapon) return;
-    const combat = travelEvent.combat;
-    const result = resolveEventRound(
-      combat,
-      resources.hp,
-      resources.weapon.formula,
-      targetId,
-      roll,
-    );
+  /** Race and class aren't carried on `AdventurerResources`, so a fight is handed them separately
+   * (issue #120) -- see `events.ts`'s `FighterIdentity`. */
+  const fighterIdentity: FighterIdentity = {
+    raceName: character.race.name,
+    className: character.cls.name,
+  };
 
-    if (result.died) {
-      onCharacterDied("event", currentPlaceLabel);
+  /** Applies whatever a wilderness fight action produced. Every one of them returns the same shape,
+   * so victory/defeat/ongoing is handled once rather than at each call site (issue #120). */
+  function applyWildFight(
+    fight: WildFight,
+    deathCause: "event" | "realm",
+    place: string,
+    onOngoing: (fight: WildFight) => void,
+    onVictory: (fight: WildFight) => void,
+  ) {
+    if (fight.died) {
+      onCharacterDied(deathCause, place);
       return;
     }
-    if (result.state.outcome === "victory") {
-      const template = travelEvent.roll.row.monsters!;
-      const killCount = result.state.monsters.length;
-      onUpdateResources(
-        applyEventVictory(resources, result.state, result.hp, template.name, killCount),
-      );
-      const loot = result.state.loot;
-      const lootParts = [
-        loot?.coins ? `${loot.coins} coin${loot.coins === 1 ? "" : "s"}` : null,
-        loot?.treasures ? `${loot.treasures} Treasure${loot.treasures === 1 ? "" : "s"}` : null,
-        loot?.keys ? `${loot.keys} Key${loot.keys === 1 ? "" : "s"}` : null,
-      ].filter((p): p is string => p != null);
-      setTravelEvent({
-        ...travelEvent,
-        combat: result.state,
-        resolvedMessage:
-          lootParts.length > 0
-            ? `You survive the encounter and take ${lootParts.join(", ")}.`
-            : "You survive the encounter.",
-      });
-      return;
-    }
-    onUpdateResources({ ...resources, hp: result.hp });
-    setTravelEvent({ ...travelEvent, combat: result.state });
+    onUpdateResources(fight.resources);
+    if (fight.combat.outcome === "victory") onVictory(fight);
+    else onOngoing(fight);
+  }
+
+  function handleEventAttack(targetId: number, roll: number) {
+    if (!travelEvent?.combat) return;
+    const weaponFormula = resources.weapon?.formula ?? character.cls.weaponDamage;
+    applyWildFight(
+      eventFightRound(
+        resources,
+        fighterIdentity,
+        travelEvent.combat,
+        targetId,
+        roll,
+        weaponFormula,
+      ),
+      "event",
+      currentPlaceLabel,
+      (f) => setTravelEvent({ ...travelEvent, combat: f.combat, log: f.log }),
+      (f) =>
+        setTravelEvent({
+          ...travelEvent,
+          combat: f.combat,
+          log: f.log,
+          resolvedMessage: "You survive the encounter.",
+        }),
+    );
+  }
+
+  function handleEventResolveDamage(absorbWith: "hp" | "hireling" | number) {
+    if (!travelEvent?.combat) return;
+    applyWildFight(
+      eventResolveDamage(resources, fighterIdentity, travelEvent.combat, absorbWith),
+      "event",
+      currentPlaceLabel,
+      (f) => setTravelEvent({ ...travelEvent, combat: f.combat, log: f.log }),
+      (f) => setTravelEvent({ ...travelEvent, combat: f.combat, log: f.log }),
+    );
+  }
+
+  function handleEventHirelingAttack(targetId: number, roll: number) {
+    if (!travelEvent?.combat) return;
+    const f = eventHirelingAttack(resources, fighterIdentity, travelEvent.combat, targetId, roll);
+    onUpdateResources(f.resources);
+    setTravelEvent({ ...travelEvent, combat: f.combat, log: f.log });
+  }
+
+  function handleEventAnimalAttack(targetId: number) {
+    if (!travelEvent?.combat) return;
+    const f = eventAnimalAttack(resources, fighterIdentity, travelEvent.combat, targetId);
+    onUpdateResources(f.resources);
+    setTravelEvent({ ...travelEvent, combat: f.combat, log: f.log });
+  }
+
+  function handleEventCastSpell(table: SpellTableKey, spellRoll: number, targetId?: number) {
+    if (!travelEvent?.combat) return;
+    applyWildFight(
+      eventCastSpell(resources, fighterIdentity, travelEvent.combat, table, spellRoll, targetId),
+      "event",
+      currentPlaceLabel,
+      (f) => setTravelEvent({ ...travelEvent, combat: f.combat, log: f.log }),
+      (f) =>
+        setTravelEvent({
+          ...travelEvent,
+          combat: f.combat,
+          log: f.log,
+          resolvedMessage: "You survive the encounter.",
+        }),
+    );
+  }
+
+  /** Drinking a held potion mid-Event (issue #110) -- the same round-consuming action as a spell. */
+  function handleEventUseConsumable(index: number) {
+    if (!travelEvent?.combat) return;
+    applyWildFight(
+      eventUseConsumable(resources, fighterIdentity, travelEvent.combat, index),
+      "event",
+      currentPlaceLabel,
+      (f) => setTravelEvent({ ...travelEvent, combat: f.combat, log: f.log }),
+      (f) => setTravelEvent({ ...travelEvent, combat: f.combat, log: f.log }),
+    );
+  }
+
+  /** Issue #120: the exit that didn't exist. An Event is mandatory; a fight you can't leave isn't. */
+  function handleEventFlee() {
+    if (!travelEvent) return;
+    const fled = fleeEvent(resources);
+    onUpdateResources(fled.resources);
+    setTravelEvent({ ...travelEvent, combat: null, resolvedMessage: fled.message });
   }
 
   // --- Other Worlds (issue #105) -----------------------------------------------------------------
@@ -812,7 +891,7 @@ export function WorldScreen({
     if (row.monsters) {
       setRealmEvent({
         ...realmEvent,
-        combat: startEventCombat({ text: row.text, monsters: row.monsters }),
+        combat: startEventCombat({ text: row.text, monsters: row.monsters }, resources),
       });
       return;
     }
@@ -862,43 +941,84 @@ export function WorldScreen({
     setRealmEvent({ ...realmEvent, resolvedMessage: applied.message });
   }
 
-  /** One round of a realm Event fight -- the same shape as `handleEventAttack`, but crediting each
-   * realm's own victory reward (issue #105). */
+  /** One round of a realm Event fight -- the same shared core, crediting each realm's own victory
+   * reward (issue #105). */
   function handleRealmEventAttack(targetId: number, roll: number) {
-    if (!realmEvent?.combat || !resources.weapon) return;
-    const result = resolveEventRound(
-      realmEvent.combat,
-      resources.hp,
-      resources.weapon.formula,
-      targetId,
-      roll,
+    if (!realmEvent?.combat) return;
+    const weaponFormula = resources.weapon?.formula ?? character.cls.weaponDamage;
+    const place = realmLabel(currentRealm(world));
+    applyWildFight(
+      eventFightRound(resources, fighterIdentity, realmEvent.combat, targetId, roll, weaponFormula),
+      "realm",
+      place,
+      (f) => setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log }),
+      (f) => {
+        const template = realmEvent.row.monsters!;
+        const reward = applyRealmVictoryReward(f.resources, currentRealm(world), template.name);
+        onUpdateResources(reward.resources);
+        if (reward.opensPortalHere) onUpdateWorld(withPortalHere(world, world.player));
+        setRealmEvent({
+          ...realmEvent,
+          combat: f.combat,
+          log: f.log,
+          resolvedMessage: reward.message,
+        });
+      },
     );
-    if (result.died) {
-      onCharacterDied("realm", realmLabel(currentRealm(world)));
-      return;
-    }
-    if (result.state.outcome === "victory") {
-      const template = realmEvent.row.monsters!;
-      const reward = applyRealmVictoryReward(
-        applyEventVictory(
-          resources,
-          result.state,
-          result.hp,
-          template.name,
-          result.state.monsters.length,
-        ),
-        currentRealm(world),
-        template.name,
-      );
-      onUpdateResources(reward.resources);
-      if (reward.opensPortalHere) {
-        onUpdateWorld(withPortalHere(world, world.player));
-      }
-      setRealmEvent({ ...realmEvent, combat: result.state, resolvedMessage: reward.message });
-      return;
-    }
-    onUpdateResources({ ...resources, hp: result.hp });
-    setRealmEvent({ ...realmEvent, combat: result.state });
+  }
+
+  function handleRealmResolveDamage(absorbWith: "hp" | "hireling" | number) {
+    if (!realmEvent?.combat) return;
+    applyWildFight(
+      eventResolveDamage(resources, fighterIdentity, realmEvent.combat, absorbWith),
+      "realm",
+      realmLabel(currentRealm(world)),
+      (f) => setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log }),
+      (f) => setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log }),
+    );
+  }
+
+  function handleRealmCastSpell(table: SpellTableKey, spellRoll: number, targetId?: number) {
+    if (!realmEvent?.combat) return;
+    applyWildFight(
+      eventCastSpell(resources, fighterIdentity, realmEvent.combat, table, spellRoll, targetId),
+      "realm",
+      realmLabel(currentRealm(world)),
+      (f) => setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log }),
+      (f) => setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log }),
+    );
+  }
+
+  function handleRealmHirelingAttack(targetId: number, roll: number) {
+    if (!realmEvent?.combat) return;
+    const f = eventHirelingAttack(resources, fighterIdentity, realmEvent.combat, targetId, roll);
+    onUpdateResources(f.resources);
+    setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log });
+  }
+
+  function handleRealmAnimalAttack(targetId: number) {
+    if (!realmEvent?.combat) return;
+    const f = eventAnimalAttack(resources, fighterIdentity, realmEvent.combat, targetId);
+    onUpdateResources(f.resources);
+    setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log });
+  }
+
+  function handleRealmUseConsumable(index: number) {
+    if (!realmEvent?.combat) return;
+    applyWildFight(
+      eventUseConsumable(resources, fighterIdentity, realmEvent.combat, index),
+      "realm",
+      realmLabel(currentRealm(world)),
+      (f) => setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log }),
+      (f) => setRealmEvent({ ...realmEvent, combat: f.combat, log: f.log }),
+    );
+  }
+
+  function handleRealmFlee() {
+    if (!realmEvent) return;
+    const fled = fleeEvent(resources);
+    onUpdateResources(fled.resources);
+    setRealmEvent({ ...realmEvent, combat: null, resolvedMessage: fled.message });
   }
 
   // --- Portals (issue #21) ----------------------------------------------------------------------
@@ -1358,8 +1478,8 @@ export function WorldScreen({
         combat={realmEvent.combat}
         hp={resources.hp}
         maxHp={resources.maxHp}
-        weaponName={resources.weapon?.name}
-        weaponFormula={resources.weapon?.formula}
+        weaponName={resources.weapon?.name ?? character.cls.weapon}
+        weaponFormula={resources.weapon?.formula ?? character.cls.weaponDamage}
         resolvedMessage={realmEvent.resolvedMessage}
         // Camouflage and the Star Stone are overworld Events-on-Travel abilities; a realm's own
         // Event table is a different thing the rulebook gives no way to dodge.
@@ -1369,6 +1489,18 @@ export function WorldScreen({
         onAccept={handleAcceptRealmEvent}
         onIgnore={() => {}}
         onReroll={() => {}}
+        armor={resources.armor}
+        spellUses={resources.spellUses}
+        consumables={resources.consumables}
+        isRinoceroid={character.race.name === "Rinoceroid"}
+        isSnakeOwner={resources.animals.includes("Snake")}
+        onCastSpell={handleRealmCastSpell}
+        onResolveDamage={handleRealmResolveDamage}
+        onHirelingAttack={handleRealmHirelingAttack}
+        onAnimalAttack={handleRealmAnimalAttack}
+        onUseConsumable={handleRealmUseConsumable}
+        onFlee={handleRealmFlee}
+        log={realmEvent.log ?? []}
         onAttack={handleRealmEventAttack}
         onDismiss={() => setRealmEvent(null)}
       />
@@ -1612,8 +1744,8 @@ export function WorldScreen({
                   combat={travelEvent.combat}
                   hp={resources.hp}
                   maxHp={resources.maxHp}
-                  weaponName={resources.weapon?.name}
-                  weaponFormula={resources.weapon?.formula}
+                  weaponName={resources.weapon?.name ?? character.cls.weapon}
+                  weaponFormula={resources.weapon?.formula ?? character.cls.weaponDamage}
                   resolvedMessage={travelEvent.resolvedMessage}
                   canIgnore={canIgnoreEvent(resources, travelEvent.roll.terrain)}
                   ignoreLabel={camouflageSpellName()}
@@ -1621,6 +1753,18 @@ export function WorldScreen({
                   onAccept={handleAcceptEvent}
                   onIgnore={handleIgnoreEvent}
                   onReroll={handleRerollEvent}
+                  armor={resources.armor}
+                  spellUses={resources.spellUses}
+                  consumables={resources.consumables}
+                  isRinoceroid={character.race.name === "Rinoceroid"}
+                  isSnakeOwner={resources.animals.includes("Snake")}
+                  onCastSpell={handleEventCastSpell}
+                  onResolveDamage={handleEventResolveDamage}
+                  onHirelingAttack={handleEventHirelingAttack}
+                  onAnimalAttack={handleEventAnimalAttack}
+                  onUseConsumable={handleEventUseConsumable}
+                  onFlee={handleEventFlee}
+                  log={travelEvent.log ?? []}
                   onAttack={handleEventAttack}
                   onDismiss={() => setTravelEvent(null)}
                 />

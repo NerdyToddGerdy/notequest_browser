@@ -16,7 +16,6 @@ import {
   DUNGEON_TABLES,
   type ArmorPieceKind,
   type BonusLootEntry,
-  type ItemEffect,
   type MagicItemEntry,
   type MonsterAbility,
   type MonsterTemplate,
@@ -46,9 +45,22 @@ import {
 } from "./dungeon.ts";
 import { rollDie } from "./dice.ts";
 import {
+  applyMonsterTurn as fightApplyMonsterTurn,
+  applyConsumableEffect,
+  castCombatSpell,
+  attackBonus as fightAttackBonus,
+  attackMultiplier as fightAttackMultiplier,
+  cannotWearArmor as fightCannotWearArmor,
+  ignoredAbilities as fightIgnoredAbilities,
+  ignoresAbility as fightIgnoresAbility,
+  equippedEffects,
+  resolveDamageChoice,
+  trySurviveDeath,
+  type FightLog,
+} from "./fight.ts";
+import {
   checkUndeadRevival,
   COMBAT_ONLY_SPELL_NAMES,
-  HEAL_AMOUNT,
   HORDE_ORC,
   KNOWN_CASTABLE_SPELL_NAMES,
   NECROMANCY_SKELETON,
@@ -158,56 +170,6 @@ function leaveRemains(draft: Draft<DungeonState>, segId: number | null): void {
   }
 }
 
-/** Samambro (New Races, issue #60): "When you die, roll a die. If it's 3 or more, you come back to
- * life with 1 HP." Checked at every one of the 7 places `alive` would otherwise flip to false
- * (Darkness, both trap-death branches, Deathtouch, the normal counter-attack, Explosive
- * self-destruct, and the deferred-armor-choice branch) -- returns true (having already set `hp` to
- * 1 and logged the survival) if the character lives after all, so each call site can `return`
- * before its own death bookkeeping (deathCause/leaveRemains/combat-clearing) ever runs. Only rolls
- * for an actual Samambro -- no "wasted roll" for every other race, since nothing else in this
- * codebase's race/class checks bothers with that either. */
-function trySamambroSurvival(draft: Draft<DungeonState>, rng: RNG): boolean {
-  if (draft.raceName !== "Samambro") return false;
-  if (rollDie(rng) < 3) return false;
-  draft.hp = 1;
-  pushLog(draft, "Samambro's resilience pulls you back from the brink -- you survive with 1 HP!");
-  return true;
-}
-
-/** Raven (Animals, issue #67): "If you die, roll a die. If it's 4 or more, you come back." Identical
- * in shape to Samambro's race ability above -- same 7 death sites, checked immediately after
- * trySamambroSurvival() at each so a character who somehow has both gets two independent chances
- * rather than one shadowing the other. Only rolls with a Raven actually owned. */
-function tryRavenSurvival(draft: Draft<DungeonState>, rng: RNG): boolean {
-  if (!draft.animals.includes("Raven")) return false;
-  if (rollDie(rng) < 4) return false;
-  draft.hp = 1;
-  pushLog(draft, "Your Raven circles back with an omen -- you survive with 1 HP!");
-  return true;
-}
-
-/** The zombie mutation (Laboratory, issue #30): "You come back to life with half your maximum hit
- * points. If you die again, you come back with half of that, and so on."
- *
- * Third in the same family as Samambro and Raven above, and checked after both -- but unlike them it
- * is *not* a roll: it always fires while there's still HP left to halve down to. That's why it goes
- * last, so a character with several survival abilities spends the rollable ones first and only falls
- * back on the mutation, which degrades permanently each time it saves them. */
-function tryZombieRevival(draft: Draft<DungeonState>): boolean {
-  if (!(draft.mutations ?? []).includes(MUTATION_IDS.zombie)) return false;
-  const revivals = draft.zombieRevivals ?? 0;
-  const hp = Math.floor(draft.maxHp / 2 ** (revivals + 1));
-  if (hp < 1) return false; // halved away to nothing -- this time it's permanent
-  draft.hp = hp;
-  draft.zombieRevivals = revivals + 1;
-  pushLog(
-    draft,
-    `Rotten flesh knits itself back together -- you rise again with ${hp} HP.`,
-    "descend",
-  );
-  return true;
-}
-
 /** Spends `cost` torches, logging `message`; if there aren't enough, the Darkness kills the character instead. */
 function spendTorches(
   draft: Draft<DungeonState>,
@@ -229,9 +191,7 @@ function spendTorches(
       );
       return false;
     }
-    if (trySamambroSurvival(draft, rng)) return false; // still out of torches, but alive
-    if (tryRavenSurvival(draft, rng)) return false;
-    if (tryZombieRevival(draft)) return false; // still out of torches, but alive
+    if (trySurviveDeath(draft, rng, dungeonLog(draft))) return false; // still out of torches, but alive
     draft.alive = false;
     // Set explicitly rather than left null: every reader already treats null as the Darkness
     // (`deathCause ?? "darkness"`, `deathCause !== "combat"`), but the field exists precisely to
@@ -488,15 +448,17 @@ function applyTrapEffect(
   trap: TrapEntry,
   segId: number,
   rng: RNG,
+  /** Issue #112: the blade trap's kill die, rolled by the UI so it can be *shown*. A 1-in-6 that
+   * ends the run was previously rolled silently here, so the death read as arbitrary rather than as
+   * a roll that was lost. Falls back to rolling internally for any caller that doesn't animate. */
+  bladeRoll?: number | null,
 ): void {
   if (!draft.alive) return; // a torchCost Darkness death already ended the run this same dispatch
 
   if (trap.bladeTrap) {
-    if (rollDie(rng) === 1) {
+    if ((bladeRoll ?? rollDie(rng)) === 1) {
       draft.hp = 0;
-      if (trySamambroSurvival(draft, rng)) return;
-      if (tryRavenSurvival(draft, rng)) return;
-      if (tryZombieRevival(draft)) return;
+      if (trySurviveDeath(draft, rng, dungeonLog(draft))) return;
       draft.alive = false;
       draft.deathCause = "combat";
       pushLog(draft, "The blade finds its mark. The dungeon keeps what it took.", "descend");
@@ -511,9 +473,7 @@ function applyTrapEffect(
     draft.hp = Math.max(0, draft.hp - trap.damage);
     pushLog(draft, `The trap deals ${trap.damage} damage.`);
     if (draft.hp <= 0) {
-      if (trySamambroSurvival(draft, rng)) return;
-      if (tryRavenSurvival(draft, rng)) return;
-      if (tryZombieRevival(draft)) return;
+      if (trySurviveDeath(draft, rng, dungeonLog(draft))) return;
       draft.alive = false;
       draft.deathCause = "combat";
       pushLog(draft, "The trap finishes you. The dungeon keeps what it took.", "descend");
@@ -566,6 +526,8 @@ function resolveTrapOutcome(
   trap: TrapEntry,
   segId: number,
   rng: RNG,
+  /** Issue #112 -- threaded to `applyTrapEffect` so the blade trap's kill die can be animated. */
+  bladeRoll?: number | null,
 ): void {
   const immunityIndex = draft.armor.findIndex((piece) => piece.effect?.kind === "trapImmunity");
   if (immunityIndex !== -1) {
@@ -598,7 +560,7 @@ function resolveTrapOutcome(
       rng,
     );
   }
-  applyTrapEffect(draft, trap, segId, rng);
+  applyTrapEffect(draft, trap, segId, rng, bladeRoll);
 }
 
 /**
@@ -616,235 +578,50 @@ function resolveTrapOutcome(
  * are the identical restriction from two sources -- one OR'd condition, not two code paths. Only
  * covers *armour*: Ogre's separate potion/scroll restrictions are its own, and no mutation grants
  * them. Armour already equipped is kept either way; the rule is that you cannot *put it on*. */
+/** Thin dungeon-side wrappers over the shared combat core (issue #120). `DungeonState` satisfies
+ * `Fighter` structurally, so these exist only to keep the ~40 existing call sites reading the same
+ * way and to supply the dungeon's own log sink. */
 function cannotWearArmor(draft: Draft<DungeonState>): boolean {
-  return draft.raceName === "Ogre" || (draft.mutations ?? []).includes(MUTATION_IDS.noArmor);
+  return fightCannotWearArmor(draft);
 }
 
-function equippedEffects(draft: Draft<DungeonState>): ItemEffect[] {
-  const effects: ItemEffect[] = [];
-  if (draft.weapon?.bonusEffect) effects.push(draft.weapon.bonusEffect);
-  for (const piece of draft.armor) {
-    if (piece.effect) effects.push(piece.effect);
-  }
-  return effects;
-}
-
-function matchesTags(monster: Draft<CombatMonsterState>, tags: string[]): boolean {
-  const name = monster.name.toLowerCase();
-  return tags.some((tag) => name.includes(tag.toLowerCase()));
-}
-
-/** `isHorn`: Rinoceroid's horn attack bypasses the equipped weapon entirely, so it skips any
- * weapon-specific bonus effect -- general combat buffs (Potion of Fury, Grave Digger) still apply. */
 function attackBonus(
   draft: Draft<DungeonState>,
   monster: Draft<CombatMonsterState>,
   isHorn = false,
 ): number {
-  // Ziggurat's Effect of the Forgotten Gods (issue #30): "+1 damage on all attacks" for the whole
-  // run, unlike combat.playerDamageBonus's per-fight scope.
-  let bonus = (draft.combat?.playerDamageBonus ?? 0) + draft.runDamageBonus;
-  // Grave Digger (base Class) and Gravedigger (Advanced Class, issue #23) are two separate
-  // rulebook entries that happen to grant the identical "+2 damage to Undead" bonus -- either one
-  // (or both) applies the same single +2, not stacked.
-  if (
-    (draft.className === "Grave Digger" || draft.advancedClasses.includes("Gravedigger")) &&
-    monster.abilities.includes("undead")
-  ) {
-    bonus += 2;
-  }
-  // Ogre (New Races, issue #22): "Deals +2 damage." Unconditional, unlike Grave Digger's
-  // Undead-only bonus above -- the rulebook doesn't restrict it to any monster type or weapon.
-  if (draft.raceName === "Ogre") {
-    bonus += 2;
-  }
-  // Minstrel (Hireling, issue #25): "Can play music in combat (+2 damage)." Unconditional, same
-  // shape as Ogre's own +2 above.
-  if (draft.hireling === "Minstrel") {
-    bonus += 2;
-  }
-  // Dwarf Soldier (Hireling, issue #25): "Deals +1 damage against Orcs and Goblins." Reuses the
-  // exact tag-substring-match mechanism the equipped-item effects below already establish.
-  if (draft.hireling === "Dwarf Soldier" && matchesTags(monster, ["orc", "goblin"])) {
-    bonus += 1;
-  }
-  // Helsing (Advanced Class, issue #71): "+1 damage against Vampires and Ghouls" -- the identical
-  // tags the Garlic necklace item's own damageBonusVsTag effect already uses.
-  if (draft.advancedClasses.includes("Helsing") && matchesTags(monster, ["vampire", "ghoul"])) {
-    bonus += 1;
-  }
-  // Bugcatcher (Advanced Class, issue #71): "+1 damage against insects and arachnids" -- matches
-  // the same curated spider/scorpion/wasp names its kill-count requirement sums (see
-  // advancedClasses.ts's BUG_MONSTER_NAMES), as a substring so plural/boss variants match too.
-  if (
-    draft.advancedClasses.includes("Bugcatcher") &&
-    matchesTags(monster, ["spider", "scorpion", "wasp"])
-  ) {
-    bonus += 1;
-  }
-  if (isHorn) return bonus;
-  for (const effect of equippedEffects(draft)) {
-    if (effect.kind === "weaponDamageBonus") {
-      bonus += effect.amount;
-    } else if (effect.kind === "damageBonusVsTag" && matchesTags(monster, effect.tags)) {
-      bonus += effect.amount;
-    }
-  }
-  return bonus;
+  return fightAttackBonus(draft, draft.combat ?? null, monster, isHorn);
 }
 
-/** Multiplier applied to just the weapon's own roll (e.g. "[Weapon] of the Dragon Slayer: Double
- * damage against Dragons"), before `attackBonus` is added. */
 function attackMultiplier(
   draft: Draft<DungeonState>,
   monster: Draft<CombatMonsterState>,
   isHorn = false,
   isFirstAttack = false,
 ): number {
-  let multiplier = 1;
-  // Assassin (Advanced Class, issue #103): "Deals 3 times damage on your first attack." Checked
-  // *before* the isHorn early return below, because this is a class ability rather than an equipped
-  // weapon's effect -- a Rinoceroid's horn skips the weapon, not the character's own training.
-  if (isFirstAttack && draft.advancedClasses.includes("Assassin")) {
-    multiplier *= ASSASSIN_FIRST_HIT_MULTIPLIER;
-  }
-  if (isHorn) return multiplier;
-  for (const effect of equippedEffects(draft)) {
-    if (effect.kind === "damageMultiplierVsTag" && matchesTags(monster, effect.tags)) {
-      multiplier *= effect.multiplier;
-    }
-  }
-  return multiplier;
+  return fightAttackMultiplier(draft, monster, isHorn, isFirstAttack);
 }
 
-const ASSASSIN_FIRST_HIT_MULTIPLIER = 3;
-
-/** True if any equipped item (weapon or armor) ignores this specific monster ability. */
 function ignoresAbility(draft: Draft<DungeonState>, ability: MonsterAbility): boolean {
-  return equippedEffects(draft).some(
-    (effect) => effect.kind === "ignoresMonsterAbility" && effect.ability === ability,
-  );
+  return fightIgnoresAbility(draft, ability);
 }
 
-/** Every monster ability ignored by an equipped item, e.g. Boatman's Oar bypassing Intangible's
- * damage-parity block -- fed into `resolvePlayerAttack`'s defensive-ability filter. */
 function ignoredAbilities(draft: Draft<DungeonState>): MonsterAbility[] {
-  return equippedEffects(draft)
-    .filter(
-      (effect): effect is Extract<ItemEffect, { kind: "ignoresMonsterAbility" }> =>
-        effect.kind === "ignoresMonsterAbility",
-    )
-    .map((effect) => effect.ability);
+  return fightIgnoredAbilities(draft);
 }
 
-/** True once at least one equipped armor piece can actually absorb something. */
-function hasUsableArmor(draft: Draft<DungeonState>): boolean {
-  return draft.armor.some((piece) => piece.hp > 0);
+/** The dungeon's own log sink, handed to the shared core so its messages land in the roll log. */
+function dungeonLog(draft: Draft<DungeonState>): FightLog {
+  return (message, variant) => pushLog(draft, message, variant);
 }
 
+/** One monster round, plus the bookkeeping only a dungeon can do: a death here flips `alive`, leaves
+ * remains in the segment the fight happened in, and clears the fight. */
 function applyMonsterTurn(draft: Draft<DungeonState>, combat: Draft<CombatState>, rng: RNG): void {
-  // Issue #84: this is the one chokepoint every round-ending action already calls, so it's where
-  // HIRELING_ATTACK's once-per-round cap resets for whatever round comes next. ANIMAL_ATTACK
-  // (issue #67/#29) reuses the identical shape for Snake.
-  combat.hirelingAttackedThisRound = false;
-  combat.animalAttackedThisRound = false;
-
-  // Poison: "All damage from this creature cannot be absorbed by armor or other means" -- tallied
-  // apart from every other monster's damage, which the player may still choose to absorb.
-  // Pirate (Advanced Class, issue #72): "Ignores Poison" -- the damage still lands, but no longer
-  // bypasses armor, so it folds into absorbableDamage below instead of the poison-only pool.
-  // Pirate's "ignores Poison" and the green-blood mutation (issue #30) grant the identical effect --
-  // one OR'd condition, the same "two entries, one bonus" precedent as Grave Digger/Gravedigger.
-  const ignoresPoison =
-    draft.advancedClasses.includes("Pirate") ||
-    (draft.mutations ?? []).includes(MUTATION_IDS.poisonImmune);
-  let poisonDamage = 0;
-  let absorbableDamage = 0;
-  let deathtouchKill = false;
-  let paralyzeTurns = 0;
-  for (const monster of combat.monsters) {
-    // Vimes/Paralyze (New Spells, issue #61): a silenced monster skips its attack entirely, same
-    // as a Cold Ray freeze, but for multiple rounds -- decremented once per round regardless of
-    // whether it actually had a turn to skip yet (silencedTurns already accounts for this round).
-    if (monster.silencedTurns > 0) {
-      monster.silencedTurns -= 1;
-    } else if (!monster.skipNextAttack) {
-      // Ethereal Body (New Spells, issue #61): "all damage you take is reduced by 1 point," applied
-      // per monster hit -- floored at 0, so it can't turn a hit into healing.
-      const dmg = Math.max(0, monster.damage + monster.bonusDamage - combat.damageReduction);
-      if (monster.abilities.includes("poison") && !ignoresPoison) {
-        poisonDamage += dmg;
-      } else {
-        absorbableDamage += dmg;
-      }
-      if (monster.deathtouchPending) deathtouchKill = true;
-      if (monster.paralyzePending > paralyzeTurns) paralyzeTurns = monster.paralyzePending;
-    }
-    monster.bonusDamage = 0;
-    monster.deathtouchPending = false;
-    monster.paralyzePending = 0;
-    monster.skipNextAttack = false;
-  }
-
-  // Deathtouch "kills you" outright per the rulebook -- armor doesn't get a say.
-  if (deathtouchKill) {
-    draft.hp = 0;
-    if (trySamambroSurvival(draft, rng)) return;
-    if (tryRavenSurvival(draft, rng)) return;
-    if (tryZombieRevival(draft)) return;
+  const result = fightApplyMonsterTurn(draft, combat, rng, dungeonLog(draft));
+  if (result.died) {
     draft.alive = false;
     draft.deathCause = "combat";
-    pushLog(draft, "A deathly touch stops your heart instantly.", "descend");
-    leaveRemains(draft, combat.segId);
-    draft.combat = null;
-    return;
-  }
-
-  if (paralyzeTurns > 0) {
-    combat.paralyzedTurns += paralyzeTurns;
-    pushLog(draft, `You are paralyzed for ${paralyzeTurns} turn${paralyzeTurns > 1 ? "s" : ""}!`);
-  }
-
-  // Applied first and unconditionally so a fatal poison tick doesn't leave a moot absorption
-  // choice pending for whatever non-poison damage landed in the same round.
-  if (poisonDamage > 0) {
-    draft.hp = Math.max(0, draft.hp - poisonDamage);
-    pushLog(draft, `Poison courses through you for ${poisonDamage} damage.`);
-  }
-
-  // Magic Shield (New Spells, issue #61): "it can absorb 4 damage points. Can cast more than one" --
-  // drains the oldest shield first, spilling into the next, before offering the normal
-  // armor-or-HP choice; poison already bypassed this pool entirely above, same as it bypasses
-  // armor ("cannot be absorbed by armor or other means"). Depleted shields are dropped.
-  while (absorbableDamage > 0 && combat.shields.length > 0) {
-    const absorbed = Math.min(absorbableDamage, combat.shields[0]!);
-    combat.shields[0] = combat.shields[0]! - absorbed;
-    absorbableDamage -= absorbed;
-    if (combat.shields[0] === 0) combat.shields.shift();
-  }
-
-  if (draft.hp > 0 && absorbableDamage > 0) {
-    // "Reduce this value from your HP (or armor's HP, if you're using one -- your call)": with
-    // usable armor equipped -- or, issue #84, a living Hireling -- defer to RESOLVE_DAMAGE instead
-    // of subtracting HP immediately.
-    if (hasUsableArmor(draft) || (combat.hireling && combat.hireling.hp > 0)) {
-      combat.pendingDamage = absorbableDamage;
-      pushLog(
-        draft,
-        `The monsters strike for ${absorbableDamage} damage -- choose what absorbs it.`,
-      );
-      return;
-    }
-    draft.hp = Math.max(0, draft.hp - absorbableDamage);
-    pushLog(draft, `The monsters strike back for ${absorbableDamage} damage.`);
-  }
-  if (draft.hp <= 0) {
-    if (trySamambroSurvival(draft, rng)) return;
-    if (tryRavenSurvival(draft, rng)) return;
-    if (tryZombieRevival(draft)) return;
-    draft.alive = false;
-    draft.deathCause = "combat";
-    pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
     leaveRemains(draft, combat.segId);
     draft.combat = null;
   }
@@ -1180,66 +957,10 @@ function addConsumable(
   pushLog(draft, `${foundText} Stowed in your Pack for later.`);
 }
 
-/** Applies a potion's effect, wherever it's drunk from. Every branch is the code that used to run at
- * the moment of discovery, moved here unchanged -- see `USE_CONSUMABLE` for the round-consuming half. */
+/** Thin wrapper so the dungeon's own call sites read unchanged; the effects live in `fight.ts` now,
+ * shared with the wilderness (issue #110/#120). */
 function applyConsumable(draft: Draft<DungeonState>, item: Consumable, rng: RNG): void {
-  switch (item.effect.kind) {
-    case "healAll": {
-      const healed = draft.maxHp - draft.hp;
-      draft.hp = draft.maxHp;
-      pushLog(draft, `You drink the ${item.name}${healed > 0 ? ` (+${healed} HP)` : ""}.`);
-      break;
-    }
-    case "healAmount": {
-      const healed = Math.min(item.effect.amount, draft.maxHp - draft.hp);
-      draft.hp += healed;
-      pushLog(draft, `You drink the ${item.name}${healed > 0 ? ` (+${healed} HP)` : ""}.`);
-      break;
-    }
-    case "restoreAllSpells": {
-      draft.spellUses = { ...draft.maxSpellUses };
-      pushLog(draft, `You drink the ${item.name} -- every spell is restored.`);
-      break;
-    }
-    case "restoreRandomSpellUse": {
-      const knownKeys = Object.keys(draft.spellUses);
-      if (knownKeys.length === 0) {
-        pushLog(draft, `You use the ${item.name}, but you don't know any spells yet.`);
-        break;
-      }
-      const key = knownKeys[rollDie(rng) % knownKeys.length]!;
-      const max = draft.maxSpellUses[key] ?? draft.spellUses[key]!;
-      draft.spellUses[key] = Math.min(max, (draft.spellUses[key] ?? 0) + 1);
-      const { table, roll: spellRoll } = parseSpellKey(key);
-      const spellName = SPELL_TABLE_BY_KEY[table]?.[spellRoll]?.name ?? "a spell";
-      pushLog(draft, `You use the ${item.name} -- it recovers a use of ${spellName}.`);
-      break;
-    }
-    case "grantsTorches": {
-      const gained = Math.min(item.effect.amount, MAX_TORCHES - draft.torches);
-      draft.torches += gained;
-      pushLog(draft, `You use the ${item.name} (+${gained} torch${gained === 1 ? "" : "es"}).`);
-      break;
-    }
-    case "grantTorchesRoll": {
-      let rolled = 0;
-      for (let i = 0; i < item.effect.dice; i++) rolled += rollDie(rng);
-      const gained = Math.min(rolled, MAX_TORCHES - draft.torches);
-      draft.torches += gained;
-      pushLog(draft, `You use the ${item.name} (+${gained} torch${gained === 1 ? "" : "es"}).`);
-      break;
-    }
-    case "combatDamageBonus": {
-      // The item that made #110 worth building: outside a fight this used to be discarded outright.
-      if (draft.combat) {
-        draft.combat.playerDamageBonus += item.effect.amount;
-        pushLog(draft, `You drink the ${item.name} -- +${item.effect.amount} damage this fight!`);
-      } else {
-        pushLog(draft, `You drink the ${item.name}, but there's no one to fight.`);
-      }
-      break;
-    }
-  }
+  applyConsumableEffect(draft, draft.combat ?? null, item, rng, dungeonLog(draft), MAX_TORCHES);
 }
 
 /** "Health Potion (Recovers all HP)." -> "Health Potion". The Wonders column carries a real `name`;
@@ -1477,9 +1198,7 @@ function applyMutationToDungeon(draft: Draft<DungeonState>, rng: RNG): void {
 
   if (effect.kind === "death") {
     pushLog(draft, `Mutation: ${entry.text}`);
-    if (trySamambroSurvival(draft, rng)) return;
-    if (tryRavenSurvival(draft, rng)) return;
-    if (tryZombieRevival(draft)) return;
+    if (trySurviveDeath(draft, rng, dungeonLog(draft))) return;
     draft.alive = false;
     // Not "combat" and not the Darkness -- but those are the only two values `deathCause` has, and
     // "darkness" is what every reader already treats as "died in the dungeon, not in a fight."
@@ -1843,7 +1562,7 @@ export function dungeonReducer(
           const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
           if (trap) {
             seg.trapResult = trap.text;
-            resolveTrapOutcome(draft, trap, seg.id, rng);
+            resolveTrapOutcome(draft, trap, seg.id, rng, action.bladeRoll);
             wakeSneakedPastMonsters(draft, seg, rng);
           }
         }
@@ -1874,7 +1593,7 @@ export function dungeonReducer(
             if (trap) {
               seg.trapResult = trap.text;
               pushLog(draft, trap.text);
-              resolveTrapOutcome(draft, trap, seg.id, rng);
+              resolveTrapOutcome(draft, trap, seg.id, rng, action.bladeRoll);
               wakeSneakedPastMonsters(draft, seg, rng);
             }
           }
@@ -2099,7 +1818,7 @@ export function dungeonReducer(
           const trap = DUNGEON_TABLES[draft.dungeonTypeKey].trap[action.trapRoll];
           if (!trap) return;
           pushLog(draft, `Segment ${seg.id}: ${trap.text}`);
-          resolveTrapOutcome(draft, trap, seg.id, rng);
+          resolveTrapOutcome(draft, trap, seg.id, rng, action.bladeRoll);
           wakeSneakedPastMonsters(draft, seg, rng);
         } else if (outcome === "locked") {
           if (action.lockChoice === "pickLock") {
@@ -2614,9 +2333,7 @@ export function dungeonReducer(
           }
 
           if (draft.hp <= 0) {
-            if (trySamambroSurvival(draft, rng)) return;
-            if (tryRavenSurvival(draft, rng)) return;
-            if (tryZombieRevival(draft)) return;
+            if (trySurviveDeath(draft, rng, dungeonLog(draft))) return;
             draft.alive = false;
             draft.deathCause = "combat";
             pushLog(draft, "The explosion kills you instantly.", "descend");
@@ -2856,61 +2573,18 @@ export function dungeonReducer(
       return produce(state, (draft) => {
         const combat = draft.combat;
         if (!combat || combat.pendingDamage === null) return;
-        const amount = combat.pendingDamage;
-        combat.pendingDamage = null;
-
-        if (action.absorbWith === "hp") {
-          draft.hp = Math.max(0, draft.hp - amount);
-        } else if (action.absorbWith === "hireling") {
-          // Issue #84: mirrors the armor-piece branch's exact overflow-to-HP shape. A Hireling
-          // reduced to 0 HP is gone for good -- clears the top-level `hireling` field too (not
-          // just this fight's own copy), so CharacterSheet's status line and any future room's
-          // fresh combat correctly show no Hireling anymore, matching "you pay to face just one
-          // dungeon" rather than a temporary knockout.
-          const h = combat.hireling;
-          if (!h) return;
-          const absorbed = Math.min(amount, h.hp);
-          h.hp -= absorbed;
-          const overflow = amount - absorbed;
-          if (overflow > 0) draft.hp = Math.max(0, draft.hp - overflow);
-          pushLog(
-            draft,
-            h.hp <= 0
-              ? `${h.name} absorbs ${absorbed} damage and falls!`
-              : `${h.name} absorbs ${absorbed} damage (${h.hp}/${h.maxHp} HP left).`,
-          );
-          // The single place a Hireling's HP ever drops, so the single place the persisted value
-          // needs writing back (issue #114) -- it has to survive this fight ending.
-          if (h.hp <= 0) {
-            draft.hireling = null;
-            draft.hirelingHp = null;
-          } else {
-            draft.hirelingHp = h.hp;
-          }
-        } else {
-          const piece = draft.armor[action.absorbWith];
-          if (!piece) return;
-          const absorbed = Math.min(amount, piece.hp);
-          piece.hp -= absorbed;
-          const overflow = amount - absorbed;
-          if (overflow > 0) draft.hp = Math.max(0, draft.hp - overflow);
-          const label = piece.itemName ?? ARMOR_PIECE_LABELS[piece.piece];
-          if (piece.hp <= 0) draft.milestones.hasHadArmorDestroyed = true; // Blacksmith (issue #70)
-          pushLog(
-            draft,
-            piece.hp <= 0
-              ? `Your ${label} absorbs ${absorbed} damage and is destroyed!`
-              : `Your ${label} absorbs ${absorbed} damage (${piece.hp}/${piece.maxHp} HP left).`,
-          );
-        }
-
-        if (draft.hp <= 0) {
-          if (trySamambroSurvival(draft, rng)) return;
-          if (tryRavenSurvival(draft, rng)) return;
-          if (tryZombieRevival(draft)) return;
+        const result = resolveDamageChoice(
+          draft,
+          combat,
+          action.absorbWith,
+          rng,
+          dungeonLog(draft),
+        );
+        // Blacksmith (issue #70) -- a dungeon-side milestone, so it stays out of the shared core.
+        if (result.armorDestroyed) draft.milestones.hasHadArmorDestroyed = true;
+        if (result.died) {
           draft.alive = false;
           draft.deathCause = "combat";
-          pushLog(draft, "You fall in combat, overwhelmed by your foes.", "descend");
           leaveRemains(draft, combat.segId);
           draft.combat = null;
         }
@@ -2950,39 +2624,10 @@ export function dungeonReducer(
           return;
         }
 
-        switch (spell.name) {
-          case "Heal": {
-            const healed = Math.min(HEAL_AMOUNT, draft.maxHp - draft.hp);
-            draft.hp += healed;
-            pushLog(draft, `You cast Heal, recovering ${healed} HP.`);
-            break;
-          }
-
-          // Natural Cure (Nature 1, issue #61): "Recovers 12 HP" -- Heal's identical shape, just a
-          // bigger fixed amount.
-          case "Natural Cure": {
-            const healed = Math.min(12, draft.maxHp - draft.hp);
-            draft.hp += healed;
-            pushLog(draft, `You cast Natural Cure, recovering ${healed} HP.`);
-            break;
-          }
-
-          case "Light": {
-            // "Worth a torch (does not use a hand)" -- modeled as a free torch, since this
-            // codebase collapses light-source and hand-economy into the single torches count.
-            const gained = Math.min(1, MAX_TORCHES - draft.torches);
-            draft.torches += gained;
-            pushLog(
-              draft,
-              gained > 0
-                ? "You cast Light, conjuring a globe worth a torch."
-                : "You cast Light, but you're already carrying the maximum 10 torches.",
-            );
-            break;
-          }
-
-          case "Teleport": {
-            if (!combat) break;
+        // Teleport is the one spell the shared core can't own: it needs a destination segment,
+        // which only exists in a dungeon (out in the world, fleeing is the equivalent escape).
+        if (spell.name === "Teleport") {
+          if (combat) {
             const destLevelIndex = action.destLevel!;
             const destSeg = draft.levels[destLevelIndex]!.segments.find(
               (s) => s.id === action.destSegId,
@@ -2997,170 +2642,20 @@ export function dungeonReducer(
             draft.currentSegId = destSeg.id;
             draft.selectedSegId = destSeg.id;
             rerollMonstersIfNeeded(draft, destSeg, rng);
-            return; // fled -- no monster counter-turn
           }
-
-          case "Cold Ray": {
-            if (!combat) break;
-            const monster = combat.monsters.find((m) => m.id === action.targetId);
-            if (!monster) break;
-            draft.milestones.hasCastColdRay = true; // Necromancer (issue #70)
-            const result = resolveSpellDamage(monster, 4);
-            monster.hp = Math.max(0, monster.hp - result.damageDealt);
-            monster.skipNextAttack = true;
-            pushLog(
-              draft,
-              result.blocked
-                ? `Cold Ray fails to harm ${monster.name} (${result.blocked}), but it freezes in place.`
-                : `Cold Ray strikes ${monster.name} for ${result.damageDealt} damage, freezing it in place.`,
-            );
-            handleMonsterDefeat(draft, combat, monster, rng);
-            break;
-          }
-
-          case "Lightning": {
-            if (!combat) break;
-            const monster = combat.monsters.find((m) => m.id === action.targetId);
-            if (!monster) break;
-            const result = resolveSpellDamage(monster, 6);
-            monster.hp = Math.max(0, monster.hp - result.damageDealt);
-            pushLog(
-              draft,
-              result.blocked
-                ? `Lightning fails to harm ${monster.name} (${result.blocked}).`
-                : `Lightning strikes ${monster.name} for ${result.damageDealt} damage.`,
-            );
-            handleMonsterDefeat(draft, combat, monster, rng);
-            break;
-          }
-
-          // Magic Blast (Advanced 10, issue #61): "Attack that deals 12 damage" -- Lightning's
-          // identical single-target shape, just a bigger fixed amount and no freeze.
-          case "Magic Blast": {
-            if (!combat) break;
-            const monster = combat.monsters.find((m) => m.id === action.targetId);
-            if (!monster) break;
-            const result = resolveSpellDamage(monster, 12);
-            monster.hp = Math.max(0, monster.hp - result.damageDealt);
-            pushLog(
-              draft,
-              result.blocked
-                ? `Magic Blast fails to harm ${monster.name} (${result.blocked}).`
-                : `Magic Blast strikes ${monster.name} for ${result.damageDealt} damage.`,
-            );
-            handleMonsterDefeat(draft, combat, monster, rng);
-            break;
-          }
-
-          // Vimes (Nature 2, issue #61): "Leaves a monster without attacking for 1d6 turns" -- a
-          // multi-turn version of Cold Ray's single-round freeze (see CombatMonsterState.silencedTurns).
-          case "Vimes": {
-            if (!combat) break;
-            const monster = combat.monsters.find((m) => m.id === action.targetId);
-            if (!monster) break;
-            const turns = rollDie(rng);
-            monster.silencedTurns = turns;
-            pushLog(draft, `You cast Vimes, silencing ${monster.name} for ${turns} turns.`);
-            break;
-          }
-
-          // Paralyze (Advanced 5, issue #61): "Leave all monsters in a room without attacking for
-          // 2 turns" -- Vimes' identical mechanism, room-wide and at a fixed duration.
-          case "Paralyze": {
-            if (!combat) break;
-            pushLog(draft, "You cast Paralyze, freezing every monster in the room for 2 turns.");
-            for (const monster of combat.monsters) monster.silencedTurns = 2;
-            break;
-          }
-
-          // Ethereal Body (Death 1 / Advanced 12, issue #61): "Until the end of the fight, all
-          // damage you take is reduced by 1 point" -- doesn't stack from a second cast.
-          case "Ethereal Body": {
-            if (!combat) break;
-            combat.damageReduction = Math.max(combat.damageReduction, 1);
-            pushLog(draft, "You cast Ethereal Body, dulling every blow against you.");
-            break;
-          }
-
-          // Magic Shield (Advanced 8, issue #61): "it can absorb 4 damage points. Can cast more
-          // than one" -- each cast is its own independently-depleting pool (see applyMonsterTurn).
-          case "Magic Shield": {
-            if (!combat) break;
-            combat.shields.push(4);
-            pushLog(draft, "You cast Magic Shield, conjuring a barrier that can absorb 4 damage.");
-            break;
-          }
-
-          // Absorb Soul (Death 2, issue #61): "After a fight, recover 5 HP for each monster
-          // killed" -- a deferred-to-victory trigger resolved in finishIfVictorious().
-          case "Absorb Soul": {
-            if (!combat) break;
-            combat.absorbSoulActive = true;
-            pushLog(draft, "You cast Absorb Soul -- victory here will restore your HP.");
-            break;
-          }
-
-          // Fire of the Dead (Death 4, issue #61): "After a fight, you get 2 torches for every
-          // monster killed" -- same deferred-to-victory shape as Absorb Soul above.
-          case "Fire of the Dead": {
-            if (!combat) break;
-            combat.fireOfTheDeadActive = true;
-            pushLog(draft, "You cast Fire of the Dead -- victory here will grant you torches.");
-            break;
-          }
-
-          case "Fireball": {
-            if (!combat) break;
-            pushLog(draft, "You cast Fireball, engulfing the room in flame.");
-            for (const monster of [...combat.monsters]) {
-              const result = resolveSpellDamage(monster, 5);
-              monster.hp = Math.max(0, monster.hp - result.damageDealt);
-              if (result.blocked) {
-                pushLog(draft, `${monster.name} is unharmed (${result.blocked}).`);
-              } else if (result.damageDealt > 0) {
-                pushLog(draft, `${monster.name} takes ${result.damageDealt} fire damage.`);
-              }
-              handleMonsterDefeat(draft, combat, monster, rng);
-            }
-            break;
-          }
-
-          // Insect Rain (Nature 6 / Advanced 2, issue #61): "Attack that deals 7 damage to all
-          // opponents" -- Fireball's identical room-wide shape, just a different fixed amount.
-          case "Insect Rain": {
-            if (!combat) break;
-            pushLog(draft, "You cast Insect Rain, swarming the room with biting insects.");
-            for (const monster of [...combat.monsters]) {
-              const result = resolveSpellDamage(monster, 7);
-              monster.hp = Math.max(0, monster.hp - result.damageDealt);
-              if (result.blocked) {
-                pushLog(draft, `${monster.name} is unharmed (${result.blocked}).`);
-              } else if (result.damageDealt > 0) {
-                pushLog(draft, `${monster.name} takes ${result.damageDealt} damage.`);
-              }
-              handleMonsterDefeat(draft, combat, monster, rng);
-            }
-            break;
-          }
-
-          // Banish the Dead (Death 3, issue #61): "Destroy any Undead that are in the same area
-          // as you" -- filters the room's Undead and destroys each outright, bypassing the normal
-          // damage math and the Undead ability's own revival roll (see handleMonsterDefeat).
-          case "Banish the Dead": {
-            if (!combat) break;
-            const undead = combat.monsters.filter((m) => m.abilities.includes("undead"));
-            if (undead.length === 0) {
-              pushLog(draft, "You cast Banish the Dead, but no Undead linger here.");
-              break;
-            }
-            pushLog(draft, "You cast Banish the Dead, destroying every Undead in the room.");
-            for (const monster of undead) {
-              monster.hp = 0;
-              handleMonsterDefeat(draft, combat, monster, rng, true);
-            }
-            break;
-          }
+          return; // fled -- no monster counter-turn
         }
+        // Necromancer (issue #70) tracks this one specifically, and it's a dungeon-side milestone.
+        if (spell.name === "Cold Ray") draft.milestones.hasCastColdRay = true;
+        castCombatSpell(
+          draft,
+          combat ?? null,
+          spell.name,
+          action.targetId,
+          rng,
+          dungeonLog(draft),
+          MAX_TORCHES,
+        );
 
         if (draft.combat) {
           finishIfVictorious(draft, draft.combat, rng);

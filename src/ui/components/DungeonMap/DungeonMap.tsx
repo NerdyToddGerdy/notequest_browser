@@ -47,6 +47,8 @@ export interface DungeonMapProps {
     doorRoll: number,
     trapRoll: number | null,
     lockChoice: LockChoice | null,
+    /** Issue #112: the blade trap's kill die, already shown to the player before this fires. */
+    bladeRoll?: number | null,
   ) => void;
   onSelectSegment: (segId: number) => void;
   onSwitchLevel: (levelIndex: number, segId?: number) => void;
@@ -231,17 +233,26 @@ export function DungeonMap({
         setDoorFlow({ kind: "rolling", segId, doorIdx, x, y });
         const trapRoll = rollDie();
         animateDie(trapRoll, () => {
-          onResolveLock(segId, doorIdx, doorRoll, trapRoll, null);
           const trap = state.dungeonTypeKey
             ? DUNGEON_TABLES[state.dungeonTypeKey].trap[trapRoll]
             : undefined;
-          const cost = trap?.torchCost ?? 0;
-          if (cost > 0 && state.torches < cost) {
-            setDoorFlow(null); // the Darkness took them -- the door never opens
-            return;
-          }
-          // Setting off a trap makes noise -- monsters beyond the door get the first attack.
-          proceedToSegment(segId, doorIdx, x, y, true);
+          // Issue #112: a blade trap's kill die decides the run in one roll, and it used to be
+          // rolled silently inside the reducer -- so the player saw "a trap!", then a die that
+          // wasn't the one that mattered, then a dead character. Show it, like every other
+          // consequential roll in this game.
+          const bladeRoll = trap?.bladeTrap ? rollDie() : null;
+          const applyTrap = () => {
+            onResolveLock(segId, doorIdx, doorRoll, trapRoll, null, bladeRoll);
+            const cost = trap?.torchCost ?? 0;
+            if (cost > 0 && state.torches < cost) {
+              setDoorFlow(null); // the Darkness took them -- the door never opens
+              return;
+            }
+            // Setting off a trap makes noise -- monsters beyond the door get the first attack.
+            proceedToSegment(segId, doorIdx, x, y, true);
+          };
+          if (bladeRoll != null) animateDie(bladeRoll, applyTrap);
+          else applyTrap();
         });
       } else {
         setDoorFlow({ kind: "lockChoice", segId, doorIdx, x, y, doorRoll });

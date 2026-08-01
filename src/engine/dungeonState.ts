@@ -679,6 +679,9 @@ export type DungeonAction =
       doorIdx: number;
       doorRoll: number;
       trapRoll: number | null;
+      /** Issue #112: the blade trap's own kill die, pre-rolled by the UI so it can be shown before
+       * it lands. Optional -- a caller that doesn't animate lets the reducer roll it. */
+      bladeRoll?: number | null;
       lockChoice: LockChoice | null;
     }
   | { type: "OPEN_DOOR"; segId: number; doorIdx: number; roll: number | null; wasNoisy: boolean }
@@ -697,8 +700,20 @@ export type DungeonAction =
    * click, which only changes which level's map is *displayed*, not where the player stands. */
   | { type: "SWITCH_LEVEL"; levelIndex: number; segId?: number }
   | { type: "SELECT_SEGMENT"; segId: number | null }
-  | { type: "ROLL_SECRET_PASSAGE"; segId: number; roll: number; trapRoll: number | null }
-  | { type: "ROLL_CHEST"; segId: number; dice: [number, number]; trapRoll: number | null }
+  | {
+      type: "ROLL_SECRET_PASSAGE";
+      segId: number;
+      roll: number;
+      trapRoll: number | null;
+      bladeRoll?: number | null;
+    }
+  | {
+      type: "ROLL_CHEST";
+      segId: number;
+      dice: [number, number];
+      trapRoll: number | null;
+      bladeRoll?: number | null;
+    }
   | { type: "COLLECT_REMAINS"; segId: number }
   /** Swaps a found-but-unwielded weapon into the equipped slot, pushing whatever was equipped (if
    * anything) back into spareWeapons -- out-of-combat only, see CLAUDE.md's Armor & Weapons note. */

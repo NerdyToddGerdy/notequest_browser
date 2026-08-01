@@ -28,6 +28,8 @@ import {
   weaponWorth,
   type AdventurerResources,
 } from "../town.ts";
+import { createInitialWorldState, ownedBuildings, withBuilding } from "../hexState.ts";
+import { buildingTaxTotal } from "../../data/buildings.ts";
 import { fixedDie, sequenceDie } from "../../test/mulberry32.ts";
 
 /** The batch of defects reported by a player in real play (issues #109/#111/#114/#115/#116). Every
@@ -780,5 +782,33 @@ describe("issue #110: potions are held, not drunk on discovery", () => {
       consumables: [{ name: "Health Potion", text: "x", effect: { kind: "healAll" } }],
     });
     expect(packUsedSlots(resources)).toBe(2);
+  });
+});
+
+describe("issue #121: buildings outlive their builder", () => {
+  it("derives the owned list from the map, which is where a Castle actually stands", () => {
+    const world = createInitialWorldState(fixedDie(3));
+    const built = withBuilding(
+      withBuilding(world, { q: 0, r: 0 }, "Castle"),
+      { q: 1, r: 0 },
+      "Tower",
+    );
+    expect(ownedBuildings(built)).toEqual(
+      expect.arrayContaining([
+        { hexKey: "0,0", kind: "Castle" },
+        { hexKey: "1,0", kind: "Tower" },
+      ]),
+    );
+  });
+
+  it("is empty for a world nobody has built on", () => {
+    expect(ownedBuildings(createInitialWorldState(fixedDie(3)))).toEqual([]);
+  });
+
+  it("still pays the Boss-kill tax to whoever inherits it", () => {
+    const world = withBuilding(createInitialWorldState(fixedDie(3)), { q: 0, r: 0 }, "Castle");
+    // The tax reads the same OwnedBuilding[] shape, so an inherited estate pays exactly as one you
+    // bought yourself would.
+    expect(buildingTaxTotal(ownedBuildings(world).map((b) => b.kind))).toBeGreaterThan(0);
   });
 });

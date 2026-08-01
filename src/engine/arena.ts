@@ -1,13 +1,11 @@
 import { ARENA_CHAMPION_TABLE } from "../data/arena.ts";
-import {
-  resolveMonsterTurn,
-  resolvePlayerAttack,
-  rollWeaponDamage,
-  type CombatEvent,
-} from "./combat.ts";
-import type { CombatMonsterState } from "./dungeonState.ts";
+import { rollWeaponDamage } from "./combat.ts";
+import type { CombatMonsterState, CombatState } from "./dungeonState.ts";
 import { rollDie } from "./dice.ts";
+import { eventFightRound, type FighterIdentity } from "./events.ts";
+import { createCombatState } from "./fight.ts";
 import type { RNG } from "./rng.ts";
+import type { AdventurerResources } from "./town.ts";
 
 /** "Fighting in The Arena" (`docs/game-rules-reference.md` lines 1036-1037, 1054-1071) -- reuses
  * `combat.ts`'s pure, dungeon-agnostic combat math (`resolvePlayerAttack`/`resolveMonsterTurn`
@@ -24,8 +22,14 @@ import type { RNG } from "./rng.ts";
  * covers; Firebreath/Sorcery/Horde/Necromancy/Regeneration/Paralyze/Undead don't need wiring here
  * at all -- no Champion on the table has any of them.
  */
+/** The Arena runs the same shared core as every other fight (issue #120). Its *scoping* stays a
+ * deliberate choice rather than an accident of implementation: the rulebook's Arena section says
+ * nothing about armor absorption, and there is no Hireling concept in the pit -- but the character's
+ * own attack bonuses, weapon effects, spells and survival abilities are theirs, and there was never
+ * a reason those went missing. Unlike a wilderness Event, the Arena is opt-in, so it keeps its
+ * "you fight alone" shape. */
 export interface ArenaState {
-  champion: CombatMonsterState;
+  combat: CombatState;
   outcome: "ongoing" | "victory" | "defeat";
 }
 
@@ -35,74 +39,60 @@ export function startArena(rng: RNG = Math.random): ArenaState {
   for (let i = 0; i < 3; i++) roll += rollDie(rng);
   const template = ARENA_CHAMPION_TABLE[roll]!;
   return {
-    champion: {
-      id: 1,
-      name: template.name,
-      hp: template.hp,
-      maxHp: template.hp,
-      damage: template.damage,
-      abilities: template.abilities,
-      bonusDamage: 0,
-      deathtouchPending: false,
-      paralyzePending: 0,
-      skipNextAttack: false,
-      silencedTurns: 0,
-    },
+    combat: createCombatState({
+      monsters: [
+        {
+          id: 1,
+          name: template.name,
+          hp: template.hp,
+          maxHp: template.hp,
+          damage: template.damage,
+          abilities: template.abilities,
+          bonusDamage: 0,
+          deathtouchPending: false,
+          paralyzePending: 0,
+          skipNextAttack: false,
+          silencedTurns: 0,
+        },
+      ],
+      // No Hireling: "you fight alone" is the Arena's own shape, kept deliberately.
+      hireling: null,
+    }),
     outcome: "ongoing",
   };
 }
 
 export interface ArenaRoundResult {
+  resources: AdventurerResources;
   state: ArenaState;
-  /** The player's new HP after this round (attack + counter-attack, if any). */
-  hp: number;
-  /** True the moment `hp` reaches 0 -- "if you lose, your character dies." */
   died: boolean;
-  events: CombatEvent[];
+  log: string[];
 }
 
-/** One full round: the player attacks with their equipped weapon, then -- if the champion is still
- * standing -- it counters immediately (Arena has no "noisy start"/monster-acts-first concept, so
- * the player always swings first, same as an ordinary un-ambushed dungeon room). A no-op once
- * `state.outcome` is no longer `"ongoing"`. */
+/** One round. Unlike an Event, the Arena rolls its own weapon die -- `TownScreen` renders the fight
+ * un-animated, so there's no die on screen whose value has to match. */
 export function resolveArenaRound(
+  resources: AdventurerResources,
+  who: FighterIdentity,
   state: ArenaState,
-  hp: number,
   weaponFormula: string,
   rng: RNG = Math.random,
 ): ArenaRoundResult {
-  if (state.outcome !== "ongoing") return { state, hp, died: false, events: [] };
-
-  const { rawRoll, total } = rollWeaponDamage(weaponFormula, rng);
-  const atk = resolvePlayerAttack(state.champion, rawRoll, total, rng);
-  let champion: CombatMonsterState = {
-    ...state.champion,
-    hp: Math.max(0, state.champion.hp - atk.damageDealt),
+  if (state.outcome !== "ongoing") {
+    return { resources, state, died: false, log: [] };
+  }
+  const { rawRoll } = rollWeaponDamage(weaponFormula, rng);
+  const fight = eventFightRound(resources, who, state.combat, 1, rawRoll, weaponFormula, rng);
+  return {
+    resources: fight.resources,
+    state: { combat: fight.combat, outcome: fight.combat.outcome },
+    died: fight.died,
+    log: fight.log,
   };
-  let newHp = hp - atk.selfDestructDamageToPlayer;
+}
 
-  // Explosive can defeat the champion and kill the player in the very same blast -- death is
-  // checked first regardless (mirroring dungeonReducer.ts's PLAYER_ATTACK case: "the explosion
-  // kills you instantly" fires even when the monster is also defeated by the same hit).
-  if (newHp <= 0) {
-    return { state: { champion, outcome: "defeat" }, hp: 0, died: true, events: atk.events };
-  }
-  if (atk.monsterDefeated) {
-    return { state: { champion, outcome: "victory" }, hp: newHp, died: false, events: atk.events };
-  }
-
-  // The only ability event that carries into the champion's own counter-attack this round --
-  // see the module doc comment for why Firebreath/Sorcery/Paralyze aren't handled here too.
-  if (atk.events.some((e) => e.kind === "deathtouch")) {
-    champion = { ...champion, deathtouchPending: true };
-  }
-
-  const counter = resolveMonsterTurn([champion]);
-  champion = { ...champion, deathtouchPending: false }; // consumed, whether it killed or not
-  if (counter.deathtouchKill) {
-    return { state: { champion, outcome: "defeat" }, hp: 0, died: true, events: atk.events };
-  }
-  newHp = Math.max(0, newHp - counter.totalDamage);
-  const outcome = newHp <= 0 ? "defeat" : "ongoing";
-  return { state: { champion, outcome }, hp: newHp, died: newHp <= 0, events: atk.events };
+/** The champion, for the UI -- `combat.monsters` is empty once it falls, so this is the last known
+ * one either way. */
+export function arenaChampion(state: ArenaState): CombatMonsterState | null {
+  return state.combat.monsters[0] ?? null;
 }

@@ -1,10 +1,8 @@
-import { useState } from "react";
-import { ABILITY_DESCRIPTIONS } from "../../../data/dungeonTables.ts";
 import type { EventRow } from "../../../data/events.ts";
-import { rollWeaponDamage } from "../../../engine/combat.ts";
-import type { EventCombatState } from "../../../engine/events.ts";
 import { Die } from "../Die/Die.tsx";
-import { revealDelay } from "../../rollTiming.ts";
+import type { ArmorPiece, CombatState, Consumable } from "../../../engine/dungeonState.ts";
+import type { SpellTableKey } from "../../../data/types.ts";
+import { CombatPanel } from "../CombatPanel/CombatPanel.tsx";
 import styles from "./EventPanel.module.css";
 
 /** Events on Travel (issue #91) -- the panel shown over the World map when a 2d6 arrival roll turns
@@ -24,7 +22,22 @@ export interface EventPanelProps {
   /** The two raw dice that produced this Event, shown as real dice like every other roll in the app. */
   dice: [number, number];
   /** Non-null once the player has chosen to fight. */
-  combat: EventCombatState | null;
+  combat: CombatState | null;
+  /** Everything a real fight needs, threaded straight through to `CombatPanel` (issue #120). */
+  armor: ArmorPiece[];
+  spellUses: Record<string, number>;
+  consumables?: Consumable[];
+  isRinoceroid?: boolean;
+  isSnakeOwner?: boolean;
+  onCastSpell: (table: SpellTableKey, spellRoll: number, targetId?: number) => void;
+  onResolveDamage: (absorbWith: "hp" | "hireling" | number) => void;
+  onHirelingAttack?: (targetId: number, roll: number) => void;
+  onAnimalAttack?: (targetId: number) => void;
+  onUseConsumable?: (index: number) => void;
+  /** Issue #120: the exit an Event never had. */
+  onFlee: () => void;
+  /** Newest-first transcript of the fight so far. */
+  log: string[];
   hp: number;
   maxHp: number;
   weaponName?: string;
@@ -41,18 +54,6 @@ export interface EventPanelProps {
    * this panel owns the roll so it can animate it, and the engine consumes that exact value. */
   onAttack: (targetId: number, roll: number) => void;
   onDismiss: () => void;
-}
-
-function HpBar({ value, max, kind }: { value: number; max: number; kind: "player" | "monster" }) {
-  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
-  return (
-    <div className={styles.hpBar}>
-      <div
-        className={kind === "player" ? styles.hpFillPlayer : styles.hpFillMonster}
-        style={{ width: `${pct}%` }}
-      />
-    </div>
-  );
 }
 
 export function EventPanel({
@@ -72,25 +73,19 @@ export function EventPanel({
   onReroll,
   onAttack,
   onDismiss,
+  armor,
+  spellUses,
+  consumables,
+  isRinoceroid,
+  isSnakeOwner,
+  onCastSpell,
+  onResolveDamage,
+  onHirelingAttack,
+  onAnimalAttack,
+  onUseConsumable,
+  onFlee,
+  log,
 }: EventPanelProps) {
-  /** The player's own weapon die, animated exactly like CombatPanel's -- the reveal delay is purely
-   * cosmetic, the round is already resolved by the time the die lands. */
-  const [attackRoll, setAttackRoll] = useState<{ value: number; token: number } | null>(null);
-  const [rolling, setRolling] = useState(false);
-
-  function handleAttack(targetId: number) {
-    if (rolling || !weaponFormula) return;
-    setRolling(true);
-    const { rawRoll } = rollWeaponDamage(weaponFormula);
-    setAttackRoll((prev) => ({ value: rawRoll, token: (prev?.token ?? 0) + 1 }));
-    window.setTimeout(() => {
-      setRolling(false);
-      onAttack(targetId, rawRoll);
-    }, revealDelay(1));
-  }
-
-  const canAct = combat != null && combat.outcome === "ongoing" && hp > 0 && !rolling;
-
   return (
     <div className={styles.panel}>
       <p className={styles.eyebrow}>Event</p>
@@ -103,70 +98,40 @@ export function EventPanel({
           </button>
         </>
       ) : combat ? (
+        // Issue #120: the fight itself is the dungeon's own `CombatPanel` now, so a wilderness
+        // encounter offers exactly what a dungeon room does -- armor absorption, spells, the
+        // Hireling, the Snake, potions -- instead of a single Attack button against a naked
+        // character. This panel keeps only what's specific to an Event: the flavour line above, and
+        // Camouflage/Star Stone/Continue in the choice stage below.
         <>
           <p className={styles.flavor}>{row.text}</p>
-
-          <div className={styles.playerRow}>
-            <div className={styles.playerLabel}>
-              <span className={styles.playerName}>You</span>
-              {weaponName && (
-                <span className={styles.weapon}>
-                  {weaponName} ({weaponFormula})
-                </span>
-              )}
-            </div>
-            <span className={styles.hpText}>
-              {hp} / {maxHp} HP
-            </span>
-          </div>
-          <HpBar value={hp} max={maxHp} kind="player" />
-
-          {attackRoll && (
-            <div className={styles.dieRow}>
-              <Die value={attackRoll.value} rollToken={attackRoll.token} size={34} />
-            </div>
+          <CombatPanel
+            combat={combat}
+            hp={hp}
+            maxHp={maxHp}
+            weaponName={weaponName ?? "Fists"}
+            weaponFormula={weaponFormula ?? "1d6"}
+            armor={armor}
+            spellUses={spellUses}
+            isRinoceroid={isRinoceroid}
+            isSnakeOwner={isSnakeOwner}
+            consumables={consumables}
+            onUseConsumable={onUseConsumable}
+            onAttack={onAttack}
+            onCastSpell={onCastSpell}
+            onResolveDamage={onResolveDamage}
+            onHirelingAttack={onHirelingAttack}
+            onAnimalAttack={onAnimalAttack}
+            onFlee={onFlee}
+            fleeLabel="Flee — 1 provision"
+          />
+          {log.length > 0 && (
+            <ul className={styles.log}>
+              {log.slice(0, 5).map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
           )}
-
-          <ul className={styles.monsterList}>
-            {combat.monsters.map((monster) => (
-              <li key={monster.id} className={styles.monster}>
-                <div className={styles.monsterHeader}>
-                  <span className={monster.hp <= 0 ? styles.monsterNameDown : styles.monsterName}>
-                    {monster.name}
-                  </span>
-                  <span className={styles.hpText}>
-                    {monster.hp} / {monster.maxHp} HP
-                  </span>
-                </div>
-                <HpBar value={monster.hp} max={monster.maxHp} kind="monster" />
-                {monster.abilities.length > 0 && (
-                  <div className={styles.tags}>
-                    {monster.abilities.map((ability) => (
-                      <span
-                        key={ability}
-                        className={styles.tag}
-                        title={ABILITY_DESCRIPTIONS[ability]}
-                      >
-                        {ability}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {monster.hp > 0 && (
-                  <button
-                    type="button"
-                    className={styles.attackBtn}
-                    disabled={!canAct || !weaponFormula}
-                    onClick={() => handleAttack(monster.id)}
-                  >
-                    Attack
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-
-          {!weaponFormula && <p className={styles.warning}>You have no weapon to fight with.</p>}
         </>
       ) : (
         <>

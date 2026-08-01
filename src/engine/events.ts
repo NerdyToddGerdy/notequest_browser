@@ -7,19 +7,27 @@ import {
 } from "../data/events.ts";
 import type { OverworldTerrain } from "../data/hexTables.ts";
 import { HIRELING_BY_NAME } from "../data/hirelings.ts";
+import { produce, type Draft } from "immer";
+import { ANIMAL_BY_NAME } from "../data/animals.ts";
 import { SPELL_TABLE_BY_KEY, spellKey } from "./character.ts";
+import { parseWeaponFormula, spawnMonsters } from "./combat.ts";
 import {
-  parseWeaponFormula,
-  resolveMonsterTurn,
-  resolvePlayerAttack,
-  rollLoot,
-  spawnMonsters,
-  type CombatEvent,
-} from "./combat.ts";
+  animalAttack,
+  applyMonsterTurn,
+  castCombatSpell,
+  createCombatState,
+  fightRound,
+  hirelingAttack,
+  applyConsumableEffect,
+  payOutVictory,
+  resolveDamageChoice,
+  type FightLog,
+} from "./fight.ts";
 import { rollDie } from "./dice.ts";
-import type { CombatMonsterState } from "./dungeonState.ts";
+import type { CombatState } from "./dungeonState.ts";
 import type { RNG } from "./rng.ts";
-import type { AdventurerResources } from "./town.ts";
+import { MAX_TORCHES, type AdventurerResources } from "./town.ts";
+import type { SpellTableKey } from "../data/types.ts";
 
 /** "Events on Travel" (`docs/game-rules-reference.md` lines 908-926, issue #91) -- the last unbuilt
  * piece of Hexploring the World (#19). Deliberately its own engine module rather than part of
@@ -208,131 +216,243 @@ export function applyEventEffect(
 }
 
 // --- Monster Events ------------------------------------------------------------------------------
+//
+// Issue #120: these used to run on a small parallel implementation that took only `hp` and
+// `weaponFormula`, so a wilderness fight silently disabled armor, spells, attack bonuses, the
+// Hireling, animals and potions. That was inherited from `arena.ts`, where it was defensible -- you
+// choose to enter the Arena. An Event fires unbidden and offered only a Fight button, so a player
+// was forced into a fight without the character they had built, and lost one to a Wyvern.
+//
+// Now they run on the same `CombatState` and the same `fight.ts` core the dungeon uses. The only
+// thing an Event fight still lacks is a segment to leave remains in, which is why death is reported
+// back rather than handled here.
 
-export interface EventCombatState {
-  monsters: CombatMonsterState[];
-  outcome: "ongoing" | "victory" | "defeat";
-  /** Set once on victory, so the caller can report exactly what the Loot rolls produced. */
-  loot: { coins: number; treasures: number; keys: number } | null;
+/** `AdventurerResources` carries everything a fight needs except the character's race and class,
+ * which live on `CreatedCharacter`. They're threaded in for the duration of the fight and dropped on
+ * the way out, rather than duplicated into the persisted blob -- `DungeonState` copies them because
+ * a run outlives the screen that created it; a single Event doesn't. */
+export interface FighterIdentity {
+  raceName: string;
+  className: string;
 }
 
-export function startEventCombat(row: EventRow, rng: RNG = Math.random): EventCombatState | null {
+type WildFighter = AdventurerResources & FighterIdentity;
+
+/** A wilderness fight in progress. Both fields move together, so every action returns both. */
+export interface WildFight {
+  resources: AdventurerResources;
+  combat: CombatState;
+  /** Newest-first transcript for the panel, the same order `DungeonState.log` uses. */
+  log: string[];
+  /** The caller writes the Graveyard entry -- out here there's no `alive` flag to set. */
+  died: boolean;
+}
+
+/** Builds the fight, including the Hireling's own copy at its persisted HP (issue #114). */
+export function startEventCombat(
+  row: EventRow,
+  resources: AdventurerResources,
+  rng: RNG = Math.random,
+): CombatState | null {
   if (!row.monsters) return null;
   let nextId = 1;
-  return {
+  const def = resources.hireling ? HIRELING_BY_NAME[resources.hireling] : undefined;
+  return createCombatState({
     monsters: spawnMonsters(row.monsters, () => nextId++, rng),
-    outcome: "ongoing",
-    loot: null,
-  };
+    hireling: def
+      ? {
+          name: def.name,
+          hp: Math.min(resources.hirelingHp ?? def.hp, def.hp),
+          maxHp: def.hp,
+        }
+      : null,
+  });
 }
 
-export interface EventRoundResult {
-  state: EventCombatState;
-  hp: number;
-  died: boolean;
-  events: CombatEvent[];
+/** Runs `mutate` against a draft of both halves, collecting anything it logs. The one place Immer is
+ * used outside the dungeon reducer -- `fight.ts` mutates drafts, and rebuilding these by hand at
+ * every call site would be far more error-prone than borrowing `produce` for them. */
+function inFight(
+  resources: AdventurerResources,
+  who: FighterIdentity,
+  combat: CombatState,
+  mutate: (fighter: Draft<WildFighter>, combat: Draft<CombatState>, log: FightLog) => boolean,
+): WildFight {
+  const log: string[] = [];
+  let died = false;
+  const [fought, nextCombat] = produce(
+    [{ ...resources, ...who }, combat] as [WildFighter, CombatState],
+    ([draftFighter, draftCombat]) => {
+      died = mutate(draftFighter, draftCombat, (message) => log.unshift(message));
+    },
+  );
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { raceName, className, ...nextResources } = fought;
+  return { resources: nextResources, combat: nextCombat, log, died };
 }
 
-/** One full round: the player attacks their chosen target, then every *surviving* monster counters.
- * The player always swings first -- an Event has no "noisy arrival" concept the way a dungeon room
- * does, same as Arena. A no-op once the fight is over or the target is already down.
- *
- * `rawRoll` is the weapon die the *caller* rolled, not one rolled here -- the same split
- * `dungeonReducer.ts`'s `PLAYER_ATTACK` uses, and for the same reason: `EventPanel` animates that
- * die, so the value the player watches land has to be the value that actually resolved. (Arena can
- * roll internally because `TownScreen` renders its fight un-animated.) The modifier is re-derived
- * from `weaponFormula` here rather than passed, exactly as the reducer does. */
-export function resolveEventRound(
-  state: EventCombatState,
-  hp: number,
-  weaponFormula: string,
+/** One full round. `rawRoll` is the weapon die the *caller* rolled, not one rolled here -- the same
+ * split `dungeonReducer.ts`'s `PLAYER_ATTACK` uses, so the die the player watches land is the one
+ * that resolved. */
+export function eventFightRound(
+  resources: AdventurerResources,
+  who: FighterIdentity,
+  combat: CombatState,
   targetId: number,
   rawRoll: number,
+  weaponFormula: string,
   rng: RNG = Math.random,
-): EventRoundResult {
-  if (state.outcome !== "ongoing") return { state, hp, died: false, events: [] };
-  const target = state.monsters.find((m) => m.id === targetId);
-  if (!target || target.hp <= 0) return { state, hp, died: false, events: [] };
-
-  const { modifier } = parseWeaponFormula(weaponFormula);
-  const total = Math.max(0, rawRoll + modifier);
-  const atk = resolvePlayerAttack(target, rawRoll, total, rng);
-
-  const monsters = state.monsters.map((m) => {
-    if (m.id !== targetId) return m;
-    const hit: CombatMonsterState = { ...m, hp: Math.max(0, m.hp - atk.damageDealt) };
-    if (atk.monsterDefeated) return hit;
-    // The two abilities the Event table actually contains that alter the monster itself, applied
-    // exactly as dungeonReducer.ts's PLAYER_ATTACK case does: Firebreath queues a +10 counterattack,
-    // Regeneration heals immediately (capped at maxHp).
-    let after = hit;
-    for (const event of atk.events) {
-      if (event.kind === "firebreath") after = { ...after, bonusDamage: after.bonusDamage + 10 };
-      else if (event.kind === "regeneration") {
-        after = { ...after, hp: Math.min(after.maxHp, after.hp + event.amount) };
-      }
-    }
-    return after;
+  opts: { isHorn?: boolean } = {},
+): WildFight {
+  return inFight(resources, who, combat, (fighter, draftCombat, log) => {
+    const result = fightRound(
+      fighter,
+      draftCombat,
+      targetId,
+      rawRoll,
+      weaponFormula,
+      rng,
+      log,
+      opts,
+    );
+    return result.died;
   });
-
-  // Explosive can kill the player in the same blast that defeats the monster -- death is checked
-  // first regardless, mirroring both dungeonReducer.ts and arena.ts.
-  let newHp = hp - atk.selfDestructDamageToPlayer;
-  if (newHp <= 0) {
-    return {
-      state: { ...state, monsters, outcome: "defeat" },
-      hp: 0,
-      died: true,
-      events: atk.events,
-    };
-  }
-
-  const living = monsters.filter((m) => m.hp > 0);
-  if (living.length === 0) {
-    const lootCount = state.monsters[0]!.abilities.includes("loot") ? state.monsters.length : 0;
-    const loot = lootCount > 0 ? rollLoot(lootCount, rng) : null;
-    return {
-      state: { monsters, outcome: "victory", loot },
-      hp: newHp,
-      died: false,
-      events: atk.events,
-    };
-  }
-
-  const counter = resolveMonsterTurn(living);
-  newHp = Math.max(0, newHp - counter.totalDamage);
-  const outcome = newHp <= 0 ? "defeat" : "ongoing";
-  return {
-    state: { ...state, monsters, outcome },
-    hp: newHp,
-    died: newHp <= 0,
-    events: atk.events,
-  };
 }
 
-/** Credits a won Event fight's Loot to the character. Split out from `resolveEventRound` (which is
- * pure over `hp` alone, like `resolveArenaRound`) so the caller applies resources once, at the end,
- * rather than threading a full `AdventurerResources` through every round. */
-export function applyEventVictory(
+/** Resolves the armor-or-HP-or-Hireling choice a monster round can leave pending. Wilderness fights
+ * now get this at all -- before, all damage went straight to HP. */
+export function eventResolveDamage(
   resources: AdventurerResources,
-  state: EventCombatState,
-  hp: number,
-  monsterName: string,
-  killCount: number,
-): AdventurerResources {
-  const loot = state.loot;
+  who: FighterIdentity,
+  combat: CombatState,
+  absorbWith: "hp" | "hireling" | number,
+  rng: RNG = Math.random,
+): WildFight {
+  return inFight(resources, who, combat, (fighter, draftCombat, log) => {
+    const result = resolveDamageChoice(fighter, draftCombat, absorbWith, rng, log);
+    if (result.armorDestroyed) fighter.milestones.hasHadArmorDestroyed = true;
+    return result.died;
+  });
+}
+
+/** The Hireling's free once-per-round swing. */
+export function eventHirelingAttack(
+  resources: AdventurerResources,
+  who: FighterIdentity,
+  combat: CombatState,
+  targetId: number,
+  roll: number,
+  rng: RNG = Math.random,
+): WildFight {
+  const def = combat.hireling ? HIRELING_BY_NAME[combat.hireling.name] : undefined;
+  const modifier = def?.weaponFormula ? parseWeaponFormula(def.weaponFormula).modifier : 0;
+  return inFight(resources, who, combat, (fighter, draftCombat, log) => {
+    hirelingAttack(fighter, draftCombat, targetId, roll, modifier, rng, log);
+    return false;
+  });
+}
+
+/** Snake's free bite (issue #26/#67). */
+export function eventAnimalAttack(
+  resources: AdventurerResources,
+  who: FighterIdentity,
+  combat: CombatState,
+  targetId: number,
+  rng: RNG = Math.random,
+): WildFight {
+  const damage = ANIMAL_BY_NAME["Snake"]?.damage ?? 1;
+  return inFight(resources, who, combat, (fighter, draftCombat, log) => {
+    animalAttack(fighter, draftCombat, targetId, damage, rng, log);
+    return false;
+  });
+}
+
+/** Casting mid-fight out in the world (issue #120). Teleport is deliberately absent: its dungeon
+ * form needs a destination room, and out here fleeing is the equivalent escape -- which now exists.
+ * Everything else runs the same `castCombatSpell()` the dungeon does. */
+export function eventCastSpell(
+  resources: AdventurerResources,
+  who: FighterIdentity,
+  combat: CombatState,
+  table: SpellTableKey,
+  spellRoll: number,
+  targetId: number | undefined,
+  rng: RNG = Math.random,
+): WildFight {
+  const spell = SPELL_TABLE_BY_KEY[table]?.[spellRoll];
+  const key = spellKey(table, spellRoll);
+  if (!spell || (resources.spellUses[key] ?? 0) <= 0) {
+    return { resources, combat, log: [], died: false };
+  }
+  return inFight(resources, who, combat, (fighter, draftCombat, log) => {
+    fighter.spellUses[key] = (fighter.spellUses[key] ?? 0) - 1;
+    fighter.milestones.hasCastSpell = true; // Scholar (issue #70)
+    if (spell.name === "Cold Ray") fighter.milestones.hasCastColdRay = true; // Necromancer
+    if (draftCombat.paralyzedTurns > 0) {
+      draftCombat.paralyzedTurns -= 1;
+      log("You are paralyzed and cannot cast a spell this turn.");
+    } else if (
+      !castCombatSpell(fighter, draftCombat, spell.name, targetId, rng, log, MAX_TORCHES)
+    ) {
+      return false; // nothing this app implements -- no round spent
+    }
+    // Casting consumes the round, exactly as it does in a dungeon.
+    if (draftCombat.monsters.length === 0) {
+      payOutVictory(fighter, draftCombat, rng, log);
+      draftCombat.outcome = "victory";
+      return false;
+    }
+    const turn = applyMonsterTurn(fighter, draftCombat, rng, log);
+    if (turn.died) draftCombat.outcome = "defeat";
+    return turn.died;
+  });
+}
+
+/** Drinking a held potion mid-fight (issue #110), out in the world. Consumes the round like a spell. */
+export function eventUseConsumable(
+  resources: AdventurerResources,
+  who: FighterIdentity,
+  combat: CombatState,
+  index: number,
+  rng: RNG = Math.random,
+): WildFight {
+  if (!resources.consumables[index]) return { resources, combat, log: [], died: false };
+  return inFight(resources, who, combat, (fighter, draftCombat, log) => {
+    const item = fighter.consumables[index]!;
+    fighter.consumables.splice(index, 1);
+    applyConsumableEffect(fighter, draftCombat, item, rng, log, MAX_TORCHES);
+    if (draftCombat.monsters.length === 0) {
+      payOutVictory(fighter, draftCombat, rng, log);
+      draftCombat.outcome = "victory";
+      return false;
+    }
+    const turn = applyMonsterTurn(fighter, draftCombat, rng, log);
+    if (turn.died) draftCombat.outcome = "defeat";
+    return turn.died;
+  });
+}
+
+/** "You can always run" (issue #120). The rulebook says nothing about fleeing a travel encounter, so
+ * this is a deliberate addition rather than a transcription -- and the reason it's justified is that
+ * the encounter itself is *mandatory*: an Event fires unbidden and, before this, offered exactly one
+ * button. A fight you cannot avoid and cannot leave isn't a decision.
+ *
+ * Priced at one provision, matching every other "spend to get out of trouble" cost on the World map
+ * (the Star Stone's reroll, Dense Fog's wait). Free when you have none, so it can never be the
+ * provisions that trap you -- running away is always available, it just isn't always free. */
+export const FLEE_PROVISION_COST = 1;
+
+export function fleeEvent(resources: AdventurerResources): {
+  resources: AdventurerResources;
+  message: string;
+} {
+  const spent = Math.min(FLEE_PROVISION_COST, resources.provisions);
   return {
-    ...resources,
-    hp,
-    coins: resources.coins + (loot?.coins ?? 0),
-    treasures: resources.treasures + (loot?.treasures ?? 0),
-    keys: resources.keys + (loot?.keys ?? 0),
-    monsterKills: resources.monsterKills + killCount,
-    killsByName: {
-      ...resources.killsByName,
-      [monsterName.toLowerCase()]:
-        (resources.killsByName[monsterName.toLowerCase()] ?? 0) + killCount,
-    },
+    resources: { ...resources, provisions: resources.provisions - spent },
+    message:
+      spent > 0
+        ? "You break away and put distance between you and it, at the cost of a provision."
+        : "You break away and run, scattering what little you were carrying.",
   };
 }
 

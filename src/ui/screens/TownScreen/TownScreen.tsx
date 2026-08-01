@@ -7,6 +7,7 @@ import { acquireAdvancedClass } from "../../../engine/advancedClasses.ts";
 import { hirelingsFor } from "../../../data/hirelings.ts";
 import { canHireHireling, hireHireling } from "../../../engine/hirelings.ts";
 import {
+  arenaChampion,
   resolveArenaRound,
   startArena,
   type ArenaRoundResult,
@@ -390,13 +391,14 @@ export function TownScreen({
   }
   const isOriginalActionTab = ACTION_TABS.some((tab) => tab.key === activeActionTab);
 
-  function describeArenaRound(result: ArenaRoundResult, championName: string): string {
-    if (result.events.some((e) => e.kind === "explosive")) {
-      return `${championName} explodes! You catch the blast.`;
+  /** The shared core produces a real transcript now (issue #120), so the Arena shows that instead of
+   * a single summary line reconstructed from the round's events. */
+  function describeArenaRound(result: ArenaRoundResult, championName: string): string[] {
+    if (result.state.outcome === "victory") {
+      return [...result.log, `${championName} falls. Victory!`];
     }
-    if (result.state.outcome === "victory") return `${championName} falls. Victory!`;
-    if (result.died) return `${championName} strikes you down.`;
-    return `You strike ${championName}. It hits back.`;
+    if (result.died) return [...result.log, `${championName} strikes you down.`];
+    return result.log;
   }
 
   function handleStartArena() {
@@ -413,16 +415,19 @@ export function TownScreen({
   function handleArenaAttack() {
     if (!arena) return;
     const weaponFormula = resources.weapon?.formula ?? character.cls.weaponDamage;
-    const result = resolveArenaRound(arena, resources.hp, weaponFormula);
-    const championName = arena.champion.name;
+    const who = { raceName: character.race.name, className: character.cls.name };
+    const result = resolveArenaRound(resources, who, arena, weaponFormula);
+    const championName = arenaChampion(arena)?.name ?? "Your opponent";
     setArena(result.state);
-    setArenaLog((prev) => [...prev, describeArenaRound(result, championName)]);
+    setArenaLog((prev) => [...prev, ...describeArenaRound(result, championName)]);
     if (result.died) {
       onCharacterDied("arena");
       return;
     }
-    const coins = result.state.outcome === "victory" ? resources.coins + 20 : resources.coins;
-    onUpdateResources({ ...resources, hp: result.hp, coins });
+    // "You win 20 coins" -- on top of whatever the shared core already credited.
+    const coins =
+      result.state.outcome === "victory" ? result.resources.coins + 20 : result.resources.coins;
+    onUpdateResources({ ...result.resources, coins });
   }
 
   // "Gamble" (issue #58): which of the rulebook's two sub-games runs is decided by resources.coins
@@ -500,7 +505,9 @@ export function TownScreen({
                   <h2 className={styles.trackTitle}>The Arena</h2>
                   <div className={styles.arenaCard}>
                     <p className={styles.gateCopy}>
-                      {arena.champion.name} -- {arena.champion.hp} / {arena.champion.maxHp} HP
+                      {arenaChampion(arena)
+                        ? `${arenaChampion(arena)!.name} -- ${arenaChampion(arena)!.hp} / ${arenaChampion(arena)!.maxHp} HP`
+                        : "Your opponent has fallen."}
                     </p>
                     <ul className={styles.arenaLog}>
                       {arenaLog.map((line, i) => (
