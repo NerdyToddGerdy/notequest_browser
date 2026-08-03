@@ -83,6 +83,7 @@ const RESOURCES: AdventurerResources = {
   mutations: [],
   zombieRevivals: 0,
   nextDungeonDamageBonus: 0,
+  armLost: false,
 };
 
 const WORLD: WorldState = createInitialWorldState(fixedDie(3));

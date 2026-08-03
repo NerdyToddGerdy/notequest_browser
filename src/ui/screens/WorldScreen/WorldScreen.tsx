@@ -272,10 +272,14 @@ export function WorldScreen({
   onCharacterDied,
   onHardReset,
 }: WorldScreenProps) {
-  /** True while voluntarily looking at the map from within a City/Fortress hex (via TownScreen's
-   * "Explore the World") -- reset to false on every arrival, so landing anywhere shows "the
-   * appropriate thing" (the city screen if it's a City/Fortress, the map otherwise) by default. */
-  const [showMap, setShowMap] = useState(false);
+  /** True while actually inside a City/Fortress's Town Square (entered via HexInspector's "Enter
+   * City"). False by default and reset to false on every arrival, so standing on a city hex shows
+   * the *map* -- entering is a deliberate act, never a side effect of being there (issue #122).
+   * This is the inverse of the old `showMap` flag, whose default made travelling onto a city,
+   * creating a character, or returning from a dungeon all dump the player straight into town with
+   * no chance to look at the map first. The flag reads better this way round too: "am I *in* the
+   * city," not "am I *voluntarily* looking at the map." */
+  const [showTown, setShowTown] = useState(false);
   /** Which known hex HexInspector describes -- null falls back to wherever the player is standing.
    * Clicking a passable, in-range neighbor travels there directly (unchanged from before
    * HexInspector existed); clicking any other known hex -- out of range, impassable, or the
@@ -543,7 +547,7 @@ export function WorldScreen({
   ) {
     onUpdateResources(updated);
     onUpdateWorld(hexReducer(world, { type: "MOVE", to: coord, raceName: character.race.name }));
-    setShowMap(false);
+    setShowTown(false); // arriving anywhere lands on the map, city or not (issue #122)
     setSelectedHex(null); // describe the new current tile by default, not wherever was last inspected
     setTrainResultMessage(null);
     setForgottenGodsMessage(null);
@@ -1256,7 +1260,7 @@ export function WorldScreen({
   function handleLocateDungeon(runId: string) {
     const coord = findHexForRunId(world, runId);
     if (!coord) return;
-    setShowMap(true);
+    setShowTown(false);
     setSelectedHex(coord);
   }
 
@@ -1326,7 +1330,7 @@ export function WorldScreen({
   }
 
   // Computed unconditionally (mirroring DungeonMap's own useMemo-before-early-return shape) since
-  // useZoomGesture below is a hook and must run every render, including while showMap is false and
+  // useZoomGesture below is a hook and must run every render, including while showTown is true and
   // TownScreen is what actually renders -- the resulting values are simply unused in that case.
   const knownCoords: HexCoord[] = useMemo(
     () =>
@@ -1524,7 +1528,7 @@ export function WorldScreen({
     </div>
   ) : null;
 
-  if (inCityOrFortress && !showMap) {
+  if (inCityOrFortress && showTown) {
     return (
       <>
         <TownScreen
@@ -1564,7 +1568,7 @@ export function WorldScreen({
           onResolveStorming={handleResolveStorming}
           onLocateDungeon={handleLocateDungeon}
           onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
-          onExploreWorld={() => setShowMap(true)}
+          onExploreWorld={() => setShowTown(false)}
           onHardReset={onHardReset}
         />
         {portalOverlay}
@@ -1805,7 +1809,7 @@ export function WorldScreen({
                     onRecruitTroop={handleRecruitTroop}
                     warfareMessage={isInspectingCurrentTile ? attackMessage : null}
                     inCityOrFortress={inCityOrFortress}
-                    onReturnToCity={() => setShowMap(false)}
+                    onEnterCity={() => setShowTown(true)}
                     canCastFly={canCastFly(resources)}
                     flyActive={resources.flyActive}
                     onCastFly={() => onUpdateResources(castFly(resources))}
@@ -1861,6 +1865,7 @@ export function WorldScreen({
             hireling={resources.hireling}
             animals={resources.animals}
             mutations={resources.mutations}
+            armLost={resources.armLost}
             curiosities={resources.curiosities}
             canCastOutOfCombat
             onCastSpell={(table, spellRoll) =>

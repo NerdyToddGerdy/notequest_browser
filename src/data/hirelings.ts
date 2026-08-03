@@ -14,7 +14,10 @@ export const HIRELING_ROSTERS: Record<CityCulture, HirelingDef[]> = {
       cost: 10,
       hp: 10,
       equipmentText: "None",
-      abilityText: "None and doesn't know how to fight.",
+      // Issue #100: the roster prints "None." here, but "Your Hands" names *hiring someone to hold
+      // the torch* as its first listed workaround -- and this is plainly that someone. Real as of
+      // the hand economy: employing one frees both your hands for a two-handed weapon.
+      abilityText: "Holds your torch, freeing both hands. Doesn't know how to fight.",
     },
     {
       name: "Mercenary",

@@ -17,6 +17,7 @@ function reduceDungeon(state: DungeonState, action: DungeonAction): DungeonState
 }
 import { rollDie } from "../../../engine/dice.ts";
 import { maxHeldItemsFor, type AdventurerResources } from "../../../engine/town.ts";
+import { twoHandedBlockReason } from "../../../engine/hands.ts";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import { Die } from "../../components/Die/Die.tsx";
 import { DicePool } from "../../components/DicePool/DicePool.tsx";
@@ -116,6 +117,7 @@ export function DungeonScreen({
         mutations: resources.mutations,
         zombieRevivals: resources.zombieRevivals,
         curiosities: resources.curiosities,
+        armLost: resources.armLost,
         monsterKills: resources.monsterKills,
         bossKills: resources.bossKills,
         killsByName: resources.killsByName,
@@ -145,6 +147,7 @@ export function DungeonScreen({
         mutations: resources.mutations,
         zombieRevivals: resources.zombieRevivals,
         curiosities: resources.curiosities,
+        armLost: resources.armLost,
       });
     }
     return createInitialDungeonState(
@@ -186,6 +189,8 @@ export function DungeonScreen({
       resources.hirelingHp,
       resources.curiosities,
       resources.consumables,
+      // "Your Hands" (issue #100): a lost arm is permanent, so it follows the character in.
+      resources.armLost,
     );
   });
   const [diceValues, setDiceValues] = useState<number[]>(() => Array<number>(10).fill(1));
@@ -643,6 +648,7 @@ export function DungeonScreen({
               hireling={state.hireling}
               animals={state.animals}
               mutations={state.mutations}
+              armLost={state.armLost}
               curiosities={state.curiosities}
             />
 
@@ -701,6 +707,9 @@ export function DungeonScreen({
             onWield={(index) => dispatch({ type: "WIELD_WEAPON", index })}
             spareArmor={state.spareArmor}
             onWieldArmor={(index) => dispatch({ type: "WIELD_ARMOR", index })}
+            // "Your Hands" (issue #100) -- passed only here, never in Town, since the rule is
+            // scoped to "when exploring a dungeon."
+            twoHandedBlockReason={twoHandedBlockReason(state)}
           />
 
           <Pack

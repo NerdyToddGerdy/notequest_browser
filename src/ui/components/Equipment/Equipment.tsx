@@ -26,6 +26,12 @@ export interface EquipmentProps {
   /** What a given row would fetch, used to label its Sell button so the price shown is the price
    * paid. Required alongside `onSell`; ignored without it. */
   saleWorth?: (target: EquipmentSaleTarget) => number | null;
+  /** "Your Hands" (issue #100): why a two-handed weapon can't be wielded right now, or `null` when
+   * it can. Set only in the dungeon -- Town wielding is unrestricted, since the rulebook scopes the
+   * rule to "when exploring a dungeon" -- so `TownScreen` leaves this undefined and every Wield
+   * button stays enabled there. Mirrors the reducer's own `twoHandedBlockReason()`, which stays the
+   * authority; this only disables the button and says why. */
+  twoHandedBlockReason?: string | null;
 }
 
 /** A named piece has to say *where* it's worn (issue #116): `itemName` used to replace the slot
@@ -48,6 +54,7 @@ export function Equipment({
   isBlacksmith = false,
   onSell,
   saleWorth,
+  twoHandedBlockReason = null,
 }: EquipmentProps) {
   if (armor.length === 0 && !weapon && spareWeapons.length === 0 && spareArmor.length === 0)
     return null;
@@ -91,6 +98,9 @@ export function Equipment({
           <ul className={styles.list}>
             {spareWeapons.map((spare, index) => {
               const effectText = spare.bonusEffect ? describeItemEffect(spare.bonusEffect) : null;
+              // Disabled rather than hidden, the same convention the Ask/spell/Potion-of-Fury
+              // buttons use -- a two-hander you can't pick up yet should still say so.
+              const blocked = spare.twoHanded ? twoHandedBlockReason : null;
               return (
                 <li key={index} className={styles.spareRow} title={effectText ?? undefined}>
                   <div className={styles.spareRowTop}>
@@ -102,6 +112,8 @@ export function Equipment({
                         type="button"
                         className={styles.fixBtn}
                         onClick={() => onWield(index)}
+                        disabled={blocked !== null}
+                        title={blocked ?? undefined}
                       >
                         Wield
                       </button>
@@ -111,6 +123,7 @@ export function Equipment({
                   <span className={styles.weaponFormula}>
                     {spare.formula} damage{spare.twoHanded ? " · Two-handed" : ""}
                   </span>
+                  {blocked && <span className={styles.blockedNote}>{blocked}</span>}
                 </li>
               );
             })}

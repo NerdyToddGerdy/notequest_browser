@@ -333,6 +333,36 @@ const OVERWORLD_TERRAINS: ReadonlySet<string> = new Set<OverworldTerrain>([
   "tundra",
 ]);
 
+const HOT_TERRAINS: ReadonlySet<string> = new Set<HotTerrain>([
+  "plain",
+  "mountain",
+  "forest",
+  "swamp",
+  "desert",
+  "water",
+]);
+
+const COLD_TERRAINS: ReadonlySet<string> = new Set<ColdTerrain>([
+  "plain",
+  "mountain",
+  "forest",
+  "glacier",
+  "tundra",
+  "water",
+]);
+
+/** Climate transitions (issue #107): whether a terrain is a legal *parent* for the given climate's
+ * table -- i.e. whether that table has a column for it. Needed because a single world can now
+ * contain both bands, so `nextTerrain()` can be handed a `swamp` parent while resolving a cold
+ * neighbour, which `COLD_TERRAIN_TABLE` has no column for at all.
+ *
+ * The four shared members (`plain`/`mountain`/`forest`/`water`) are legal in both, which is exactly
+ * what makes a transition possible without inventing any new terrain or table rows -- only
+ * `swamp`/`desert` (hot-only) and `glacier`/`tundra` (cold-only) are exclusive. */
+export function terrainBelongsToClimate(terrain: Terrain, climate: Climate): boolean {
+  return climate === "hot" ? HOT_TERRAINS.has(terrain) : COLD_TERRAINS.has(terrain);
+}
+
 /** Narrows a `Terrain` to the eight the ordinary hexcrawl generates. The overworld-only tables
  * (`DUNGEON_TYPE_BY_TERRAIN`, `EVENT_TABLE`) are keyed by `OverworldTerrain`, so every site that
  * might now be looking at an Other World's hex (issue #105) has to say which case it's in rather

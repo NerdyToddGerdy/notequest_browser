@@ -53,6 +53,7 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     mutations: [],
     zombieRevivals: 0,
     nextDungeonDamageBonus: 0,
+    armLost: false,
     ...overrides,
   };
 }
@@ -227,7 +228,7 @@ describe("plainsRevealAsWater (roll of 13)", () => {
   it("turns newly-revealed plains into water, leaving already-known tiles alone", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
     // Terrain roll 6 off a plain yields "plain" in HOT_TERRAIN_TABLE; the location roll then misses.
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([6, 1]), true);
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, () => "hot", sequenceDie([6, 1]), true);
     expect(tiles["0,0"]!.terrain).toBe("plain"); // the origin is untouched
     for (const [key, tile] of Object.entries(tiles)) {
       if (key === "0,0") continue;
@@ -237,7 +238,7 @@ describe("plainsRevealAsWater (roll of 13)", () => {
 
   it("leaves plains alone when the curse isn't active", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([6, 1]), false);
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, () => "hot", sequenceDie([6, 1]), false);
     expect(
       Object.entries(tiles)
         .filter(([k]) => k !== "0,0")

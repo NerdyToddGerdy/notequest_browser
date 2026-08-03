@@ -134,6 +134,9 @@ export default function App() {
       mutations: [],
       zombieRevivals: 0,
       nextDungeonDamageBonus: 0,
+      // "Your Hands" (issue #100): a new adventurer arrives with both arms, whatever happened to
+      // the last one.
+      armLost: false,
     });
     setActiveRunId(null);
     setWorld((prev) => {
@@ -288,6 +291,9 @@ export default function App() {
       // dungeon.runDamageBonus the moment this trip started (see DungeonScreen.tsx), so this is
       // always 0 by the time a retreat/return happens -- carried over the same way flyActive is.
       nextDungeonDamageBonus: prev?.nextDungeonDamageBonus ?? 0,
+      // "Your Hands" (issue #100): carried from the *dungeon* for the same reason `zombieRevivals`
+      // is -- a Blade Trap takes the arm mid-run, and that has to survive the walk home.
+      armLost: dungeon.armLost ?? prev?.armLost ?? false,
     }));
     setActiveRunId(
       dungeon.alive && dungeon.levels.length > 0 && !isDungeonBeaten(dungeon) ? runId : null,

@@ -87,7 +87,7 @@ describe("rollCityName", () => {
 describe("revealNeighborsInPlace", () => {
   it("rolls a Location only when the check die lands on 6", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([4, 6, 5, 1, 1]));
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, () => "hot", sequenceDie([4, 6, 5, 1, 1]));
     // {1,0}: terrain roll 4 -> plain, location check 6 -> location roll 5 -> LOCATION_TABLE[5].plain
     // -> humanCity; name rolls 1, 1 -> "Iron" + "hold" -> "Ironhold".
     expect(tiles["1,0"]).toEqual({ terrain: "plain", location: "humanCity", name: "Ironhold" });
@@ -95,7 +95,7 @@ describe("revealNeighborsInPlace", () => {
 
   it("doesn't roll a Location when the check die isn't a 6", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([2, 3]));
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, () => "hot", sequenceDie([2, 3]));
     expect(tiles["1,0"]).toEqual({ terrain: "mountain", location: null });
   });
 
@@ -103,7 +103,7 @@ describe("revealNeighborsInPlace", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
     // {1,0}: terrain roll 4 -> plain, location check 6 -> location roll 3 -> LOCATION_TABLE[3].plain
     // -> "ruins" (no CityCulture) -- no extra dice consumed for a name.
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([4, 6, 3]));
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, () => "hot", sequenceDie([4, 6, 3]));
     expect(tiles["1,0"]).toEqual({ terrain: "plain", location: "ruins" });
   });
 
@@ -118,7 +118,7 @@ describe("revealNeighborsInPlace", () => {
     revealNeighborsInPlace(
       tiles,
       { q: 0, r: 0 },
-      "hot",
+      () => "hot",
       sequenceDie([1, 2, 1, 2, 1, 2, 1, 2, 1, 2]),
     );
     expect(tiles["1,0"]).toBe(existing);

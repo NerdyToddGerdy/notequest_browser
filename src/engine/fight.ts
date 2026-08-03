@@ -68,6 +68,9 @@ export interface Fighter {
   consumables?: Consumable[];
   /** Ziggurat's Effect of the Forgotten Gods (issue #30) -- a whole-run bonus, dungeon-only today. */
   runDamageBonus?: number;
+  /** "Your Hands" (issue #100) -- set by casting Light, so the conjured globe frees the torch hand.
+   * Cleared by the dungeon's own `spendTorches()`; see `src/engine/hands.ts`. */
+  lightActive?: boolean;
 }
 
 /** Where a combat message goes. The dungeon appends to its own roll log; Town/World panels keep a
@@ -725,14 +728,17 @@ export function castCombatSpell(
       return true;
     }
     case "Light": {
-      // "Worth a torch (does not use a hand)" -- modeled as a free torch, since this codebase
-      // collapses light-source and hand-economy into the single torches count.
+      // "Worth a torch (does not use a hand)" -- both halves are real as of issue #100. The torch
+      // half was always here; the hand half is `lightActive`, which frees the torch hand until the
+      // globe is used up (the dungeon's `spendTorches()` clears it on the next spend). Set even at
+      // maximum torches: the globe is lit either way, and it's the *hand* that's the point.
       const gained = Math.min(1, maxTorches - fighter.torches);
       fighter.torches += gained;
+      fighter.lightActive = true;
       log(
         gained > 0
-          ? "You cast Light, conjuring a globe worth a torch."
-          : `You cast Light, but you're already carrying the maximum ${maxTorches} torches.`,
+          ? "You cast Light, conjuring a globe worth a torch. Your hands are free."
+          : `You cast Light. You're already carrying the maximum ${maxTorches} torches, but your hands are free.`,
       );
       return true;
     }

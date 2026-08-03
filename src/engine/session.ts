@@ -99,6 +99,8 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
             consumables: p.resources.consumables ?? [],
             mutations: p.resources.mutations ?? [],
             zombieRevivals: p.resources.zombieRevivals ?? 0,
+            // "Your Hands" (issue #100) -- a save from before the hand economy existed has two arms.
+            armLost: p.resources.armLost ?? false,
           }
         : null,
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],

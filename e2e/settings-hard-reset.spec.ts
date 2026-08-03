@@ -79,7 +79,10 @@ test("Settings > Reset Everything wipes localStorage and returns to Character Cr
   );
   await page.reload();
 
-  // Confirms the seeded session actually loaded -- Town Square, not Character Creation.
+  // Confirms the seeded session actually loaded -- the World map, not Character Creation. Standing
+  // on a city hex shows the map now (issue #122); entering is a deliberate click.
+  await expect(page.getByRole("button", { name: "Enter City" })).toBeVisible();
+  await page.getByRole("button", { name: "Enter City" }).click();
   await expect(page.getByText("Town Square")).toBeVisible();
 
   await page.getByRole("button", { name: "Settings" }).click();

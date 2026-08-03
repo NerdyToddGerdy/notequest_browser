@@ -92,6 +92,7 @@ import {
 } from "./dungeonState.ts";
 import { MUTATION_IDS } from "../data/mutations.ts";
 import { rollMutationEntry } from "./mutations.ts";
+import { benchUnusableWeapon, canWieldWeapon, twoHandedBlockReason } from "./hands.ts";
 import { createInitialMilestones, MAX_TORCHES, maxHeldItemsFor } from "./town.ts";
 import type { RNG } from "./rng.ts";
 
@@ -204,6 +205,18 @@ function spendTorches(
   }
   draft.torches -= cost;
   pushLog(draft, message);
+  // "Your Hands" (issue #100): a Light globe is "worth a torch," so it's used up like one -- the
+  // next spend of any size burns through it. This is the single place torches ever actually leave
+  // the counter, which is why it's also the single place the globe can go out. A two-handed weapon
+  // wielded under that light becomes unusable at the same instant, so it's benched here rather than
+  // left as an illegal equipped state.
+  if (cost > 0 && draft.lightActive) {
+    draft.lightActive = false;
+    const benched = benchUnusableWeapon(draft);
+    if (benched) {
+      pushLog(draft, `The conjured light gutters out; you stow the ${benched} to take up a torch.`);
+    }
+  }
   return true;
 }
 
@@ -456,7 +469,11 @@ function applyTrapEffect(
   if (!draft.alive) return; // a torchCost Darkness death already ended the run this same dispatch
 
   if (trap.bladeTrap) {
-    if ((bladeRoll ?? rollDie(rng)) === 1) {
+    // Resolved once, not per-branch: the roll of 1 and the roll of 2 are two outcomes of the *same*
+    // die, so re-reading `bladeRoll ?? rollDie(rng)` would roll a second one for any caller that
+    // doesn't animate (tests, and anything else that leaves `bladeRoll` undefined).
+    const blade = bladeRoll ?? rollDie(rng);
+    if (blade === 1) {
       draft.hp = 0;
       if (trySurviveDeath(draft, rng, dungeonLog(draft))) return;
       draft.alive = false;
@@ -464,8 +481,18 @@ function applyTrapEffect(
       pushLog(draft, "The blade finds its mark. The dungeon keeps what it took.", "descend");
       leaveRemains(draft, segId);
     }
-    // A roll of 2 ("lose an arm") is flavor only -- no hand-economy system exists to enforce
-    // against, same simplification tier as WeaponEntry.twoHanded.
+    // A roll of 2 costs an arm -- real as of issue #100, having been flavor-only for exactly as
+    // long as there was no hand economy to enforce it against. "Losing an arm has the same effect"
+    // as holding the torch, and it's permanent: no light source gives the arm back, so this is an
+    // absolute veto on two-handed weapons for the rest of the character's life.
+    if (blade === 2 && !draft.armLost) {
+      draft.armLost = true;
+      pushLog(draft, "The blade takes your arm. You will fight one-handed from now on.", "descend");
+      const benched = benchUnusableWeapon(draft);
+      if (benched) {
+        pushLog(draft, `You can no longer wield the ${benched} -- it goes into your pack.`);
+      }
+    }
     return;
   }
 
@@ -1707,6 +1734,15 @@ export function dungeonReducer(
       return produce(state, (draft) => {
         const chosen = draft.spareWeapons[action.index];
         if (!chosen) return;
+        // "Your Hands" (issue #100): the enforcement point. Wielding is unrestricted in Town (the
+        // rulebook scopes the rule to "when exploring a dungeon"), so this is where a two-handed
+        // weapon actually has to justify itself -- and where the reason is spelled out rather than
+        // the click silently doing nothing. `Equipment` disables the button too, but the reducer is
+        // the authority, per the project's reducer-decides/UI-mirrors convention.
+        if (!canWieldWeapon(draft, chosen)) {
+          pushLog(draft, twoHandedBlockReason(draft) ?? "You cannot wield that.");
+          return;
+        }
         draft.spareWeapons.splice(action.index, 1);
         if (draft.weapon) draft.spareWeapons.push(draft.weapon);
         draft.weapon = chosen;
@@ -2897,6 +2933,9 @@ export function dungeonReducer(
           draft.mutations = action.mutations ?? [];
           draft.zombieRevivals = action.zombieRevivals ?? 0;
           draft.curiosities = action.curiosities ?? {};
+          // "Your Hands" (issue #100): likewise the arriving character's own arms. RESUME_DUNGEON
+          // carries no weapon at all (it becomes remains), so there's nothing to bench here.
+          draft.armLost = action.armLost ?? false;
           restoreMapFromPersisted(
             draft,
             persisted,
@@ -2957,7 +2996,19 @@ export function dungeonReducer(
           // Same trip, so the Hireling comes back as battered as it left (issue #114) -- resting in
           // Town heals the character, never the hired help.
           draft.hirelingHp = action.hirelingHp ?? null;
+          draft.armLost = action.armLost ?? false;
           restoreMapFromPersisted(draft, persisted, rng, "You return to the dungeon.", false);
+          // "Your Hands" (issue #100): wielding is unrestricted in Town, so a two-handed weapon
+          // equipped at the shops is caught here, on the way back in -- the same check a genuinely
+          // fresh entry makes (see `DungeonScreen.tsx`). No Light globe survives a trip to Town, so
+          // only a Lamp or a Torchbearer can keep it equipped.
+          const benched = benchUnusableWeapon(draft);
+          if (benched) {
+            pushLog(
+              draft,
+              `You need a hand for your torch, so the ${benched} goes into your pack.`,
+            );
+          }
         },
       );
     }

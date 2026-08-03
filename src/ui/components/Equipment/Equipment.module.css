@@ -55,6 +55,14 @@
   white-space: nowrap;
 }
 
+/* "Your Hands" (issue #100): why a two-handed weapon's Wield button is disabled. Sits under the
+   damage line on a spare row, so the reason is readable without hovering for the tooltip. */
+.blockedNote {
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--danger);
+}
+
 .subheading {
   font-family: var(--font-display);
   font-weight: 400;

@@ -317,8 +317,13 @@ export function CharacterCreationScreen({
                   <span className={styles.trackIndex}>—</span>
                   World
                 </h2>
+                {/* Issue #107 changed what this choice means. It used to fix the whole world's
+                    climate forever, which left half the built content unreachable in any given
+                    save; it now sets which band *home* sits in, with the other climate reachable
+                    by travelling far enough. */}
                 <p className={styles.spellsNote}>
-                  Chosen once, for the whole continent — every adventurer after you inherits it.
+                  Where your homeland lies. Travel far enough north or south and the land changes —
+                  chosen once, and every adventurer after you inherits it.
                 </p>
                 <div className={styles.raceTableRow}>
                   {(

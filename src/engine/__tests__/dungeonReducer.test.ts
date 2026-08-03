@@ -1209,7 +1209,10 @@ describe("WIELD_WEAPON", () => {
         { name: "Dagger", formula: "1d6-1" },
         { name: "Halberd", formula: "1d6+3", twoHanded: true },
       ],
-      { weapon: { name: "Sword", formula: "1d6" } },
+      // The Halberd is two-handed, so this needs a light source to be wieldable at all as of the
+      // hand economy (issue #100) -- see the "Your Hands" describe block below for that rule
+      // itself. Here it's just scaffolding so the swap being tested can happen.
+      { weapon: { name: "Sword", formula: "1d6" }, lightActive: true },
     );
 
     const next = dungeonReducer(state, { type: "WIELD_WEAPON", index: 1 });
@@ -1307,6 +1310,67 @@ describe("RESOLVE_DOOR_LOCK", () => {
     expect(next.alive).toBe(true);
     expect(next.log[0]!.message).toContain("pick the lock");
     expect(next.milestones.locksOpened).toBe(1); // Thief (issue #70)
+  });
+
+  // "Your Hands" (issue #100): the Blade Trap's roll-of-2 was flavor-only until a hand economy
+  // existed to enforce it. Palace trap 2 is the blade trap.
+  describe("the Blade Trap's roll-of-2 costs an arm", () => {
+    /** Hands free via a Lamp, so the two-hander is legally equipped right up until the blade. */
+    function armedState() {
+      return {
+        ...doorState(10),
+        heldItems: [{ name: "Dwarven Lamp", worth: 5 }],
+        weapon: { name: "Halberd", formula: "1d6+3", twoHanded: true },
+      };
+    }
+
+    it("sets armLost and benches the two-handed weapon the Lamp was holding up", () => {
+      const next = dungeonReducer(armedState(), {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1, // trap
+        trapRoll: 1, // the blade trap
+        lockChoice: null,
+        bladeRoll: 2, // the arm, not the kill
+      });
+
+      expect(next.alive).toBe(true); // a 2 maims, only a 1 kills
+      expect(next.armLost).toBe(true);
+      expect(next.weapon).toBeNull();
+      expect(next.spareWeapons).toEqual([{ name: "Halberd", formula: "1d6+3", twoHanded: true }]);
+      expect(next.log.some((entry) => entry.message.includes("takes your arm"))).toBe(true);
+    });
+
+    it("leaves both arms on any other roll", () => {
+      const next = dungeonReducer(armedState(), {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 1,
+        lockChoice: null,
+        bladeRoll: 4,
+      });
+
+      expect(next.armLost).toBeFalsy();
+      expect(next.weapon).toEqual({ name: "Halberd", formula: "1d6+3", twoHanded: true });
+    });
+
+    it("still kills outright on a 1, without the arm branch stealing it", () => {
+      const next = dungeonReducer(armedState(), {
+        type: "RESOLVE_DOOR_LOCK",
+        segId: 1,
+        doorIdx: 0,
+        doorRoll: 1,
+        trapRoll: 1,
+        lockChoice: null,
+        bladeRoll: 1,
+      });
+
+      expect(next.alive).toBe(false);
+      expect(next.armLost).toBeFalsy();
+    });
   });
 
   it("locked + pick lock with no torches left: the Darkness kills the character", () => {
@@ -1898,7 +1962,7 @@ describe("RESOLVE_DOOR_LOCK", () => {
       segId: 1,
       doorIdx: 0,
       doorRoll: 1,
-      trapRoll: 2,
+      trapRoll: 2, // palace trap 2: Acid Spout
       lockChoice: null,
     });
     expect(next.armor).toEqual([{ piece: "boots", hp: 3, maxHp: 3, itemName: "Boots" }]);

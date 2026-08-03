@@ -927,6 +927,7 @@ export function TownScreen({
             hireling={resources.hireling}
             animals={resources.animals}
             mutations={resources.mutations}
+            armLost={resources.armLost}
             curiosities={resources.curiosities}
             canCastOutOfCombat
             onCastSpell={(table, spellRoll) =>

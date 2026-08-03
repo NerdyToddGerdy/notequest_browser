@@ -103,7 +103,8 @@ test("a wilderness fight brings the whole character, and can be fled", async ({ 
   );
   await page.reload();
 
-  await page.getByRole("button", { name: "Explore the World" }).click();
+  // A seeded session on a city hex lands on the map directly as of issue #122 -- no "Explore the
+  // World" click needed to get out of the Town Square first.
   // The <svg> owns the pan/zoom handlers so it intercepts pointer events; force past the
   // actionability check and aim at the neighbour's top edge, which the inspector card doesn't cover.
   const neighbour = page.locator("svg polygon").nth(1);
