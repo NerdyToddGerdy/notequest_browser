@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-03
+
+### Added
+
+- **One world, both climates** (#107) — a world used to be hot _or_ cold, chosen once at Character
+  Creation before you had seen anything, and that choice permanently locked out a large share of the
+  game. In a hot world you could never reach a **Ziggurat** (and therefore never the Effect of the
+  Forgotten Gods), never train a **Polar Bear** or **Mammoth**, never find **Thin Ice**, and never
+  see the Yeti, Blizzard or Cracked Ice travel events. In a cold one you could never reach a
+  **Pyramid** or **Necropolis**, never train a **Camel** or **Raptor**, never find an **Oasis**, and
+  never obtain **Hotep** — so #62's "45/45 Advanced Classes" was really 44/45.
+  - Climate is now a property of _where you are_, not of the save. Travel roughly 8 hexes north or
+    south of your homeland and the land turns: tundra and glacier one way, swamp and desert the
+    other. The boundary wanders rather than running in a straight line.
+  - The Character Creation picker still matters — it now chooses which band your homeland sits in,
+    rather than deciding the whole continent for every character who will ever live there.
+  - **Existing saves gain the missing half of the map for free.** Nothing needs migrating and no
+    hard reset is required; the cold (or warm) territory has simply been out there all along,
+    waiting for someone to walk far enough. Land you have already explored is untouched.
+- **"Your Hands"** (#100) — one hand holds your torch, so a two-handed weapon needs another source
+  of light. This was the rulebook system that several already-authored things had been quietly
+  waiting on, and building it turns all of them real at once:
+  - **Two-handed weapons are actually two-handed.** `twoHanded` had been parsed, stored, threaded
+    through every weapon-grant site and printed on the item card since the beginning — and never once
+    checked. A Halberd now needs a free hand before you can wield it.
+  - **The Dwarven Lamp does something.** The Dwarf city action promised "lets you use both hands in
+    combat" and delivered a 40-coin keepsake. Carrying it now frees the torch hand for good.
+  - **The Torchbearer has a real job.** Its roster entry read "None." even though the rulebook names
+    _hiring someone to hold the torch_ as the first way around the rule. Ten coins, and your hands
+    are free for the trip.
+  - **The Light spell frees a hand, not just a torch slot.** "Worth a torch (does not use a hand)"
+    was only ever half-implemented. The globe now does the torch's job until it's spent — and it's
+    spent like a torch, on the next thing that costs one.
+  - **A Blade Trap can take your arm.** The roll-of-2 had been flavor text for want of a hand economy
+    to enforce it. It's permanent, no light source gives it back, and a two-hander you were holding
+    goes into your pack on the spot.
+  - Wielding stays unrestricted in Town — the rule is scoped to "when exploring a dungeon" — so
+    anything you can't hold is benched on the way in rather than blocked at the shop counter. It
+    waits in your spare weapons until you have a light, exactly like a weapon found underground.
+
+### Changed
+
+- **Cities are entered, not fallen into** (#122) — standing on a City or Fortress hex used to replace
+  the map with the Town Square automatically, so travelling onto a city, rolling a new character, or
+  walking out of a dungeon all dumped you inside with no chance to look at the map first. You now
+  always arrive on the map, and go in through an "Enter City" button on the hex panel. Same button,
+  same label, every time. A portal that drops you at a city stops at the map too.
+
 ## [3.0.0] - 2026-08-01
 
 A major version because combat itself was rebuilt: there is now **one** combat engine, shared by

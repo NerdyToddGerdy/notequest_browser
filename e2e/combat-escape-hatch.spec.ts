@@ -157,6 +157,9 @@ async function seedAndEnterDungeon(page: Page, inCombat: boolean) {
     { character: CHARACTER, resources: RESOURCES, world: WORLD, dungeon: makeDungeon(inCombat) },
   );
   await page.reload();
+  // A city hex lands on the map as of issue #122, and a city's dungeon gate lives in the Town
+  // Square, so getting in takes the extra click the player now makes too.
+  await page.getByRole("button", { name: "Enter City" }).click();
   await page.getByRole("button", { name: "Enter Dungeon" }).click();
 }
 

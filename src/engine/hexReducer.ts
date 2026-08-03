@@ -8,6 +8,7 @@ import {
   isBannedHex,
   parseHexKey,
   revealNeighborsInPlace,
+  climateAt,
   withDungeonMarked,
   type HexCoord,
   type WorldState,
@@ -62,7 +63,8 @@ export function hexReducer(
         revealNeighborsInPlace(
           draft.tiles,
           action.to,
-          draft.climate,
+          // Issue #107: per-neighbour, so walking north far enough actually turns the map cold.
+          (coord) => climateAt(coord, draft.home, draft.climate),
           rng,
           draft.plainsRevealAsWater,
         );
@@ -117,7 +119,13 @@ export function hexReducer(
         draft.player = dest;
         // The boat doesn't survive being thrown across the map, on the same reading MOVE uses.
         if (state.tiles[destKey]!.terrain !== "water") draft.hasBoat = false;
-        revealNeighborsInPlace(draft.tiles, dest, draft.climate, rng, draft.plainsRevealAsWater);
+        revealNeighborsInPlace(
+          draft.tiles,
+          dest,
+          (coord) => climateAt(coord, draft.home, draft.climate),
+          rng,
+          draft.plainsRevealAsWater,
+        );
       });
     }
     default:

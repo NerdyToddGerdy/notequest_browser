@@ -9,6 +9,8 @@ import type {
 } from "../data/dungeonTables.ts";
 import type { BuildingKind, SpellTableKey } from "../data/types.ts";
 import { createInitialMilestones, type AdvancedClassMilestones } from "./town.ts";
+// Value import, but `hands.ts` imports only *types* back from here, so this adds no runtime cycle.
+import { benchUnusableWeapon } from "./hands.ts";
 
 export type Direction = "N" | "E" | "S" | "W";
 
@@ -456,6 +458,14 @@ export interface DungeonState {
    * from `AdventurerResources` so the halving keeps compounding across a dungeon run, and carried
    * back out by `handleReturnToTown`. */
   zombieRevivals?: number;
+  /** "Your Hands" (issue #100): an arm lost to a Blade Trap's roll-of-2, previously flavor-only for
+   * want of a hand economy. Permanent and mirrored from `AdventurerResources` -- it outlives the run
+   * it happened in. See `src/engine/hands.ts`. */
+  armLost?: boolean;
+  /** "Your Hands" (issue #100): a Light globe is currently doing the torch's job, freeing the hand
+   * that would hold it. Run-scoped and short-lived -- `spendTorches()` clears it the next time a
+   * torch is actually spent, since the globe is "worth a torch" and is used up like one. */
+  lightActive?: boolean;
   /** Sewers (issue #30): the metal ladder out has been climbed. Sewers has no Final Room or Boss, so
    * this is what *finishes* a run there -- `isDungeonBeaten()` accepts it in place of a cleared
    * Final Room, which in turn drives the map's cleared badge, the dungeon gate copy, and
@@ -607,8 +617,12 @@ export function createInitialDungeonState(
   curiosities: Record<string, number> = {},
   /** Issue #110 -- potions carried in rather than drunk where they were found. */
   consumables: Consumable[] = [],
+  /** "Your Hands" (issue #100) -- permanent per character, so it's carried in like `mutations`.
+   * `lightActive` deliberately has no parameter: a Light globe never survives the trip into a
+   * dungeon, so every construction site starts one at false. */
+  armLost = false,
 ): DungeonState {
-  return {
+  const state: DungeonState = {
     dungeonTypeKey: null,
     dungeonName: null,
     entranceFlavor: null,
@@ -653,12 +667,29 @@ export function createInitialDungeonState(
     noExit,
     mutations,
     zombieRevivals,
+    armLost,
+    lightActive: false,
     weaponFormula,
     spellUses,
     maxSpellUses,
     alive: true,
     deathCause: null,
   };
+  // "Your Hands" (issue #100): the fresh-entry half of the same check both resume paths make in the
+  // reducer. Wielding is unrestricted in Town -- the rulebook scopes the rule to "when exploring a
+  // dungeon" -- so a two-handed weapon bought or found at the shops is caught here, on the way in,
+  // and benched into `spareWeapons` rather than silently working underground. No Light globe
+  // survives the walk, so only a Lamp or a Torchbearer keeps it equipped.
+  const benched = benchUnusableWeapon(state);
+  if (benched) {
+    state.log.unshift({
+      id: state.nextLogId,
+      message: `You need a hand for your torch, so the ${benched} goes into your pack.`,
+      variant: "normal",
+    });
+    state.nextLogId += 1;
+  }
+  return state;
 }
 
 /** How the player chose to get through a locked door. "useKey" (issue #95) spends one of
@@ -798,6 +829,9 @@ export type DungeonAction =
       zombieRevivals?: number;
       /** Issues #109/#115 -- permanent per character, so the arriving character brings their own. */
       curiosities?: Record<string, number>;
+      /** "Your Hands" (issue #100) -- likewise the arriving character's own arms, not the dead
+       * one's. A trap that took someone else's arm doesn't take yours. */
+      armLost?: boolean;
     }
   | {
       /** The same still-living character coming back from a Town visit -- unlike RESUME_DUNGEON
@@ -839,4 +873,6 @@ export type DungeonAction =
       /** Laboratory (issue #30) -- optional/back-compat, see `DungeonState.mutations`. */
       mutations?: string[];
       zombieRevivals?: number;
+      /** "Your Hands" (issue #100) -- permanent, so the same character carries it back in. */
+      armLost?: boolean;
     };

@@ -25,8 +25,9 @@ export function canHireHireling(
 
 /** Applies whichever Hireling ability is mechanically real today (see CLAUDE.md's Hirelings note
  * for the full list) -- every other one either has no ability ("None.") or is left flavor-only
- * (Torchbearer, Jester, Cargo Ogre, Goblin Helper), so falls through untouched. Burglar (no-torch
- * lock-picking), Minstrel (+2 combat damage), Dwarf Soldier (+1 vs. Orcs/Goblins), and Elf Ranger
+ * (Jester, Cargo Ogre, Goblin Helper), so falls through untouched. Burglar (no-torch
+ * lock-picking), Minstrel (+2 combat damage), Dwarf Soldier (+1 vs. Orcs/Goblins), Torchbearer
+ * ("hiring someone to hold the torch," issue #100 -- see `hands.ts`'s `handsFree()`), and Elf Ranger
  * ("Ignores Travel Events," issue #91 -- see `events.ts`'s `eventSkipReason()`) are checked directly
  * against `DungeonState.hireling`/`resources.hireling` at their own use sites (`dungeonReducer.ts`'s
  * `attackBonus()`/`RESOLVE_DOOR_LOCK`, `RoomInspector.tsx`, `WorldScreen.tsx`'s travel handler)

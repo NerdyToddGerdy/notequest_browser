@@ -14,7 +14,12 @@ import type {
 } from "./dungeonState.ts";
 import { rollSpell, spellKey, SPELL_TABLE_BY_KEY } from "./character.ts";
 import { rollDie } from "./dice.ts";
+import { DWARF_LAMP_NAME, ownsLamp } from "./hands.ts";
 import type { RNG } from "./rng.ts";
+
+// "Your Hands" (issue #100) lives in its own module, but the Lamp is bought here -- re-exported so
+// existing callers of `town.ts`'s own `ownsLamp` keep working.
+export { ownsLamp };
 
 /** A living character's current stats, carried between the dungeon and the town -- unlike
  * `CreatedCharacter`, which only ever holds the starting values rolled at creation. */
@@ -131,6 +136,11 @@ export interface AdventurerResources {
   /** How many times the zombie mutation has already brought this character back -- the exponent in
    * "half your maximum hit points, then half of that, and so on." */
   zombieRevivals: number;
+  /** "Your Hands" (issue #100): an arm lost to a Blade Trap, permanent for the rest of this
+   * character's life -- the one hand-economy input that survives a dungeon run, which is why it
+   * lives here as well as on `DungeonState`. `loadSession()` back-fills `?? false`.
+   * See `src/engine/hands.ts` for the rule it feeds. */
+  armLost: boolean;
   /** Ziggurat's "Effect of the Forgotten Gods" Special Rule (issue #30): "A divine light
    * illuminates you and you gain +1 damage on all attacks on the next dungeon exploration you
    * make" -- armed here, consumed into `DungeonState.runDamageBonus` the moment a genuinely fresh
@@ -815,8 +825,6 @@ export function removeCurse(resources: AdventurerResources): AdventurerResources
 }
 
 const DWARF_LAMP_COST = 40;
-/** Named once so the buy action and the not-already-owned check (issue #109) can't drift apart. */
-const DWARF_LAMP_NAME = "Dwarven Lamp";
 export function canBuyLamp(resources: AdventurerResources): boolean {
   // Issue #109: a Lamp is a permanent, unique utility item -- a second one is meaningless by
   // definition, and with no ownership check a Dwarf with coins could buy an unbounded pile of them,
@@ -825,12 +833,9 @@ export function canBuyLamp(resources: AdventurerResources): boolean {
   return resources.coins >= DWARF_LAMP_COST;
 }
 
-export function ownsLamp(resources: AdventurerResources): boolean {
-  return resources.heldItems.some((item) => item.name === DWARF_LAMP_NAME);
-}
-/** Dwarf: "Buy a Lamp for 40 coins. With the lamp you can use both hands in combat." Two-handed
- * weapons are already tracked-but-unenforced (`WeaponEntry.twoHanded`, no hand-economy system) --
- * a flavor-only keepsake added to the Pack, same shape as any other `HeldItem`. */
+/** Dwarf: "Buy a Lamp for 40 coins. With the lamp you can use both hands in combat." Real as of
+ * issue #100 -- the Lamp is an ordinary `HeldItem` that `hands.ts`'s `handsFree()` looks for, so
+ * carrying it into a dungeon is what frees the torch hand and unlocks two-handed weapons. */
 export function buyLamp(resources: AdventurerResources): AdventurerResources {
   return {
     ...resources,

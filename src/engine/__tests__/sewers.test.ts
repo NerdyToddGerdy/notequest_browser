@@ -320,7 +320,7 @@ describe("Fortress sewers sub-roll (issue #99)", () => {
     // Dice order per revealed hex: terrain (6 -> plain), "is there a location?" (6 -> yes),
     // the Location roll (6 -> humanFortress on plain), the sewers sub-roll (5), then two city-name
     // dice. The sub-roll is taken before the name, so it sits fourth.
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([6, 6, 6, 5, 1, 1]));
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, () => "hot", sequenceDie([6, 6, 6, 5, 1, 1]));
     const fortress = Object.values(tiles).find((t) => t.location === "humanFortress");
     expect(fortress).toBeDefined();
     expect(fortress!.sewersRoll).toBe(5);
@@ -343,7 +343,7 @@ describe("Fortress sewers sub-roll (issue #99)", () => {
   it("never rolls for a City -- only a Fortress has sewers under it", () => {
     const tiles: Record<string, HexTile> = { "0,0": { terrain: "plain", location: null } };
     // ...6 -> humanCity is roll 4/5 on plain; use 5 for the location roll.
-    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, "hot", sequenceDie([6, 6, 5, 1, 1]));
+    revealNeighborsInPlace(tiles, { q: 0, r: 0 }, () => "hot", sequenceDie([6, 6, 5, 1, 1]));
     for (const tile of Object.values(tiles)) {
       if (tile.location === "humanCity") expect(tile.sewersRoll).toBeUndefined();
     }

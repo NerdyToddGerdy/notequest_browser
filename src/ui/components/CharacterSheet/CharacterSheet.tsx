@@ -66,6 +66,9 @@ export interface CharacterSheetProps {
    * per character, and several are load-bearing (a horn attack, poison immunity, no armor), so the
    * sheet is where a player finds out why their options changed. */
   mutations?: string[];
+  /** "Your Hands" (issue #100): an arm lost to a Blade Trap. Permanent, and it silently changes what
+   * the character can equip, so it gets a row for the same reason mutations do. */
+  armLost?: boolean;
 }
 
 export function CharacterSheet({
@@ -89,6 +92,7 @@ export function CharacterSheet({
   hireling = null,
   animals = [],
   mutations = [],
+  armLost = false,
 }: CharacterSheetProps) {
   const [showKills, setShowKills] = useState(false);
   const [showCuriosities, setShowCuriosities] = useState(false);
@@ -219,6 +223,12 @@ export function CharacterSheet({
             <li>
               <strong>Mutations:</strong>{" "}
               {mutations.map((id) => MUTATION_BY_ID[id]?.text ?? id).join(" ")}
+            </li>
+          )}
+          {armLost && (
+            <li>
+              <strong>One-armed:</strong> A blade took your arm. You can never wield a two-handed
+              weapon again.
             </li>
           )}
         </ul>
