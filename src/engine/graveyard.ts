@@ -48,6 +48,8 @@ export interface GraveyardEntry {
  * handler without every caller needing to know the full union. */
 export type TownDeathCause = Exclude<GraveyardEntry["causeOfDeath"], "darkness" | "combat">;
 
+/** The historical `notequest:` prefix is kept on purpose -- see `session.ts`'s own key for why
+ * (issue #113: renaming a save key silently wipes existing players, for no visible benefit). */
 const STORAGE_KEY = "notequest:graveyard";
 
 /**

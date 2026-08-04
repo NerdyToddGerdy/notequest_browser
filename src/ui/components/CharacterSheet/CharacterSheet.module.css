@@ -104,6 +104,13 @@
   font-style: normal;
 }
 
+/* Marks an Advanced Class whose ability is real in the rulebook but inert in this app (issue #111),
+   mirroring the "flavor only" chip the purchase list already shows. Muted rather than warning-
+   coloured -- it's a note about scope, not a problem with the character. */
+.flavorNote {
+  opacity: 0.7;
+}
+
 .spellsHeading {
   font-family: var(--font-mono);
   font-size: 0.64rem;

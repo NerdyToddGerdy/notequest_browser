@@ -17,6 +17,7 @@ import {
   ownedBuildings,
   rollRuinsDungeon,
   withDungeonRunId,
+  withoutRunIdStamp,
   withSewerRunId,
   withUniqueDungeonPlaced,
   type WorldState,
@@ -216,6 +217,20 @@ export default function App() {
   // them, and remembers the runId so re-entering that hex's dungeon jumps straight back in later.
   function handleReturnToTown(runId: string, dungeon: DungeonState) {
     setNoExitRun(false);
+    // Issue #123: "Back to Town" off the pre-roll gate, before anything was ever rolled. The hex was
+    // stamped with this run id the instant "Enter Dungeon" was clicked, and the run is about to be
+    // dropped for having no levels -- so the stamp has to go with it, or the hex points at an id
+    // that exists nowhere. That desync used to be permanent and invisible: every later visit
+    // resolved the stale id to neither `activeDungeon` nor `resumeDungeon`, so `DungeonScreen`
+    // self-minted a fresh id and rolled a brand-new dungeon that was never written back. Reported as
+    // "returned to town, tried to go back to the dungeon, it created a new dungeon."
+    //
+    // Deliberately here, in the click handler, rather than in `handleLeaveDungeon`'s unmount
+    // cleanup: under StrictMode that cleanup also runs once on mount against the initial state, so
+    // un-stamping from there would wipe the stamp of every dungeon on the way in.
+    if (dungeon.levels.length === 0) {
+      setWorld((prev) => (prev ? withoutRunIdStamp(prev, runId) : prev));
+    }
     // Laboratory's Special Rule (issue #30): "any hero or creature that leaves this dungeon will
     // mutate." Fired here, the one place a *living* character leaves a dungeon -- and it can kill,
     // so it has to run where the death handler lives. `handleLeaveDungeon`'s unmount cleanup is the
@@ -365,6 +380,19 @@ export default function App() {
 
   const activeDungeon = dungeonHistory.find((pd) => pd.id === activeRunId) ?? null;
 
+  /**
+   * Issue #123: whether a hex's stamped run id actually points at something.
+   *
+   * `dungeonHistory` is the only store a run can live in -- `activeDungeon` is itself just a lookup
+   * into it -- so membership here is the whole test. A stamp that fails it would otherwise take the
+   * resume path, resolve to neither `activeDungeon` nor `resumeDungeon`, and leave `DungeonScreen`'s
+   * mount initializer falling through to `crypto.randomUUID()`: a brand-new dungeon under an id the
+   * hex never learns, repeating on every visit forever.
+   */
+  function isResolvableRunId(runId: string): boolean {
+    return dungeonHistory.some((pd) => pd.id === runId);
+  }
+
   if (screen === "world") {
     const resolvedWorld = world ?? createInitialWorldState();
     return (
@@ -381,7 +409,7 @@ export default function App() {
           const key = hexKey(resolvedWorld.player);
           const tile = resolvedWorld.tiles[key];
           if (!tile) return; // the Enter Dungeon button only ever shows on a known, dungeon-bearing tile
-          if (tile.dungeonRunId) {
+          if (tile.dungeonRunId && isResolvableRunId(tile.dungeonRunId)) {
             // Found here before -- resume the exact same dungeon. Which of RETURN_TO_DUNGEON
             // (still this character's own paused run) vs. RESUME_DUNGEON (someone else's abandoned
             // one) applies is entirely decided below by whether this equals activeRunId.
@@ -389,11 +417,17 @@ export default function App() {
             setWorldFreshRunId(null);
             setSelectedRunId(tile.dungeonRunId);
           } else {
-            // First time finding a dungeon here. "The dungeon you find depends on the terrain" --
-            // fates just the type-roll die; DungeonScreen still animates its own "Roll for Dungeon"
-            // ritual for it. Mint this run's id now (DungeonScreen would otherwise self-mint one on
-            // mount, too late for World to learn it) and stamp it onto the hex right away -- always
-            // safe, since there's no way to leave DungeonScreen before a dungeon actually exists.
+            // First time finding a dungeon here -- or (issue #123) the hex carries a stamp that no
+            // longer resolves to any run, in which case this *is* effectively a first find and
+            // re-stamping over the stale id is the repair. That self-healing branch is what fixes
+            // saves already poisoned by the old bug, since nothing else ever rewrites the stamp.
+            //
+            // "The dungeon you find depends on the terrain" -- fates just the type-roll die;
+            // DungeonScreen still animates its own "Roll for Dungeon" ritual for it. Mint this
+            // run's id now (DungeonScreen would otherwise self-mint one on mount, too late for
+            // World to learn it) and stamp it onto the hex right away. The stamp is *not*
+            // unconditionally safe -- backing out of the pre-roll gate drops the run -- so
+            // `handleLeaveDungeon` un-stamps it again in exactly that case.
             // Other Worlds (issue #105) have no dungeons -- the realm scope stops at survival, and
             // there's no dungeon-type row for Magma or a Caramel Plain. `WorldScreen` hides the
             // button there; this is the reducer-side half of the same gate.
@@ -425,7 +459,9 @@ export default function App() {
           // terrain table -- the rulebook names the type outright here.
           const tile = resolvedWorld.tiles[hexKey(resolvedWorld.player)];
           if (!tile) return;
-          if (tile.sewerRunId) {
+          // Issue #123: same resolvability check as the dungeon gate above -- `sewerRunId` is
+          // stamped at click time by the identical code shape and so had the identical hole.
+          if (tile.sewerRunId && isResolvableRunId(tile.sewerRunId)) {
             setForcedTypeRoll(null);
             setWorldFreshRunId(null);
             setSelectedRunId(tile.sewerRunId);

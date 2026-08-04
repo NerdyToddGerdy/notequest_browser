@@ -24,6 +24,11 @@ export interface SessionState {
   world: WorldState | null;
 }
 
+/** Keeps the historical `notequest:` prefix deliberately (issue #113). This key holds every
+ * player's entire save -- character, resources, world map, dungeon history -- so renaming it without
+ * a read-old-write-new migration would silently wipe everyone, experienced as the game deleting
+ * their character. The prefix is invisible to players, so the migration would be pure risk for zero
+ * user-visible benefit. Same reasoning applies to `graveyard.ts`'s own key. */
 const STORAGE_KEY = "notequest:session";
 
 /** Back-fills `resources.maxSpellUses` (issue #75) for a session persisted before that field

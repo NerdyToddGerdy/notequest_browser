@@ -1620,7 +1620,10 @@ export function WorldScreen({
   return (
     <div className={styles.page}>
       <header className={styles.wordmark}>
-        <h1>NoteQuest</h1>
+        <h1>
+          <small>GerdQuest</small>
+          Realm of Depths
+        </h1>
         <p className={styles.tagline}>The world beyond the city walls.</p>
       </header>
 
@@ -1907,6 +1910,7 @@ export function WorldScreen({
             animals={resources.animals}
             mutations={resources.mutations}
             armLost={resources.armLost}
+            advancedClasses={resources.advancedClasses}
             curiosities={resources.curiosities}
             canCastOutOfCombat
             onCastSpell={(table, spellRoll) =>

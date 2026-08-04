@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-08-04
+
+A major version for a change of identity rather than of mechanics: the project is now **GerdQuest: Realm of Depths**.
+
+### Added
+
+- **The character sheet lists every class you have, not just the one you started with.** You can buy
+  up to 45 Advanced Classes, each costing coins and a requirement, and none of them appeared anywhere
+  on the sheet — so a Gravedigger's +2 against Undead or a Necromancer's Death Spells were invisible
+  once bought. Each now gets its own line alongside your starting Class, with its ability text.
+  Classes whose ability does nothing mechanical yet are marked "flavor only", the same way the
+  purchase list already marks them.
+
+### Changed
+
+- **The project is renamed to GerdQuest: Realm of Depths** (#113). "NoteQuest (Browser)" described what this started
+  as — a transcription of one rulebook's dungeon crawl — rather than what it has become, with a
+  hexcrawl, cities, politics, warfare, four Other Worlds and a pile of systems of its own. The new
+  name is deliberately its own thing.
+  - **Nothing about the credit changes, and that is the point.** GerdQuest: Realm of Depths remains an unofficial
+    fan-made adaptation of NoteQuest by Tiago Junges, it is not affiliated with or endorsed by him,
+    and the original is still very much worth buying. The old name did some of the crediting simply
+    by existing; now that it doesn't, the explicit credit in the footer and the README carries all of
+    it. A distinct name plus prominent attribution is a better posture than a borrowed name, because
+    it can no longer read as though this might be official.
+  - **Your save is untouched.** This is a display-name change only — the site URL is the same, and
+    the browser storage your character, world map and Graveyard live in is deliberately unchanged.
+    Nothing needs migrating and nothing is lost.
+
+### Fixed
+
+- **A hex could permanently forget its dungeon** (#123) — reported as "returned to town, tried to go
+  back to the dungeon, it created a new dungeon." Entering a dungeon and then backing out of the
+  "Roll for Dungeon" screen without rolling left the hex pointing at a run that had been discarded.
+  From then on _every_ visit to that hex rolled a brand-new dungeon and immediately forgot it, so the
+  hex could never be resumed again — and nothing on screen hinted anything was wrong, because by then
+  you had genuinely played a dungeon there.
+  - Backing out without rolling now leaves the hex exactly as it found it.
+  - A hex whose dungeon can't be found is treated as an unexplored one and re-linked to whatever is
+    rolled there next, so **saves already broken by this repair themselves** on the next visit rather
+    than staying stuck forever.
+  - The Sewers beneath a Fortress had the identical fault and is fixed the same way.
+
 ## [3.2.0] - 2026-08-03
 
 ### Added

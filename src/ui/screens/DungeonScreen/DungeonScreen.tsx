@@ -319,6 +319,11 @@ export function DungeonScreen({
   });
   useEffect(() => {
     return () => {
+      // The `levels.length > 0` guard is load-bearing beyond "don't save an empty run" (issue #123):
+      // under StrictMode this cleanup also runs once on *mount*, against the initial state, so
+      // anything here that isn't a no-op for a never-rolled run fires spuriously on every entry.
+      // That's why un-stamping a hex lives in App's `handleReturnToTown` -- a real click handler --
+      // rather than being hung off this effect.
       if (stateRef.current.levels.length > 0) {
         onLeaveDungeon(runIdRef.current, stateRef.current, character.name);
       }
@@ -364,7 +369,10 @@ export function DungeonScreen({
   return (
     <div className={styles.page}>
       <header className={styles.wordmark}>
-        <h1>NoteQuest</h1>
+        <h1>
+          <small>GerdQuest</small>
+          Realm of Depths
+        </h1>
         <p className={styles.tagline}>The dungeon is built as you explore it.</p>
       </header>
 
@@ -649,6 +657,7 @@ export function DungeonScreen({
               animals={state.animals}
               mutations={state.mutations}
               armLost={state.armLost}
+              advancedClasses={state.advancedClasses}
               curiosities={state.curiosities}
             />
 

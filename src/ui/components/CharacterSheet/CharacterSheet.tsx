@@ -5,6 +5,8 @@ import { COMBAT_ONLY_SPELL_NAMES, KNOWN_CASTABLE_SPELL_NAMES } from "../../../en
 import { HIRELING_BY_NAME } from "../../../data/hirelings.ts";
 import { ANIMAL_BY_NAME } from "../../../data/animals.ts";
 import { MUTATION_BY_ID } from "../../../data/mutations.ts";
+import { ADVANCED_CLASS_TABLE } from "../../../data/advancedClasses.ts";
+import { hasImplementedAbility } from "../../../engine/advancedClasses.ts";
 import { TallyModal } from "../TallyModal/TallyModal.tsx";
 import styles from "./CharacterSheet.module.css";
 
@@ -69,6 +71,10 @@ export interface CharacterSheetProps {
   /** "Your Hands" (issue #100): an arm lost to a Blade Trap. Permanent, and it silently changes what
    * the character can equip, so it gets a row for the same reason mutations do. */
   armLost?: boolean;
+  /** Every Advanced Class bought since creation (issue #23). The sheet used to show only the
+   * starting Class, so a character could own a dozen of these -- each paid for with coins and a
+   * requirement, several granting real combat abilities -- with nothing anywhere to list them. */
+  advancedClasses?: string[];
 }
 
 export function CharacterSheet({
@@ -93,6 +99,7 @@ export function CharacterSheet({
   animals = [],
   mutations = [],
   armLost = false,
+  advancedClasses = [],
 }: CharacterSheetProps) {
   const [showKills, setShowKills] = useState(false);
   const [showCuriosities, setShowCuriosities] = useState(false);
@@ -200,6 +207,32 @@ export function CharacterSheet({
               <strong>{character.cls.name}:</strong> {character.cls.ability}
             </li>
           )}
+          {/* Every Advanced Class acquired since creation (issue #23), listed alongside the starting
+              one -- a character can buy up to 45 of them, each costing coins and a requirement, and
+              none of them appeared here at all. Rendered individually rather than as one joined line
+              (the treatment `animals`/`mutations` get) because each carries its own ability text
+              worth reading, exactly like the base Class above. */}
+          {advancedClasses.map((name) => {
+            const def = ADVANCED_CLASS_TABLE[name];
+            if (!def) return null;
+            // "flavor only" mirrors the chip the purchase list already shows (issue #111) -- a class
+            // that passes its requirement and charges its coins but does nothing mechanical should
+            // say so here too, rather than reading as an active ability.
+            const flavorOnly = def.abilityText !== "None." && !hasImplementedAbility(name);
+            return (
+              <li key={name}>
+                <strong>{def.name}:</strong>{" "}
+                {def.abilityText === "None." ? (
+                  <em>No ability.</em>
+                ) : (
+                  <>
+                    {def.abilityText}
+                    {flavorOnly && <em className={styles.flavorNote}> (flavor only)</em>}
+                  </>
+                )}
+              </li>
+            );
+          })}
           {hirelingDef && (
             <li>
               <strong>

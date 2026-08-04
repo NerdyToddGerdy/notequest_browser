@@ -1,12 +1,14 @@
-# NoteQuest (Browser)
+# GerdQuest: Realm of Depths
 
 A browser-based digital adaptation of **NoteQuest**, a solo, dice-driven, pen-and-paper dungeon-crawler board game by [Tiago Junges](https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased). This project reimplements the rules from the official rulebook PDF (Core Book + Expanded World) as a playable single-page web app: roll up a character, crawl a procedurally-built dungeon room by room, and explore a wider hex-crawl world of cities, fortresses, and everything in between.
 
 **Play it here:** https://nerdytoddgerdy.github.io/notequest_browser/
 
+> Formerly "NoteQuest (Browser)". The project was renamed to **GerdQuest: Realm of Depths** as it accumulated systems of its own — the repository slug and URL are unchanged. Renaming does not reduce the attribution below; if anything it makes it more important, since the name no longer does any of the crediting on its own.
+
 ## This is an unofficial fan project
 
-NoteQuest is a real, purchasable tabletop game — this is not it. It's a fan-made digital adaptation, built to transcribe and automate the pen-and-paper rules (dice rolls, table lookups, bookkeeping) rather than to replace the original work. No official assets, art, or text from the PDF are redistributed here; `docs/game-rules-reference.md` is this project's own transcription of the rules used as an implementation reference, and the purchased rulebook PDF itself is intentionally excluded from the repository (see `.gitignore`).
+GerdQuest: Realm of Depths is not NoteQuest. NoteQuest is a real, purchasable tabletop game by Tiago Junges, and this is a fan-made digital adaptation of its rules — built to transcribe and automate the pen-and-paper bookkeeping (dice rolls, table lookups, tracking) rather than to replace the original work. It is not official, not affiliated with the creator, and not endorsed by him. No official assets, art, or text from the PDF are redistributed here; `docs/game-rules-reference.md` is this project's own transcription of the rules used as an implementation reference, and the purchased rulebook PDF itself is intentionally excluded from the repository (see `.gitignore`).
 
 If you enjoy this, please support the original creator by picking up the real thing on [DriveThruRPG](https://www.drivethrurpg.com/en/product/365859/notequest-expanded-world?src=also_purchased).
 
