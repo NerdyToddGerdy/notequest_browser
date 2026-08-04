@@ -1,7 +1,7 @@
 import { TERRAIN_LABEL, type Terrain } from "../../../data/hexTables.ts";
 import type { AnimalDef, BuildingKind } from "../../../data/types.ts";
 import { canTrainAnimal } from "../../../engine/animals.ts";
-import { canBuildBuilding } from "../../../engine/buildings.ts";
+import { canBuildBuilding, type StoredContents } from "../../../engine/buildings.ts";
 import { BUILDING_ORDER, BUILDING_TABLE, buildingCost } from "../../../data/buildings.ts";
 import type { AdventurerResources } from "../../../engine/town.ts";
 import type { PoliticalStatus } from "../../../engine/politics.ts";
@@ -71,6 +71,14 @@ export interface HexInspectorProps {
    * rather than inside looking out, and the button says so. */
   inCityOrFortress: boolean;
   onEnterCity: () => void;
+  /** Buildings' storage (issue #102) -- what's currently in the building on this hex. Only ever
+   * read when `isCurrentTile && currentBuilding`; `WorldScreen` passes the tile's own contents. */
+  stored: StoredContents;
+  /** False when the Pack is full, which gates *withdrawing* only -- storing is uncapped, since the
+   * rulebook grants "any number of items". */
+  packHasRoom: boolean;
+  onDeposit: (list: "heldItems" | "consumables", index: number) => void;
+  onWithdraw: (list: "heldItems" | "consumables", index: number) => void;
   /** Fly (New Spells, Advanced 6, issue #61): true when the spell is known, has an unspent use, and
    * isn't already armed -- combined with `isCurrentTile` the same way every other current-tile
    * action here is. Usable from any hex, city or wilderness, unlike Hire Boat/Political Affinity
@@ -103,6 +111,21 @@ export interface HexInspectorProps {
 }
 
 const TROOP_SOURCE_KINDS = new Set<BuildingKind>(["Castle", "City", "Fortress"]);
+
+/** Buildings' storage (issue #102): the theft odds, stated plainly, because they are the *only*
+ * thing that differs between buildings as vaults -- capacity is unlimited in all of them. A 1d6 is
+ * rolled against Defense on every return from a dungeon, so anything with Defense 6+ (City,
+ * Fortress) simply cannot be robbed, which is what the top of the table actually buys. */
+function theftRiskCopy(kind: BuildingKind): string {
+  const { defense, name } = BUILDING_TABLE[kind];
+  const chancesIn6 = Math.max(0, 6 - defense);
+  if (chancesIn6 === 0) {
+    return `Your ${name} (Defense ${defense}) is beyond thieves — nothing stored here is ever stolen.`;
+  }
+  return `Your ${name} (Defense ${defense}) loses a random item ${chancesIn6} time${
+    chancesIn6 === 1 ? "" : "s"
+  } in 6, every time you come back from a dungeon.`;
+}
 
 const POLITICAL_STATUS_COPY: Record<PoliticalStatus, string> = {
   ally: "Allied with you.",
@@ -149,6 +172,10 @@ export function HexInspector({
   warfareMessage,
   inCityOrFortress,
   onEnterCity,
+  stored,
+  packHasRoom,
+  onDeposit,
+  onWithdraw,
   canCastFly,
   flyActive,
   onCastFly,
@@ -356,6 +383,87 @@ export function HexInspector({
           >
             Recruit Troop (200 coins)
           </button>
+        </div>
+      )}
+
+      {/* Buildings' storage (issue #102). Uncapped -- "any number of items" -- so the only thing
+          shown alongside the contents is the theft risk, which is what actually varies between a
+          House and a Fortress. Withdrawing is gated on Pack space; depositing never is. */}
+      {isCurrentTile && currentBuilding && (
+        <div className={styles.row}>
+          <span className={styles.label}>Storage</span>
+          <p className={styles.flavor}>{theftRiskCopy(currentBuilding)}</p>
+
+          {stored.items.length === 0 && stored.consumables.length === 0 ? (
+            <p className={styles.flavor}>Nothing stored here yet.</p>
+          ) : (
+            <ul className={styles.trainList}>
+              {stored.items.map((item, index) => (
+                <li key={`i${index}`} className={styles.trainRow}>
+                  <span>
+                    {item.name} ({item.worth}c)
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.trainBtn}
+                    disabled={!packHasRoom}
+                    title={packHasRoom ? undefined : "Your pack is full."}
+                    onClick={() => onWithdraw("heldItems", index)}
+                  >
+                    Take
+                  </button>
+                </li>
+              ))}
+              {stored.consumables.map((potion, index) => (
+                <li key={`c${index}`} className={styles.trainRow}>
+                  <span>{potion.name}</span>
+                  <button
+                    type="button"
+                    className={styles.trainBtn}
+                    disabled={!packHasRoom}
+                    title={packHasRoom ? undefined : "Your pack is full."}
+                    onClick={() => onWithdraw("consumables", index)}
+                  >
+                    Take
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {(resources.heldItems.length > 0 || (resources.consumables ?? []).length > 0) && (
+            <>
+              <span className={styles.label}>Store from Pack</span>
+              <ul className={styles.trainList}>
+                {resources.heldItems.map((item, index) => (
+                  <li key={`pi${index}`} className={styles.trainRow}>
+                    <span>
+                      {item.name} ({item.worth}c)
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.trainBtn}
+                      onClick={() => onDeposit("heldItems", index)}
+                    >
+                      Store
+                    </button>
+                  </li>
+                ))}
+                {(resources.consumables ?? []).map((potion, index) => (
+                  <li key={`pc${index}`} className={styles.trainRow}>
+                    <span>{potion.name}</span>
+                    <button
+                      type="button"
+                      className={styles.trainBtn}
+                      onClick={() => onDeposit("consumables", index)}
+                    >
+                      Store
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
     </div>

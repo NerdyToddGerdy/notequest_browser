@@ -50,7 +50,14 @@ import {
   trainAnimal,
 } from "../../../engine/animals.ts";
 import type { BuildingKind } from "../../../data/types.ts";
-import { buildBuilding, canBuildBuilding } from "../../../engine/buildings.ts";
+import {
+  buildBuilding,
+  canBuildBuilding,
+  canWithdraw,
+  depositItem,
+  storedAt,
+  withdrawItem,
+} from "../../../engine/buildings.ts";
 import { BUILDING_TABLE } from "../../../data/buildings.ts";
 import {
   canAttemptPoliticalAffinity,
@@ -1163,6 +1170,35 @@ export function WorldScreen({
     onUpdateWorld(result.world);
   }
 
+  /** Buildings' storage (issue #102): how much sits in each owned building, for `TownScreen`'s
+   * read-only "My Buildings" card -- the "what did I leave where" view you want from a city on the
+   * far side of the map. */
+  const storedCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const [key, tile] of Object.entries(world.tiles)) {
+      if (!tile.building) continue;
+      const total = (tile.storedItems?.length ?? 0) + (tile.storedConsumables?.length ?? 0);
+      if (total > 0) counts[key] = total;
+    }
+    return counts;
+  }, [world.tiles]);
+
+  /** Buildings' storage (issue #102): moves one item between the Pack and the building standing on
+   * the player's own hex. Both directions touch `resources` *and* `world`, so they're resolved here
+   * rather than in the panel, the same shape `handleBuildBuilding` above uses. Always acts on
+   * `world.player` -- the engine refuses a hex with no building anyway, but storage is a
+   * stand-here action and shouldn't read from `inspectedCoord`. */
+  function handleStorage(
+    direction: "deposit" | "withdraw",
+    list: "heldItems" | "consumables",
+    index: number,
+  ) {
+    const move = direction === "deposit" ? depositItem : withdrawItem;
+    const result = move(resources, world, world.player, list, index);
+    onUpdateResources(result.resources);
+    onUpdateWorld(result.world);
+  }
+
   /** Politics (issue #27): touches both `resources` (Lord/King Vassal-eligibility check,
    * `talkedToKing`/`vassalCount` milestones) and `world` (the resolved status itself), same
    * "resolved here, not in TownScreen" shape as `handleThugLife`. Returns the outcome so TownScreen
@@ -1567,6 +1603,7 @@ export function WorldScreen({
           onAttack={handleAttack}
           onResolveStorming={handleResolveStorming}
           onLocateDungeon={handleLocateDungeon}
+          storedCounts={storedCounts}
           onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
           onExploreWorld={() => setShowTown(false)}
           onHardReset={onHardReset}
@@ -1810,6 +1847,10 @@ export function WorldScreen({
                     warfareMessage={isInspectingCurrentTile ? attackMessage : null}
                     inCityOrFortress={inCityOrFortress}
                     onEnterCity={() => setShowTown(true)}
+                    stored={storedAt(world, inspectedCoord)}
+                    packHasRoom={canWithdraw(resources)}
+                    onDeposit={(list, index) => handleStorage("deposit", list, index)}
+                    onWithdraw={(list, index) => handleStorage("withdraw", list, index)}
                     canCastFly={canCastFly(resources)}
                     flyActive={resources.flyActive}
                     onCastFly={() => onUpdateResources(castFly(resources))}

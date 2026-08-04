@@ -1,5 +1,5 @@
 import { rollDie } from "./dice.ts";
-import type { OwnedBuilding } from "./dungeonState.ts";
+import type { Consumable, HeldItem, OwnedBuilding } from "./dungeonState.ts";
 import type { RNG } from "./rng.ts";
 import {
   CITY_OR_FORTRESS,
@@ -87,6 +87,22 @@ export interface HexTile {
    * place on a later upgrade. A building doesn't count as a `location` in the `LocationKind` sense
    * -- it's a player-owned overlay on an otherwise-empty hex, so `location` stays `null`. */
   building?: BuildingKind;
+  /** Buildings' storage (issue #102): "In a building you can store any number of items found in
+   * dungeons." Lives on the *tile* rather than on `OwnedBuilding`, because since #121
+   * `resources.buildings` is a derived view of the map (`ownedBuildings()`) rather than a source of
+   * truth -- storing here would be storing in a projection. Tile-scoped also gives the two
+   * confirmed rules for free: contents outlive the character who stored them (the vault is part of
+   * the estate, exactly as the building itself is), and `withoutBuilding()` takes them with it when
+   * a Declared Enemy razes the place.
+   *
+   * Deliberately **uncapped** -- the rulebook says "any number of items", so a building's `defense`
+   * (its theft odds) is the only thing that scales, not its capacity. Both lists optional/back-compat
+   * like every other later addition; only ever non-empty on a hex with a `building`. */
+  storedItems?: HeldItem[];
+  /** Potions stored alongside the sellables (issue #102/#110). Kept as its own list rather than
+   * merged, mirroring how `heldItems`/`consumables` already sit side by side everywhere else --
+   * they share the Pack's slots but not a shape. */
+  storedConsumables?: Consumable[];
   /** Portals (issue #21): the 3d6 total this portal was established at. "Once you've established
    * where a portal leads, you don't need to roll again for it" -- so the first trip through fixes
    * the destination forever and every later trip reuses it, making a portal a stable piece of
@@ -489,13 +505,23 @@ export function withBuilding(world: WorldState, coord: HexCoord, kind: BuildingK
  * `HexTile.building` back to nothing (the hex reverts to a plain, re-buildable empty hex, not
  * Ruins -- Ruins is specifically what a *stormed City/Fortress location* becomes, and a
  * player-built structure was never a `location` to begin with). Same immutable-stamp shape as
- * `withBuilding`. */
+ * `withBuilding`.
+ *
+ * Issue #102: anything stored inside goes with it. An army that destroys the place sacks it, which
+ * is what stops a stash being strictly safer than carrying (and is why the same building already
+ * rolls for petty theft). Confirmed with the user over salvaging it back into the Pack. */
 export function withoutBuilding(world: WorldState, coord: HexCoord): WorldState {
   const key = hexKey(coord);
   const tile = world.tiles[key];
   if (!tile) return world;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to omit it
-  const { building: _building, ...rest } = tile;
+  const {
+    /* eslint-disable @typescript-eslint/no-unused-vars -- destructured only to omit them */
+    building: _building,
+    storedItems: _storedItems,
+    storedConsumables: _storedConsumables,
+    /* eslint-enable @typescript-eslint/no-unused-vars */
+    ...rest
+  } = tile;
   return { ...world, tiles: { ...world.tiles, [key]: rest } };
 }
 

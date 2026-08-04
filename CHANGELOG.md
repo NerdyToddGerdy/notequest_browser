@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-08-03
+
+### Added
+
+- **Buildings can store your things** (#102) — the deferred half of #27. A House, Tower, Palace,
+  Castle, City or Fortress is now somewhere to leave the items and potions you don't want to carry,
+  which is the first real answer to a Pack that only holds ten things.
+  - **Capacity is unlimited**, in every building, exactly as the rulebook has it — "you can store any
+    number of items found in dungeons." What varies between buildings is not how much they hold but
+    how well they hold it.
+  - **Thieves.** Every time you come home from a dungeon, each building holding something rolls a
+    die against its Defense; roll higher and a random item is gone. A House (Defense 2) loses
+    something four times in six. A Castle (5) only on a 6. A **City or Fortress is never robbed at
+    all** — a 1d6 can't beat Defense 6 — so the top of the table buys certainty rather than volume.
+  - **What you store outlives you.** A successor inherits the vault along with the estate, the same
+    reasoning #121 used for the buildings themselves.
+  - **An enemy army takes it all.** If a Declared Enemy destroys one of your buildings (#28), what
+    was inside is looted with it — which is what keeps a stash from being strictly safer than
+    carrying.
+  - Storing and taking happen at the building, on the map panel; the Town Square's "My Buildings"
+    card shows what you left where. Potions can be stored too, since they share the same Pack slots.
+
 ## [3.1.0] - 2026-08-03
 
 ### Added
