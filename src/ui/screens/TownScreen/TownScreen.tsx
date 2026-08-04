@@ -191,6 +191,9 @@ export interface TownScreenProps {
   /** Issue #79: forwarded straight through to `RecordsPanel`/`DungeonsList` -- see their own doc
    * comments. */
   onLocateDungeon: (id: string) => void;
+  /** Buildings' storage (issue #102): how many items sit in each owned building, keyed by hex.
+   * Read-only here -- depositing needs you standing on the building (see `HexInspector`). */
+  storedCounts?: Record<string, number>;
   /** Which culture (if any) the current City/Fortress hex belongs to -- `null` for Ruins, which
    * has no City Actions at all (see CLAUDE.md's Town Square unification note). */
   culture: CityCulture | null;
@@ -283,6 +286,7 @@ export function TownScreen({
   onEnterSewers,
   dungeonHistory,
   onLocateDungeon,
+  storedCounts,
   culture,
   cityName,
   showHireBoat,
@@ -855,7 +859,9 @@ export function TownScreen({
                     />
                   )}
 
-                  {activeActionTab === "buildings" && <Buildings buildings={resources.buildings} />}
+                  {activeActionTab === "buildings" && (
+                    <Buildings buildings={resources.buildings} storedCounts={storedCounts} />
+                  )}
                 </section>
               )}
 

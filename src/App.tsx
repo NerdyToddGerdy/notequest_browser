@@ -22,6 +22,8 @@ import {
   type WorldState,
 } from "./engine/hexState.ts";
 import { hasAffinity } from "./data/affinity.ts";
+import { resolveStorageTheft } from "./engine/buildings.ts";
+import { BUILDING_TABLE } from "./data/buildings.ts";
 import { DUNGEON_TYPE_BY_TERRAIN, isOverworldTerrain, type Climate } from "./data/hexTables.ts";
 /** Issue #99: the Sewers' own `DUNGEON_TYPES` roll number -- the Fortress sub-roll names the type
  * outright, so it bypasses `DUNGEON_TYPE_BY_TERRAIN` entirely. */
@@ -317,6 +319,24 @@ export default function App() {
       setResources((prev) => (prev ? { ...prev, ...result.resources } : prev));
       setArrivalNote(`You mutate on the way out: ${result.message}`);
     }
+
+    // Buildings' storage (issue #102): "whenever you leave a dungeon roll a die. If it drops a
+    // number greater than the building's Defense value, a random item has been stolen." Fired here
+    // for the same reason the mutation above is -- this is the one place a *living* character leaves
+    // a dungeon. Deliberately after the mutation, so a fatal one skips it entirely: a character who
+    // dies on the way out has no homecoming to be robbed on.
+    setWorld((prev) => {
+      if (!prev) return prev;
+      const { world: robbed, thefts } = resolveStorageTheft(prev);
+      if (thefts.length === 0) return prev;
+      // Reported as an arrival note, the same one-shot channel the mutation uses. A mutation note
+      // wins if both happen -- it's the more consequential of the two.
+      const summary = thefts
+        .map((t) => `a ${t.itemName} from your ${BUILDING_TABLE[t.kind].name} at ${t.hexKey}`)
+        .join("; ");
+      setArrivalNote((note) => note ?? `While you were away, thieves took ${summary}.`);
+      return robbed;
+    });
   }
 
   // Called whenever a dungeon run ends (death, a voluntary retreat, or beating the Final Room),
