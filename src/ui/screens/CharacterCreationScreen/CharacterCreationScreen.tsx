@@ -272,7 +272,10 @@ export function CharacterCreationScreen({
   return (
     <div className={styles.page}>
       <header className={styles.wordmark}>
-        <h1>NoteQuest</h1>
+        <h1>
+          <small>GerdQuest</small>
+          Realm of Depths
+        </h1>
         <p className={styles.tagline}>
           A weak adventurer, after fame and fortune. Good luck — you&apos;re gonna need it.
         </p>

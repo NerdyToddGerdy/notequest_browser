@@ -446,6 +446,30 @@ export function findHexForRunId(world: WorldState, runId: string): HexCoord | nu
   return null;
 }
 
+/**
+ * Issue #123: removes a run id from whichever hex holds it, in whichever of the two slots
+ * (`dungeonRunId` or `sewerRunId`) it happens to occupy.
+ *
+ * Both stamps are written the instant "Enter Dungeon"/"Descend into the Sewers" is clicked, before
+ * the run has rolled anything -- which is fine right up until the player backs out of the pre-roll
+ * gate, at which point `handleLeaveDungeon` drops the never-rolled run and the hex is left pointing
+ * at an id that exists nowhere. This is the un-stamp that keeps the two in step.
+ *
+ * Searches by id rather than taking a coord because the caller (`App.tsx`'s `handleLeaveDungeon`)
+ * only has the run id, and because a stale stamp is exactly the situation where you cannot trust
+ * `world.player` to still be the hex in question.
+ */
+export function withoutRunIdStamp(world: WorldState, runId: string): WorldState {
+  for (const [key, tile] of Object.entries(world.tiles)) {
+    if (tile.dungeonRunId !== runId && tile.sewerRunId !== runId) continue;
+    const next = { ...tile };
+    if (next.dungeonRunId === runId) delete next.dungeonRunId;
+    if (next.sewerRunId === runId) delete next.sewerRunId;
+    return { ...world, tiles: { ...world.tiles, [key]: next } };
+  }
+  return world;
+}
+
 /** "Ask" City Action (`docs/game-rules-reference.md` lines 978-985) -- rolls a hex side and steps
  * clockwise through `from`'s own six neighbors for the first one that's land with no location: "In
  * this hex there will be a dungeon ... If the hex has Water or another City or Ruins, go clockwise

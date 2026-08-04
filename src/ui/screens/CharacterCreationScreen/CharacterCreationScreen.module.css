@@ -439,3 +439,16 @@
     animation: none;
   }
 }
+
+/* Issue #113: the "GerdQuest" series prefix. Kept inside the <h1> rather than split into its own
+   element so the accessible name and the document title are the same complete phrase the footer
+   credit uses. Rendered small above the installment name so the shared prefix stays visually
+   consistent across titles in the series. */
+.wordmark h1 small {
+  display: block;
+  font-size: 0.38em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.82;
+  margin-bottom: 0.15em;
+}

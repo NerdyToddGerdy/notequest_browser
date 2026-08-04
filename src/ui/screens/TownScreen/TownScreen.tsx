@@ -497,7 +497,10 @@ export function TownScreen({
           <main className={styles.sheet}>
             <div className={styles.sheetInner}>
               <header className={styles.wordmark}>
-                <h1>NoteQuest</h1>
+                <h1>
+                  <small>GerdQuest</small>
+                  Realm of Depths
+                </h1>
                 <p className={styles.tagline}>The town, between one dungeon and the next.</p>
               </header>
 
@@ -934,6 +937,7 @@ export function TownScreen({
             animals={resources.animals}
             mutations={resources.mutations}
             armLost={resources.armLost}
+            advancedClasses={resources.advancedClasses}
             curiosities={resources.curiosities}
             canCastOutOfCombat
             onCastSpell={(table, spellRoll) =>
