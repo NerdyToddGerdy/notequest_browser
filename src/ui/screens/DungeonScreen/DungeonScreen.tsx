@@ -368,15 +368,14 @@ export function DungeonScreen({
 
   return (
     <div className={styles.page}>
-      <header className={styles.wordmark}>
-        <h1>
-          <small>GerdQuest</small>
-          Realm of Depths
-        </h1>
-        <p className={styles.tagline}>The dungeon is built as you explore it.</p>
-      </header>
+      <div className={`${styles.leftCol} screen-sheet`}>
+        <header className={styles.wordmark}>
+          <h1>
+            <small>GerdQuest</small>
+            Realm of Depths
+          </h1>
+        </header>
 
-      <div className={styles.layout}>
         <div className={styles.mainCol}>
           {(!hasDungeon || bossDefeated) && (
             <main className={styles.sheet}>
@@ -597,165 +596,139 @@ export function DungeonScreen({
                   </div>
                 )}
               </div>
-              <RollLog entries={state.log} />
             </>
           )}
-
-          <p className={styles.scopeNote}>
-            Breaking a door or setting off a trap alerts monsters beyond it, letting them strike
-            first.
-          </p>
         </div>
 
-        <aside className={styles.side}>
-          {hasDungeon && (
-            <div className={styles.statsCard}>
-              <section className={styles.dungeonHeader}>
-                <p className={styles.dungeonEyebrow}>Level {state.activeLevel + 1}</p>
-                <h2 className={styles.dungeonName}>{state.dungeonName}</h2>
-                <p className={styles.dungeonEntrance}>{state.entranceFlavor}</p>
-                {state.alive && !state.combat && !state.pendingPackItem && !state.noExit && (
-                  <div className={styles.headerActions}>
-                    <button
-                      className={styles.ghostBtn}
-                      type="button"
-                      onClick={() => setConfirmingRetreat(true)}
-                    >
-                      Retreat to Town
-                    </button>
-                  </div>
-                )}
-                {/* Portals (issue #21): "no door to exit" -- the way out is the Boss's room, so there
-                    is deliberately no Retreat here, only an explanation of why. */}
-                {state.alive && state.noExit && !bossDefeated && (
-                  <p className={styles.dungeonEntrance}>
-                    The portal left no door behind it. The only way out is through the Boss.
-                  </p>
-                )}
-              </section>
-            </div>
-          )}
-
-          <div className={styles.adventurerArea}>
-            <CharacterSheet
-              character={character}
-              torches={state.torches}
-              hp={state.hp}
-              maxHp={state.maxHp}
-              coins={state.coins}
-              treasures={state.treasures}
-              keys={state.keys}
-              weaponName={state.weapon?.name}
-              weaponFormula={state.weapon?.formula}
-              spellUses={state.spellUses}
-              maxSpellUses={state.maxSpellUses}
-              canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
-              onCastSpell={(table, spellRoll) => dispatch({ type: "CAST_SPELL", table, spellRoll })}
-              monsterKills={state.monsterKills}
-              killsByName={state.killsByName}
-              hireling={state.hireling}
-              animals={state.animals}
-              mutations={state.mutations}
-              armLost={state.armLost}
-              advancedClasses={state.advancedClasses}
-              curiosities={state.curiosities}
-            />
-
-            {!state.alive && state.deathCause === "combat" && (
-              <div className={styles.deathOverlay}>
-                <p className={styles.deathTitle}>{character.name} Has Fallen</p>
-                <p>
-                  Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.
-                </p>
-                <p className={styles.deathNote}>
-                  {character.name} is laid to rest in the Graveyard.
-                </p>
-                <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
-                  Roll a New Adventurer
-                </button>
-              </div>
-            )}
-            {!state.alive && state.deathCause !== "combat" && (
-              <div className={styles.deathOverlay}>
-                <p className={styles.deathTitle}>The Darkness Devours You</p>
-                <p>
-                  {character.name}&apos;s torch has burned out with no way to relight it. The
-                  dungeon keeps what it took.
-                </p>
-                <p className={styles.deathNote}>
-                  {character.name} is laid to rest in the Graveyard.
-                </p>
-                <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
-                  Roll a New Adventurer
-                </button>
-              </div>
-            )}
+        {hasDungeon && (
+          <div className={styles.logRow}>
+            <RollLog entries={state.log} />
           </div>
-
-          {state.treasures > 0 && state.alive && (
-            <div className={styles.statsCard}>
-              <h3>Treasure</h3>
-              <div className={styles.treasureRow}>
-                <Die value={treasureDie} rollToken={treasureRollToken} size={36} />
-                <button
-                  className={styles.rollBtn}
-                  type="button"
-                  disabled={openingTreasure || !!state.pendingPackItem}
-                  onClick={handleOpenTreasure}
-                >
-                  Open a Treasure ({state.treasures})
-                </button>
-              </div>
-            </div>
-          )}
-
-          <Equipment
-            armor={state.armor}
-            weapon={state.weapon}
-            spareWeapons={state.spareWeapons}
-            onWield={(index) => dispatch({ type: "WIELD_WEAPON", index })}
-            spareArmor={state.spareArmor}
-            onWieldArmor={(index) => dispatch({ type: "WIELD_ARMOR", index })}
-            // "Your Hands" (issue #100) -- passed only here, never in Town, since the rule is
-            // scoped to "when exploring a dungeon."
-            twoHandedBlockReason={twoHandedBlockReason(state)}
-          />
-
-          <Pack
-            items={state.heldItems}
-            pendingItem={state.pendingPackItem}
-            onDiscard={(index) => dispatch({ type: "DISCARD_ITEM", index })}
-            onResolveSwap={(discardIndex) => dispatch({ type: "RESOLVE_PACK_SWAP", discardIndex })}
-            maxItems={maxHeldItemsFor(state.hireling, state.animals)}
-            consumables={state.consumables}
-            onUseConsumable={(index) => dispatch({ type: "USE_CONSUMABLE", index })}
-            onDiscardConsumable={(index) => dispatch({ type: "DISCARD_CONSUMABLE", index })}
-            inCombatContext={state.combat != null}
-          />
-
-          {hasDungeon && (
-            <div className={styles.statsCard}>
-              <h3>Ledger</h3>
-              <dl>
-                <dt>Segments</dt>
-                <dd>{state.stats.segments}</dd>
-                <dt>Corridors</dt>
-                <dd>{state.stats.corridors}</dd>
-                <dt>Rooms</dt>
-                <dd>{state.stats.rooms}</dd>
-                <dt>Staircases</dt>
-                <dd>{state.stats.staircases}</dd>
-                <dt>Doors remaining</dt>
-                <dd>{state.stats.doorsRemaining}</dd>
-                <dt>Levels</dt>
-                <dd>{state.levels.length}</dd>
-                <dt>Final Rooms</dt>
-                <dd>{state.stats.finalRooms}</dd>
-              </dl>
-            </div>
-          )}
-        </aside>
+        )}
       </div>
+
+      <aside className={styles.side}>
+        {hasDungeon && (
+          <div className={styles.statsCard}>
+            <section className={styles.dungeonHeader}>
+              <p className={styles.dungeonEyebrow}>Level {state.activeLevel + 1}</p>
+              <h2 className={styles.dungeonName}>{state.dungeonName}</h2>
+              <p className={styles.dungeonEntrance}>{state.entranceFlavor}</p>
+              {state.alive && !state.combat && !state.pendingPackItem && !state.noExit && (
+                <div className={styles.headerActions}>
+                  <button
+                    className={styles.ghostBtn}
+                    type="button"
+                    onClick={() => setConfirmingRetreat(true)}
+                  >
+                    Retreat to Town
+                  </button>
+                </div>
+              )}
+              {/* Portals (issue #21): "no door to exit" -- the way out is the Boss's room, so there
+                    is deliberately no Retreat here, only an explanation of why. */}
+              {state.alive && state.noExit && !bossDefeated && (
+                <p className={styles.dungeonEntrance}>
+                  The portal left no door behind it. The only way out is through the Boss.
+                </p>
+              )}
+            </section>
+          </div>
+        )}
+
+        <div className={styles.adventurerArea}>
+          <CharacterSheet
+            character={character}
+            torches={state.torches}
+            hp={state.hp}
+            maxHp={state.maxHp}
+            coins={state.coins}
+            treasures={state.treasures}
+            keys={state.keys}
+            weaponName={state.weapon?.name}
+            weaponFormula={state.weapon?.formula}
+            spellUses={state.spellUses}
+            maxSpellUses={state.maxSpellUses}
+            canCastOutOfCombat={hasDungeon && state.alive && !state.combat}
+            onCastSpell={(table, spellRoll) => dispatch({ type: "CAST_SPELL", table, spellRoll })}
+            monsterKills={state.monsterKills}
+            killsByName={state.killsByName}
+            hireling={state.hireling}
+            animals={state.animals}
+            mutations={state.mutations}
+            armLost={state.armLost}
+            advancedClasses={state.advancedClasses}
+            curiosities={state.curiosities}
+          />
+
+          {!state.alive && state.deathCause === "combat" && (
+            <div className={styles.deathOverlay}>
+              <p className={styles.deathTitle}>{character.name} Has Fallen</p>
+              <p>
+                Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.
+              </p>
+              <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+              <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+                Roll a New Adventurer
+              </button>
+            </div>
+          )}
+          {!state.alive && state.deathCause !== "combat" && (
+            <div className={styles.deathOverlay}>
+              <p className={styles.deathTitle}>The Darkness Devours You</p>
+              <p>
+                {character.name}&apos;s torch has burned out with no way to relight it. The dungeon
+                keeps what it took.
+              </p>
+              <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
+              <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+                Roll a New Adventurer
+              </button>
+            </div>
+          )}
+        </div>
+
+        {state.treasures > 0 && state.alive && (
+          <div className={styles.statsCard}>
+            <h3>Treasure</h3>
+            <div className={styles.treasureRow}>
+              <Die value={treasureDie} rollToken={treasureRollToken} size={36} />
+              <button
+                className={styles.rollBtn}
+                type="button"
+                disabled={openingTreasure || !!state.pendingPackItem}
+                onClick={handleOpenTreasure}
+              >
+                Open a Treasure ({state.treasures})
+              </button>
+            </div>
+          </div>
+        )}
+
+        <Equipment
+          armor={state.armor}
+          weapon={state.weapon}
+          spareWeapons={state.spareWeapons}
+          onWield={(index) => dispatch({ type: "WIELD_WEAPON", index })}
+          spareArmor={state.spareArmor}
+          onWieldArmor={(index) => dispatch({ type: "WIELD_ARMOR", index })}
+          // "Your Hands" (issue #100) -- passed only here, never in Town, since the rule is
+          // scoped to "when exploring a dungeon."
+          twoHandedBlockReason={twoHandedBlockReason(state)}
+        />
+
+        <Pack
+          items={state.heldItems}
+          pendingItem={state.pendingPackItem}
+          onDiscard={(index) => dispatch({ type: "DISCARD_ITEM", index })}
+          onResolveSwap={(discardIndex) => dispatch({ type: "RESOLVE_PACK_SWAP", discardIndex })}
+          maxItems={maxHeldItemsFor(state.hireling, state.animals)}
+          consumables={state.consumables}
+          onUseConsumable={(index) => dispatch({ type: "USE_CONSUMABLE", index })}
+          onDiscardConsumable={(index) => dispatch({ type: "DISCARD_CONSUMABLE", index })}
+          inCombatContext={state.combat != null}
+        />
+      </aside>
 
       <Footer screenLabel="THE DUNGEON" onHardReset={onHardReset} />
 

@@ -276,9 +276,6 @@ export function CharacterCreationScreen({
           <small>GerdQuest</small>
           Realm of Depths
         </h1>
-        <p className={styles.tagline}>
-          A weak adventurer, after fame and fortune. Good luck — you&apos;re gonna need it.
-        </p>
       </header>
 
       <main className={styles.sheet} aria-label="Character creation sheet">

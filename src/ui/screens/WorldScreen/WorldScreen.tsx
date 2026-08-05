@@ -1628,15 +1628,14 @@ export function WorldScreen({
 
   return (
     <div className={styles.page}>
-      <header className={styles.wordmark}>
-        <h1>
-          <small>GerdQuest</small>
-          Realm of Depths
-        </h1>
-        <p className={styles.tagline}>The world beyond the city walls.</p>
-      </header>
+      <div className={`${styles.leftCol} screen-sheet`}>
+        <header className={styles.wordmark}>
+          <h1>
+            <small>GerdQuest</small>
+            Realm of Depths
+          </h1>
+        </header>
 
-      <div className={styles.layout}>
         <div className={styles.mainCol}>
           <div className={styles.mapCard}>
             <svg
@@ -1898,36 +1897,36 @@ export function WorldScreen({
             land again.
           </p>
         </div>
-
-        <aside className={styles.side}>
-          <CharacterSheet
-            character={character}
-            torches={resources.torches}
-            hp={resources.hp}
-            maxHp={resources.maxHp}
-            coins={resources.coins}
-            treasures={resources.treasures}
-            keys={resources.keys}
-            provisions={resources.provisions}
-            weaponName={resources.weapon?.name}
-            weaponFormula={resources.weapon?.formula}
-            spellUses={resources.spellUses}
-            maxSpellUses={resources.maxSpellUses}
-            monsterKills={resources.monsterKills}
-            killsByName={resources.killsByName}
-            hireling={resources.hireling}
-            animals={resources.animals}
-            mutations={resources.mutations}
-            armLost={resources.armLost}
-            advancedClasses={resources.advancedClasses}
-            curiosities={resources.curiosities}
-            canCastOutOfCombat
-            onCastSpell={(table, spellRoll) =>
-              onUpdateResources(castSpell(resources, table, spellRoll))
-            }
-          />
-        </aside>
       </div>
+
+      <aside className={styles.side}>
+        <CharacterSheet
+          character={character}
+          torches={resources.torches}
+          hp={resources.hp}
+          maxHp={resources.maxHp}
+          coins={resources.coins}
+          treasures={resources.treasures}
+          keys={resources.keys}
+          provisions={resources.provisions}
+          weaponName={resources.weapon?.name}
+          weaponFormula={resources.weapon?.formula}
+          spellUses={resources.spellUses}
+          maxSpellUses={resources.maxSpellUses}
+          monsterKills={resources.monsterKills}
+          killsByName={resources.killsByName}
+          hireling={resources.hireling}
+          animals={resources.animals}
+          mutations={resources.mutations}
+          armLost={resources.armLost}
+          advancedClasses={resources.advancedClasses}
+          curiosities={resources.curiosities}
+          canCastOutOfCombat
+          onCastSpell={(table, spellRoll) =>
+            onUpdateResources(castSpell(resources, table, spellRoll))
+          }
+        />
+      </aside>
 
       {/* Portals (issue #21) -- gated behind a confirmation because "when going through a portal
           there is no turning back," and one of the sixteen outcomes deletes the character outright. */}

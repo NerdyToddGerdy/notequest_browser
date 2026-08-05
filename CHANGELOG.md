@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-08-05
+
+### Changed
+
+- **Every screen is now a single page that fits your window.** The World, City and Dungeon used to
+  scroll — sometimes in three places at once — and the Dungeon was the worst of it: the map, the
+  sidebar and the page itself could all scroll independently. Each screen is now locked to the
+  window, with one consistent layout: the title over the left column, the main view beneath it, the
+  character sidebar running the full height beside it, and the footer across the bottom.
+  - **The dungeon fits.** The map sizes to the space it's given and pans by dragging, as it always
+    did — it just no longer has a scrollbar competing with the page. **Recent Rolls is the only
+    scrollbar left** on that screen, and it's capped so a long transcript can't push the map away.
+  - **The sidebar is wider** — two fifths of the screen rather than a narrow column — and still
+    scrolls when a character has more to show than fits.
+- **The whole screen is a sheet of paper now**, not a dark page with parchment cards floating on it.
+  The frame the City used for its character sheet wraps the main column on every screen, stacked
+  edges and all — which is what this game actually is: a record sheet on a table.
+- **Recent Rolls is readable.** Its text was still coloured for the old dark background and had
+  become nearly invisible on parchment.
+- Taglines under each title are gone, along with the Dungeon's "Ledger" panel and the "Breaking a
+  door…" note — all of it repeating what the screen already showed.
+
 ## [4.1.0] - 2026-08-05
 
 ### Changed

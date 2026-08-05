@@ -88,3 +88,52 @@ body::after {
     animation: none;
   }
 }
+
+/* The whole screen is one sheet of paper on a dark table.
+   Previously each screen was a dark page with parchment cards floating on it; the frame the City
+   used for its character sheet is now the frame for every screen, because in a solo pen-and-paper
+   game the sheet *is* the artifact being simulated.
+
+   Surface is `--parchment-2`, one step darker than the cards that sit on it (`--parchment`), so
+   inner panels still read as laid on the page rather than cut out of it. The double inset border
+   and the ruled lines are lifted verbatim from the City's own `.sheetInner`. Global rather than a
+   CSS module so the three screens share one definition instead of three copies. */
+.screen-sheet {
+  position: relative;
+  background: var(--parchment-2);
+  border-radius: 3px;
+  border: 1px solid rgba(42, 32, 22, 0.35);
+  box-shadow:
+    inset 0 0 0 6px var(--parchment),
+    inset 0 0 0 7px rgba(42, 32, 22, 0.55),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 27px,
+    rgba(42, 32, 22, 0.06) 28px
+  );
+}
+
+/* Two more sheets under the top one, rotated a degree either way. This is the "stack of papers" the
+   City's own sheet had -- it was lost when the frame moved up to page level, and it is the detail
+   that makes the screen read as paper on a table rather than a beige panel. Purely decorative, so
+   it sits behind everything and takes no pointer events. */
+.screen-sheet::before,
+.screen-sheet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  z-index: -1;
+  pointer-events: none;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+.screen-sheet::before {
+  background: var(--parchment-3);
+  transform: rotate(-0.55deg) translate(-8px, 6px);
+}
+.screen-sheet::after {
+  background: #b9a476;
+  transform: rotate(0.45deg) translate(8px, -5px);
+}

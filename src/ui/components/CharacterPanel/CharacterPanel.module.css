@@ -1,0 +1,63 @@
+/* The tabbed sidebar (see CharacterPanel.tsx for why it's tabs). Fills whatever height its grid
+   cell gives it; the tab strip stays put and only the body below it scrolls, so switching tabs never
+   moves the map. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+/* Same vocabulary as the City Square's own tabs (issues #76/#88) -- display face, uppercase, seated
+   on the panel edge so the active one reads as the front sheet of a stack. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.tab,
+.tabActive {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  padding: 7px 10px;
+  border: 1px solid rgba(42, 32, 22, 0.35);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.tab {
+  color: var(--ink-soft);
+  background: var(--parchment-3);
+}
+.tab:hover {
+  background: var(--parchment-2);
+  color: var(--ink);
+}
+.tabActive {
+  color: var(--ink);
+  background: var(--parchment);
+  border-color: var(--gold);
+  position: relative;
+  top: 1px;
+}
+.tab:focus-visible,
+.tabActive:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The one scrolling region in the column. `min-height: 0` is what lets it scroll rather than
+   stretching its parent -- the same thing every grid/flex child here needs. */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

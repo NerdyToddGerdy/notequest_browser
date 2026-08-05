@@ -1,10 +1,11 @@
 .page {
   position: relative;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: clamp(28px, 6vw, 64px) 20px 64px;
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 10px;
+  height: 100dvh;
 }
 
 /* Sits inside .sheetInner's parchment now, not the dark page background it was designed for
@@ -26,14 +27,6 @@
   color: var(--gold);
   text-wrap: balance;
 }
-.tagline {
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 0.88rem;
-  color: var(--ink-soft);
-  margin: 6px 0 0;
-}
-
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
@@ -68,56 +61,43 @@
   .wordmark h1 {
     font-size: 1.3rem;
   }
-  .tagline {
-    display: none;
-  }
 }
 
 .mainCol {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 12px;
   min-width: 0;
+  min-height: 0;
+  /* Visible, so the rotated paper-stack pseudo-elements are not clipped -- scrolling moves
+     inward to `.sheetInner` instead. */
+  overflow: visible;
+  padding: 18px;
 }
 
+/* Sized by its cell, not by its content: `.mainCol` is `overflow: visible` so the sheet's stacked
+   paper edges show, which means anything taller than the row spills *over* the footer and makes the
+   Settings button unclickable. Constraining here lets `.sheetInner` be the scroll region instead. */
 .sheet {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   min-width: 0;
-}
-.sheet::before,
-.sheet::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 3px;
-  z-index: -1;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
-}
-.sheet::before {
-  background: var(--parchment-2);
-  transform: rotate(-1.1deg) translate(-7px, 5px);
-}
-.sheet::after {
-  background: var(--parchment-3);
-  transform: rotate(0.9deg) translate(7px, -4px);
+  min-height: 0;
 }
 
+/* The page itself is the sheet now (see `.screen-sheet`), so this is just the content column --
+   no second border, no second paper stack. */
+/* The page itself is the sheet (see `.screen-sheet`), so this is just the content column -- and
+   the scroll region, since the sheet above it must not clip its own stacked edges. */
 .sheetInner {
   position: relative;
-  background: var(--parchment);
-  border-radius: 3px;
-  border: 1px solid rgba(42, 32, 22, 0.35);
-  box-shadow:
-    inset 0 0 0 6px rgba(233, 221, 194, 1),
-    inset 0 0 0 7px rgba(42, 32, 22, 0.55),
-    0 24px 60px rgba(0, 0, 0, 0.55);
-  padding: clamp(20px, 4vw, 36px) clamp(18px, 4vw, 38px) clamp(26px, 4vw, 36px);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent,
-    transparent 27px,
-    rgba(42, 32, 22, 0.06) 28px
-  );
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .sheetLabel {
@@ -392,14 +372,12 @@
 }
 
 .side {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  position: sticky;
-  top: 20px;
-  /* Its own scroll region once the stacked cards outgrow the viewport, instead of the whole
-     page having to scroll along with it just to reach the bottom card. */
-  max-height: calc(100vh - 40px);
+  gap: 10px;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -415,4 +393,26 @@
   text-transform: uppercase;
   opacity: 0.82;
   margin-bottom: 0.15em;
+}
+
+/* The floor of the page, spanning both columns -- same as World and the Dungeon. */
+.page > footer {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+@media (max-width: 900px) {
+  .page {
+    height: auto;
+    min-height: calc(100dvh - 20px);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    overflow: visible;
+  }
+  .mainCol,
+  .side,
+  .page > footer {
+    grid-column: 1;
+    grid-row: auto;
+    overflow: visible;
+  }
 }

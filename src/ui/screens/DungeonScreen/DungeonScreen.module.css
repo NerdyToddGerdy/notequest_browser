@@ -1,28 +1,39 @@
+/* The dungeon is locked to the viewport -- the page itself never scrolls. Left column runs
+   header -> map -> recent rolls -> footer; the sidebar runs the full height beside it. */
 .page {
   position: relative;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 20px 64px;
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 10px;
+  height: 100dvh;
+}
+@media (max-width: 900px) {
+  .page {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    overflow: visible;
+  }
 }
 
+/* Over the left column only, and small -- a full-width header pushed the sidebar down the page. */
 .wordmark {
   position: relative;
   text-align: center;
-  margin-bottom: clamp(20px, 4vw, 34px);
-  color: var(--parchment);
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--ink-soft);
 }
 .wordmark h1 {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: clamp(2.1rem, 6vw, 3.2rem);
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
   letter-spacing: 0.04em;
   margin: 0;
-  color: var(--gold-bright);
-  text-shadow:
-    0 0 28px rgba(217, 121, 31, 0.55),
-    0 2px 0 rgba(0, 0, 0, 0.4);
+  color: var(--gold);
   text-wrap: balance;
 }
 .tagline {
@@ -71,15 +82,70 @@
   }
 }
 
-.mainCol {
+/* Map, then Recent Rolls beneath it. Scrolls inside itself if the content is taller than the
+   cell, so the page stays put -- this is the safety valve, not the normal case. */
+/* The sheet: header, map and Recent Rolls all on one page. The sidebar sits beside it on the
+   table, not on the same paper. */
+.leftCol {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: 22px;
   min-width: 0;
+  min-height: 0;
+  padding: 18px;
+}
+
+.mainCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+@media (max-width: 900px) {
+  .mainCol {
+    grid-row: auto;
+    overflow: visible;
+  }
+}
+
+/* The footer sits on the floor of the page, under the left column. */
+/* Area 5: the floor of the page, spanning both columns. */
+.page > footer {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* Area 4: Recent Rolls, under the map. Capped so a long transcript scrolls inside itself rather
+   than pushing the map out of the box. */
+.logRow {
+  flex-shrink: 0;
+  min-height: 0;
+  max-height: 22vh;
+  overflow-y: auto;
+}
+@media (max-width: 900px) {
+  .logRow {
+    grid-row: auto;
+    max-height: none;
+    overflow: visible;
+  }
+}
+@media (max-width: 900px) {
+  .page > footer {
+    grid-row: auto;
+  }
 }
 
 .mapArea {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .roomInspectorOverlay {
@@ -421,16 +487,21 @@
 }
 
 .side {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  position: sticky;
-  top: 20px;
-  /* Its own scroll region once the stacked cards outgrow the viewport, instead of the whole
-     page (map included) having to scroll along with it just to reach the bottom card. */
-  max-height: calc(100vh - 40px);
+  gap: 10px;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+@media (max-width: 900px) {
+  .side {
+    grid-column: 1;
+    grid-row: auto;
+    overflow: visible;
+  }
 }
 .statsCard {
   position: relative;

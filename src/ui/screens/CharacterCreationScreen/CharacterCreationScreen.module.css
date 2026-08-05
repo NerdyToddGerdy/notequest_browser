@@ -25,15 +25,6 @@
     0 2px 0 rgba(0, 0, 0, 0.4);
   text-wrap: balance;
 }
-.tagline {
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 0.95rem;
-  color: #cabb9c;
-  margin: 10px 0 0;
-  letter-spacing: 0.01em;
-}
-
 .sheet {
   position: relative;
   width: min(760px, 100%);
