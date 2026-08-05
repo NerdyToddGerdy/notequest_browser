@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.1] - 2026-08-05
+
+### Changed
+
+- Internal only — nothing in the game changed. The contributor guide (`CLAUDE.md`) had grown to
+  roughly 21,500 words in one file, most of it a running history of how each system came to be.
+  It's now a ~1,500-word guide covering the project, the commands, the shared conventions and the
+  traps, with the full design detail moved into six topic documents under `docs/architecture/`
+  (dungeon, world, character, town and economy, UI, and deferred work). Nothing was discarded: the
+  detail was redistributed, and the split was verified by checking every code identifier from the
+  original against the new set.
+
 ## [4.2.0] - 2026-08-05
 
 ### Changed
