@@ -1,6 +1,6 @@
 import type { Draft } from "immer";
 
-import type { EquippedWeapon, HeldItem } from "./dungeonState.ts";
+import type { ArmorPiece, EquippedWeapon, HeldItem } from "./dungeonState.ts";
 
 /**
  * "Your Hands" (`docs/game-rules-reference.md` lines 226-230, issue #100):
@@ -40,6 +40,10 @@ export interface HandBearer {
    * torch," so it's used up like the torch it replaces (confirmed with the user as the reading to
    * take, over a whole-run duration). Dungeon-only in practice; nothing sets it in Town. */
   lightActive?: boolean;
+  /** Carried equipment, read only for a `freesHands` item (Cave's Magic Wood Puppet, issue #138).
+   * Both `DungeonState` and `AdventurerResources` already have this, so widening the seam costs
+   * nothing -- the same structural-satisfaction trick the rest of `HandBearer` relies on. */
+  armor: ArmorPiece[];
 }
 
 /** The Dwarf culture action's Lamp -- named here rather than in `town.ts` because both the buy
@@ -55,11 +59,22 @@ export function ownsLamp(bearer: Pick<HandBearer, "heldItems">): boolean {
   return bearer.heldItems.some((item) => item.name === DWARF_LAMP_NAME);
 }
 
+/** Cave's Magic Wood Puppet (issue #138): "Like a Torchbearer" -- so it is one, mechanically. Unlike
+ * `lightActive` it does not expire with the next torch spent: a carried object isn't a spell. */
+export function holdsTorchBearingItem(bearer: Pick<HandBearer, "armor">): boolean {
+  return bearer.armor.some((piece) => piece.effect?.kind === "freesHands");
+}
+
 /** True when both hands are available for fighting -- i.e. something other than your own hand is
  * holding the light, and you still have two arms to hold a weapon with. */
 export function handsFree(bearer: HandBearer): boolean {
   if (bearer.armLost) return false; // no light source gives an arm back
-  return ownsLamp(bearer) || bearer.hireling === TORCHBEARER_NAME || bearer.lightActive === true;
+  return (
+    ownsLamp(bearer) ||
+    bearer.hireling === TORCHBEARER_NAME ||
+    bearer.lightActive === true ||
+    holdsTorchBearingItem(bearer)
+  );
 }
 
 export function canWieldWeapon(bearer: HandBearer, weapon: EquippedWeapon): boolean {

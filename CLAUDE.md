@@ -47,14 +47,14 @@ Every push to `main` requires a version bump: `package.json` + `package-lock.jso
 
 Read the relevant one before working in that area — each carries the design rationale, the confirmed product decisions, and the traps.
 
-| Doc | Covers |
-| --- | --- |
-| [docs/architecture/dungeon.md](docs/architecture/dungeon.md) | Map generation, doors/torches/traps, combat and `fight.ts`, inventory and the Pack, the hand economy, remains and resuming, the 12 dungeon types |
-| [docs/architecture/world.md](docs/architecture/world.md) | Hexcrawl, travel and Affinity, cities, dungeons on the map, location effects, Events on Travel, Portals, the Other Worlds, climate |
-| [docs/architecture/character.md](docs/architecture/character.md) | Races, spells, the 45 Advanced Classes, Hirelings, Animals, mutations, death and the Graveyard |
-| [docs/architecture/town-and-economy.md](docs/architecture/town-and-economy.md) | City actions, resources, money and selling, Buildings, storage, Politics, Warfare |
-| [docs/architecture/ui.md](docs/architecture/ui.md) | Screens and shared components, the page layout, theme, session persistence, React traps |
-| [docs/architecture/deferred.md](docs/architecture/deferred.md) | Everything deliberately unbuilt or simplified — check before "fixing" something that looks broken |
+| Doc                                                                            | Covers                                                                                                                                           |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [docs/architecture/dungeon.md](docs/architecture/dungeon.md)                   | Map generation, doors/torches/traps, combat and `fight.ts`, inventory and the Pack, the hand economy, remains and resuming, the 12 dungeon types |
+| [docs/architecture/world.md](docs/architecture/world.md)                       | Hexcrawl, travel and Affinity, cities, dungeons on the map, location effects, Events on Travel, Portals, the Other Worlds, climate               |
+| [docs/architecture/character.md](docs/architecture/character.md)               | Races, spells, the 45 Advanced Classes, Hirelings, Animals, mutations, death and the Graveyard                                                   |
+| [docs/architecture/town-and-economy.md](docs/architecture/town-and-economy.md) | City actions, resources, money and selling, Buildings, storage, Politics, Warfare                                                                |
+| [docs/architecture/ui.md](docs/architecture/ui.md)                             | Screens and shared components, the page layout, theme, session persistence, React traps                                                          |
+| [docs/architecture/deferred.md](docs/architecture/deferred.md)                 | Everything deliberately unbuilt or simplified — check before "fixing" something that looks broken                                                |
 
 ### Recurring conventions
 
@@ -66,7 +66,7 @@ Referenced by name throughout the codebase — follow them rather than inventing
 - **Reducer decides, UI mirrors.** Client-side checks (button disabling, `canTravelTo()`, `hasPendingRoomEntry()`) duplicate the reducer's own gating purely for UX responsiveness. The reducer/engine function is always the actual authority.
 - **Acquire-once-permanent vs. expires-per-trip.** `advancedClasses`, `animals`, `buildings` and `mutations` persist for the character's life. `hireling` is deliberately different — spent the instant a fresh dungeon trip is entered, matching "you pay to face just one dungeon."
 - **Two rulebook entries, one bonus, no double-counting.** Where a base Class and an Advanced Class (or a Race and a Hireling) grant the identical effect (Grave Digger/Gravedigger, Cat-Person/Merchant, Blacksmith/Blacksmith), the check is a single OR'd condition, never two stacking bonuses.
-- **Its own engine module when no reducer owns it.** An effect that can touch `AdventurerResources`, `WorldState`, *and* kill the character gets its own module (`events.ts`, `portals.ts`, `mutations.ts`, `locationEffects.ts`) and resolves in a screen off pure functions.
+- **Its own engine module when no reducer owns it.** An effect that can touch `AdventurerResources`, `WorldState`, _and_ kill the character gets its own module (`events.ts`, `portals.ts`, `mutations.ts`, `locationEffects.ts`) and resolves in a screen off pure functions.
 - **Structural seams over shared base types.** `fight.ts`'s `Fighter` and `hands.ts`'s `HandBearer` are satisfied structurally by both `DungeonState` and `AdventurerResources`, so shared logic never knows which it's holding.
 
 ### Code layout
@@ -100,6 +100,6 @@ Vitest, default environment `"node"`. `e2e/` holds Playwright specs (`playwright
 - `concurrency` is keyed `${{ github.workflow }}-${{ github.ref }}` rather than a single shared `pages` group, so a PR run can't cancel an in-flight deploy of `main`.
 - The `deploy` job and the Pages-artifact upload are both `if: github.event_name != 'pull_request'` — a PR runs every check but publishes nothing, and a fork PR's read-only token never has to upload.
 - On failure the Playwright HTML report (with the on-first-retry trace) uploads as an artifact — the only way to debug a CI-only failure.
-- **Every action is pinned to a floating `@v5` major** so it runs on the Node 24 action runtime. `upload-pages-artifact` needed bumping even though the deprecation notice never named it — it's a *composite* action calling `upload-artifact` internally, so the warning survived bumping only the directly-named ones.
+- **Every action is pinned to a floating `@v5` major** so it runs on the Node 24 action runtime. `upload-pages-artifact` needed bumping even though the deprecation notice never named it — it's a _composite_ action calling `upload-artifact` internally, so the warning survived bumping only the directly-named ones.
 
 `public/favicon.svg` is a hand-authored torch-flame SVG in the `tokens.css` palette, with hardcoded hex (a favicon can't read CSS custom properties).

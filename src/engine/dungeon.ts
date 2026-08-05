@@ -1,6 +1,7 @@
 import {
   SEGMENTS_TABLE,
   SEGMENTS_TABLE_BY_TYPE,
+  TYPES_WITHOUT_FINAL_ROOM,
   type DungeonTypeKey,
   type SegmentType,
 } from "../data/dungeonTypes.ts";
@@ -53,6 +54,9 @@ export function sizeFor(type: SegmentType, dir: Direction | null): { w: number; 
     // spatially; what makes it a tunnel is the Monsters-but-not-Content roll, not its shape.
     case "tunnel":
       return { w: 5 * UNIT, h: 2 * UNIT };
+    // Cave (issue #138): narrower than a wide tunnel on the map, which is the whole distinction.
+    case "tunnel-narrow":
+      return { w: 5 * UNIT, h: 1 * UNIT };
     case "room-large":
       return { w: 8 * UNIT, h: 6 * UNIT };
     case "staircase":
@@ -161,10 +165,16 @@ export function rollSegment(
   const table = SEGMENTS_TABLE_BY_TYPE[dungeonKey] ?? SEGMENTS_TABLE;
   const row = table[roll];
   if (!row) throw new Error(`No Segments row for roll ${roll}`);
+  // Cave (issue #138): width is a property of the tunnel you are standing in, not of the door you
+  // opened, so a narrow tunnel consults its own column no matter which way out is taken.
+  if (fromType === "tunnel-narrow" && row.tunnelNarrow) return row.tunnelNarrow;
   if (fromType === "tunnel") {
-    const column = continuesTunnel ? row.tunnelForward : row.tunnelSide;
+    // Sewers splits by direction (forward carries on, a side door opens into a room) and defines
+    // both columns. The Cave family defines only `tunnelForward`, because every door of a wide
+    // tunnel carries the cave onward -- so the `??` is what makes one branch serve both types.
+    const column = (continuesTunnel ? row.tunnelForward : row.tunnelSide) ?? row.tunnelForward;
     // Falls back to the room column for any type that somehow produced a tunnel without printing
-    // tunnel columns -- only Sewers does today, and it defines both.
+    // tunnel columns -- no built type does today.
     if (column) return column;
   }
   return row[columnFor(fromType)];
@@ -186,10 +196,15 @@ export function resolveRoomExtras(
   // between a corridor (neither) and a room (both) -- which is exactly why it's its own SegmentType
   // rather than a reskinned corridor.
   const isTunnel = type === "tunnel";
-  if (!isTunnel && !type.startsWith("room-")) return undefined;
+  // Cave (issue #138): "Narrow Tunnels have nothing" -- neither roll applies, making this the one
+  // segment emptier than a wide tunnel. It still consumes its dice below, for the same parity
+  // reason: whether a cave narrows or not must not shift the roll sequence for what comes next.
+  const isNarrowTunnel = type === "tunnel-narrow";
+  if (!isTunnel && !isNarrowTunnel && !type.startsWith("room-")) return undefined;
   const tables = DUNGEON_TABLES[dungeonKey];
   const contentSum = rollDie(rng) + rollDie(rng);
   const monsterSum = rollDie(rng) + rollDie(rng);
+  if (isNarrowTunnel) return { roomContent: undefined, monsters: null };
   if (isTunnel) {
     // The Content dice are still rolled above, so a tunnel consumes exactly as much RNG as a room
     // does -- the same parity reason the entrance discards its Monsters roll rather than skipping it.
@@ -271,11 +286,13 @@ export function classifyDoorOpen(
   const isEntranceStaircase = seg.type === "staircase" && seg.isEntrance;
   const isDescent = seg.type === "staircase" && !seg.isEntrance;
 
-  // Sewers (issue #30): "This dungeon does not have a Final Room or Dungeon Boss." Checked before
-  // every Final-Room path below -- the depth-3 descent, the dead-end, and the reuse of an existing
-  // Final Room level -- so none of them can ever fire here. A Sewers run ends by climbing out
-  // instead (Room Content 10's ladder, `DungeonState.exitUsed`).
-  const hasFinalRoom = state.dungeonTypeKey !== "sewers";
+  // Sewers (issue #30) and the Cave family (issue #138) both print "This dungeon does not have a
+  // Final Room or Dungeon Boss." Checked before every Final-Room path below -- the depth-3 descent,
+  // the dead-end, and the reuse of an existing Final Room level -- so none of them can ever fire.
+  // These runs end by climbing out instead (`DungeonState.exitUsed`): Sewers' metal ladder, the
+  // Cave family's flooded Grotto.
+  const hasFinalRoom =
+    state.dungeonTypeKey != null && !TYPES_WITHOUT_FINAL_ROOM.has(state.dungeonTypeKey);
 
   if (isDescent && level.stairwayTarget != null) {
     const targetLevel = level.stairwayTarget;

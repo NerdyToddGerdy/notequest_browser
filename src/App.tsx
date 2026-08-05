@@ -25,7 +25,12 @@ import {
 import { hasAffinity } from "./data/affinity.ts";
 import { resolveStorageTheft } from "./engine/buildings.ts";
 import { BUILDING_TABLE } from "./data/buildings.ts";
-import { DUNGEON_TYPE_BY_TERRAIN, isOverworldTerrain, type Climate } from "./data/hexTables.ts";
+import {
+  DUNGEON_TYPE_BY_TERRAIN,
+  LOCATION_FORCED_DUNGEON_TYPE,
+  isOverworldTerrain,
+  type Climate,
+} from "./data/hexTables.ts";
 /** Issue #99: the Sewers' own `DUNGEON_TYPES` roll number -- the Fortress sub-roll names the type
  * outright, so it bypasses `DUNGEON_TYPE_BY_TERRAIN` entirely. */
 const SEWERS_TYPE_ROLL = 11;
@@ -458,7 +463,17 @@ export default function App() {
             // LOCATION_TABLE never generates today).
             const ruins =
               tile.location === "ruins" ? rollRuinsDungeon(resolvedWorld, tile.terrain) : null;
-            setForcedTypeRoll(ruins?.typeRoll ?? DUNGEON_TYPE_BY_TERRAIN[tile.terrain][rollDie()]!);
+            // Issue #138: a Reef *is* an Underwater Cave and a Volcano *is* a Volcanic Cave -- the
+            // rulebook names the type outright, so neither rolls. Same bypass as the Fortress's
+            // own Sewers sub-roll, and the reason both hexes stopped being read-only flavor.
+            const forcedByLocation = tile.location
+              ? LOCATION_FORCED_DUNGEON_TYPE[tile.location]
+              : undefined;
+            setForcedTypeRoll(
+              forcedByLocation ??
+                ruins?.typeRoll ??
+                DUNGEON_TYPE_BY_TERRAIN[tile.terrain][rollDie()]!,
+            );
             const newRunId = crypto.randomUUID();
             setWorldFreshRunId(newRunId);
             let nextWorld = withDungeonRunId(resolvedWorld, resolvedWorld.player, newRunId);

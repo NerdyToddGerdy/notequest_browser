@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { LOCATION_EFFECTS, LOCATION_EFFECT_NOTES } from "../../data/locationEffects.ts";
-import { RUINS_DUNGEON_TYPE, isRuinsTerrain, LOCATION_TABLE } from "../../data/hexTables.ts";
+import {
+  RUINS_DUNGEON_TYPE,
+  isRuinsTerrain,
+  LOCATION_TABLE,
+  LOCATION_FORCED_DUNGEON_TYPE,
+  locationHasDungeon,
+} from "../../data/hexTables.ts";
 import { DUNGEON_TYPES } from "../../data/dungeonTypes.ts";
 import { fixedDie, mulberry32 } from "../../test/mulberry32.ts";
 import { createInitialWorldState, rollRuinsDungeon, withUniqueDungeonPlaced } from "../hexState.ts";
@@ -63,10 +69,20 @@ describe("which locations have an entry effect", () => {
     expect(effectForLocation("reef")).toEqual({ kind: "reef" });
   });
 
-  it("deliberately excludes Volcano -- its only content is a Volcanic Cave (#30)", () => {
+  it("still excludes Volcano from entry effects -- its content is a dungeon, not a roll", () => {
     expect(effectForLocation("volcano")).toBeNull();
-    // ...but it isn't left silent: the hex says what's there and why you can't enter.
-    expect(LOCATION_EFFECT_NOTES.volcano).toContain("Volcanic Cave");
+    // It used to need a read-only note explaining why you couldn't go in. Issue #138 built the
+    // Volcanic Cave, so the hex leads somewhere instead and the stub is gone.
+    expect(LOCATION_EFFECT_NOTES.volcano).toBeUndefined();
+    expect(LOCATION_FORCED_DUNGEON_TYPE.volcano).toBe(16);
+    expect(locationHasDungeon("volcano")).toBe(true);
+  });
+
+  it("makes a Reef's Underwater Cave enterable, while keeping its own entry roll", () => {
+    // Reef is the one location with both: a 1d6 on arrival *and* a dungeon underneath it.
+    expect(effectForLocation("reef")).toEqual({ kind: "reef" });
+    expect(LOCATION_FORCED_DUNGEON_TYPE.reef).toBe(15);
+    expect(locationHasDungeon("reef")).toBe(true);
   });
 
   it("leaves every location that already had real behavior alone", () => {

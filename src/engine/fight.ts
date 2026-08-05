@@ -96,6 +96,18 @@ export function equippedEffects(fighter: Fighter): ItemEffect[] {
   return effects;
 }
 
+/** Whether Move Silently is unavailable outright. Two unrelated rulebook entries land on the same
+ * effect -- the Dog "doesn't allow you to Move in Silence" (issue #26) and Cave's Cursed "[Armor]
+ * of Laughter" says "Cannot Move Silently" (issue #138) -- so they share one check rather than each
+ * getting a branch, the codebase's usual "two entries, one effect" shape.
+ *
+ * Lives here rather than in the reducer because `RoomEntryPrompt` mirrors it client-side to decide
+ * whether to offer the button at all, and the two must not drift. */
+export function blocksMoveSilently(fighter: Fighter): boolean {
+  if (fighter.animals.includes("Dog")) return true;
+  return equippedEffects(fighter).some((e) => e.kind === "blocksMoveSilently");
+}
+
 const ASSASSIN_FIRST_HIT_MULTIPLIER = 3;
 
 /** `isHorn`: Rinoceroid's horn attack bypasses the equipped weapon entirely, so it skips any
@@ -146,6 +158,13 @@ export function attackBonus(
     matchesTags(monster, ["spider", "scorpion", "wasp"])
   ) {
     bonus += 1;
+  }
+  // Cave's "[Weapon] of the Last Sigh" (issue #138): "+4 damage if you have 1 HP." Read before the
+  // `isHorn` return, unlike the equipped-weapon effects below -- the bonus is conditioned on the
+  // *player's* state rather than the weapon's, so a Rinoceroid goring something on 1 HP gets it too.
+  // Same placement reasoning as Assassin's first-hit multiplier in `attackMultiplier()`.
+  for (const effect of equippedEffects(fighter)) {
+    if (effect.kind === "lastSighBonus" && fighter.hp === 1) bonus += effect.amount;
   }
   if (isHorn) return bonus;
   for (const effect of equippedEffects(fighter)) {

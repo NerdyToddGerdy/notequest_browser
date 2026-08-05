@@ -1,4 +1,5 @@
 import type { DungeonTypeKey } from "./dungeonTypes.ts";
+import type { SpellTableKey } from "./types.ts";
 
 export interface RoomContentEntry {
   text: string;
@@ -15,6 +16,11 @@ export interface RoomContentEntry {
    * `DungeonState.exitUsed` and makes `isDungeonBeaten()` true. The only row in any table that ends
    * a dungeon without a Boss. */
   isExit?: boolean;
+  /** Cave (issue #138): "It's all flooded. Spend 1 torch to get out of this cave." Cave's exit --
+   * unlike Sewers' ladder -- is not free. Gated rather than charged through the usual
+   * `spendTorches()` death path: leaving is the one action where running the counter to zero would
+   * kill a character *for escaping*, so `CLIMB_OUT` refuses below the cost instead. */
+  exitTorchCost?: number;
 }
 
 export type RoomContentReward =
@@ -212,6 +218,20 @@ export type ItemEffect =
    * `trapImmunity` it is not one-shot: the rulebook gives it no use limit, and the provision is the
    * cost that bounds it. */
   | { kind: "rerollEvent" }
+  /** Cave's "[Armor] of Laughter" (issue #138): "Cursed; Cannot Move Silently." Reuses the Dog's
+   * own block (`RESOLVE_ROOM_ENTRY` no-ops the `moveSilently` choice) rather than inventing a
+   * second mechanism -- two rulebook entries, one effect, the usual OR. */
+  | { kind: "blocksMoveSilently" }
+  /** Cave's "Magic Wood Puppet" (issue #138): "Like a Torchbearer." Literally that -- it holds the
+   * torch, so `handsFree()` gains one more source alongside the Lamp, the Torchbearer Hireling and
+   * an active cast of Light. Unlike `lightActive` it does not expire with the next torch: a puppet
+   * is a carried object, not a spell. */
+  | { kind: "freesHands" }
+  /** Cave's "[Weapon] of the Last Sigh" (issue #138): "+4 damage if you have 1 HP." The first
+   * bonus in the game conditioned on the *player's* own state rather than the monster's, which is
+   * why it can't reuse `damageBonusVsTag` -- read in `attackBonus()`, which already holds the
+   * `Fighter`. */
+  | { kind: "lastSighBonus"; amount: number }
   /** The Master key (issue #95): "opens any door in any dungeon." A standing effect, read at the
    * locked-door prompt -- unlike `trapImmunity`, it is never consumed, and unlike an ordinary Key it
    * isn't spent. Closest existing precedent is `doubleChestCoins`: a permanent property of a carried
@@ -258,6 +278,11 @@ export interface MagicItemEntry {
    * before the armor/weapon roll entirely; `grants` is still set (required) but unused when this
    * is present. */
   grantsSpells?: number;
+  /** Cave's "[Weapon] of the Nameless Wizard" (issue #138): "Has an Advanced Magic." Deliberately
+   * *not* `grantsSpells`, which means "this row is a spell grant instead of an item" and is
+   * Basic-only -- reusing it here would have silently thrown the weapon away. This one rides
+   * alongside the item and names its own table, so the player gets both. */
+  alsoGrantsSpells?: { table: SpellTableKey; count: number };
 }
 
 /** Laboratory's Potions column (issue #30). Deliberately not `MagicItemEntry`: a potion is drunk, not
@@ -398,6 +423,12 @@ export function describeItemEffect(effect: ItemEffect): string | null {
       return "Spend 1 provision to reroll a travel Event";
     case "opensAnyLock":
       return "Opens any locked door, without a torch or a key";
+    case "blocksMoveSilently":
+      return "Cursed: you cannot Move Silently";
+    case "freesHands":
+      return "Holds your torch, freeing both hands";
+    case "lastSighBonus":
+      return `+${effect.amount} damage while you are on 1 HP`;
     case "extraHp":
     case "flavor":
       return null;
@@ -510,6 +541,266 @@ export const NECROPOLIS_BOSS_PART3: Record<number, NecropolisBossModifier> = {
   4: { name: "from the Ice", abilities: ["paralyze"] },
   5: { name: "of Ancient Times", hpBonus: 30 },
   6: { name: "Forgotten by the Gods", hpBonus: 40 },
+};
+
+/** The two Cave variants' guardians (issue #138). Each replaces its type's entire 9-12 band, and
+ * beating one yields a Chest -- see `guardianOf()` in `dungeonState.ts`, which matches on these
+ * exact names per the codebase's usual no-taxonomy convention. */
+export const KILLER_OCTOPUS: MonsterTemplate = {
+  name: "Killer Octopus",
+  hp: 50,
+  damage: 5,
+  abilities: ["paralyze"],
+  count: 1,
+};
+export const MAGMA_MONSTER: MonsterTemplate = {
+  name: "Magma Monster",
+  hp: 30,
+  damage: 3,
+  abilities: ["firebreath"],
+  count: 1,
+};
+
+/** Cave's Monsters table (issue #138, rules ~2712-2724), shared by Mine and overridden at rolls
+ * 9-12 by the two Cave variants below. Note its Bats row has no abilities, unlike the shared
+ * `BATS` constant's Poison -- the Cave table prints "1d6 Bats (1 HP; 1 damage)" flat. */
+const CAVE_MONSTERS: Record<number, MonsterTemplate | null> = {
+  2: {
+    name: "Fungomaster",
+    hp: 20,
+    damage: 2,
+    abilities: ["loot", "regeneration"],
+    count: 1,
+  },
+  3: {
+    name: "Fungoid",
+    singularName: "Fungoid",
+    hp: 4,
+    damage: 2,
+    abilities: ["loot", "regeneration"],
+    count: 5,
+  },
+  4: {
+    name: "Fungoid",
+    singularName: "Fungoid",
+    hp: 4,
+    damage: 2,
+    abilities: ["loot", "regeneration"],
+    count: 3,
+  },
+  5: GOBLINS,
+  6: {
+    name: "Bats",
+    singularName: "Bat",
+    hp: 1,
+    damage: 1,
+    abilities: [],
+    count: { dice: 1, sides: 6 },
+  },
+  9: { name: "Brown Bear", hp: 13, damage: 4, abilities: [], count: 1 },
+  10: { name: "Giant Spider", hp: 10, damage: 4, abilities: ["paralyze"], count: 1 },
+  11: {
+    name: "Bandits",
+    singularName: "Bandit",
+    hp: 5,
+    damage: 2,
+    abilities: ["loot"],
+    count: 3,
+  },
+  12: {
+    name: "Giant Spiders",
+    singularName: "Giant Spider",
+    hp: 10,
+    damage: 4,
+    abilities: ["paralyze"],
+    count: 3,
+  },
+};
+
+/** Underwater Cave (issue #138): "if you rolled 9 or more on the Monster table, you have found a
+ * Killer Octopus." That replaces all four of Cave's own 9-12 rows rather than sitting alongside
+ * them, so the variant is expressed as a table override rather than a check in the engine --
+ * `guardianOf()` then knows which kill earns the promised Chest. */
+const UNDERWATER_CAVE_MONSTERS: Record<number, MonsterTemplate | null> = {
+  ...CAVE_MONSTERS,
+  9: KILLER_OCTOPUS,
+  10: KILLER_OCTOPUS,
+  11: KILLER_OCTOPUS,
+  12: KILLER_OCTOPUS,
+};
+
+/** Volcanic Cave (issue #138): the same shape as Underwater Cave, different guardian. */
+const VOLCANIC_CAVE_MONSTERS: Record<number, MonsterTemplate | null> = {
+  ...CAVE_MONSTERS,
+  9: MAGMA_MONSTER,
+  10: MAGMA_MONSTER,
+  11: MAGMA_MONSTER,
+  12: MAGMA_MONSTER,
+};
+
+const CAVE_TABLES: DungeonTypeTables = {
+  trap: {
+    1: { text: "Collapse (10 damage).", damage: 10 },
+    2: { text: "Collapse (9 damage).", damage: 9 },
+    3: { text: "Collapse (8 damage).", damage: 8 },
+    4: { text: "A stalactite hits you (5 damage).", damage: 5 },
+    5: { text: "A tremor, but nothing happens." },
+    6: { text: "A tremor, but nothing happens." },
+  },
+  // Table: Room Content ("Grotto") (2d6). Cave is the only type whose Trap column has no Blade
+  // Trap row -- rock falls all the way down, which is why row 1 is a 10-damage collapse instead.
+  roomContent: {
+    2: {
+      text: "It's all flooded. Spend 1 torch to get out of this cave.",
+      secretPassage: false,
+      isExit: true,
+      exitTorchCost: 1,
+    },
+    3: { text: "A Chest hidden behind some rocks.", secretPassage: false, hasChest: true },
+    4: {
+      text: "A small waterfall falls from the ceiling and descends through the floor towards the tunnel beyond. It may have Secret Passage.",
+      secretPassage: true,
+    },
+    5: {
+      text: "A river runs through this cave, but it is small. It may have Secret Passage.",
+      secretPassage: true,
+    },
+    6: { text: "High ceiling dripping water.", secretPassage: false },
+    7: {
+      text: "Pointed stalagmites in the ceiling. It may have Secret Passage.",
+      secretPassage: true,
+    },
+    8: {
+      text: "A Treasure hidden behind some rocks.",
+      secretPassage: false,
+      reward: { kind: "treasures", count: 1 },
+    },
+    9: {
+      text: "An abandoned camp with a Treasure.",
+      secretPassage: false,
+      reward: { kind: "treasures", count: 1 },
+    },
+    10: { text: "Many rocks on the way.", secretPassage: false },
+    // "A hole in the ground appears to lead to a Wide Tunnel in a new complex below" describes a
+    // descent this row can't build -- levels are created by staircases, and a Cave generates none.
+    // Flavor, the same call the Sewers' trapdoor-to-a-Laboratory row got.
+    11: {
+      text: "A hole in the ground appears to lead to a Wide Tunnel in a new complex below.",
+      secretPassage: false,
+    },
+    12: { text: "A Chest strangely left on a rock.", secretPassage: false, hasChest: true },
+  },
+  monsters: CAVE_MONSTERS,
+  treasure: {
+    1: { text: "[Roll in the 'Weapon' table]", effect: { kind: "rerollColumn", column: "weapon" } },
+    2: HEALTH_POTION,
+    3: MAGIC_SCROLL,
+    4: {
+      text: "Lost jewel (worth 2d6 Coins in the town).",
+      effect: { kind: "heldValueRoll", name: "Lost jewel", dice: 2, sides: 6, multiplier: 1 },
+    },
+    5: {
+      text: "[Roll in the 'Wonders' column]",
+      effect: { kind: "rerollColumn", column: "wonders" },
+    },
+    6: {
+      text: "[Roll in the 'Magic Item' column]",
+      effect: { kind: "rerollColumn", column: "magicItem" },
+    },
+  },
+  weapon: {
+    1: { name: "Club", formula: "1d6-1" },
+    2: { name: "Pickaxe", formula: "1d6" },
+    3: { name: "Cleaver", formula: "1d6" },
+    4: { name: "Rapier", formula: "1d6+1" },
+    5: { name: "Mace", formula: "1d6+1" },
+    6: { name: "Heavy Ax", formula: "1d6+2", twoHanded: true },
+  },
+  wonders: {
+    1: {
+      name: "Fragrant Mushroom",
+      text: "Fragrant Mushroom (Eat and recover 2 HP).",
+      effect: { kind: "healAmount", amount: 2 },
+    },
+    // "Same as 3 provisions" has no in-dungeon meaning -- provisions are a World-map resource and
+    // aren't tracked inside a run, the same reason Fungoid's provision-heal stays flavor.
+    2: {
+      name: "Special moldy bread",
+      text: "Special moldy bread (Same as 3 provisions).",
+      effect: { kind: "flavor" },
+    },
+    3: {
+      name: "Goblin Whistle",
+      text: "Goblin Whistle (Goblins flee on hearing).",
+      effect: { kind: "flavor" },
+    },
+    4: {
+      name: "Master key",
+      text: "Master key (Open any door).",
+      effect: { kind: "opensAnyLock" },
+    },
+    5: {
+      name: "Rusty Glaive",
+      text: "Rusty Glaive (Two-handed; 1d6+3 Damage).",
+      grantsWeapon: { name: "Rusty Glaive", formula: "1d6+3", twoHanded: true },
+      effect: { kind: "flavor" },
+    },
+    // "Spend and flee a battle" needs a consumable that ends a fight; Teleport is the only escape
+    // this codebase models and it needs a destination segment. Flavor until a flee action exists.
+    6: {
+      name: "Escape Dust",
+      text: "Escape Dust (Spend and flee a battle).",
+      effect: { kind: "flavor" },
+    },
+  },
+  magicItem: {
+    // The game's second and third Cursed items, after the Sewers' pair. "Cannot Move Silently" is
+    // real -- it reuses the Dog's own block. "Reroll the '6'" still needs an attack-reroll hook
+    // that doesn't exist, so it stays flavor exactly as the Sewers' Ring of Bad Luck does.
+    1: {
+      name: "[Armor] of Laughter",
+      text: "[Armor] of Laughter (Cursed; Cannot Move Silently).",
+      grants: "armor",
+      effect: { kind: "blocksMoveSilently" },
+    },
+    2: {
+      name: "[Armor] of bad luck",
+      text: "[Armor] of bad luck (Cursed; Reroll the '6' on attacks).",
+      grants: "armor",
+      effect: { kind: "flavor" },
+    },
+    // "Like a Torchbearer" is a real ability now that #100 gave the Torchbearer one: it holds the
+    // torch, freeing both hands for a two-handed weapon.
+    3: {
+      name: "Magic Wood Puppet",
+      text: "Magic Wood Puppet (Like a Torchbearer).",
+      grants: "armor",
+      fixedArmor: { piece: "wonderItem", maxHp: 0 },
+      effect: { kind: "freesHands" },
+    },
+    // "Can move in water" duplicates `hasWaterWalk()`, which is a World-map ability -- and a Magic
+    // Item found in a dungeon lands on `DungeonState`, which the hex reducer never sees. Flavor.
+    4: {
+      name: "Folding Boat",
+      text: "Folding Boat (can move in water).",
+      grants: "armor",
+      fixedArmor: { piece: "wonderItem", maxHp: 0 },
+      effect: { kind: "flavor" },
+    },
+    5: {
+      name: "[Weapon] of the Nameless Wizard",
+      text: "[Weapon] of the Nameless Wizard (Has an Advanced Magic).",
+      grants: "weapon",
+      alsoGrantsSpells: { table: "advanced", count: 1 },
+      effect: { kind: "flavor" },
+    },
+    6: {
+      name: "[Weapon] of the Last Sigh",
+      text: "[Weapon] of the Last Sigh (+4 damage if you have 1 HP).",
+      grants: "weapon",
+      effect: { kind: "lastSighBonus", amount: 4 },
+    },
+  },
 };
 
 export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
@@ -2779,5 +3070,23 @@ export const DUNGEON_TABLES: Record<DungeonTypeKey, DungeonTypeTables> = {
         count: 1,
       },
     },
+  },
+
+  /** Cave (issue #138, rules ~2654-2772). The second type with **no Boss and no Final Room** --
+   * `boss` is omitted, and a run is finished by Room Content 2's flooded Grotto (`isExit`, plus an
+   * `exitTorchCost` Sewers' free ladder didn't have).
+   *
+   * Its printed Armor table is byte-for-byte the shared `ARMOR_TABLE`, so there's no deviation to
+   * document. Mine/Underwater Cave/Volcanic Cave reuse everything here except where their own
+   * Special Rule says otherwise -- see `CAVE_VARIANT_TABLES` below. */
+  cave: CAVE_TABLES,
+  mine: { ...CAVE_TABLES },
+  underwaterCave: {
+    ...CAVE_TABLES,
+    monsters: UNDERWATER_CAVE_MONSTERS,
+  },
+  volcanicCave: {
+    ...CAVE_TABLES,
+    monsters: VOLCANIC_CAVE_MONSTERS,
   },
 };

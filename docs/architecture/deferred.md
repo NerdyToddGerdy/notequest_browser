@@ -10,9 +10,9 @@ Collected so they aren't re-discovered as bugs. Each is a deliberate call, not a
 
 ## Unbuilt dungeon types
 
-**Mine and Cave** (plus their Underwater Cave / Volcanic Cave variants) are the remaining unbuilt types of the rulebook's set. `DUNGEON_TYPE_BY_TERRAIN` and the Ruins 2d6 table substitute thematically where they'd be rolled — usually Sewers, since both are tunnel complexes.
+**Entrails and the Mega Dungeon** are the two remaining unbuilt types (#139, #140). Entrails needs Segment structures the engine doesn't model (Organs); the Mega Dungeon needs a Faction-reskin concept that exists nowhere. Ten of twelve are built.
 
-**Volcano is deliberately absent** from `LOCATION_EFFECTS`: its entire rulebook content is "Has a Volcanic Cave." Substituting some other dungeon would be a worse lie than saying so, so `LOCATION_EFFECT_NOTES` gives it a read-only `HexInspector` line instead — the hex explains what's there and why you can't enter. Same for Reef's `foundUnbuiltCave` flag.
+**`LOCATION_EFFECT_NOTES` is now empty**, and that is the point: it existed to explain a hex whose only content was an unbuilt dungeon. Issue #138 built the Cave family, so Volcano and Reef both lead into real dungeons via `LOCATION_FORCED_DUNGEON_TYPE`. The map is kept rather than deleted — it is the established shape for exactly that situation.
 
 **Unique dungeons** are tracked by the notional rulebook type (`UniqueDungeonKey`), **not** by the substitute currently built for them. Plains 12 (Entrails) and Plains 10-11 (Pyramid) share a `typeRoll`, so attaching the rule to the substitute would silently lock Pyramid out of the entire world. There's a test asserting this.
 
@@ -52,11 +52,11 @@ A fourth, non-canonical race table this project deliberately doesn't offer. Abil
 
 No rulebook price data exists for gear, so these are this project's own:
 
-| Thing | Formula | Basis |
-| --- | --- | --- |
-| Armor | `Math.max(1, piece.maxHp)` | The basis #83 already used when an Ogre sells a piece it can't wear |
-| Armor, with Collector | `Math.max(5, base)` | Floors rather than replaces, so no double-count on a Breastplate already worth 10 |
-| Weapons | `3 + modifier`, floored at 1 | Derived from the one number the rulebook gives a weapon — its damage formula |
+| Thing                 | Formula                      | Basis                                                                             |
+| --------------------- | ---------------------------- | --------------------------------------------------------------------------------- |
+| Armor                 | `Math.max(1, piece.maxHp)`   | The basis #83 already used when an Ogre sells a piece it can't wear               |
+| Armor, with Collector | `Math.max(5, base)`          | Floors rather than replaces, so no double-count on a Breastplate already worth 10 |
+| Weapons               | `3 + modifier`, floored at 1 | Derived from the one number the rulebook gives a weapon — its damage formula      |
 
 Fortress and Merchant multipliers stack to 4x and share one `sellMultiplier()` so a gear sale and a Pack sale can't drift apart.
 
@@ -64,20 +64,20 @@ Fortress and Merchant multipliers stack to 4x and share one `sellMultiplier()` s
 
 ### Combat and monsters
 
-- **Ability-conditioned weapon bonuses** (e.g. "+3 damage against Firebreath creatures") are flavor-only, since `damageBonusVsTag` matches monster *names*, not abilities.
+- **Ability-conditioned weapon bonuses** (e.g. "+3 damage against Firebreath creatures") are flavor-only, since `damageBonusVsTag` matches monster _names_, not abilities.
 - **Pyramid's Boss row** ("Eternal Queen and her 10 Mummified Soldiers") simplifies to just the Queen — the single-`MonsterTemplate` Boss architecture can't represent two distinct monster types in one Boss fight.
 - **The Dracolich's "D8"** is flattened to 4; every `MonsterTemplate` carries a flat `damage`.
-- **Snake's "Attack deals Poison"** is read as an ordinary flat hit. Poison's rulebook significance is specifically about bypassing the *player's* armor, which is meaningless when an animal is attacking a monster.
+- **Snake's "Attack deals Poison"** is read as an ordinary flat hit. Poison's rulebook significance is specifically about bypassing the _player's_ armor, which is meaningless when an animal is attacking a monster.
 - **The Arena** has no Hireling concept at all, and no armor absorption, spells or equipped-weapon bonus effect — you choose to enter.
 - **Loot has two rulebook definitions.** The Events section's footnote says "1d6-1 coins"; the Monster Abilities table's canonical row (rules 239) is the 6/5/else split `rollLoot()` implements. One definition beats two, so the canonical one wins.
 
 ### Dungeon rooms
 
-- **Sewers Room Content 2's** "spend 1 torch to leave the room" is flavor — nothing models *leaving* a room as a costed action.
+- **Sewers Room Content 2's** "spend 1 torch to leave the room" is flavor — nothing models _leaving_ a room as a costed action.
 - **Sewers Room Content 5's** 8-crate investigation loop is flavor — no UI drives a per-crate sub-roll.
 - **Sewers Room Content 11's** trapdoor to a Laboratory is flavor — the type exists, but nothing models a trapdoor between two runs.
 - **Laboratory Room Content 9's** "if you drink, roll on the Potion table" is flavor — an optional action with a sub-roll and no UI to drive it.
-- **The Ring of Bad Luck's** "reroll the 6" needs an attack-reroll hook that doesn't exist. (Tetanus Armor's "-2 HP" *is* real as `extraHp: -2` — these are the game's first negative rewards.)
+- **The Ring of Bad Luck's** "reroll the 6" needs an attack-reroll hook that doesn't exist. (Tetanus Armor's "-2 HP" _is_ real as `extraHp: -2` — these are the game's first negative rewards.)
 - **The Zombie Potion's** "returns with 1 HP max" is flavor, since the Mutation table's own zombie row is the reachable one and two subtly different revive rules would be worse than one.
 - **The Distant Place Potion and Purification Potion** have no reachable hook (the Portal picker and a "cursed" item state, respectively).
 - **The Laboratory's Leather Breastplate** "load up to 3 potions" has no per-item potion cap to enforce.
@@ -86,7 +86,7 @@ Fortress and Merchant multipliers stack to 4x and share one `sellMultiplier()` s
 ### World
 
 - **Roll 14's cloud city** (the Slimemen's) is mechanically the ordinary destination picker with different framing — no cloud-city hex is modeled.
-- **Underworld's "spend 1 provision to wait for the fog to dissipate"** is what makes Dense Fog *conditionally* impassable, unlike Rocks.
+- **Underworld's "spend 1 provision to wait for the fog to dissipate"** is what makes Dense Fog _conditionally_ impassable, unlike Rocks.
 - **The ancient soul's** "resurrect when he returns to the world of the living" pays out immediately as a full heal + 50 coins — there's no NPC-follower concept to carry.
 - **Candy World's Treasure table** prints only rows 2-6, so 7+ grants nothing, matching every other 7+ row rather than inventing five rewards.
 - **Horse** is approximated as a flat 1-provision Plains cost, not the rulebook's every-other-hex-free.

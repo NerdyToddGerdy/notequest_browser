@@ -36,7 +36,7 @@ Screens live in `src/ui/screens/<ScreenName>/`, one file + one CSS Module each.
 
 **Advanced Classes list there too.** The sheet showed only the starting Class, so a character could own a dozen bought Advanced Classes — each paid for with coins and a requirement, several granting real combat abilities — with nothing anywhere listing them. `advancedClasses?: string[]` renders **one `<li>` per class**, not a joined line like `animals`/`mutations`, because each carries ability text worth reading exactly as the base Class does.
 
-A `"None."` ability renders as *"No ability."* rather than being hidden — Race/Class can omit themselves silently since you always have exactly one, but **a class you paid for vanishing would read as a bug**. `hasImplementedAbility()` adds a muted "(flavor only)" note, mirroring the purchase list's own chip.
+A `"None."` ability renders as _"No ability."_ rather than being hidden — Race/Class can omit themselves silently since you always have exactly one, but **a class you paid for vanishing would read as a bug**. `hasImplementedAbility()` adds a muted "(flavor only)" note, mirroring the purchase list's own chip.
 
 Stat buttons: "Kills" and "Curiosities" are `<button>`s opening `TallyModal` (dismiss-only, sorted highest-first). Curiosities is hidden at 0 — most characters never find one.
 
@@ -60,7 +60,7 @@ World, Town and Dungeon share one grid: title over the left column, main view be
 
 **The main column is a sheet of paper.** `global.css`'s `.screen-sheet` (shared, not per-module) gives it the parchment surface, double inset border, ruled lines, and two rotated pseudo-element copies behind it for the stacked-paper edges. It wraps the **left column only** — the sidebar sits beside it on the dark "table".
 
-**`overflow: visible` is load-bearing** on the sheet, because those rotated pseudo-elements are outside its box and any clipping ancestor erases the stack. The cost is that **every ancestor between the sheet and its scroll region needs an explicit `min-height: 0`** — without it, content spills *over* the footer and makes the Settings button unclickable, which is exactly how this broke twice during the build (`TownScreen`'s `.sheet` and its `.page` padding).
+**`overflow: visible` is load-bearing** on the sheet, because those rotated pseudo-elements are outside its box and any clipping ancestor erases the stack. The cost is that **every ancestor between the sheet and its scroll region needs an explicit `min-height: 0`** — without it, content spills _over_ the footer and makes the Settings button unclickable, which is exactly how this broke twice during the build (`TownScreen`'s `.sheet` and its `.page` padding).
 
 ## Theme
 
@@ -101,7 +101,7 @@ UI: the shared `Footer` component, replacing 4 near-identical inline footers —
 ## React gotchas that bit this codebase
 
 - **The dungeon reducer takes an extra `rng` parameter**, so it can't be passed directly to `useReducer` — `DungeonScreen.tsx` wraps it in a 2-arg `reduceDungeon`.
-- **`StrictMode` runs effect cleanups once on mount.** `DungeonScreen`'s unmount cleanup guard (`stateRef.current.levels.length > 0`) is load-bearing beyond "don't save an empty run" — hanging any other side effect off it fires against the *initial* state on the way in. See [world.md](world.md)'s stamp/desync note.
+- **`StrictMode` runs effect cleanups once on mount.** `DungeonScreen`'s unmount cleanup guard (`stateRef.current.levels.length > 0`) is load-bearing beyond "don't save an empty run" — hanging any other side effect off it fires against the _initial_ state on the way in. See [world.md](world.md)'s stamp/desync note.
 - **`react-hooks/set-state-in-effect`**: apply outcomes in event handlers, not mount effects. The Portal panel's reveal-then-apply split exists precisely for this.
 - **`react-hooks/rules-of-hooks` treats any `use`-prefixed function as a hook.** Plain engine functions are named `drinkConsumable()`, `resolveForgottenGods()` for exactly this reason.
 - **`useZoomGesture` re-runs its attach effect on every render** (not gated on `[ref]`) since `WorldScreen`'s `<svg>` doesn't exist until the map view first appears.

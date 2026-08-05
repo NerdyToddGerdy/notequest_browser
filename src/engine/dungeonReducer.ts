@@ -2,7 +2,6 @@ import { produce, type Draft } from "immer";
 import {
   composeDungeonName,
   DUNGEON_TYPES,
-  isHiddenChestResult,
   OPEN_DOOR_TABLE,
   SECRET_PASSAGE_TABLE,
   SECRET_PASSAGE_TABLE_BY_TYPE,
@@ -28,7 +27,7 @@ import { SPELL_TABLE } from "../data/spells.ts";
 import { buildingTaxTotal } from "../data/buildings.ts";
 import { HIRELING_BY_NAME } from "../data/hirelings.ts";
 import { ANIMAL_BY_NAME } from "../data/animals.ts";
-import { SPELL_TABLE_BY_KEY, parseSpellKey, spellKey } from "./character.ts";
+import { SPELL_TABLE_BY_KEY, parseSpellKey, rollSpellFromTable, spellKey } from "./character.ts";
 import {
   boxFromCenter,
   buildConnector,
@@ -54,6 +53,7 @@ import {
   ignoredAbilities as fightIgnoredAbilities,
   ignoresAbility as fightIgnoresAbility,
   equippedEffects,
+  blocksMoveSilently,
   resolveDamageChoice,
   trySurviveDeath,
   type FightLog,
@@ -89,6 +89,8 @@ import {
   type HeldItem,
   type LevelState,
   type SegmentState,
+  guardianOf,
+  segmentHasChest,
 } from "./dungeonState.ts";
 import { MUTATION_IDS } from "../data/mutations.ts";
 import { rollMutationEntry } from "./mutations.ts";
@@ -301,6 +303,10 @@ function startCombat(
     alertedSeg.alerted = false;
   }
 
+  // Underwater/Volcanic Cave (issue #138): recorded when the fight *starts*, because by the time
+  // `finishIfVictorious()` runs `combat.monsters` is empty and there is nothing left to match on.
+  const guardianChest = guardianOf(draft.dungeonTypeKey) === template.name;
+
   const monsters: CombatMonsterState[] = spawnMonsters(
     template,
     () => {
@@ -338,6 +344,7 @@ function startCombat(
       : null,
     hirelingAttackedThisRound: false,
     animalAttackedThisRound: false,
+    guardianChest,
   };
   pushLog(
     draft,
@@ -734,6 +741,11 @@ function finishIfVictorious(
   const level = draft.levels[draft.activeLevel];
   const seg = level?.segments.find((s) => s.id === combat.segId);
   if (seg) seg.monstersDefeated = true;
+
+  // Underwater/Volcanic Cave (issue #138): "If you defeat him you find a Chest." Flagged on the
+  // segment rather than credited directly, because the reward is a *chest* -- the player still has
+  // to open it, and it rolls on the same two-dice coins/Treasures split every other chest does.
+  if (seg && combat.guardianChest) seg.guardianChest = true;
 
   // Absorb Soul/Fire of the Dead (New Spells, issue #61): deferred-to-victory triggers, off the
   // same "monsters actually killed this fight" count Slimemen's engulfableBodies already tracks --
@@ -1249,6 +1261,23 @@ function applyMutationToDungeon(draft: Draft<DungeonState>, rng: RNG): void {
  * the piece's HP if it's `extraHp`, or attached as `effect` for anything else the piece grants;
  * a weapon bonus always rides along as `bonusEffect`, applied during combat). */
 function resolveMagicItem(draft: Draft<DungeonState>, entry: MagicItemEntry, rng: RNG): void {
+  // Cave's "[Weapon] of the Nameless Wizard" (issue #138): "Has an Advanced Magic." Unlike
+  // `grantsSpells` below -- which *replaces* the item -- this rides alongside it, so it's applied
+  // up front and the normal armor/weapon path still runs. Rolled from the entry's own named table,
+  // since the point of the item is that the magic is Advanced.
+  if (entry.alsoGrantsSpells) {
+    const { table, count } = entry.alsoGrantsSpells;
+    const names: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const { entry: spell } = rollSpellFromTable(table, rng);
+      const key = spellKey(spell.table, spell.roll);
+      draft.spellUses[key] = (draft.spellUses[key] ?? 0) + 1;
+      draft.maxSpellUses[key] = (draft.maxSpellUses[key] ?? 0) + 1;
+      names.push(spell.name);
+    }
+    draft.milestones.hasCastSpell = true; // Scholar (issue #70): "used a spell or scroll"
+    pushLog(draft, `It carries magic: ${names.join(", ")}.`);
+  }
   if (entry.grantsSpells) {
     // Necropolis's "Fool's Potion" (issue #30): "Learn 3 Random Basic Spells" -- no physical item
     // at all, so this short-circuits before the armor/weapon roll entirely. Ogre's restriction
@@ -1605,9 +1634,7 @@ export function dungeonReducer(
         const level = draft.levels[draft.activeLevel];
         const seg = level?.segments.find((s) => s.id === action.segId);
         if (!seg || seg.chestOpened) return;
-        const chestAvailable =
-          !!seg.roomContent?.hasChest || isHiddenChestResult(seg.secretPassageResult);
-        if (!chestAvailable) return;
+        if (!segmentHasChest(seg)) return;
 
         seg.chestOpened = true;
         const [a, b] = action.dice;
@@ -2166,13 +2193,28 @@ export function dungeonReducer(
       if (action.segId !== state.currentSegId) return state;
       const seg = state.levels[state.activeLevel]?.segments.find((sg) => sg.id === action.segId);
       if (!seg?.roomContent?.isExit) return state;
+      // Cave (issue #138): "Spend 1 torch to get out of this cave." Gated on *having* the torch
+      // rather than routed through `spendTorches()`'s death path -- every other torch cost can
+      // fairly kill you, but dying of darkness at the moment you escape is the one case where that
+      // reads as a bug rather than a risk. `RoomInspector` disables the button on the same check.
+      const exitCost = seg.roomContent.exitTorchCost ?? 0;
+      if (state.torches < exitCost) return state;
       return produce(state, (draft) => {
+        if (exitCost > 0) {
+          spendTorches(draft, exitCost, "You spend a torch forcing your way out.", null, rng);
+        }
         draft.exitUsed = true;
         // Janitor (issue #62): "Killed all creatures from a Sewer." Getting out is what counts as
         // having done the place -- see the milestone's own note for why "all creatures" can't be
         // taken literally against a lazily-generated map.
         if (draft.dungeonTypeKey === "sewers") draft.milestones.clearedASewer = true;
-        pushLog(draft, "You climb the ladder and haul yourself up into the daylight.", "descend");
+        pushLog(
+          draft,
+          exitCost > 0
+            ? "You wade out through the flooded grotto and back into open air."
+            : "You climb the ladder and haul yourself up into the daylight.",
+          "descend",
+        );
       });
     }
 
@@ -2191,7 +2233,9 @@ export function dungeonReducer(
 
         // Dog (issue #26): "In the dungeon, it doesn't allow you to Move in Silence." The reducer
         // is the actual authority (RoomEntryPrompt.tsx mirrors this by not offering the button).
-        if (draft.animals.includes("Dog")) return;
+        // Cave's "[Armor] of Laughter" (issue #138) is Cursed with the identical effect, so it ORs
+        // in here rather than getting a second mechanism -- two entries, one block.
+        if (blocksMoveSilently(draft)) return;
 
         // Move Silently: "Spend 1 torch and roll a die for each monster inside the room; if any
         // die results in a 1, the monsters see you and attack first." The room's monster count can
@@ -2600,6 +2644,48 @@ export function dungeonReducer(
         combat.hireling = null;
         draft.hireling = null;
         draft.hirelingHp = null;
+        finishIfVictorious(draft, combat, rng);
+      });
+    }
+
+    case "RIDE_CART": {
+      // Mine (issue #138): "a railroad going down the entire Wide Tunnel... an attack of 1d6+3
+      // damage to any monsters in the way." Gated on being in a *wide* tunnel -- the rail only runs
+      // there, so a Grotto or a narrow tunnel has no cart to ride. Free and doesn't end the round,
+      // the same shape as HIRELING_EXPLODE and the Snake's own attack; capped at one ride per fight
+      // by `cartUsed`, which is how "stop the cart if the monster hasn't died" is expressed.
+      if (
+        !state.alive ||
+        !state.combat ||
+        state.combat.outcome !== "ongoing" ||
+        state.combat.pendingDamage !== null ||
+        state.combat.cartUsed ||
+        state.dungeonTypeKey !== "mine"
+      ) {
+        return state;
+      }
+      const cartSeg = state.levels[state.activeLevel]?.segments.find(
+        (s) => s.id === state.combat!.segId,
+      );
+      if (cartSeg?.type !== "tunnel") return state;
+      return produce(state, (draft) => {
+        const combat = draft.combat;
+        if (!combat) return;
+        combat.cartUsed = true;
+        const damage = Math.max(0, action.roll + 3);
+        pushLog(draft, `You kick the ore cart loose and ride it down the rail (${damage} damage).`);
+        // Snapshot the list: handleMonsterDefeat filters combat.monsters as it goes. Same
+        // fixed-damage, defenses-still-apply shape Fireball and the Goblin Helper already use.
+        for (const monster of [...combat.monsters]) {
+          const result = resolveSpellDamage(monster, damage);
+          monster.hp = Math.max(0, monster.hp - result.damageDealt);
+          if (result.blocked) {
+            pushLog(draft, `${monster.name} is unharmed (${result.blocked}).`);
+          } else if (result.damageDealt > 0) {
+            pushLog(draft, `${monster.name} takes ${result.damageDealt} damage.`);
+          }
+          handleMonsterDefeat(draft, combat, monster, rng);
+        }
         finishIfVictorious(draft, combat, rng);
       });
     }

@@ -64,6 +64,10 @@ export interface CombatPanelProps {
   /** Issue #63: Goblin Helper's own "explode, dealing 5 damage to every monster" -- a one-time,
    * room-wide, free action that self-destructs the Hireling. */
   onHirelingExplode?: () => void;
+  /** Mine (issue #138): ride the ore cart down the rail. Optional and dungeon-only, like the other
+   * three above -- a wilderness Event has no tunnel to ride through. `DungeonScreen` passes it only
+   * when the fight is actually in a wide tunnel of a Mine, so the button's existence is the gate. */
+  onRideCart?: () => void;
   /** Snake's own attack -- a free action that doesn't end the round, same shape as
    * `onHirelingAttack` but with no die to roll (Snake's damage is a flat 1, not a formula). */
   onAnimalAttack?: (targetId: number) => void;
@@ -133,6 +137,7 @@ export function CombatPanel({
   onEngulfBody,
   onHirelingAttack,
   onHirelingExplode,
+  onRideCart,
   onAnimalAttack,
 }: CombatPanelProps) {
   const [dieValue, setDieValue] = useState(1);
@@ -176,6 +181,10 @@ export function CombatPanel({
     hp > 0 &&
     combat.hireling?.name === "Goblin Helper" &&
     combat.hireling.hp > 0;
+  // Mine's ore cart (issue #138): free, doesn't end the round, once per fight. Not gated on
+  // `paralyzed` -- you are letting a cart roll downhill, not swinging a weapon.
+  const canRideCart =
+    !rolling && !awaitingDamageChoice && !hasPendingPackItem && hp > 0 && !combat.cartUsed;
   // Snake (Animals, issue #26/#29/#67): deliberately not gated on `paralyzed`, same reasoning as
   // hirelingCanAct -- and no weaponFormula/HP-of-its-own check, since a Snake can't be harmed or
   // lost, only ever a bonus attack.
@@ -425,6 +434,20 @@ export function CombatPanel({
             onClick={onHirelingExplode}
           >
             Goblin Helper Explodes
+          </button>
+        </div>
+      )}
+
+      {onRideCart && !combat.cartUsed && (
+        <div className={styles.spellRow}>
+          <button
+            type="button"
+            className={styles.spellBtn}
+            disabled={!canRideCart}
+            title="Ride the ore cart down the rail: 1d6+3 damage to every monster in the way. One run per fight."
+            onClick={onRideCart}
+          >
+            Ride the Ore Cart
           </button>
         </div>
       )}

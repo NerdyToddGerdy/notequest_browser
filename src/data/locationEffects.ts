@@ -27,9 +27,12 @@ export const LOCATION_EFFECTS: Partial<Record<LocationKind, LocationEffect>> = {
   reef: { kind: "reef" },
 };
 
-/** Read-only flavor for a location whose only rulebook content is a dungeon type #30 hasn't built.
+/** Read-only flavor for a location whose only rulebook content is a dungeon type that isn't built.
  * Shown in `HexInspector` so the hex isn't silently empty -- the player is told what's there and why
- * they can't go in, rather than the label just sitting inert with no explanation. */
-export const LOCATION_EFFECT_NOTES: Partial<Record<LocationKind, string>> = {
-  volcano: "A Volcanic Cave opens somewhere in the crater — but no way down has been found yet.",
-};
+ * they can't go in, rather than the label just sitting inert with no explanation.
+ *
+ * **Empty as of issue #138**, which built the Volcanic Cave and the Underwater Cave: Volcano and
+ * Reef both lead into a real dungeon now (see `LOCATION_FORCED_DUNGEON_TYPE`). Kept rather than
+ * deleted because it is the established shape for exactly this situation, and Mine/Cave-adjacent
+ * content may still need it. */
+export const LOCATION_EFFECT_NOTES: Partial<Record<LocationKind, string>> = {};

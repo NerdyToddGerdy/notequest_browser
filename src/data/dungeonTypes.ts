@@ -15,7 +15,33 @@ export type DungeonTypeKey =
   | "ziggurat"
   | "necropolis"
   | "sewers"
-  | "laboratory";
+  | "laboratory"
+  /** Cave and its three sub-variants (issue #138). Mine/Underwater Cave/Volcanic Cave are each Cave
+   * with a single Special Rule layered on top, so they share its Segments/Trap/Room Content tables
+   * and differ only where `DUNGEON_TABLES` says they do. */
+  | "cave"
+  | "mine"
+  | "underwaterCave"
+  | "volcanicCave";
+
+/** The Cave family (issue #138) -- every type that reuses Cave's tables and its wide/narrow Tunnel
+ * structure. Membership is what drives the shared behaviour (no Final Room, the Grotto rules), so
+ * new sub-variants only have to be added here. */
+export const CAVE_FAMILY: ReadonlySet<DungeonTypeKey> = new Set<DungeonTypeKey>([
+  "cave",
+  "mine",
+  "underwaterCave",
+  "volcanicCave",
+]);
+
+/** Types finished by climbing out rather than by clearing a Final Room (issue #30/#138) -- Sewers'
+ * metal ladder and the Cave family's flooded Grotto. `classifyDoorOpen()` gates all three
+ * Final-Room paths on this, and `isDungeonBeaten()` accepts `exitUsed` in place of a cleared Final
+ * Room, so nothing else needs to know these types exist. */
+export const TYPES_WITHOUT_FINAL_ROOM: ReadonlySet<DungeonTypeKey> = new Set<DungeonTypeKey>([
+  "sewers",
+  ...CAVE_FAMILY,
+]);
 
 export type SegmentType =
   | "corridor"
@@ -33,6 +59,14 @@ export type SegmentType =
    * That last clause is why it isn't just a reskinned corridor -- a corridor rolls neither, a room
    * rolls both, and a tunnel sits between them. */
   | "tunnel"
+  /** Cave (issue #138): "There are two types of Tunnels (narrow and wide)." Sewers' two tunnel
+   * columns are a *direction* axis (following it vs. opening off it); Cave's are a *width* axis,
+   * where both are following. So width has to live on the segment rather than on the door, and
+   * plain `"tunnel"` is the wide one -- which keeps Sewers, the only other tunnel type, unchanged.
+   *
+   * A narrow tunnel is the emptiest segment in the game: "Narrow Tunnels have nothing," so unlike a
+   * wide tunnel (Monsters but not Content) it rolls neither. */
+  | "tunnel-narrow"
   | "final";
 
 export type DoorRollOutcome = "trap" | "locked" | "unlocked";
@@ -70,6 +104,14 @@ export interface SegmentsRow {
    * from that. Only Sewers sets these. */
   tunnelForward?: SegmentsColumnResult;
   tunnelSide?: SegmentsColumnResult;
+  /** Cave (issue #138): the "Following a Narrow Tunnel" column. Consulted whenever the source
+   * segment is a `"tunnel-narrow"`, regardless of which of its doors was opened -- width is a
+   * property of the tunnel you are in, not of the door you chose, which is exactly how it differs
+   * from Sewers' `tunnelForward`/`tunnelSide` pair.
+   *
+   * The Cave family deliberately leaves `tunnelSide` unset: both doors of a *wide* tunnel carry on
+   * along it, so `rollSegment()` falls back to `tunnelForward` for either. */
+  tunnelNarrow?: SegmentsColumnResult;
 }
 
 export interface DungeonTypeDef {
@@ -344,6 +386,92 @@ const SEWERS_SECRET_PASSAGE: Record<number, string> = {
   6: "There is a hidden door here.",
 };
 
+/** Cave (issue #138, rules ~2660-2672). Two columns, both of them "following" -- a *width* axis,
+ * where Sewers' pair is a *direction* axis. `tunnelForward` holds "Following a Wide Tunnel";
+ * `tunnelNarrow` holds "Following a Narrow Tunnel".
+ *
+ * `tunnelSide` is deliberately unset. In Sewers a tunnel's side door opens into a room, so the two
+ * columns genuinely differ; in a Cave every door of a wide tunnel carries the cave onward, so
+ * `rollSegment()` falls back to `tunnelForward` for whichever door is opened. Rows 2 and 3's "there
+ * is a narrow tunnel on the side" is carried as text rather than as a second column -- the way into
+ * a narrow tunnel that the engine actually models is row 1, "the tunnel narrows."
+ *
+ * `staircase`/`corridor`/`room` are filled with the wide-tunnel result purely so the row stays a
+ * complete `SegmentsRow`: a Cave generates none of those three, so none is ever consulted. */
+const CAVE_SEGMENTS: Record<number, SegmentsRow> = {
+  1: {
+    tunnelForward: { type: "tunnel-narrow", doors: 1, text: "The tunnel narrows." },
+    tunnelNarrow: { type: "room-small", doors: 0, text: "It ends up in a small Grotto." },
+    staircase: { type: "tunnel-narrow", doors: 1, text: "The tunnel narrows." },
+    corridor: { type: "tunnel-narrow", doors: 1, text: "The tunnel narrows." },
+    room: { type: "tunnel-narrow", doors: 1, text: "The tunnel narrows." },
+  },
+  2: {
+    tunnelForward: {
+      type: "tunnel",
+      doors: 2,
+      text: "Wide tunnel follows. There is a narrow tunnel on the side.",
+    },
+    tunnelNarrow: { type: "room-medium", doors: 0, text: "It ends up in a big Grotto." },
+    staircase: { type: "tunnel", doors: 2, text: "Wide tunnel follows." },
+    corridor: { type: "tunnel", doors: 2, text: "Wide tunnel follows." },
+    room: { type: "tunnel", doors: 2, text: "Wide tunnel follows." },
+  },
+  3: {
+    tunnelForward: {
+      type: "tunnel",
+      doors: 2,
+      text: "Wide tunnel follows. There is a narrow tunnel on the side.",
+    },
+    tunnelNarrow: {
+      type: "room-small",
+      doors: 1,
+      text: "A small Grotto. Narrow tunnel goes on.",
+    },
+    staircase: { type: "tunnel", doors: 2, text: "Wide tunnel follows." },
+    corridor: { type: "tunnel", doors: 2, text: "Wide tunnel follows." },
+    room: { type: "tunnel", doors: 2, text: "Wide tunnel follows." },
+  },
+  4: {
+    tunnelForward: {
+      type: "room-medium",
+      doors: 1,
+      text: "A big Grotto. Wide tunnel goes forward.",
+      flavor: "The walls open out; stalactites hang far overhead.",
+    },
+    tunnelNarrow: { type: "room-medium", doors: 1, text: "A big Grotto. Narrow tunnel goes on." },
+    staircase: { type: "room-medium", doors: 1, text: "A big Grotto." },
+    corridor: { type: "room-medium", doors: 1, text: "A big Grotto." },
+    room: { type: "room-medium", doors: 1, text: "A big Grotto." },
+  },
+  5: {
+    tunnelForward: { type: "tunnel", doors: 1, text: "Wide tunnel goes forward." },
+    tunnelNarrow: { type: "tunnel-narrow", doors: 1, text: "Narrow tunnel goes on." },
+    staircase: { type: "tunnel", doors: 1, text: "Wide tunnel goes forward." },
+    corridor: { type: "tunnel", doors: 1, text: "Wide tunnel goes forward." },
+    room: { type: "tunnel", doors: 1, text: "Wide tunnel goes forward." },
+  },
+  6: {
+    tunnelForward: { type: "tunnel", doors: 1, text: "Wide tunnel goes forward." },
+    tunnelNarrow: { type: "tunnel-narrow", doors: 1, text: "Narrow tunnel goes on." },
+    staircase: { type: "tunnel", doors: 1, text: "Wide tunnel goes forward." },
+    corridor: { type: "tunnel", doors: 1, text: "Wide tunnel goes forward." },
+    room: { type: "tunnel", doors: 1, text: "Wide tunnel goes forward." },
+  },
+};
+
+/** Cave's own Secret Passage table (issue #138, rules ~2674-2683). Rolls 3/4 use the rulebook's own
+ * wording ("A buried Chest!"), which `isHiddenChestResult()` matches on the word "Chest" rather
+ * than an exact string -- the same reason the Laboratory's "Found a hidden Chest!" needed it. */
+const CAVE_SECRET_PASSAGE: Record<number, string> = {
+  1: "You have activated a Trap!",
+  2: "There's nothing here.",
+  3: "A buried Chest!",
+  4: "A buried Chest!",
+  5: "A door that leads to a Prison.",
+  6: "A hole to a new cave complex below (Wide Tunnel).",
+};
+
 /** Laboratory (issue #30, rules 2235-2245). Its Corridor column matches the shared table, but its
  * Room column is entirely its own -- large halls, then corridors, then staircases, where every other
  * type's Room column produces rooms. */
@@ -405,12 +533,15 @@ const LABORATORY_SECRET_PASSAGE: Record<number, string> = {
  * chest (`dungeonReducer.ts`'s `ROLL_CHEST` guard and `RoomInspector`'s button).
  *
  * A substring check rather than string equality because the per-type tables use the rulebook's own
- * wording, and it isn't uniform -- the shared table says "You have found a hidden Chest!" while the
- * Laboratory's says "Found a hidden Chest!" (issue #30). Exact equality silently made the
- * Laboratory's chests unopenable; the same "no formal taxonomy, substring matching instead"
- * convention the monster tags use applies just as well here. */
+ * wording, and it isn't uniform -- the shared table says "You have found a hidden Chest!", the
+ * Laboratory's says "Found a hidden Chest!" (issue #30), and Cave's says "A buried Chest!" (issue
+ * #138). Exact equality silently made the Laboratory's chests unopenable, and matching only
+ * "hidden chest" would have done the same to Cave's, so the check is now the noun alone.
+ *
+ * That is safe because no Secret Passage row in any type mentions a chest without granting one --
+ * there is a test asserting exactly that, so a future table can't quietly break the assumption. */
 export function isHiddenChestResult(result: string | null | undefined): boolean {
-  return !!result && result.toLowerCase().includes("hidden chest");
+  return !!result && /\bchests?\b/i.test(result);
 }
 
 export const SEGMENTS_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<number, SegmentsRow>>> =
@@ -421,6 +552,12 @@ export const SEGMENTS_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record<numbe
     necropolis: NECROPOLIS_SEGMENTS,
     sewers: SEWERS_SEGMENTS,
     laboratory: LABORATORY_SEGMENTS,
+    // The Cave family (issue #138) all share Cave's own Segments table -- Mine/Underwater/Volcanic
+    // differ only in their Special Rule, never in how the cave is laid out.
+    cave: CAVE_SEGMENTS,
+    mine: CAVE_SEGMENTS,
+    underwaterCave: CAVE_SEGMENTS,
+    volcanicCave: CAVE_SEGMENTS,
   };
 
 /** Deadly Dungeons (issue #30): Citadel's own Secret Passage table is explicitly printed in the
@@ -452,6 +589,10 @@ export const SECRET_PASSAGE_TABLE_BY_TYPE: Partial<Record<DungeonTypeKey, Record
     necropolis: NECROPOLIS_SECRET_PASSAGE,
     sewers: SEWERS_SECRET_PASSAGE,
     laboratory: LABORATORY_SECRET_PASSAGE,
+    cave: CAVE_SECRET_PASSAGE,
+    mine: CAVE_SECRET_PASSAGE,
+    underwaterCave: CAVE_SECRET_PASSAGE,
+    volcanicCave: CAVE_SECRET_PASSAGE,
   };
 
 /** Table: Dungeon Name, "first part" column (1d6) -- also selects the dungeon type. Keys 1-6 are
@@ -568,6 +709,45 @@ export const DUNGEON_TYPES: Record<number, DungeonTypeDef> = {
     doors: 4,
     entrance:
       "Down a dirty metal ladder through a manhole, you arrive at an intersection of four water-logged tunnels. Everything here is stinking, dark, shallow water.",
+  },
+  /** Cave and its three sub-variants (issue #138). All four enter the same way -- the rulebook's
+   * "Your only way is by following the Wide Tunnel" is why the entrance is a single-door wide
+   * tunnel rather than Sewers' four-way manhole. */
+  13: {
+    key: "cave",
+    roll: 13,
+    name: "The Cave",
+    entranceType: "tunnel",
+    doors: 1,
+    entrance:
+      "Entering through the large rock-covered opening, the cave extends into darkness. The walls are molded by time and creeping creatures. Your only way on is to follow the Wide Tunnel.",
+  },
+  14: {
+    key: "mine",
+    roll: 14,
+    name: "The Mine",
+    entranceType: "tunnel",
+    doors: 1,
+    entrance:
+      "Past the collapsed headframe, a rail line runs into the dark on rotted sleepers. An ore cart sits waiting at the mouth of the wide tunnel.",
+  },
+  15: {
+    key: "underwaterCave",
+    roll: 15,
+    name: "The Underwater Cave",
+    entranceType: "tunnel",
+    doors: 1,
+    entrance:
+      "You surface into a pocket of stale air. The wide tunnel ahead is half-drowned, and something far bigger than you moves in the water further in.",
+  },
+  16: {
+    key: "volcanicCave",
+    roll: 16,
+    name: "The Volcanic Cave",
+    entranceType: "tunnel",
+    doors: 1,
+    entrance:
+      "Heat rolls out of the opening in the rock. The wide tunnel glows faintly further down, and the air tastes of sulphur.",
   },
 };
 
@@ -687,5 +867,6 @@ export const TYPE_LABELS: Record<SegmentType, string> = {
   "room-large": "Large Room",
   "room-big": "Big Room",
   tunnel: "Tunnel",
+  "tunnel-narrow": "Narrow Tunnel",
   final: "Final Room",
 };

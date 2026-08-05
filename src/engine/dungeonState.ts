@@ -1,4 +1,6 @@
+import { isHiddenChestResult } from "../data/dungeonTypes.ts";
 import type { DungeonTypeKey, SegmentType } from "../data/dungeonTypes.ts";
+import { KILLER_OCTOPUS, MAGMA_MONSTER } from "../data/dungeonTables.ts";
 import type {
   ArmorPieceKind,
   ItemEffect,
@@ -75,6 +77,10 @@ export interface SegmentState extends Box {
   secretPassageSearched?: boolean;
   secretPassageResult?: string | null;
   trapResult?: string | null;
+  /** Underwater/Volcanic Cave (issue #138): "If you defeat him you find a Chest." Set when this
+   * segment's guardian falls, and read alongside `roomContent.hasChest` everywhere a chest is
+   * offered -- a third way to have one, after a Room Content row and a Secret Passage roll. */
+  guardianChest?: boolean;
   chestOpened?: boolean;
   chestResult?: string | null;
   /** "His backpack and clothes on the floor" -- coins/Treasures/Keys left by a character who died here. */
@@ -225,6 +231,15 @@ export interface CombatState {
    * combat action), capped at once per round by this flag -- set when used, reset back to `false`
    * at the top of `applyMonsterTurn()`, the one chokepoint every round-ending action already calls. */
   hirelingAttackedThisRound: boolean;
+  /** Underwater/Volcanic Cave (issue #138): this fight is against the type's guardian, so victory
+   * leaves a Chest behind. Captured at combat start -- by the time `finishIfVictorious()` runs,
+   * `monsters` is empty and there is nothing left to identify. Optional for back-compat, like every
+   * later addition to this type. */
+  guardianChest?: boolean;
+  /** Mine (issue #138): the ore cart has already been ridden through this fight. One run down the
+   * track per encounter -- "stop the cart if the monster hasn't died" is what makes it a single
+   * charge rather than a repeatable attack. */
+  cartUsed?: boolean;
   /** Whether the player has taken a weapon attack yet in this fight (Assassin, issue #103): "Deals 3
    * times damage on your first attack." Read as the first hit *of the fight* rather than the first
    * against each monster -- confirmed with the user, and the plainer reading of "your first attack"
@@ -513,6 +528,26 @@ export interface PendingDungeon {
  * the rulebook gives neither -- by climbing the metal ladder back to the surface. Both are checked
  * here rather than at the ~8 call sites, so the map badge, the gate copy, `DungeonsList`, Miner's
  * `survivedRunIds` and the Hireling's per-trip expiry all agree without any of them knowing why. */
+/** The guardian a Cave variant's Special Rule promises a Chest for (issue #138). Matched by name,
+ * the codebase's usual no-taxonomy convention -- these two monsters exist nowhere else, so a name
+ * is as precise as a tag would be and needs no new field on `MonsterTemplate`. */
+export function guardianOf(dungeonKey: DungeonTypeKey | null | undefined): string | null {
+  if (dungeonKey === "underwaterCave") return KILLER_OCTOPUS.name;
+  if (dungeonKey === "volcanicCave") return MAGMA_MONSTER.name;
+  return null;
+}
+
+/** Whether a chest is available in this segment, from any of its three sources: a Room Content row,
+ * a Secret Passage roll, or a slain Cave guardian (issue #138). Shared by the reducer's `ROLL_CHEST`
+ * guard and `RoomInspector`'s button so the two can't drift -- reducer decides, UI mirrors. */
+export function segmentHasChest(seg: SegmentState): boolean {
+  return (
+    !!seg.roomContent?.hasChest ||
+    !!seg.guardianChest ||
+    isHiddenChestResult(seg.secretPassageResult)
+  );
+}
+
 export function isDungeonBeaten(state: DungeonState): boolean {
   if (state.exitUsed) return true;
   return state.levels.some((lvl) =>
@@ -790,6 +825,11 @@ export type DungeonAction =
    * damage to everyone in the room") and self-destructing the Hireling for good. Free, doesn't end
    * the round, same shape HIRELING_ATTACK already established. */
   | { type: "HIRELING_EXPLODE" }
+  /** Mine (issue #138): "there is a railroad going down the entire Wide Tunnel. You can drive down
+   * the track with a cart, making an attack of 1d6+3 damage to any monsters in the way." The roll
+   * comes in on the action (like `PLAYER_ATTACK`'s) so the UI animates the die that actually
+   * resolved. Free, once per fight, and only in a wide tunnel -- see the reducer's own guards. */
+  | { type: "RIDE_CART"; roll: number }
   /** `destLevel`/`destSegId`: required for Teleport (basic table, spellRoll 3) -- the
    * already-discovered, empty room the player chose to reappear in (see `isTeleportDestination`).
    * Unused by every other spell. `table` distinguishes which New Spells table (issue #24)

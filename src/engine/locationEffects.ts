@@ -65,11 +65,13 @@ export function resolveLocationEffect(
         };
       }
       if (roll >= 3) {
+        // Issue #138: the Underwater Cave is a real dungeon type now, so this stopped being a
+        // dead end. The flag keeps its name and its shape -- `HexInspector` reads it to announce
+        // the find -- but the hex itself is enterable via `LOCATION_FORCED_DUNGEON_TYPE`.
         return {
           ...base,
           foundUnbuiltCave: true,
-          message:
-            "Below the coral, a flooded cave mouth — an Underwater Cave, though you can find no way in.",
+          message: "Below the coral, a flooded cave mouth — an Underwater Cave opens beneath you.",
         };
       }
       return { ...base, message: "Shallow water and sharp coral. You pick your way through." };

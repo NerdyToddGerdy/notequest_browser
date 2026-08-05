@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { DungeonState, SegmentState } from "../../../engine/dungeonState.ts";
 import { rollDie } from "../../../engine/dice.ts";
-import { isHiddenChestResult, TYPE_LABELS } from "../../../data/dungeonTypes.ts";
+import { TYPE_LABELS } from "../../../data/dungeonTypes.ts";
+import { segmentHasChest } from "../../../engine/dungeonState.ts";
 import { DUNGEON_TABLES, formatMonsterTemplate } from "../../../data/dungeonTables.ts";
 import { DicePool } from "../DicePool/DicePool.tsx";
 import { revealDelay } from "../../rollTiming.ts";
@@ -31,8 +32,10 @@ export interface RoomInspectorProps {
   onTrapTriggered?: () => void;
 }
 
+// Mirrors the reducer's own `ROLL_CHEST` gate exactly, via the shared helper -- three sources of a
+// chest now (a Room Content row, a Secret Passage roll, a slain Cave guardian, issue #138).
 function hasChest(seg: SegmentState): boolean {
-  return !!seg.roomContent?.hasChest || isHiddenChestResult(seg.secretPassageResult);
+  return segmentHasChest(seg);
 }
 
 /** "The remains of Bram lie here — 5 coins, 2 Treasures, 1 Key." */
@@ -230,18 +233,28 @@ export function RoomInspector({
         </div>
       )}
 
-      {seg.roomContent?.isExit && !state.exitUsed && (
-        <div className={styles.dieRow}>
-          <button
-            className={styles.rollBtn}
-            type="button"
-            disabled={!state.alive || !!state.combat || !!state.pendingPackItem}
-            onClick={() => onClimbOut(seg.id)}
-          >
-            Climb Out
-          </button>
-        </div>
-      )}
+      {seg.roomContent?.isExit &&
+        !state.exitUsed &&
+        (() => {
+          // Cave (issue #138): "Spend 1 torch to get out of this cave." Sewers' ladder is free, so
+          // the cost is read off the row rather than assumed. Mirrors the reducer's own refusal
+          // below the cost -- it will not let you die of darkness in the act of escaping.
+          const exitCost = seg.roomContent?.exitTorchCost ?? 0;
+          const tooDark = state.torches < exitCost;
+          return (
+            <div className={styles.dieRow}>
+              <button
+                className={styles.rollBtn}
+                type="button"
+                disabled={!state.alive || !!state.combat || !!state.pendingPackItem || tooDark}
+                onClick={() => onClimbOut(seg.id)}
+              >
+                {exitCost > 0 ? `Leave the Cave (${exitCost} torch)` : "Climb Out"}
+              </button>
+              {tooDark && <p className={styles.hint}>You need a torch to force your way out.</p>}
+            </div>
+          );
+        })()}
 
       {seg.remains && (
         <div className={styles.dieRow}>

@@ -26,6 +26,7 @@ function bearer(overrides: Partial<Parameters<typeof handsFree>[0]> = {}) {
     hireling: null,
     weapon: null,
     spareWeapons: [],
+    armor: [],
     ...overrides,
   };
 }

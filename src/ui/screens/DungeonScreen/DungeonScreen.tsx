@@ -237,6 +237,13 @@ export function DungeonScreen({
   const bossDefeated = isDungeonBeaten(state);
   const currentSeg =
     state.levels[state.activeLevel]?.segments.find((s) => s.id === state.currentSegId) ?? null;
+  // Mine's ore cart (issue #138): the rail runs down the Wide Tunnels only, so a Grotto or a narrow
+  // tunnel has nothing to ride. Mirrors the reducer's own `RIDE_CART` guard -- reducer decides.
+  const canRideCart =
+    state.dungeonTypeKey === "mine" &&
+    !!state.combat &&
+    state.levels[state.activeLevel]?.segments.find((s) => s.id === state.combat!.segId)?.type ===
+      "tunnel";
   // Mirrors the reducer's hasPendingRoomEntry: a quiet arrival revealed monsters, but the player
   // hasn't yet chosen Attack First vs. Move Silently (RESOLVE_ROOM_ENTRY). `state.alive` matters
   // here specifically because dying to that same room's monsters (a lost fight never marks
@@ -587,6 +594,11 @@ export function DungeonScreen({
                             dispatch({ type: "HIRELING_ATTACK", targetId, roll })
                           }
                           onHirelingExplode={() => dispatch({ type: "HIRELING_EXPLODE" })}
+                          {...(canRideCart
+                            ? {
+                                onRideCart: () => dispatch({ type: "RIDE_CART", roll: rollDie() }),
+                              }
+                            : {})}
                           onAnimalAttack={(targetId) =>
                             dispatch({ type: "ANIMAL_ATTACK", targetId })
                           }

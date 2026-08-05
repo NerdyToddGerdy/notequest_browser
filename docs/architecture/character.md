@@ -6,7 +6,7 @@ Primary files: `src/data/races.ts`, `classes.ts`, `spells.ts`, `names.ts`, `adva
 
 ## Races
 
-The Core Book's 2d6 `RACE_TABLE`, plus three additional 1d6 tables from the Expanded World (`UNCOMMON_RACE_TABLE`/`EXOTIC_RACE_TABLE`/`MONSTROUS_RACE_TABLE`, #22) picked *instead of* the base roll — self-contained tables, not modifiers stacked on it.
+The Core Book's 2d6 `RACE_TABLE`, plus three additional 1d6 tables from the Expanded World (`UNCOMMON_RACE_TABLE`/`EXOTIC_RACE_TABLE`/`MONSTROUS_RACE_TABLE`, #22) picked _instead of_ the base roll — self-contained tables, not modifiers stacked on it.
 
 `CharacterCreationScreen.tsx`'s `raceTable` state picks the active table (switching clears any roll already made). `rollRaceFromTable()` is the single entry point — `"core"` delegates to `rollRace()`, everything else is a flat 1d6 lookup. A handful of rows re-list a race already in `RACE_TABLE` verbatim and reuse that entry directly.
 
@@ -18,21 +18,21 @@ The Core Book's 2d6 `RACE_TABLE`, plus three additional 1d6 tables from the Expa
 
 The rest are flavor-only.
 
-| Race | Effect | Where |
-| --- | --- | --- |
-| Patovsky, Sharkin | Water-walking | `hasWaterWalk()`, `hexTables.ts` |
-| Patovsky | Can skip travel events | `eventSkipReason()`, `events.ts` (**not** `hexTables.ts`) — Sharkin shares the water-walking but has no such clause |
-| Pandakhan, Centaur | Travel-cost multiplier (2x / 0.5x, Centaur rounds up via `Math.ceil`) | `travelCostMultiplier()` |
-| Ogre | Unconditional +2 damage | `attackBonus()`, alongside Grave Digger's Undead-only +2 |
-| Ogre | Cannot use potions, scrolls, or wear armor | Enforced at every grant site — see "Unusable gear is sellable" below |
-| Samambro | Death-survival roll (3+, survive at 1 HP) | `trySamambroSurvival()`, all seven `alive = false` sites |
-| Goblin | Roll of 1 on the damage die explodes for 5 room-wide | `PLAYER_ATTACK`, see [dungeon.md](dungeon.md) |
-| Halfling | Move Silently rolls two dice, discards the lowest (except Boss) | `RESOLVE_ROOM_ENTRY` |
-| Dwarf | Find Secret Passage rolls two dice, keeps the higher | `RoomInspector.tsx` |
-| Cat-Person | Doubles sell value | `sellItem()`'s `isCatPerson` flag |
-| Rinoceroid | Horn attack (flat 1d6, no modifier, skips weapon effects) | `PLAYER_ATTACK` with `useHorn` |
-| Pumpkinkin | 3 uses of Vimes | data, functional since #61 |
-| Corvino | 5 random Advanced Spells | data, functional since #61 |
+| Race               | Effect                                                                | Where                                                                                                               |
+| ------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Patovsky, Sharkin  | Water-walking                                                         | `hasWaterWalk()`, `hexTables.ts`                                                                                    |
+| Patovsky           | Can skip travel events                                                | `eventSkipReason()`, `events.ts` (**not** `hexTables.ts`) — Sharkin shares the water-walking but has no such clause |
+| Pandakhan, Centaur | Travel-cost multiplier (2x / 0.5x, Centaur rounds up via `Math.ceil`) | `travelCostMultiplier()`                                                                                            |
+| Ogre               | Unconditional +2 damage                                               | `attackBonus()`, alongside Grave Digger's Undead-only +2                                                            |
+| Ogre               | Cannot use potions, scrolls, or wear armor                            | Enforced at every grant site — see "Unusable gear is sellable" below                                                |
+| Samambro           | Death-survival roll (3+, survive at 1 HP)                             | `trySamambroSurvival()`, all seven `alive = false` sites                                                            |
+| Goblin             | Roll of 1 on the damage die explodes for 5 room-wide                  | `PLAYER_ATTACK`, see [dungeon.md](dungeon.md)                                                                       |
+| Halfling           | Move Silently rolls two dice, discards the lowest (except Boss)       | `RESOLVE_ROOM_ENTRY`                                                                                                |
+| Dwarf              | Find Secret Passage rolls two dice, keeps the higher                  | `RoomInspector.tsx`                                                                                                 |
+| Cat-Person         | Doubles sell value                                                    | `sellItem()`'s `isCatPerson` flag                                                                                   |
+| Rinoceroid         | Horn attack (flat 1d6, no modifier, skips weapon effects)             | `PLAYER_ATTACK` with `useHorn`                                                                                      |
+| Pumpkinkin         | 3 uses of Vimes                                                       | data, functional since #61                                                                                          |
+| Corvino            | 5 random Advanced Spells                                              | data, functional since #61                                                                                          |
 
 Fungoid's provision-heal stays flavor-only (provisions aren't tracked inside a dungeon run).
 
@@ -58,11 +58,11 @@ A v1-scoped extra, not a rulebook mechanic. `FIRST_NAME_TABLE`/`LAST_NAME_TABLE`
 
 `DungeonState.spellUses` is a `Record<string, remainingUses>` seeded by `computeSpellUses()`, keyed by `character.ts`'s composite `spellKey(table, roll)` string — **not a bare roll**, because the five spell tables reuse 1-6/2-12 numbers. `parseSpellKey()` is the inverse.
 
-`rollSpellFromTable(table, rng)` is the one roll function for all five tables. `computeSpellRequirements()`'s `randomSlotsByTable: Partial<Record<SpellTableKey, number>>` exists because a race and class can grant random spells from *different* tables at once.
+`rollSpellFromTable(table, rng)` is the one roll function for all five tables. `computeSpellRequirements()`'s `randomSlotsByTable: Partial<Record<SpellTableKey, number>>` exists because a race and class can grant random spells from _different_ tables at once.
 
 ### New Spells (#24)
 
-Three more 1d6 tables (`NATURE_SPELL_TABLE`, `DEATH_SPELL_TABLE`, `ELEMENTAL_SPELL_TABLE`) plus a 2d6 `ADVANCED_SPELL_TABLE` — never a free player choice, always *granted* by a race/class/item. Every spell-identity site widened to the composite key; `SpellDef`/`FixedSpellGrant` carry `table: SpellTableKey`.
+Three more 1d6 tables (`NATURE_SPELL_TABLE`, `DEATH_SPELL_TABLE`, `ELEMENTAL_SPELL_TABLE`) plus a 2d6 `ADVANCED_SPELL_TABLE` — never a free player choice, always _granted_ by a race/class/item. Every spell-identity site widened to the composite key; `SpellDef`/`FixedSpellGrant` carry `table: SpellTableKey`.
 
 **Why `CAST_SPELL` dispatches by spell name, not `(table, roll)`**: several New Spells rows are the identical Core spell re-listed under a different table (Elemental's Cold Ray/Lightning/Fireball == Basic's). `combat.ts`'s `KNOWN_CASTABLE_SPELL_NAMES`/`TARGETED_SPELL_NAMES`/`COMBAT_ONLY_SPELL_NAMES`/`OUT_OF_COMBAT_SPELL_NAMES` match against `SpellDef.name` so both copies share one `CAST_SPELL` case. **A spell not in `KNOWN_CASTABLE_SPELL_NAMES` simply gets no "Cast" button anywhere.**
 
@@ -81,7 +81,7 @@ Heal, Light, Teleport, Cold Ray, Lightning, Fireball, plus (#61) Natural Cure, I
 **Tier 2** (#61): six spells needing new `CombatState`/`CombatMonsterState` fields, all resolved instantly on cast (round still ends normally).
 
 - **Vimes** (Nature 2, targeted, 1d6 turns) / **Paralyze** (Advanced 5, room-wide, fixed 2 turns) both set `CombatMonsterState.silencedTurns`, decremented once per round in `applyMonsterTurn()`.
-- **Ethereal Body** (Death 1/Advanced 12) sets `CombatState.damageReduction` (-1 per hit *including* poison, applied before the poison/absorbable split — deliberately reduces poison too, reading "all damage" literally).
+- **Ethereal Body** (Death 1/Advanced 12) sets `CombatState.damageReduction` (-1 per hit _including_ poison, applied before the poison/absorbable split — deliberately reduces poison too, reading "all damage" literally).
 - **Magic Shield** (Advanced 8, stackable) pushes onto `CombatState.shields: number[]`, drained oldest-first against `absorbableDamage` before the armor-or-HP choice; poison bypasses it like armor.
 - **Absorb Soul** (Death 2, 5 HP/kill) / **Fire of the Dead** (Death 4, 2 torches/kill) set boolean flags paid out by `finishIfVictorious()` off `combat.engulfableBodies` (Slimemen's existing kill counter, reused rather than tracked twice).
 
@@ -93,7 +93,7 @@ Create Food, Summon Wolf/Skeleton, Awakening, Summon Elemental, Stone Armor, Col
 
 ### Spell uses granted after Character Creation (#75)
 
-`CharacterSheet`, `rest()`, and Mana Potion used to compute max uses via `computeSpellUses(character.spells, character.fixedGrants)` — fixed at creation, so any spell granted *later* (Advanced Classes, Hirelings, Gnome's culture action, Magic Scrolls) never appeared, and worse, `rest()`'s `{...maxSpellUses}` full-replace silently wiped later grants back down every Rest (also silently undoing Anti-Paladin's Heal-zeroing).
+`CharacterSheet`, `rest()`, and Mana Potion used to compute max uses via `computeSpellUses(character.spells, character.fixedGrants)` — fixed at creation, so any spell granted _later_ (Advanced Classes, Hirelings, Gnome's culture action, Magic Scrolls) never appeared, and worse, `rest()`'s `{...maxSpellUses}` full-replace silently wiped later grants back down every Rest (also silently undoing Anti-Paladin's Heal-zeroing).
 
 Fixed with a genuinely persisted `maxSpellUses: Record<string, number>` on both `AdventurerResources`/`DungeonState`, bumped by the same amount at every grant site alongside `spellUses`. `rest()`/`canRest()` read `resources.maxSpellUses` directly. `loadSession()` back-fills an old save by taking the **higher** of the creation-time computation or whatever `spellUses` already holds.
 
@@ -109,7 +109,7 @@ Related bug fixed in the same pass: `CharacterSheet` always displayed `character
 
 ### Ordering (#132)
 
-`AdvancedClasses.tsx` groups by a 4-tier rank (buyable → blocked-but-reachable → owned → untrackable) and sorts by cost *within* each — the same "group first, keep the secondary order" shape as `sortDungeonsForDisplay()`. Cost-ascending alone scattered the few actionable rows through 45 spanning 10-6000 coins.
+`AdvancedClasses.tsx` groups by a 4-tier rank (buyable → blocked-but-reachable → owned → untrackable) and sorts by cost _within_ each — the same "group first, keep the secondary order" shape as `sortDungeonsForDisplay()`. Cost-ascending alone scattered the few actionable rows through 45 spanning 10-6000 coins.
 
 **The rank is computed once per class in a `map` before the `.sort()`** — deliberately not inside the comparator, which runs O(n log n) times and would re-walk `REQUIREMENT_CHECKS` (some of which sum kill tallies or scan the Graveyard). A heading renders at each group boundary, since ordering alone leaves the boundary invisible across 45 rows.
 
@@ -127,12 +127,12 @@ Related bug fixed in the same pass: `CharacterSheet` always displayed `character
 ### Notable requirement implementations
 
 - **Chained requirements**: Paladin ("Knight or Cleric"), Anti-Paladin ("Paladin"), Necromaster (Necromancer + Lich-substring kill), Assassin (Thief + `bossKills >= 1`), Knight (Noble).
-- **Avenger and Lich** (#73), confirmed with the user as product-design calls: Avenger = "a previous character exists in the Graveyard" (the same signal as Gravedigger's check). Lich's literal text is a paradox (the buyer is alive) — read as "did *any* past character die while holding Necromancer," needing `GraveyardEntry.advancedClasses?: string[]` recorded at both death sites.
+- **Avenger and Lich** (#73), confirmed with the user as product-design calls: Avenger = "a previous character exists in the Graveyard" (the same signal as Gravedigger's check). Lich's literal text is a paradox (the buyer is alive) — read as "did _any_ past character die while holding Necromancer," needing `GraveyardEntry.advancedClasses?: string[]` recorded at both death sites.
 - **Helsing and Bugcatcher** (#71): aggregate kill counts with no single exact name/tag — `sumKillsByName()` sums a curated list (`VAMPIRE_MONSTER_NAMES`, `BUG_MONSTER_NAMES`, the latter deliberately excluding Giant Leech as a worm not a bug, confirmed with the user). Both also gained a real `attackBonus()` condition (+1 vs their target tags) the #70/#72 audit found missing.
-- **Hotep** ("killed 3 mummies") uses `sumKillsByName()` over Pyramid's three mummy names, including the Mummified Priestess on a *name* reading rather than a tag one — she is a mummy the table calls a mummy, even though she carries Sorcery rather than Undead.
+- **Hotep** ("killed 3 mummies") uses `sumKillsByName()` over Pyramid's three mummy names, including the Mummified Priestess on a _name_ reading rather than a tag one — she is a mummy the table calls a mummy, even though she carries Sorcery rather than Undead.
 - **Janitor** ("killed all creatures from a Sewer") reads as `milestones.clearedASewer`, set by climbing out — rooms are generated lazily as doors open, so there is no fixed population "all creatures" could mean, and getting out is the rulebook's own definition of having done the place.
 - **Miner** (#62) — "survived two dungeons" — `AdventurerResources.survivedRunIds: string[]` (World/Town-only, not mirrored on `DungeonState`) collects distinct runIds from `handleReturnToTown`, deduplicated so repeatedly retreating from the same run can't inflate it, and gated on `dungeon.levels.length > 0`. The Advanced Class shares base-Class Miner's identical ability via a widened OR.
-- **Travel counters** (#72) for Lumberjack/Druid/Survivor/Pirate/Bard/Cook: `AdventurerResources.travelStats: TravelStats` (`forestsCrossed`/`desertsCrossed`/`territoriesSailed`/`citiesVisited`/`provisionsSpentTotal`) — World/Town-only. `citiesVisited` de-duplicates hex keys (distinct cities, not arrivals). `provisionsSpentTotal` tallies inside `payTravelCost()` off the shortfall-aware spend value. `territoriesSailed` only counts a water hex crossed while `hasBoat` was true *before* the move (water-walking doesn't count).
+- **Travel counters** (#72) for Lumberjack/Druid/Survivor/Pirate/Bard/Cook: `AdventurerResources.travelStats: TravelStats` (`forestsCrossed`/`desertsCrossed`/`territoriesSailed`/`citiesVisited`/`provisionsSpentTotal`) — World/Town-only. `citiesVisited` de-duplicates hex keys (distinct cities, not arrivals). `provisionsSpentTotal` tallies inside `payTravelCost()` off the shortfall-aware spend value. `territoriesSailed` only counts a water hex crossed while `hasBoat` was true _before_ the move (water-walking doesn't count).
 - **Noble/Lord/King/Emperor/Knight** were unblocked by #27 — see [town-and-economy.md](town-and-economy.md). Noble reads `talkedToKing` (set on any Political Affinity attempt at a Fortress, success or fail — "talking" is the act, not a required success); Lord and King read an owned Castle / City; Emperor reads an owned Fortress plus `vassalCount >= 3`; Knight chains on Noble (which meant widening Paladin's own OR to actually check both branches once Knight became real).
 
 ### Real abilities
@@ -179,7 +179,7 @@ The first ally-in-combat concept in this codebase, scoped narrowly (both forks c
 
 ### A Hireling is not a free meat shield (#114)
 
-`DungeonState.hireling` was a bare name, so `startCombat()` reseeded the fighting copy's HP from `HIRELING_BY_NAME`'s static value on *every* encounter — one 10-coin Torchbearer bought unlimited absorption for a whole trip, since the player chooses per hit what absorbs and could simply take the last one themselves.
+`DungeonState.hireling` was a bare name, so `startCombat()` reseeded the fighting copy's HP from `HIRELING_BY_NAME`'s static value on _every_ encounter — one 10-coin Torchbearer bought unlimited absorption for a whole trip, since the player chooses per hit what absorbs and could simply take the last one themselves.
 
 `DungeonState.hirelingHp`/`AdventurerResources.hirelingHp` now persist it: set at hire time, seeded (and clamped to the roster's own HP) in `startCombat()`, written back at `RESOLVE_DAMAGE` — the single place a Hireling's HP ever drops — and cleared alongside `hireling` when it falls or the trip is beaten. Optional on `DungeonState` with a `?? def.hp` read, so a pre-#114 save starts at full exactly once.
 
@@ -205,7 +205,7 @@ Torchbearer/Mercenary/Bodyguard/War Veteran/Orc Soldier are "None."; Jester's "c
 - **Dog** blocks Move Silently entirely (`RESOLVE_ROOM_ENTRY`'s `"moveSilently"` no-ops, mirrored by `RoomEntryPrompt.tsx`).
 - **Raven** (#67) — "If you die, roll a die. If it's 4 or more, you come back" — reuses Samambro's exact death-survival shape (`tryRavenSurvival()`), checked immediately after it at the same 7 sites, so a character with both gets two independent rolls.
 - **Monkey** (#67) — "carry an extra item" — `maxHeldItemsFor()` adds a flat +1 on top of whichever base cap applies (stacks with Cargo Ogre's 40, giving 41) rather than replacing it.
-- **Snake actually fights** — "Attack deals Poison" reuses `HIRELING_ATTACK`'s exact free-action shape via `ANIMAL_ATTACK {targetId}` and `CombatState.animalAttackedThisRound`, gated on `draft.animals.includes("Snake")`. Deliberately **no** HP/absorption slot for the Snake itself: the rulebook never describes an Animal being harmed or dying in combat, so this is purely a bonus attack, not a second combatant that can be lost. "Deals Poison" is read as an ordinary flat hit (poison's rulebook significance is specifically about bypassing the *player's* armor, meaningless when an animal attacks a monster). Also no `roll` field, unlike `HIRELING_ATTACK` — `AnimalDef.damage` is a flat number, so there's no die to animate.
+- **Snake actually fights** — "Attack deals Poison" reuses `HIRELING_ATTACK`'s exact free-action shape via `ANIMAL_ATTACK {targetId}` and `CombatState.animalAttackedThisRound`, gated on `draft.animals.includes("Snake")`. Deliberately **no** HP/absorption slot for the Snake itself: the rulebook never describes an Animal being harmed or dying in combat, so this is purely a bonus attack, not a second combatant that can be lost. "Deals Poison" is read as an ordinary flat hit (poison's rulebook significance is specifically about bypassing the _player's_ armor, meaningless when an animal attacks a monster). Also no `roll` field, unlike `HIRELING_ATTACK` — `AnimalDef.damage` is a flat number, so there's no die to animate.
 
 ### Deferred (#67)
 
@@ -221,19 +221,19 @@ Three columns where the Common one is mostly a gateway: a 1 sends you to Fatal, 
 
 **Every mechanically-expressible row is real, OR'd into the mechanism that already does that thing** (confirmed with the user):
 
-| Row | Reuses |
-| --- | --- |
-| Rare 3 / Fatal 4 | `maxHp` ±, floored at 1 like Hard Work's own cost |
-| Rare 4 (horns) | Rinoceroid's `useHorn` attack |
-| Rare 5 (green blood) | Pirate's poison bypass |
-| Fatal 5 (bubbles) | Ogre's "cannot wear armor", via a `cannotWearArmor()` OR in the reducer and `town.ts`'s `canWearArmorPiece()` |
-| Fatal 6 (extra toe) | the same idea narrowed to one slot |
+| Row                  | Reuses                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Rare 3 / Fatal 4     | `maxHp` ±, floored at 1 like Hard Work's own cost                                                             |
+| Rare 4 (horns)       | Rinoceroid's `useHorn` attack                                                                                 |
+| Rare 5 (green blood) | Pirate's poison bypass                                                                                        |
+| Fatal 5 (bubbles)    | Ogre's "cannot wear armor", via a `cannotWearArmor()` OR in the reducer and `town.ts`'s `canWearArmorPiece()` |
+| Fatal 6 (extra toe)  | the same idea narrowed to one slot                                                                            |
 
 Armor **already worn** is kept rather than stripped when bubbles land — the rule says you cannot wear armor, and confiscating what's equipped is a harsher reading than the text supports (the same call `COLLECT_REMAINS` makes). The five purely cosmetic rows (poodle tail, navel eye, beard, changed sex, extra arm) are recorded and displayed but flavor-only, each documented at its row.
 
 **The zombie row is the third member of the Samambro/Raven survival family** — see [dungeon.md](dungeon.md) for the full ordering.
 
-**Mutations are permanent per character**, like `advancedClasses`: `AdventurerResources.mutations: string[]` (mirrored on `DungeonState`, threaded through both resume paths — a `RESUME_DUNGEON` character brings *their own*, never the dead one's), stored as stable ids and described back through `MUTATION_BY_ID`. Surfaced as a `CharacterSheet` status row and, once, as `App.tsx`'s `arrivalNote`.
+**Mutations are permanent per character**, like `advancedClasses`: `AdventurerResources.mutations: string[]` (mirrored on `DungeonState`, threaded through both resume paths — a `RESUME_DUNGEON` character brings _their own_, never the dead one's), stored as stable ids and described back through `MUTATION_BY_ID`. Surfaced as a `CharacterSheet` status row and, once, as `App.tsx`'s `arrivalNote`.
 
 ## Death and the Graveyard
 

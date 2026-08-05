@@ -16,7 +16,7 @@ Primary files: `src/engine/town.ts`, `arena.ts`, `buildings.ts`, `politics.ts`, 
 
 Seeded on `onCharacterCreated` (which also resets `world.player` to `world.home` and always lands on `screen: "world"`), overwritten wholesale from the dungeon's own fields on `onReturnToTown(runId, dungeon)`.
 
-**World/Town-only fields** — deliberately *not* mirrored on `DungeonState`, because nothing inside a dungeon run changes them, and `handleReturnToTown` carries them from `prev`: `travelStats`, `survivedRunIds`, `troops`/`troopSources`, `flyActive`, `nextDungeonDamageBonus`.
+**World/Town-only fields** — deliberately _not_ mirrored on `DungeonState`, because nothing inside a dungeon run changes them, and `handleReturnToTown` carries them from `prev`: `travelStats`, `survivedRunIds`, `troops`/`troopSources`, `flyActive`, `nextDungeonDamageBonus`.
 
 **Fields carried from `dungeon` rather than `prev`** because they can change mid-run: `armLost`, `zombieRevivals`, `mutations`, `curiosities`, `milestones`.
 
@@ -34,7 +34,7 @@ Champion pays no coin cost to rest (`isChampion`). Blacksmith's `fixArmor()` tak
 
 `sellItem()` credits a `HeldItem`'s `worth`, **doubled in a Fortress** (#94, "If it is a Fortress, double this value") and doubled again for a Cat-Person/Merchant, **stacking to 4x**.
 
-This is deliberately *not* the "two entries, one bonus" case — one multiplier is a property of the place and the other of the seller. `TownScreen`'s sell note names whichever multipliers are actually in play.
+This is deliberately _not_ the "two entries, one bonus" case — one multiplier is a property of the place and the other of the seller. `TownScreen`'s sell note names whichever multipliers are actually in play.
 
 ### Selling gear (#117/#103)
 
@@ -45,7 +45,7 @@ This is deliberately *not* the "two entries, one bonus" case — one multiplier 
 
 `equipmentSaleWorth()`/`sellEquipment()` take one `EquipmentSaleTarget {list, index}` covering all four lists (`armor`/`spareArmor`/`weapon`/`spareWeapons`), so `Equipment` needs one `onSell` callback and one `saleWorth` labeller rather than four pairs. The Fortress/Merchant multipliers come from a shared `sellMultiplier()` **so a gear sale and a Pack sale can't drift apart**, and every path sets `hasSoldItem` (Merchant's own requirement).
 
-Selling the *equipped* weapon is allowed and safe — `weapon` is an override, so the character falls back to their class `weaponFormula`.
+Selling the _equipped_ weapon is allowed and safe — `weapon` is an override, so the character falls back to their class `weaponFormula`.
 
 ## Culture Actions (#20 Stage 1)
 
@@ -61,18 +61,18 @@ Realm cities deliberately have no culture, so `cultureActionFor(undefined)` degr
 
 `.actionGrid` had grown to ~14 flat buttons, so `TownScreen.tsx`'s `activeActionTab` groups them:
 
-| Tab | Actions |
-| --- | --- |
-| Tavern | Rest, Brew |
-| Shop | Buy Torches, Buy Provisions |
-| Job Board | Ask, Political Affinity, Recruit Troop, Attack, Culture Action, Hire Boat |
-| Underground | Hard Work, Gamble, Thug Life, Arena |
+| Tab         | Actions                                                                   |
+| ----------- | ------------------------------------------------------------------------- |
+| Tavern      | Rest, Brew                                                                |
+| Shop        | Buy Torches, Buy Provisions                                               |
+| Job Board   | Ask, Political Affinity, Recruit Troop, Attack, Culture Action, Hire Boat |
+| Underground | Hard Work, Gamble, Thug Life, Arena                                       |
 
 Always shown (confirmed with the user over a threshold fallback) — every tab is guaranteed at least one unconditional action.
 
 **#88 extended this to Advanced Classes/Hireling/Animals/Buildings**, which used to be always-rendered stacked sections below Adventure, reintroducing the scroll problem one level down. `"advancedClasses"` is unconditionally appended; `"hireling"`/`"animals"`/`"buildings"` only when their roster/list is non-empty. `.actionGrid` is wrapped in `isOriginalActionTab`; the other four render as plain siblings when active. If the active tab disappears (e.g. travel to a hex with no roster), it resets to `"tavern"` during render. Heading renamed "City Actions" → "City Square."
 
-**Removed the redundant "My Animals" list** (#85): `Animals.tsx` used to render its own ownership list *and* "Buy a Mount," duplicating `CharacterSheet`'s Animals status line. It now renders only "Buy a Mount," returning `null` once `buyableMounts.length === 0` — hence its tab needing conditional inclusion. The same audit found `Hireling.tsx`'s old `if (!roster)` read-only branch was genuinely unreachable dead code and removed it; `roster`/`canHire`/`onHire` are now required props.
+**Removed the redundant "My Animals" list** (#85): `Animals.tsx` used to render its own ownership list _and_ "Buy a Mount," duplicating `CharacterSheet`'s Animals status line. It now renders only "Buy a Mount," returning `null` once `buyableMounts.length === 0` — hence its tab needing conditional inclusion. The same audit found `Hireling.tsx`'s old `if (!roster)` read-only branch was genuinely unreachable dead code and removed it; `roster`/`canHire`/`onHire` are now required props.
 
 ## Getting Money (#58)
 
@@ -88,7 +88,7 @@ Hard Work / Gamble / Thug Life live in `town.ts`; Arena gets its own `arena.ts`.
 
 `ArenaState = { champion; outcome }` — no armor absorption, no spells, no equipped-weapon bonus effect, just the base formula. Since #120 it runs on `fight.ts`'s `fightRound()`.
 
-**`resolveArenaRound()`'s one real bugfix**: Explosive can defeat the champion *and* kill the player in the same blast — the death check must run **before** the victory check even though `atk.monsterDefeated` is already known.
+**`resolveArenaRound()`'s one real bugfix**: Explosive can defeat the champion _and_ kill the player in the same blast — the death check must run **before** the victory check even though `atk.monsterDefeated` is already known.
 
 `TownScreen.tsx` owns the fight's UI as local state, un-animated, swapping in for City Actions. Victory credits 20 coins; defeat calls `onCharacterDied("arena", place)`.
 
@@ -123,11 +123,11 @@ Confirmed with the user: **buildings persist, coins and troops don't** — a suc
 
 **Storage lives on `HexTile.storedItems`/`storedConsumables`, not on `OwnedBuilding`** — since #121 `resources.buildings` is a derived view, so storing there would be storing in a projection. Tile-scoping also delivers both confirmed rules for free: contents **outlive the character** who stored them (the vault is part of the estate, exactly as the building is), and `withoutBuilding()` takes them along when a Declared Enemy razes the place — an army sacks what it destroys, which is what stops a stash being strictly safer than carrying.
 
-**The Pack cap applies on the way out, never on the way in.** `depositItem()` has no capacity check at all; `withdrawItem()` gates on `canWithdraw()`. That asymmetry *is* the feature — a vault is how you get around a full Pack.
+**The Pack cap applies on the way out, never on the way in.** `depositItem()` has no capacity check at all; `withdrawItem()` gates on `canWithdraw()`. That asymmetry _is_ the feature — a vault is how you get around a full Pack.
 
 **Potions are storable too** (confirmed with the user), kept as their own list mirroring how `heldItems`/`consumables` already sit side by side everywhere else. `resolveStorageTheft()` picks its victim across both lists together, so a stash of potions is exactly as exposed as one of sellables.
 
-**One roll per building that actually holds something** — each has its own Defense, so the rule can only be read per-building; an empty building is skipped rather than rolling for nothing. Fired from `App.tsx`'s `handleReturnToTown`, the same funnel the Laboratory's mutation uses and for the same reason (it is the one place a *living* character leaves a dungeon), and deliberately **after** it, so a fatal mutation skips theft entirely — a character who dies on the way out has no homecoming to be robbed on. A character who dies in the dungeon likewise leaves the stash intact for their successor.
+**One roll per building that actually holds something** — each has its own Defense, so the rule can only be read per-building; an empty building is skipped rather than rolling for nothing. Fired from `App.tsx`'s `handleReturnToTown`, the same funnel the Laboratory's mutation uses and for the same reason (it is the one place a _living_ character leaves a dungeon), and deliberately **after** it, so a fatal mutation skips theft entirely — a character who dies on the way out has no homecoming to be robbed on. A character who dies in the dungeon likewise leaves the stash intact for their successor.
 
 UI: deposit/withdraw in `HexInspector` (standing on the building — there's no remote depositing, and `canUseStorage()` enforces it), read-only "N items stored" per row in `TownScreen`'s "My Buildings" card, which is the "what did I leave where" view you want from a city on the far side of the map.
 
@@ -146,7 +146,7 @@ Resolved in `WorldScreen.tsx`'s `handlePoliticalAffinity()` (touches both `resou
 Recruiting troops at owned Castle/City/Fortress or Vassals, marching them (plus optionally the character) to attack a City/Fortress, then choosing to Annex or Loot on success. Reuses #27's target Defense numbers and the Political Affinity roll/table directly.
 
 - **Mustering**: `canRecruitTroop()`/`recruitTroop()` — 200 coins at an owned Castle/City/Fortress or a Vassal, capped at one unspent troop per source hex. `AdventurerResources.troops`/`troopSources` are World/Town-only.
-- **Attacking**: `resolveAttack()` always spends *everything* in `resources.troops` at once, plus an optional `joinBattle` toggle (one bonus die; **a natural 1 kills the character, but only if the battle is lost**). Rolls `troops` d6 (+1 if joining) vs Defense (City 6, Fortress 12).
+- **Attacking**: `resolveAttack()` always spends _everything_ in `resources.troops` at once, plus an optional `joinBattle` toggle (one bonus die; **a natural 1 kills the character, but only if the battle is lost**). Rolls `troops` d6 (+1 if joining) vs Defense (City 6, Fortress 12).
 - **Declared Enemies**: resolved inside the same `resolveAttack()` call regardless of its own outcome — for every `"enemy"` hex (excluding the one just attacked), 1d6; 1-3 sends that many troops against the player's own nearest owned building (tie-broken by lowest Defense). A win destroys it via `withoutBuilding()` (reverting to a plain, re-buildable empty hex, **not** Ruins). Skipped if the player owns no buildings.
 - **Storming**: on a successful attack, `resolveStorming()` offers **Annex** (re-rolls Political Affinity at +2; success grants Vassal unconditionally, bypassing the peaceful path's Lord/King-within-3 check — "won militarily"; failure auto-falls-through to Loot) or **Loot** directly (`withRazedToRuins()`, flat coins via `stormingLootPayout()` — 600 City / 1000 Fortress).
 - Attacking your own Vassal is blocked (`canAttack()`) — any other City/Fortress is fair game regardless of status.
@@ -159,7 +159,7 @@ Recruiting troops at owned Castle/City/Fortress or Vassals, marching them (plus 
 
 The one genuinely novel Deadly Dungeons mechanic — a standing action usable at the Ziggurat's own hex on the World map, **not** something read from inside a dungeon run.
 
-Two pieces of new state: `DungeonState.runDamageBonus` (a whole-*run* damage bonus, distinct from `CombatState.playerDamageBonus`) and `AdventurerResources.nextDungeonDamageBonus` (armed by the hex action, consumed into `runDamageBonus` the next time a *fresh* dungeon is entered — the same per-trip consumption shape `hireling` established).
+Two pieces of new state: `DungeonState.runDamageBonus` (a whole-_run_ damage bonus, distinct from `CombatState.playerDamageBonus`) and `AdventurerResources.nextDungeonDamageBonus` (armed by the hex action, consumed into `runDamageBonus` the next time a _fresh_ dungeon is entered — the same per-trip consumption shape `hireling` established).
 
 `town.ts`'s `canUseForgottenGods()`/`resolveForgottenGods()` — **named to avoid ESLint's `react-hooks/rules-of-hooks` flagging a `use`-prefixed plain function as a hook** — spend 1 provision unconditionally, then roll 1d6: lightning damage (floored at 1 HP, can't kill), nothing, an unconditional Owl (bypassing `MAX_ANIMALS`), +1 stacking `nextDungeonDamageBonus` (two rolls), or +4 HP/maxHp permanently.
 

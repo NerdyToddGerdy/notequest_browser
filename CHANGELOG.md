@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-08-05
+
+### Added
+
+- **Caves.** Four new dungeon types — the **Cave**, the **Mine**, the **Underwater Cave** and the
+  **Volcanic Cave** — reached from mountains, forests and ruins, and the first place the tunnels
+  themselves matter.
+  - **Wide and narrow tunnels.** A cave is mostly tunnel, and the tunnel has a width. A **wide
+    tunnel** can hide monsters but never anything worth picking up; a **narrow tunnel** holds
+    nothing at all. Where the walls open out you find a **Grotto**, which behaves like a room in
+    any other dungeon — monsters, contents, secret passages and all.
+  - **No Boss, no Final Room.** Like the Sewers, a cave is finished by getting out of it: find the
+    flooded Grotto and **spend a torch to force your way out**. If you have no torch left, you
+    can't — but the game will tell you so rather than letting you die of the dark on the threshold.
+  - **The Mine has an ore cart.** A railroad runs the length of every wide tunnel, and you can kick
+    the cart loose and ride it through whatever is in the way: 1d6+3 damage to every monster in the
+    tunnel, once per fight, and it costs you nothing but the cart.
+  - **Something is waiting in the deep water, and in the magma.** An Underwater Cave holds a
+    **Killer Octopus**, a Volcanic Cave a **Magma Monster**. Both guard the deeper parts of the
+    cave, and both leave a Chest behind when they fall.
+- **A Reef and a Volcano now lead somewhere.** Both used to sit on the map explaining what lay
+  underneath and why you couldn't reach it. The Reef opens into an Underwater Cave, the Volcano into
+  a Volcanic Cave.
+- **New things to find in a cave**: a **Magic Wood Puppet** that carries your torch so both hands
+  are free for a two-handed weapon, a **[Weapon] of the Last Sigh** that hits for +4 while you are
+  down to your last hit point, a **[Weapon] of the Nameless Wizard** that teaches you an Advanced
+  spell, and a cursed **[Armor] of Laughter** that makes it impossible to move quietly.
+
+### Fixed
+
+- Caves call their buried chests "buried" rather than "hidden," which the game's chest check hadn't
+  accounted for — the same slip that once made the Laboratory's chests unopenable. Every dungeon's
+  secret-passage chests are now found by what they are rather than by exact wording.
+
 ## [4.2.1] - 2026-08-05
 
 ### Changed

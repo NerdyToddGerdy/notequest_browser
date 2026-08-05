@@ -263,8 +263,24 @@ export const CITY_OR_FORTRESS: ReadonlySet<LocationKind> = new Set([
  * Fortress, and Ruins all offer the same minimal "enter a Core dungeon" action in v1 -- see
  * CLAUDE.md's Hexploring the World note for why this stays this thin. */
 export function locationHasDungeon(loc: LocationKind | null): boolean {
-  return loc === "ruins" || (loc !== null && CITY_OR_FORTRESS.has(loc));
+  return (
+    loc === "ruins" ||
+    LOCATION_FORCED_DUNGEON_TYPE[loc ?? "none"] != null ||
+    (loc !== null && CITY_OR_FORTRESS.has(loc))
+  );
 }
+
+/** Locations whose rulebook content *is* a named dungeon type, so the type isn't rolled at all
+ * (issue #138). Reef's "you found an Underwater Cave" and Volcano's "Has a Volcanic Cave" were both
+ * stubbed for as long as those types were unbuilt -- the hex explained what was there and why you
+ * couldn't go in. Now they lead somewhere.
+ *
+ * Same shape as the Fortress's own Sewers sub-roll (issue #99): the rulebook names the type, so
+ * `DUNGEON_TYPE_BY_TERRAIN` is bypassed entirely. */
+export const LOCATION_FORCED_DUNGEON_TYPE: Partial<Record<string, number>> = {
+  reef: 15, // Underwater Cave
+  volcano: 16, // Volcanic Cave
+};
 
 /** True for the four playable Fortress locations (Orc/Human/Dwarven/Elven) -- Goblin and Gnome only
  * ever roll a City per "Table: Location," never a Fortress. "Getting Money" (issue #58) needs this
@@ -454,11 +470,11 @@ export interface RuinsDungeonResult {
 }
 
 export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeonResult>> = {
-  //  2-4 Cave->Sewers | 5-7 as printed | 8-9 Laboratory / Citadel / Ziggurat | 10-11 | 12 unique
+  //  2-4 Cave (real as of #138) | 5-7 as printed | 8-9 Laboratory / Citadel / Ziggurat | 10-11 | 12 unique
   plain: {
-    2: { typeRoll: 11 },
-    3: { typeRoll: 11 },
-    4: { typeRoll: 11 },
+    2: { typeRoll: 13 },
+    3: { typeRoll: 13 },
+    4: { typeRoll: 13 },
     5: { typeRoll: 1 },
     6: { typeRoll: 1 },
     7: { typeRoll: 1 },
@@ -469,9 +485,9 @@ export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeo
     12: { typeRoll: 8, unique: "entrails" },
   },
   mountain: {
-    2: { typeRoll: 11 },
-    3: { typeRoll: 11 },
-    4: { typeRoll: 11 },
+    2: { typeRoll: 13 },
+    3: { typeRoll: 13 },
+    4: { typeRoll: 13 },
     5: { typeRoll: 2 },
     6: { typeRoll: 2 },
     7: { typeRoll: 2 },
@@ -482,9 +498,9 @@ export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeo
     12: { typeRoll: 7, unique: "megaDungeon" },
   },
   forest: {
-    2: { typeRoll: 11 },
-    3: { typeRoll: 11 },
-    4: { typeRoll: 11 },
+    2: { typeRoll: 13 },
+    3: { typeRoll: 13 },
+    4: { typeRoll: 13 },
     5: { typeRoll: 3 },
     6: { typeRoll: 3 },
     7: { typeRoll: 3 },
@@ -495,9 +511,9 @@ export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeo
     12: { typeRoll: 9, unique: "entrails" },
   },
   tundra: {
-    2: { typeRoll: 11 },
-    3: { typeRoll: 11 },
-    4: { typeRoll: 11 },
+    2: { typeRoll: 13 },
+    3: { typeRoll: 13 },
+    4: { typeRoll: 13 },
     5: { typeRoll: 6 },
     6: { typeRoll: 6 },
     7: { typeRoll: 6 },
@@ -511,11 +527,15 @@ export const RUINS_DUNGEON_TYPE: Record<RuinsTerrain, Record<number, RuinsDungeo
 
 export const DUNGEON_TYPE_BY_TERRAIN: Record<OverworldTerrain, Record<number, number>> = {
   plain: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 }, // Palace, Crypt, Tomb, Sanctuary, Temple, Prison
-  mountain: { 1: 2, 2: 4, 3: 6, 4: 7, 5: 11, 6: 6 }, // Crypt, Sanctuary, Prison, Citadel, Mine->Sewers, Cave->Prison
-  forest: { 1: 3, 2: 5, 3: 1, 4: 5, 5: 12, 6: 6 }, // Tomb, Temple, Palace, Temple, Laboratory, Cave->Prison
+  mountain: { 1: 2, 2: 4, 3: 6, 4: 7, 5: 14, 6: 13 }, // Crypt, Sanctuary, Prison, Citadel, Mine, Cave
+  forest: { 1: 3, 2: 5, 3: 1, 4: 5, 5: 12, 6: 13 }, // Tomb, Temple, Palace, Temple, Laboratory, Cave
   swamp: { 1: 2, 2: 3, 3: 4, 4: 5, 5: 11, 6: 10 }, // Crypt, Tomb, Sanctuary, Temple, Sewers, Necropolis
   desert: { 1: 6, 2: 1, 3: 4, 4: 5, 5: 8, 6: 8 }, // Prison, Palace, Sanctuary, Temple, Pyramid, Pyramid
   tundra: { 1: 6, 2: 1, 3: 2, 4: 3, 5: 9, 6: 9 }, // Prison, Palace, Crypt, Tomb, Ziggurat, Ziggurat
-  water: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 }, // unreachable -- no dungeon-bearing location ever rolls on water
-  glacier: { 1: 6, 2: 1, 3: 2, 4: 3, 5: 9, 6: 9 }, // unreachable while climate is hardcoded "hot" -- mirrors tundra's row
+  // Still never consulted: the one dungeon-bearing location that generates on water is a Reef,
+  // and a Reef names its own type (Underwater Cave) via LOCATION_FORCED_DUNGEON_TYPE rather than
+  // rolling here. Kept so the record stays total over OverworldTerrain.
+  water: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 },
+  // Reachable since #107 made climate a function of position -- mirrors tundra's row.
+  glacier: { 1: 6, 2: 1, 3: 2, 4: 3, 5: 9, 6: 9 },
 };
