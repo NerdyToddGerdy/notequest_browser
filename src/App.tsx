@@ -78,6 +78,22 @@ export default function App() {
   /** Laboratory's Special Rule (issue #30): what the mutation did on the way out, shown once on the
    * World screen. Cleared by `WorldScreen` when the player travels. */
   const [arrivalNote, setArrivalNote] = useState<string | null>(null);
+  /**
+   * Issue #133: true while the current dungeon trip was started from *inside* the Town Square, so
+   * coming back out returns the player there rather than to the map.
+   *
+   * #122 made standing on a city hex show the map, with entering a deliberate act — correct for
+   * travel, but it also meant a dungeon entered from town exited to the map, and the player had to
+   * re-enter a city they never actually left. The rule this restores: **exit returns you to wherever
+   * you entered from.** That preserves #122 exactly, because entering the city *was* deliberate —
+   * it just happened before the descent rather than after it.
+   *
+   * `WorldScreen` can't infer this on remount, and it can't be derived from which handler fired
+   * either: `onEnterDungeon` is reachable from the Town Square's own gate *and* from `HexInspector`
+   * on a Ruins hex. So the entry site passes it in (see `WorldScreen`'s two `onEnterDungeon`
+   * closures); `onEnterSewers` is town-only by construction and always sets it.
+   */
+  const [enteredFromTown, setEnteredFromTown] = useState(false);
 
   // Persists the whole session in one blob whenever any piece of it changes -- mirrors
   // addGraveyardEntry's "mutate then persist immediately" behavior, just via an effect instead
@@ -155,6 +171,9 @@ export default function App() {
   }
 
   function handleNewAdventurer() {
+    // Issue #133: death (and a fatal Laboratory mutation on the way out) routes here rather than
+    // through a town return, so the flag must not survive into the next character.
+    setEnteredFromTown(false);
     setCharacter(null);
     setResources(null);
     setActiveRunId(null);
@@ -405,7 +424,8 @@ export default function App() {
         onUpdateWorld={setWorld}
         onHardReset={handleHardReset}
         onCharacterDied={handleTownDeath}
-        onEnterDungeon={() => {
+        onEnterDungeon={(fromTown) => {
+          setEnteredFromTown(fromTown);
           const key = hexKey(resolvedWorld.player);
           const tile = resolvedWorld.tiles[key];
           if (!tile) return; // the Enter Dungeon button only ever shows on a known, dungeon-bearing tile
@@ -449,10 +469,12 @@ export default function App() {
           setScreen("dungeon");
         }}
         arrivalNote={arrivalNote}
+        initialShowTown={enteredFromTown}
         onArrivalNoteSeen={() => setArrivalNote(null)}
         autoPortalOnMount={pendingPortalOnArrival}
         onAutoPortalConsumed={() => setPendingPortalOnArrival(false)}
         onEnterSewers={() => {
+          setEnteredFromTown(true); // town-only gate by construction (issue #133)
           // Issue #99: "A Fortress may also have an extra dungeon to explore... Sewers under the
           // fortress." A second, independent run on the same hex, so it stamps `sewerRunId` rather
           // than `dungeonRunId` and forces the Sewers type roll (11) instead of consulting the
@@ -475,6 +497,9 @@ export default function App() {
           setScreen("dungeon");
         }}
         onEnterNoExitDungeon={() => {
+          // Issue #133: a portal-created run belongs to no hex at all, so its exit must land on the
+          // map regardless of where the player happened to be standing when the portal fired.
+          setEnteredFromTown(false);
           // Portals (issue #21) roll of 7. Deliberately *not* stamped onto any hex: this dungeon
           // isn't tied to geography (the portal dropped the character in from nowhere), so no
           // `withDungeonRunId` and no `forcedTypeRoll` -- the type roll stays free, since there's no

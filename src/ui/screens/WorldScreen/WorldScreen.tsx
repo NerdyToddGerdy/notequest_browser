@@ -163,7 +163,10 @@ export interface WorldScreenProps {
   dungeonHistory: PendingDungeon[];
   onUpdateResources: (resources: AdventurerResources) => void;
   onUpdateWorld: (world: WorldState) => void;
-  onEnterDungeon: () => void;
+  /** Issue #133: `fromTown` records whether the descent started inside the Town Square, so the
+   * return trip can land back there. Passed by the call site rather than derived, because this same
+   * handler is reachable from both the town gate and `HexInspector` on a Ruins hex. */
+  onEnterDungeon: (fromTown: boolean) => void;
   /** Portals (issue #21), the 3d6 roll of 7: "You appeared at the beginning of a new Dungeon but no
    * door to exit. In the Boss's room there will be a Portal." A separate entry point from
    * `onEnterDungeon` because it isn't tied to the hex the player is standing on at all -- the portal
@@ -179,6 +182,10 @@ export interface WorldScreenProps {
    * `HexInspector` line -- the same treatment a suppressed Event note gets, rather than a blocking
    * panel, since there's nothing to decide. */
   arrivalNote?: string | null;
+  /** Issue #133: seeds `showTown` on mount, so a dungeon entered from the Town Square returns
+   * there instead of dumping the player on the map outside a city they never left. Only ever true
+   * coming back from a town-entered run; travel and every other arrival leave it false. */
+  initialShowTown?: boolean;
   onArrivalNoteSeen?: () => void;
   autoPortalOnMount?: boolean;
   onAutoPortalConsumed?: () => void;
@@ -273,6 +280,7 @@ export function WorldScreen({
   onEnterNoExitDungeon,
   onEnterSewers,
   arrivalNote,
+  initialShowTown = false,
   onArrivalNoteSeen,
   autoPortalOnMount = false,
   onAutoPortalConsumed,
@@ -286,7 +294,7 @@ export function WorldScreen({
    * creating a character, or returning from a dungeon all dump the player straight into town with
    * no chance to look at the map first. The flag reads better this way round too: "am I *in* the
    * city," not "am I *voluntarily* looking at the map." */
-  const [showTown, setShowTown] = useState(false);
+  const [showTown, setShowTown] = useState(initialShowTown);
   /** Which known hex HexInspector describes -- null falls back to wherever the player is standing.
    * Clicking a passable, in-range neighbor travels there directly (unchanged from before
    * HexInspector existed); clicking any other known hex -- out of range, impassable, or the
@@ -1593,7 +1601,7 @@ export function WorldScreen({
           attackMessage={attackMessage}
           pendingStorm={pendingStorm}
           onUpdateResources={onUpdateResources}
-          onEnterDungeon={onEnterDungeon}
+          onEnterDungeon={() => onEnterDungeon(true)}
           onHireBoat={handleHireBoat}
           onBuyMount={handleBuyMount}
           onAsk={handleAsk}
@@ -1604,6 +1612,7 @@ export function WorldScreen({
           onResolveStorming={handleResolveStorming}
           onLocateDungeon={handleLocateDungeon}
           storedCounts={storedCounts}
+          arrivalNote={arrivalNote}
           onCharacterDied={(cause) => onCharacterDied(cause, currentPlaceLabel)}
           onExploreWorld={() => setShowTown(false)}
           onHardReset={onHardReset}
@@ -1831,7 +1840,7 @@ export function WorldScreen({
                     // here too (even while voluntarily viewing the map from inside one, see "Return
                     // to the City" below) so there's exactly one entry point for that case, not two.
                     canEnterDungeon={canEnterDungeon && !inCityOrFortress}
-                    onEnterDungeon={onEnterDungeon}
+                    onEnterDungeon={() => onEnterDungeon(false)}
                     trainableAnimals={isInspectingCurrentTile ? trainableAnimals : []}
                     resources={resources}
                     onTrainAnimal={handleTrainAnimal}
