@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-08-05
+
+### Changed
+
+- **Advanced Classes you can actually buy now sit at the top of the list** (#132). With 45 classes
+  costing anywhere from 10 to 6000 coins, cost order alone scattered the handful you could act on
+  through a very long list of ones you couldn't. The list is now grouped — **Available now**, then
+  **Not yet**, then **Acquired** — still cheapest-first within each group, with a heading at each
+  boundary so it's obvious where one ends and the next begins.
+  - "Not yet" deliberately covers both "not enough coins" and "requirement not met", because both
+    are things you're playing _toward_. Classes you already own sit below them: an achievement worth
+    seeing, but nothing left to decide.
+
 ## [4.0.1] - 2026-08-05
 
 ### Fixed

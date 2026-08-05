@@ -37,6 +37,23 @@
   border-bottom: none;
 }
 
+/* Issue #132: marks where one group ends and the next begins. Rendered inside the first `<li>` of
+   each group rather than breaking the list into several `<ul>`s, so the row's own dotted separator
+   and spacing stay untouched. Mono uppercase matches the eyebrow convention used elsewhere
+   (`.cityEyebrow`, the wordmark's series prefix). */
+.groupHeading {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 4px 0 8px;
+}
+/* The first group starts flush -- the panel heading above it is separation enough. */
+.row:first-child .groupHeading {
+  margin-top: 0;
+}
+
 .rowTop {
   display: flex;
   align-items: center;
