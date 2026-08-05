@@ -191,6 +191,11 @@ export interface TownScreenProps {
   /** Issue #79: forwarded straight through to `RecordsPanel`/`DungeonsList` -- see their own doc
    * comments. */
   onLocateDungeon: (id: string) => void;
+  /** Issue #133: the Laboratory's "you mutate on the way out" note (#30), shown here as well as on
+   * the map now that a town-entered dungeon returns to the Town Square. Needs no
+   * `isInspectingCurrentTile` guard, unlike `HexInspector`'s copy of the same note -- `TownScreen`
+   * only ever renders for the hex the player is standing on, so it's always about here. */
+  arrivalNote?: string | null;
   /** Buildings' storage (issue #102): how many items sit in each owned building, keyed by hex.
    * Read-only here -- depositing needs you standing on the building (see `HexInspector`). */
   storedCounts?: Record<string, number>;
@@ -287,6 +292,7 @@ export function TownScreen({
   dungeonHistory,
   onLocateDungeon,
   storedCounts,
+  arrivalNote,
   culture,
   cityName,
   showHireBoat,
@@ -506,6 +512,13 @@ export function TownScreen({
 
               <p className={styles.cityEyebrow}>Town Square</p>
               <span className={styles.sheetLabel}>{cityName}</span>
+
+              {/* Issue #133: a dungeon entered from here now returns here, which means the arrival
+                  note has to be shown here too. It used to reach only `HexInspector`, inside
+                  `WorldScreen`'s map branch — so a Laboratory beneath a city would have announced a
+                  permanent mutation into a panel the player was no longer looking at. Same one-shot
+                  lifecycle as on the map: it stays until the next move clears it. */}
+              {arrivalNote && <p className={styles.arrivalNote}>{arrivalNote}</p>}
 
               {arena ? (
                 <section className={styles.actions}>

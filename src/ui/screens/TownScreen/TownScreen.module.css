@@ -143,6 +143,20 @@
   margin: 0 0 4px;
 }
 
+/* Issue #133: the one-shot arrival note (a Laboratory mutation on the way out, #30), shown here now
+   that a dungeon entered from the Town Square returns to it. Gold-ruled rather than `--danger` --
+   a mutation is consequential but not an error, and several of the rows are purely cosmetic. */
+.arrivalNote {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.88rem;
+  color: var(--ink);
+  border-left: 3px solid var(--gold);
+  background: rgba(184, 134, 47, 0.08);
+  padding: 8px 12px;
+  margin: 12px 0 0;
+}
+
 .trackTitle {
   font-family: var(--font-display);
   font-weight: 400;

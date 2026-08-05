@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-08-05
+
+### Fixed
+
+- **Leaving a dungeon beneath a city drops you back in the city again** (#133) — you entered from the
+  Town Square, and came out standing on the map _outside_ it, having to click "Enter City" to get
+  back where you started. The round trip was broken for every dungeon reachable only from inside a
+  town: a City or Fortress's own dungeon, and the Sewers beneath a Fortress.
+  - The rule now is simply **exit returns you to wherever you entered from.** A dungeon entered from
+    the Town Square returns there; a Ruins dungeon, entered from the map, still returns to the map.
+  - This doesn't undo v3.1.0's change — entering a city is still always a deliberate act. You just
+    already did it deliberately, before you went down the stairs.
+  - A Laboratory beneath a city now tells you about your mutation in the Town Square. It was
+    previously announced only on the map, so leaving one under a city would have told you nothing.
+
 ## [4.0.0] - 2026-08-04
 
 A major version for a change of identity rather than of mechanics: the project is now **GerdQuest: Realm of Depths**.
