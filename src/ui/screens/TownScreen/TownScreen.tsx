@@ -498,490 +498,477 @@ export function TownScreen({
 
   return (
     <div className={styles.page}>
-      <div className={styles.layout}>
-        <div className={styles.mainCol}>
-          <main className={styles.sheet}>
-            <div className={styles.sheetInner}>
-              <header className={styles.wordmark}>
-                <h1>
-                  <small>GerdQuest</small>
-                  Realm of Depths
-                </h1>
-                <p className={styles.tagline}>The town, between one dungeon and the next.</p>
-              </header>
+      <div className={`${styles.mainCol} screen-sheet`}>
+        <main className={styles.sheet}>
+          <div className={styles.sheetInner}>
+            <header className={styles.wordmark}>
+              <h1>
+                <small>GerdQuest</small>
+                Realm of Depths
+              </h1>
+            </header>
 
-              <p className={styles.cityEyebrow}>Town Square</p>
-              <span className={styles.sheetLabel}>{cityName}</span>
+            <p className={styles.cityEyebrow}>Town Square</p>
+            <span className={styles.sheetLabel}>{cityName}</span>
 
-              {/* Issue #133: a dungeon entered from here now returns here, which means the arrival
+            {/* Issue #133: a dungeon entered from here now returns here, which means the arrival
                   note has to be shown here too. It used to reach only `HexInspector`, inside
                   `WorldScreen`'s map branch — so a Laboratory beneath a city would have announced a
                   permanent mutation into a panel the player was no longer looking at. Same one-shot
                   lifecycle as on the map: it stays until the next move clears it. */}
-              {arrivalNote && <p className={styles.arrivalNote}>{arrivalNote}</p>}
+            {arrivalNote && <p className={styles.arrivalNote}>{arrivalNote}</p>}
 
-              {arena ? (
-                <section className={styles.actions}>
-                  <h2 className={styles.trackTitle}>The Arena</h2>
-                  <div className={styles.arenaCard}>
-                    <p className={styles.gateCopy}>
-                      {arenaChampion(arena)
-                        ? `${arenaChampion(arena)!.name} -- ${arenaChampion(arena)!.hp} / ${arenaChampion(arena)!.maxHp} HP`
-                        : "Your opponent has fallen."}
-                    </p>
-                    <ul className={styles.arenaLog}>
-                      {arenaLog.map((line, i) => (
-                        <li key={i}>{line}</li>
-                      ))}
-                    </ul>
-                    {arena.outcome === "ongoing" ? (
-                      <button className={styles.rollBtn} type="button" onClick={handleArenaAttack}>
-                        Attack
-                      </button>
-                    ) : (
-                      <button
-                        className={styles.rollBtn}
-                        type="button"
-                        onClick={() => setArena(null)}
-                      >
-                        Return to City Actions
-                      </button>
-                    )}
-                  </div>
-                </section>
-              ) : pendingStorm ? (
-                <section className={styles.actions}>
-                  <h2 className={styles.trackTitle}>Storming the Castle</h2>
-                  <div className={styles.arenaCard}>
-                    <p className={styles.gateCopy}>{attackMessage}</p>
-                    <button
-                      className={styles.rollBtn}
-                      type="button"
-                      onClick={() => onResolveStorming("annex")}
-                    >
-                      Annex (Affinity +2)
-                    </button>
-                    <button
-                      className={styles.rollBtn}
-                      type="button"
-                      onClick={() => onResolveStorming("loot")}
-                    >
-                      Loot &amp; Raze
-                    </button>
-                  </div>
-                </section>
-              ) : (
-                <section className={styles.actions}>
-                  <h2 className={styles.trackTitle}>City Square</h2>
-                  <div className={styles.actionTabs}>
-                    {allTabs.map((tab) => (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        className={
-                          activeActionTab === tab.key ? styles.actionTabActive : styles.actionTab
-                        }
-                        onClick={() => setActiveActionTab(tab.key)}
-                      >
-                        {tab.label}
-                      </button>
+            {arena ? (
+              <section className={styles.actions}>
+                <h2 className={styles.trackTitle}>The Arena</h2>
+                <div className={styles.arenaCard}>
+                  <p className={styles.gateCopy}>
+                    {arenaChampion(arena)
+                      ? `${arenaChampion(arena)!.name} -- ${arenaChampion(arena)!.hp} / ${arenaChampion(arena)!.maxHp} HP`
+                      : "Your opponent has fallen."}
+                  </p>
+                  <ul className={styles.arenaLog}>
+                    {arenaLog.map((line, i) => (
+                      <li key={i}>{line}</li>
                     ))}
-                  </div>
-                  {isOriginalActionTab && (
-                    <>
-                      <div className={styles.actionGrid}>
-                        {activeActionTab === "tavern" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canRest(resources, isChampion)}
-                            onClick={() => onUpdateResources(rest(resources, isChampion))}
-                          >
-                            <span className={styles.actionName}>Rest</span>
-                            <span className={styles.actionCost}>
-                              {isChampion ? "Free (Champion)" : "1 coin"}
-                            </span>
-                            <span className={styles.actionDesc}>
-                              Recover your HP and spent spells.
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "tavern" && isAlchemist && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canBrewHealthPotion(resources, isAlchemist, isOgre)}
-                            onClick={() => onUpdateResources(brewHealthPotion(resources))}
-                          >
-                            <span className={styles.actionName}>Brew Health Potion</span>
-                            <span className={styles.actionCost}>50 coins</span>
-                            <span className={styles.actionDesc}>Heal to full HP (Alchemist).</span>
-                          </button>
-                        )}
-                        {activeActionTab === "shop" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canBuyTorch(resources)}
-                            onClick={() => onUpdateResources(buyTorch(resources))}
-                          >
-                            <span className={styles.actionName}>Buy Torches</span>
-                            <span className={styles.actionCost}>1 coin</span>
-                            <span className={styles.actionDesc}>
-                              +1 torch, up to a maximum of 10 carried.
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "shop" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canBuyTorch(resources)}
-                            onClick={() => onUpdateResources(buyMaxTorches(resources))}
-                          >
-                            <span className={styles.actionName}>Buy Max Torches</span>
-                            <span className={styles.actionCost}>1 coin each</span>
-                            <span className={styles.actionDesc}>
-                              Fill up to 10 torches, coin purse allowing.
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "shop" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canBuyProvision(resources)}
-                            onClick={() => onUpdateResources(buyProvision(resources))}
-                          >
-                            <span className={styles.actionName}>Buy Provisions</span>
-                            <span className={styles.actionCost}>1 coin</span>
-                            <span className={styles.actionDesc}>
-                              +1 provision, up to a maximum of 20 carried.
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "shop" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canBuyProvision(resources)}
-                            onClick={() => onUpdateResources(buyMaxProvisions(resources))}
-                          >
-                            <span className={styles.actionName}>Buy Max Provisions</span>
-                            <span className={styles.actionCost}>1 coin each</span>
-                            <span className={styles.actionDesc}>
-                              Fill up to 20 provisions, coin purse allowing.
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "jobBoard" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={askedDungeonKnown}
-                            onClick={onAsk}
-                          >
-                            <span className={styles.actionName}>Ask</span>
-                            <span className={styles.actionCost}>Free</span>
-                            <span className={styles.actionDesc}>
-                              {askedDungeonKnown
-                                ? "A dungeon is already known nearby."
-                                : "Ask about the nearest dungeon."}
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "jobBoard" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canPoliticalAffinity}
-                            onClick={handlePoliticalAffinity}
-                          >
-                            <span className={styles.actionName}>Political Affinity</span>
-                            <span className={styles.actionCost}>Free</span>
-                            <span className={styles.actionDesc}>
-                              {politicalAffinityMessage ??
-                                (politicalStatus
-                                  ? POLITICAL_STATUS_DESC[politicalStatus]
-                                  : "Roll to win this place's allegiance.")}
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "jobBoard" && politicalStatus === "vassal" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canRecruitTroop}
-                            onClick={onRecruitTroop}
-                          >
-                            <span className={styles.actionName}>Recruit Troop</span>
-                            <span className={styles.actionCost}>200 coins</span>
-                            <span className={styles.actionDesc}>
-                              {resources.troops > 0
-                                ? `${resources.troops} troop${resources.troops === 1 ? "" : "s"} ready for war.`
-                                : "Muster a troop from this Vassal."}
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "jobBoard" && canAttack && (
-                          <>
-                            <button
-                              className={styles.actionBtn}
-                              type="button"
-                              onClick={() => onAttack(false)}
-                            >
-                              <span className={styles.actionName}>Attack</span>
-                              <span className={styles.actionCost}>
-                                {resources.troops} troop{resources.troops === 1 ? "" : "s"}
-                              </span>
-                              <span className={styles.actionDesc}>
-                                {attackMessage ??
-                                  `Send your troops to war (Defense ${isFortress ? 12 : 6}).`}
-                              </span>
-                            </button>
-                            <button
-                              className={styles.actionBtn}
-                              type="button"
-                              onClick={() => onAttack(true)}
-                            >
-                              <span className={styles.actionName}>Attack (Join Battle)</span>
-                              <span className={styles.actionCost}>Risky</span>
-                              <span className={styles.actionDesc}>
-                                Fight alongside your troops for one bonus die -- a natural 1 kills
-                                you if the battle is lost.
-                              </span>
-                            </button>
-                          </>
-                        )}
-                        {activeActionTab === "jobBoard" && cultureAction && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={cultureAction.disabled}
-                            onClick={() => onUpdateResources(cultureAction.apply(resources))}
-                          >
-                            <span className={styles.actionName}>{cultureAction.name}</span>
-                            <span className={styles.actionCost}>{cultureAction.cost}</span>
-                            <span className={styles.actionDesc}>{cultureAction.desc}</span>
-                          </button>
-                        )}
-                        {activeActionTab === "jobBoard" && showHireBoat && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canHireBoat(resources)}
-                            onClick={onHireBoat}
-                          >
-                            <span className={styles.actionName}>Hire Boat</span>
-                            <span className={styles.actionCost}>1 coin</span>
-                            <span className={styles.actionDesc}>
-                              Cross water normally until you step onto dry land again.
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "underground" && !isFortress && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            disabled={!canHardWork(resources)}
-                            onClick={() => onUpdateResources(hardWork(resources))}
-                          >
-                            <span className={styles.actionName}>Hard Work</span>
-                            <span className={styles.actionCost}>Free</span>
-                            <span className={styles.actionDesc}>
-                              Permanently lose 1 max HP, gain 1d6+1 coins.
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "underground" && (
-                          <button className={styles.actionBtn} type="button" onClick={handleGamble}>
-                            <span className={styles.actionName}>Gamble</span>
-                            <span className={styles.actionCost}>
-                              {resources.coins >= 1 ? "1 coin" : "Your life"}
-                            </span>
-                            <span className={styles.actionDesc}>
-                              {resources.coins >= 1
-                                ? "Roll a 6 to win 6 coins, otherwise nothing."
-                                : "No coins left -- roll a 6 to survive and earn 5, or die."}
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "underground" && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            onClick={handleThugLife}
-                          >
-                            <span className={styles.actionName}>Thug Life</span>
-                            <span className={styles.actionCost}>Risky</span>
-                            <span className={styles.actionDesc}>
-                              {thugLifeMessage ??
-                                `Rob a traveler (${isFortress ? "3d6" : "2d6"}) -- could pay off, or get you killed or banned.`}
-                            </span>
-                          </button>
-                        )}
-                        {activeActionTab === "underground" && isFortress && (
-                          <button
-                            className={styles.actionBtn}
-                            type="button"
-                            onClick={handleStartArena}
-                          >
-                            <span className={styles.actionName}>Fight in the Arena</span>
-                            <span className={styles.actionCost}>Deadly</span>
-                            <span className={styles.actionDesc}>
-                              Face an unknown Champion. Win: 20 coins. Lose: you die.
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                      <p className={styles.sellNote}>
-                        Sell items from your Pack, or any armor and weapons from your Equipment
-                        {sellMultiplierNote}
-                        {isCollector
-                          ? ", with armor never fetching less than 5 coins (Collector)"
-                          : ""}
-                        . Fix a damaged armor piece for{" "}
-                        {isBlacksmith
-                          ? `1 torch (${character.cls.name === "Blacksmith" ? "Blacksmith" : "Advanced Class"})`
-                          : "1 coin"}
-                        .
-                      </p>
-                    </>
-                  )}
-
-                  {activeActionTab === "advancedClasses" && (
-                    <AdvancedClasses
-                      character={character}
-                      resources={resources}
-                      graveyard={graveyard}
-                      onAcquire={handleAcquireAdvancedClass}
-                    />
-                  )}
-
-                  {activeActionTab === "hireling" && (
-                    <Hireling
-                      hireling={resources.hireling}
-                      roster={hirelingRoster}
-                      canHire={(name) => canHireHireling(resources, name, culture, isFortress)}
-                      onHire={handleHireHireling}
-                    />
-                  )}
-
-                  {activeActionTab === "animals" && (
-                    <Animals
-                      buyableMounts={buyableMounts}
-                      resources={resources}
-                      onBuyMount={onBuyMount}
-                    />
-                  )}
-
-                  {activeActionTab === "buildings" && (
-                    <Buildings buildings={resources.buildings} storedCounts={storedCounts} />
-                  )}
-                </section>
-              )}
-
-              <section className={styles.adventureSection}>
-                <div className={hasRecords ? styles.adventureRow : undefined}>
-                  <div>
-                    <h2 className={styles.trackTitle}>Adventure</h2>
-
-                    {hasDungeon && (
-                      <div className={styles.activeDungeonCard}>
-                        <p className={styles.gateCopy}>{dungeonGateCopy}</p>
-                        <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
-                          Enter Dungeon
-                        </button>
-                      </div>
-                    )}
-
-                    {hasSewers && (
-                      <div className={styles.activeDungeonCard}>
-                        <p className={styles.gateCopy}>{sewersGateCopy}</p>
-                        <button className={styles.rollBtn} type="button" onClick={onEnterSewers}>
-                          Descend into the Sewers
-                        </button>
-                      </div>
-                    )}
-
-                    <div className={styles.rollNewSection}>
-                      <p className={styles.gateCopy}>
-                        Leave the city behind and see what's out there.
-                      </p>
-                      <button className={styles.ghostBtn} type="button" onClick={onExploreWorld}>
-                        Explore the World
-                      </button>
-                    </div>
-                  </div>
-
-                  {hasRecords && (
-                    <div className={styles.recordsCol}>
-                      <RecordsPanel
-                        graveyardEntries={graveyard}
-                        dungeons={dungeonHistory}
-                        onLocateDungeon={onLocateDungeon}
-                        compact
-                      />
-                    </div>
+                  </ul>
+                  {arena.outcome === "ongoing" ? (
+                    <button className={styles.rollBtn} type="button" onClick={handleArenaAttack}>
+                      Attack
+                    </button>
+                  ) : (
+                    <button className={styles.rollBtn} type="button" onClick={() => setArena(null)}>
+                      Return to City Actions
+                    </button>
                   )}
                 </div>
               </section>
-            </div>
-          </main>
-        </div>
+            ) : pendingStorm ? (
+              <section className={styles.actions}>
+                <h2 className={styles.trackTitle}>Storming the Castle</h2>
+                <div className={styles.arenaCard}>
+                  <p className={styles.gateCopy}>{attackMessage}</p>
+                  <button
+                    className={styles.rollBtn}
+                    type="button"
+                    onClick={() => onResolveStorming("annex")}
+                  >
+                    Annex (Affinity +2)
+                  </button>
+                  <button
+                    className={styles.rollBtn}
+                    type="button"
+                    onClick={() => onResolveStorming("loot")}
+                  >
+                    Loot &amp; Raze
+                  </button>
+                </div>
+              </section>
+            ) : (
+              <section className={styles.actions}>
+                <h2 className={styles.trackTitle}>City Square</h2>
+                <div className={styles.actionTabs}>
+                  {allTabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      className={
+                        activeActionTab === tab.key ? styles.actionTabActive : styles.actionTab
+                      }
+                      onClick={() => setActiveActionTab(tab.key)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {isOriginalActionTab && (
+                  <>
+                    <div className={styles.actionGrid}>
+                      {activeActionTab === "tavern" && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canRest(resources, isChampion)}
+                          onClick={() => onUpdateResources(rest(resources, isChampion))}
+                        >
+                          <span className={styles.actionName}>Rest</span>
+                          <span className={styles.actionCost}>
+                            {isChampion ? "Free (Champion)" : "1 coin"}
+                          </span>
+                          <span className={styles.actionDesc}>
+                            Recover your HP and spent spells.
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "tavern" && isAlchemist && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canBrewHealthPotion(resources, isAlchemist, isOgre)}
+                          onClick={() => onUpdateResources(brewHealthPotion(resources))}
+                        >
+                          <span className={styles.actionName}>Brew Health Potion</span>
+                          <span className={styles.actionCost}>50 coins</span>
+                          <span className={styles.actionDesc}>Heal to full HP (Alchemist).</span>
+                        </button>
+                      )}
+                      {activeActionTab === "shop" && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canBuyTorch(resources)}
+                          onClick={() => onUpdateResources(buyTorch(resources))}
+                        >
+                          <span className={styles.actionName}>Buy Torches</span>
+                          <span className={styles.actionCost}>1 coin</span>
+                          <span className={styles.actionDesc}>
+                            +1 torch, up to a maximum of 10 carried.
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "shop" && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canBuyTorch(resources)}
+                          onClick={() => onUpdateResources(buyMaxTorches(resources))}
+                        >
+                          <span className={styles.actionName}>Buy Max Torches</span>
+                          <span className={styles.actionCost}>1 coin each</span>
+                          <span className={styles.actionDesc}>
+                            Fill up to 10 torches, coin purse allowing.
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "shop" && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canBuyProvision(resources)}
+                          onClick={() => onUpdateResources(buyProvision(resources))}
+                        >
+                          <span className={styles.actionName}>Buy Provisions</span>
+                          <span className={styles.actionCost}>1 coin</span>
+                          <span className={styles.actionDesc}>
+                            +1 provision, up to a maximum of 20 carried.
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "shop" && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canBuyProvision(resources)}
+                          onClick={() => onUpdateResources(buyMaxProvisions(resources))}
+                        >
+                          <span className={styles.actionName}>Buy Max Provisions</span>
+                          <span className={styles.actionCost}>1 coin each</span>
+                          <span className={styles.actionDesc}>
+                            Fill up to 20 provisions, coin purse allowing.
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "jobBoard" && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={askedDungeonKnown}
+                          onClick={onAsk}
+                        >
+                          <span className={styles.actionName}>Ask</span>
+                          <span className={styles.actionCost}>Free</span>
+                          <span className={styles.actionDesc}>
+                            {askedDungeonKnown
+                              ? "A dungeon is already known nearby."
+                              : "Ask about the nearest dungeon."}
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "jobBoard" && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canPoliticalAffinity}
+                          onClick={handlePoliticalAffinity}
+                        >
+                          <span className={styles.actionName}>Political Affinity</span>
+                          <span className={styles.actionCost}>Free</span>
+                          <span className={styles.actionDesc}>
+                            {politicalAffinityMessage ??
+                              (politicalStatus
+                                ? POLITICAL_STATUS_DESC[politicalStatus]
+                                : "Roll to win this place's allegiance.")}
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "jobBoard" && politicalStatus === "vassal" && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canRecruitTroop}
+                          onClick={onRecruitTroop}
+                        >
+                          <span className={styles.actionName}>Recruit Troop</span>
+                          <span className={styles.actionCost}>200 coins</span>
+                          <span className={styles.actionDesc}>
+                            {resources.troops > 0
+                              ? `${resources.troops} troop${resources.troops === 1 ? "" : "s"} ready for war.`
+                              : "Muster a troop from this Vassal."}
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "jobBoard" && canAttack && (
+                        <>
+                          <button
+                            className={styles.actionBtn}
+                            type="button"
+                            onClick={() => onAttack(false)}
+                          >
+                            <span className={styles.actionName}>Attack</span>
+                            <span className={styles.actionCost}>
+                              {resources.troops} troop{resources.troops === 1 ? "" : "s"}
+                            </span>
+                            <span className={styles.actionDesc}>
+                              {attackMessage ??
+                                `Send your troops to war (Defense ${isFortress ? 12 : 6}).`}
+                            </span>
+                          </button>
+                          <button
+                            className={styles.actionBtn}
+                            type="button"
+                            onClick={() => onAttack(true)}
+                          >
+                            <span className={styles.actionName}>Attack (Join Battle)</span>
+                            <span className={styles.actionCost}>Risky</span>
+                            <span className={styles.actionDesc}>
+                              Fight alongside your troops for one bonus die -- a natural 1 kills you
+                              if the battle is lost.
+                            </span>
+                          </button>
+                        </>
+                      )}
+                      {activeActionTab === "jobBoard" && cultureAction && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={cultureAction.disabled}
+                          onClick={() => onUpdateResources(cultureAction.apply(resources))}
+                        >
+                          <span className={styles.actionName}>{cultureAction.name}</span>
+                          <span className={styles.actionCost}>{cultureAction.cost}</span>
+                          <span className={styles.actionDesc}>{cultureAction.desc}</span>
+                        </button>
+                      )}
+                      {activeActionTab === "jobBoard" && showHireBoat && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canHireBoat(resources)}
+                          onClick={onHireBoat}
+                        >
+                          <span className={styles.actionName}>Hire Boat</span>
+                          <span className={styles.actionCost}>1 coin</span>
+                          <span className={styles.actionDesc}>
+                            Cross water normally until you step onto dry land again.
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "underground" && !isFortress && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          disabled={!canHardWork(resources)}
+                          onClick={() => onUpdateResources(hardWork(resources))}
+                        >
+                          <span className={styles.actionName}>Hard Work</span>
+                          <span className={styles.actionCost}>Free</span>
+                          <span className={styles.actionDesc}>
+                            Permanently lose 1 max HP, gain 1d6+1 coins.
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "underground" && (
+                        <button className={styles.actionBtn} type="button" onClick={handleGamble}>
+                          <span className={styles.actionName}>Gamble</span>
+                          <span className={styles.actionCost}>
+                            {resources.coins >= 1 ? "1 coin" : "Your life"}
+                          </span>
+                          <span className={styles.actionDesc}>
+                            {resources.coins >= 1
+                              ? "Roll a 6 to win 6 coins, otherwise nothing."
+                              : "No coins left -- roll a 6 to survive and earn 5, or die."}
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "underground" && (
+                        <button className={styles.actionBtn} type="button" onClick={handleThugLife}>
+                          <span className={styles.actionName}>Thug Life</span>
+                          <span className={styles.actionCost}>Risky</span>
+                          <span className={styles.actionDesc}>
+                            {thugLifeMessage ??
+                              `Rob a traveler (${isFortress ? "3d6" : "2d6"}) -- could pay off, or get you killed or banned.`}
+                          </span>
+                        </button>
+                      )}
+                      {activeActionTab === "underground" && isFortress && (
+                        <button
+                          className={styles.actionBtn}
+                          type="button"
+                          onClick={handleStartArena}
+                        >
+                          <span className={styles.actionName}>Fight in the Arena</span>
+                          <span className={styles.actionCost}>Deadly</span>
+                          <span className={styles.actionDesc}>
+                            Face an unknown Champion. Win: 20 coins. Lose: you die.
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                    <p className={styles.sellNote}>
+                      Sell items from your Pack, or any armor and weapons from your Equipment
+                      {sellMultiplierNote}
+                      {isCollector
+                        ? ", with armor never fetching less than 5 coins (Collector)"
+                        : ""}
+                      . Fix a damaged armor piece for{" "}
+                      {isBlacksmith
+                        ? `1 torch (${character.cls.name === "Blacksmith" ? "Blacksmith" : "Advanced Class"})`
+                        : "1 coin"}
+                      .
+                    </p>
+                  </>
+                )}
 
-        <aside className={styles.side}>
-          <CharacterSheet
-            character={character}
-            torches={resources.torches}
-            hp={resources.hp}
-            maxHp={resources.maxHp}
-            coins={resources.coins}
-            treasures={resources.treasures}
-            keys={resources.keys}
-            provisions={resources.provisions}
-            weaponName={resources.weapon?.name}
-            weaponFormula={resources.weapon?.formula}
-            spellUses={resources.spellUses}
-            maxSpellUses={resources.maxSpellUses}
-            monsterKills={resources.monsterKills}
-            killsByName={resources.killsByName}
-            hireling={resources.hireling}
-            animals={resources.animals}
-            mutations={resources.mutations}
-            armLost={resources.armLost}
-            advancedClasses={resources.advancedClasses}
-            curiosities={resources.curiosities}
-            canCastOutOfCombat
-            onCastSpell={(table, spellRoll) =>
-              onUpdateResources(castSpell(resources, table, spellRoll))
-            }
-          />
-          <Equipment
-            armor={resources.armor}
-            weapon={resources.weapon}
-            spareWeapons={resources.spareWeapons}
-            onWield={(index) => onUpdateResources(wieldWeapon(resources, index))}
-            spareArmor={resources.spareArmor}
-            onWieldArmor={(index) => onUpdateResources(wieldArmor(resources, index))}
-            onFixArmor={(index) => onUpdateResources(fixArmor(resources, index, isBlacksmith))}
-            isBlacksmith={isBlacksmith}
-            onSell={(target) => onUpdateResources(sellEquipment(resources, target, sellOptions))}
-            saleWorth={(target) => equipmentSaleWorth(resources, target, sellOptions)}
-          />
-          <Pack
-            items={resources.heldItems}
-            onSell={(index) =>
-              onUpdateResources(sellItem(resources, index, isCatPerson, isFortress))
-            }
-            onDiscard={(index) => onUpdateResources(discardItem(resources, index))}
-            maxItems={maxHeldItemsFor(resources.hireling, resources.animals)}
-            consumables={resources.consumables}
-            onUseConsumable={(index) => onUpdateResources(drinkConsumable(resources, index))}
-            onDiscardConsumable={(index) => onUpdateResources(discardConsumable(resources, index))}
-          />
-        </aside>
+                {activeActionTab === "advancedClasses" && (
+                  <AdvancedClasses
+                    character={character}
+                    resources={resources}
+                    graveyard={graveyard}
+                    onAcquire={handleAcquireAdvancedClass}
+                  />
+                )}
+
+                {activeActionTab === "hireling" && (
+                  <Hireling
+                    hireling={resources.hireling}
+                    roster={hirelingRoster}
+                    canHire={(name) => canHireHireling(resources, name, culture, isFortress)}
+                    onHire={handleHireHireling}
+                  />
+                )}
+
+                {activeActionTab === "animals" && (
+                  <Animals
+                    buyableMounts={buyableMounts}
+                    resources={resources}
+                    onBuyMount={onBuyMount}
+                  />
+                )}
+
+                {activeActionTab === "buildings" && (
+                  <Buildings buildings={resources.buildings} storedCounts={storedCounts} />
+                )}
+              </section>
+            )}
+
+            <section className={styles.adventureSection}>
+              <div className={hasRecords ? styles.adventureRow : undefined}>
+                <div>
+                  <h2 className={styles.trackTitle}>Adventure</h2>
+
+                  {hasDungeon && (
+                    <div className={styles.activeDungeonCard}>
+                      <p className={styles.gateCopy}>{dungeonGateCopy}</p>
+                      <button className={styles.rollBtn} type="button" onClick={onEnterDungeon}>
+                        Enter Dungeon
+                      </button>
+                    </div>
+                  )}
+
+                  {hasSewers && (
+                    <div className={styles.activeDungeonCard}>
+                      <p className={styles.gateCopy}>{sewersGateCopy}</p>
+                      <button className={styles.rollBtn} type="button" onClick={onEnterSewers}>
+                        Descend into the Sewers
+                      </button>
+                    </div>
+                  )}
+
+                  <div className={styles.rollNewSection}>
+                    <p className={styles.gateCopy}>
+                      Leave the city behind and see what's out there.
+                    </p>
+                    <button className={styles.ghostBtn} type="button" onClick={onExploreWorld}>
+                      Explore the World
+                    </button>
+                  </div>
+                </div>
+
+                {hasRecords && (
+                  <div className={styles.recordsCol}>
+                    <RecordsPanel
+                      graveyardEntries={graveyard}
+                      dungeons={dungeonHistory}
+                      onLocateDungeon={onLocateDungeon}
+                      compact
+                    />
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </main>
       </div>
+
+      <aside className={styles.side}>
+        <CharacterSheet
+          character={character}
+          torches={resources.torches}
+          hp={resources.hp}
+          maxHp={resources.maxHp}
+          coins={resources.coins}
+          treasures={resources.treasures}
+          keys={resources.keys}
+          provisions={resources.provisions}
+          weaponName={resources.weapon?.name}
+          weaponFormula={resources.weapon?.formula}
+          spellUses={resources.spellUses}
+          maxSpellUses={resources.maxSpellUses}
+          monsterKills={resources.monsterKills}
+          killsByName={resources.killsByName}
+          hireling={resources.hireling}
+          animals={resources.animals}
+          mutations={resources.mutations}
+          armLost={resources.armLost}
+          advancedClasses={resources.advancedClasses}
+          curiosities={resources.curiosities}
+          canCastOutOfCombat
+          onCastSpell={(table, spellRoll) =>
+            onUpdateResources(castSpell(resources, table, spellRoll))
+          }
+        />
+        <Equipment
+          armor={resources.armor}
+          weapon={resources.weapon}
+          spareWeapons={resources.spareWeapons}
+          onWield={(index) => onUpdateResources(wieldWeapon(resources, index))}
+          spareArmor={resources.spareArmor}
+          onWieldArmor={(index) => onUpdateResources(wieldArmor(resources, index))}
+          onFixArmor={(index) => onUpdateResources(fixArmor(resources, index, isBlacksmith))}
+          isBlacksmith={isBlacksmith}
+          onSell={(target) => onUpdateResources(sellEquipment(resources, target, sellOptions))}
+          saleWorth={(target) => equipmentSaleWorth(resources, target, sellOptions)}
+        />
+        <Pack
+          items={resources.heldItems}
+          onSell={(index) => onUpdateResources(sellItem(resources, index, isCatPerson, isFortress))}
+          onDiscard={(index) => onUpdateResources(discardItem(resources, index))}
+          maxItems={maxHeldItemsFor(resources.hireling, resources.animals)}
+          consumables={resources.consumables}
+          onUseConsumable={(index) => onUpdateResources(drinkConsumable(resources, index))}
+          onDiscardConsumable={(index) => onUpdateResources(discardConsumable(resources, index))}
+        />
+      </aside>
 
       <Footer screenLabel="THE TOWN" onHardReset={onHardReset} />
     </div>

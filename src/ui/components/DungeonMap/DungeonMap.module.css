@@ -1,5 +1,12 @@
 .wrap {
   position: relative;
+  /* A flex column that fills its cell, so the map inside can size to it and the wrapper's own
+     bottom border stays on screen. It was a plain block, which meant `flex`/`height` on `.scroll`
+     had nothing to resolve against and the map spilled past the frame. */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   background: linear-gradient(180deg, #241a10, #17110a);
   border: 1px solid rgba(0, 0, 0, 0.5);
   border-radius: 5px;
@@ -36,8 +43,13 @@
 }
 
 .scroll {
-  overflow: auto;
-  max-height: 560px;
+  /* Panned by dragging (see DungeonMap's pointer handlers), so it needs no scrollbar of its own --
+     and on the dungeon page it fills whatever height its cell gives it rather than a fixed 560px. */
+  overflow: hidden;
+  flex: 1;
+  /* No `height: 100%` -- inside a padded parent that resolves to parent-height *plus* padding,
+     which is exactly what pushed the frame's bottom edge off screen. */
+  min-height: 0;
   border-radius: 3px;
   background: var(--parchment-2);
   cursor: grab;

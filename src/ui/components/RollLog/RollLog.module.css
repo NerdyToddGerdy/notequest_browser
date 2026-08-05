@@ -21,20 +21,20 @@
 .log li {
   font-family: var(--font-mono);
   font-size: 0.7rem;
-  color: #cabb9c;
+  color: var(--ink-soft);
   padding: 3px 0;
   border-bottom: 1px dotted rgba(184, 134, 47, 0.18);
 }
 .log li:first-child {
-  color: #f2e6cc;
+  color: var(--ink);
 }
 .descend {
-  color: #f2e6cc;
+  color: var(--ink);
 }
 .empty {
   font-family: var(--font-body);
   font-style: italic;
   font-size: 0.78rem;
-  color: #8a7a5f;
+  color: var(--ink-soft);
   margin: 0;
 }

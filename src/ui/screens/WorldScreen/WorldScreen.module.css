@@ -1,60 +1,81 @@
+/* One box filling the viewport, with everything laid out inside it -- 4 columns x 5 rows:
+   title across the top-left 3, the map filling the 4 rows beneath it, and the sidebar running the
+   full height of the last column. Nothing overflows the page; each area scrolls on its own instead
+   (see `min-height: 0`, which grid children need before `overflow` will do anything). */
 .page {
   position: relative;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: clamp(28px, 6vw, 64px) 20px 64px;
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 10px;
+  height: 100dvh;
+}
+@media (max-width: 900px) {
+  /* Stacked: the sidebar can't hold a useful column at this width, so the box scrolls instead. */
+  .page {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    overflow: visible;
+  }
 }
 
 .wordmark {
   position: relative;
   text-align: center;
-  margin-bottom: clamp(20px, 4vw, 34px);
-  color: var(--parchment);
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed var(--ink-soft);
+}
+@media (max-width: 900px) {
+  .leftCol,
+  .side,
+  .page > footer {
+    grid-column: 1;
+    grid-row: auto;
+    overflow: visible;
+  }
 }
 .wordmark h1 {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: clamp(2.1rem, 6vw, 3.2rem);
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
   letter-spacing: 0.04em;
   margin: 0;
-  color: var(--gold-bright);
-  text-shadow:
-    0 0 28px rgba(217, 121, 31, 0.55),
-    0 2px 0 rgba(0, 0, 0, 0.4);
+  color: var(--gold);
   text-wrap: balance;
 }
-.tagline {
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 0.92rem;
-  color: #cabb9c;
-  margin: 8px 0 0;
-}
-
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 26px;
-  width: min(1180px, 100%);
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
+/* Area 2: the map, filling the four rows under the title. `min-height: 0` is what lets it scroll
+   inside its own cell rather than stretching the page. */
+.leftCol {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px;
 }
 
 .mainCol {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
   min-width: 0;
+  min-height: 0;
+  overflow: visible;
 }
 
 .mapCard {
   position: relative;
+  /* Fills whatever height its grid cell gives it, rather than sizing to the map inside. */
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--parchment);
   border-radius: 3px;
   border: 1px solid rgba(42, 32, 22, 0.35);
@@ -117,10 +138,19 @@
 
 .mapSvg {
   width: 100%;
-  height: min(70vh, 560px);
+  /* Was a fixed min(70vh, 560px) back when the page scrolled; now it takes the card's height. */
+  flex: 1;
+  min-height: 0;
   display: block;
   cursor: grab;
   touch-action: none;
+}
+@media (max-width: 900px) {
+  /* No full-height cell to fill once stacked, so it needs an explicit height again. */
+  .mapSvg {
+    height: min(70vh, 560px);
+    flex: none;
+  }
 }
 .mapSvg:active {
   cursor: grabbing;
@@ -239,12 +269,24 @@
   outline-offset: 2px;
 }
 
+/* Area 3: the sidebar, running the full height of the last column. No longer sticky -- it is its
+   own full-height cell now, so there is nothing to stick to. */
 .side {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  position: sticky;
-  top: 20px;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* The Footer sits at the foot of the sidebar rather than in a row of its own, so the grid stays
+   exactly the three areas: title, map, sidebar. */
+/* The footer is the floor of the page, spanning both columns -- same as the dungeon. */
+.page > footer {
+  grid-column: 1 / -1;
+  grid-row: 3;
 }
 
 /* Other Worlds (issue #105) -- the terrain-hazard card, sharing .portalOverlay's slot. */
