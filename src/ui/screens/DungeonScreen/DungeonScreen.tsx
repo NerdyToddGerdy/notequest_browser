@@ -55,6 +55,12 @@ export interface DungeonScreenProps {
    * before mount. Ignored whenever activeDungeon/resumeDungeon is set (those already carry their own
    * id). Undefined for a Town-sourced entry. */
   externalRunId?: string;
+  /** Issue #141: the snapshot of this very run from before a page reload. When set, the reducer
+   * mounts from it as-is -- no roll, no RETURN_TO_DUNGEON/RESUME_DUNGEON re-seeding, and none of the
+   * fresh-trip side effects, since all of those already happened before the reload. */
+  restoredDungeon?: DungeonState;
+  /** Issue #141: reports the run's latest state after every dispatch so App can persist it. */
+  onRunProgress: (runId: string, dungeon: DungeonState) => void;
   /** Sends the player back to Character Creation to roll a new adventurer -- this one is permadead. */
   onNewAdventurer: () => void;
   /** Hirelings (issue #25) only: the mount-only effect below spends `resources.hireling` the
@@ -81,6 +87,8 @@ export function DungeonScreen({
   resumeDungeon,
   forcedTypeRoll,
   externalRunId,
+  restoredDungeon,
+  onRunProgress,
   onNewAdventurer,
   onUpdateResources,
   onReturnToTown,
@@ -93,6 +101,7 @@ export function DungeonScreen({
     () => activeDungeon?.id ?? resumeDungeon?.id ?? externalRunId ?? crypto.randomUUID(),
   );
   const [state, dispatch] = useReducer(reduceDungeon, undefined, () => {
+    if (restoredDungeon) return restoredDungeon;
     if (activeDungeon) {
       return dungeonReducer(createInitialDungeonState(), {
         type: "RETURN_TO_DUNGEON",
@@ -265,6 +274,7 @@ export function DungeonScreen({
   // Effect of the Forgotten Gods (issue #30) is consumed the same way, into state.runDamageBonus.
   useEffect(() => {
     if (
+      !restoredDungeon &&
       !activeDungeon &&
       !resumeDungeon &&
       (resources.hireling || resources.nextDungeonDamageBonus > 0)
@@ -281,10 +291,20 @@ export function DungeonScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Records the character in the Graveyard exactly once per death (the effect only re-runs
-  // when `alive` actually flips, not on every render while the death panel stays up).
+  // Issue #141: snapshot the run for App to persist after every dispatch, so a reload resumes here
+  // instead of rewinding to the moment the dungeon was entered.
   useEffect(() => {
-    if (state.alive) return;
+    onRunProgress(runId, state);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  // Records the character in the Graveyard exactly once per death (the effect only re-runs
+  // when `alive` actually flips, not on every render while the death panel stays up). A run
+  // restored after a reload (issue #141) that was already dead was recorded before the reload.
+  const deathAlreadyRecorded = useRef(restoredDungeon ? !restoredDungeon.alive : false);
+  useEffect(() => {
+    if (state.alive || deathAlreadyRecorded.current) return;
+    deathAlreadyRecorded.current = true;
     addGraveyardEntry({
       name: character.name,
       dungeon: state.dungeonName ?? "an unknown dungeon",

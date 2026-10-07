@@ -1,5 +1,5 @@
 import type { CreatedCharacter } from "../data/types.ts";
-import type { PendingDungeon } from "./dungeonState.ts";
+import type { DungeonState, PendingDungeon } from "./dungeonState.ts";
 import {
   createInitialMilestones,
   createInitialTravelStats,
@@ -22,6 +22,22 @@ export interface SessionState {
   /** The World map -- shared across every character, same as `dungeonHistory`, not reset by a
    * new adventurer. Null until "Venture into the World" is pressed for the first time. */
   world: WorldState | null;
+  /** Issue #141: the dungeon run on screen right now, if any, snapshotted on every dispatch. Without
+   * it a run lived only in `DungeonScreen`'s reducer, so a reload rewound the whole trip -- death
+   * included, since the character is only cleared when "New Adventurer" is clicked. On load, a
+   * non-null `liveRun` resumes straight back into the dungeon at exactly this state. Optional for
+   * back-compat; `loadSession()` defaults it to null. */
+  liveRun?: LiveRun | null;
+}
+
+/** Everything `App.tsx` needs to remount `DungeonScreen` mid-run after a reload. `forcedTypeRoll`
+ * matters only before the dungeon is rolled; `noExit`/`enteredFromTown` decide where the exit leads. */
+export interface LiveRun {
+  runId: string;
+  dungeon: DungeonState;
+  forcedTypeRoll: number | null;
+  noExit: boolean;
+  enteredFromTown: boolean;
 }
 
 /** Keeps the historical `notequest:` prefix deliberately (issue #113). This key holds every
@@ -56,6 +72,7 @@ const EMPTY_SESSION: SessionState = {
   dungeonHistory: [],
   activeRunId: null,
   world: null,
+  liveRun: null,
 };
 
 /**
@@ -111,6 +128,8 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
       dungeonHistory: Array.isArray(p.dungeonHistory) ? p.dungeonHistory : [],
       activeRunId: p.activeRunId ?? null,
       world: p.world ?? null,
+      // A snapshot without a character to own it can't be resumed into anything.
+      liveRun: p.character && p.liveRun?.dungeon ? p.liveRun : null,
     };
   } catch {
     return EMPTY_SESSION;

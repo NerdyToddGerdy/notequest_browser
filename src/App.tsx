@@ -35,7 +35,7 @@ import {
  * outright, so it bypasses `DUNGEON_TYPE_BY_TERRAIN` entirely. */
 const SEWERS_TYPE_ROLL = 11;
 import { rollDie } from "./engine/dice.ts";
-import { clearSession, loadSession, saveSession } from "./engine/session.ts";
+import { clearSession, loadSession, saveSession, type LiveRun } from "./engine/session.ts";
 import { addGraveyardEntry, clearGraveyard, type TownDeathCause } from "./engine/graveyard.ts";
 import { applyZombieRevival, rollMutation, zombieRevivalHp } from "./engine/mutations.ts";
 
@@ -45,18 +45,21 @@ type Screen = "world" | "dungeon";
 
 export default function App() {
   // Loaded once, on mount -- the pieces below seed themselves from it and then live as their own
-  // independent state, same as before persistence ezxisted. `screen`/`selectedRunId` deliberately
+  // independent state, same as before persistence existed. `screen`/`selectedRunId` deliberately
   // aren't part of this: they're transient navigation state, not worth remembering (a reload just
   // resumes wherever world.player physically was, since that itself is persisted).
   const [initialSession] = useState(() => loadSession());
   const [character, setCharacter] = useState<CreatedCharacter | null>(initialSession.character);
   const [resources, setResources] = useState<AdventurerResources | null>(initialSession.resources);
-  const [screen, setScreen] = useState<Screen>("world");
+  // Issue #141: a reload mid-run lands straight back in the dungeon it interrupted.
+  const [screen, setScreen] = useState<Screen>(initialSession.liveRun ? "dungeon" : "world");
   /** This character's own paused dungeon, if any -- looked up in dungeonHistory below. */
   const [activeRunId, setActiveRunId] = useState<string | null>(initialSession.activeRunId);
   /** Which dungeon World's "Enter Dungeon" sent the player into -- their own active one, an
    * abandoned one they picked up, or null for a fresh roll. Read once when DungeonScreen mounts. */
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(
+    initialSession.liveRun?.runId ?? null,
+  );
   const [dungeonHistory, setDungeonHistory] = useState<PendingDungeon[]>(
     initialSession.dungeonHistory,
   );
@@ -66,17 +69,21 @@ export default function App() {
   /** Set right before switching to "dungeon" from World's "Enter Dungeon" -- the current hex's
    * terrain fates the dungeon type ("Table: Dungeon Type, by terrain"), passed through to
    * DungeonScreen as `forcedTypeRoll`. Null for every Town-sourced entry, where the roll stays free. */
-  const [forcedTypeRoll, setForcedTypeRoll] = useState<number | null>(null);
+  const [forcedTypeRoll, setForcedTypeRoll] = useState<number | null>(
+    initialSession.liveRun?.forcedTypeRoll ?? null,
+  );
   /** Set right before switching to "dungeon" from World's "Enter Dungeon", only on a hex with no
    * dungeon found yet -- DungeonScreen can't report its self-minted runId back before mount, so
    * this id is minted here instead and stamped onto the hex immediately (see onEnterDungeon), then
    * passed down as `externalRunId` so DungeonScreen uses this one instead of self-minting. */
-  const [worldFreshRunId, setWorldFreshRunId] = useState<string | null>(null);
+  const [worldFreshRunId, setWorldFreshRunId] = useState<string | null>(
+    initialSession.liveRun?.runId ?? null,
+  );
   /** Portals (issue #21) roll of 7: the next dungeon entered has no exit until its Boss falls, and
    * offers a Portal out instead of "Return to Town." Set alongside `worldFreshRunId` by
    * `onEnterNoExitDungeon`, cleared on the way back out (see `handleReturnToTown`), and threaded into
    * `DungeonScreen`'s mount-time initializer the same way `forcedTypeRoll` is. */
-  const [noExitRun, setNoExitRun] = useState(false);
+  const [noExitRun, setNoExitRun] = useState(initialSession.liveRun?.noExit ?? false);
   /** Set when a no-exit run's Boss-room Portal is used, so `WorldScreen` immediately rolls a fresh
    * portal on arrival rather than dropping the player back onto the map with nothing happening. */
   const [pendingPortalOnArrival, setPendingPortalOnArrival] = useState(false);
@@ -98,14 +105,31 @@ export default function App() {
    * on a Ruins hex. So the entry site passes it in (see `WorldScreen`'s two `onEnterDungeon`
    * closures); `onEnterSewers` is town-only by construction and always sets it.
    */
-  const [enteredFromTown, setEnteredFromTown] = useState(false);
+  const [enteredFromTown, setEnteredFromTown] = useState(
+    initialSession.liveRun?.enteredFromTown ?? false,
+  );
+  /**
+   * Issue #141: the run on screen right now, kept current by `DungeonScreen`'s `onRunProgress` on
+   * every dispatch and persisted with everything else, so a reload resumes it exactly rather than
+   * rewinding to the moment the dungeon was entered. Null whenever the World screen is up.
+   */
+  const [liveRun, setLiveRun] = useState<LiveRun | null>(initialSession.liveRun ?? null);
+  /** The snapshot `DungeonScreen` should mount from instead of rolling or resuming -- only ever the
+   * one loaded at startup, and dropped the moment that run is left so no later entry picks it up. */
+  const [restoredRun, setRestoredRun] = useState<LiveRun | null>(initialSession.liveRun ?? null);
 
   // Persists the whole session in one blob whenever any piece of it changes -- mirrors
   // addGraveyardEntry's "mutate then persist immediately" behavior, just via an effect instead
   // of inline at each call site, since several setters above would otherwise each need their own.
   useEffect(() => {
-    saveSession({ character, resources, dungeonHistory, activeRunId, world });
-  }, [character, resources, dungeonHistory, activeRunId, world]);
+    saveSession({ character, resources, dungeonHistory, activeRunId, world, liveRun });
+  }, [character, resources, dungeonHistory, activeRunId, world, liveRun]);
+
+  /** Issue #141: every way out of a dungeon funnels through here, so no snapshot outlives its run. */
+  function clearLiveRun() {
+    setLiveRun(null);
+    setRestoredRun(null);
+  }
 
   // A freshly created character always arrives in town first, never straight into a dungeon --
   // that's just World's home hex now, so this resets world.player back to home (world terrain,
@@ -179,6 +203,7 @@ export default function App() {
     // Issue #133: death (and a fatal Laboratory mutation on the way out) routes here rather than
     // through a town return, so the flag must not survive into the next character.
     setEnteredFromTown(false);
+    clearLiveRun();
     setCharacter(null);
     setResources(null);
     setActiveRunId(null);
@@ -234,6 +259,7 @@ export default function App() {
     setWorld(null);
     setForcedTypeRoll(null);
     setWorldFreshRunId(null);
+    clearLiveRun();
     setScreen("world");
   }
 
@@ -241,6 +267,7 @@ export default function App() {
   // them, and remembers the runId so re-entering that hex's dungeon jumps straight back in later.
   function handleReturnToTown(runId: string, dungeon: DungeonState) {
     setNoExitRun(false);
+    clearLiveRun();
     // Issue #123: "Back to Town" off the pre-roll gate, before anything was ever rolled. The hex was
     // stamped with this run id the instant "Enter Dungeon" was clicked, and the run is about to be
     // dropped for having no levels -- so the stamp has to go with it, or the hex points at an id
@@ -553,6 +580,10 @@ export default function App() {
         handleReturnToTown(runId, dungeon);
         setPendingPortalOnArrival(true);
       }}
+      restoredDungeon={restoredRun?.dungeon}
+      onRunProgress={(runId, dungeon) =>
+        setLiveRun({ runId, dungeon, forcedTypeRoll, noExit: noExitRun, enteredFromTown })
+      }
       onNewAdventurer={handleNewAdventurer}
       onUpdateResources={setResources}
       onReturnToTown={handleReturnToTown}

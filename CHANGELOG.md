@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.1] - 2026-10-07
+
+### Fixed
+
+- **Reloading mid-dungeon no longer rewinds the trip** (#141). A run was only saved when you left
+  it or beat its Boss, so a reload or closed tab threw away every room, item and kill since the
+  entrance. It also undid death: reloading on the death screen brought back a character already
+  laid to rest in the Graveyard, at their pre-trip HP. The run in progress is now saved after
+  every action, and a reload puts you back exactly where you were, death screen included.
+
 ## [4.3.0] - 2026-08-05
 
 ### Added

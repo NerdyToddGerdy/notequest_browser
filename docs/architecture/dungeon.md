@@ -151,6 +151,8 @@ Each dungeon type's `DUNGEON_TABLES[key].boss` (`Record<1-6, MonsterTemplate>`) 
 
 `dungeonHistory` is persisted the instant `bossDefeated` flips true via its own `useEffect` (not only on unmount / "Return to Town" click) — a hard reload from the victory screen kills the JS before the unmount cleanup ever runs, and World's beaten-check would otherwise still read the pre-victory snapshot on next load.
 
+**The run in progress is persisted on every dispatch as `liveRun`** (#141). Before that, a reload anywhere short of the Boss rewound the trip to its entrance — death included, since the character is only cleared by the "Roll a New Adventurer" click, so reloading on the death panel brought back a character the Graveyard already held. `DungeonScreen` reports each new state through `onRunProgress`, and on load a non-null `liveRun` mounts `DungeonScreen` straight from that snapshot (`restoredDungeon`), skipping the roll, the `RETURN_TO_DUNGEON`/`RESUME_DUNGEON` re-seeding and the fresh-trip hireling spend. A restored run that is already dead doesn't record its death again. Every exit clears the snapshot through App's `clearLiveRun()`. **Remaining gap:** a roll that is computed and then revealed after the dice animation (`revealDelay`) isn't dispatched yet, so a reload inside that window still discards it.
+
 ## Rewards and inventory
 
 ### Room Content rewards
