@@ -199,9 +199,18 @@ test("a dungeon segment can be selected from the keyboard", async ({ page }) => 
   await page.getByRole("button", { name: "Enter City" }).click();
   await page.getByRole("button", { name: "Enter Dungeon" }).click();
   // Resuming always re-selects the first segment, so clear the selection in the run's own saved
-  // snapshot and reload -- the inspector then only appears if Enter actually selects.
+  // snapshot -- the inspector then only appears if Enter actually selects. Patched by an init script
+  // on the next load, never under the running app: its own progress save could land after an edit
+  // made here and quietly put the selection back.
   await expect(page.getByText("Segment 1 · Corridor")).toBeVisible();
-  await page.evaluate(() => {
+  await expect
+    .poll(() =>
+      page.evaluate(() => !!JSON.parse(localStorage.getItem("notequest:session")!).liveRun),
+    )
+    .toBe(true);
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("selectionCleared")) return;
+    sessionStorage.setItem("selectionCleared", "1");
     const s = JSON.parse(localStorage.getItem("notequest:session")!);
     s.liveRun.dungeon.selectedSegId = null;
     localStorage.setItem("notequest:session", JSON.stringify(s));
