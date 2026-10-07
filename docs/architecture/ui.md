@@ -25,6 +25,7 @@ Screens live in `src/ui/screens/<ScreenName>/`, one file + one CSS Module each.
 - `TallyModal`
 - `Footer`
 - `EventPanel`, `CombatPanel`
+- `HexMap` — the World's map: drawing, zoom/pan, keyboard play (#143). Split out of `WorldScreen` (#144); what a click _does_ stays the screen's call via `onHexClick`. Its zoom/pan and keyboard-focus state are **owned by `WorldScreen` and passed in**, because entering the Town Square unmounts the map and both have always survived that. `hexGeometry.ts` holds the geometry, `TERRAIN_FILL` and `LOCATION_LABEL`.
 - Dungeon-specific: `DungeonMap`, `LevelTabs`, `RoomInspector`, `RoomEntryPrompt`, `TeleportPicker`, `RollLog`
 - `src/ui/rollTiming.ts` has the shared `revealDelay()` timing helper
 
