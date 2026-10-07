@@ -88,6 +88,17 @@ Component styling uses CSS Modules; shared tokens/fonts are global.
 
 `handleNewAdventurer` nulls `character`/`resources`/`activeRunId` (leaving `dungeonHistory` untouched) — the persistence effect handles the rest.
 
+**Save health** (#142). `saveSession()` tracks whether saves are landing in a small module-level store (`getSaveHealth()`/`subscribeSaveHealth()`, read by `SaveStatus` via `useSyncExternalStore`):
+
+- `"failing"`: storage threw. `SaveStatus` shows a dismissible strip pointing at Export Save, and `getLatestSession()` still holds the unsaved game so that export captures it.
+- `"superseded"`: `watchForOtherTabs()` heard another tab write (or clear) the save. **`saveSession()` itself then refuses to write**, so the stale tab can't clobber the newer game, and `SaveStatus` blocks the screen until "Play Here Instead" reloads. `storage` events only fire on an actual change, so a second tab that just opens doesn't trigger it; whichever tab changes the game first keeps saving.
+
+`SaveStatus` is mounted beside `App` in `main.tsx`, not inside any screen.
+
+**Save files** (#142). Settings (`SettingsDialog`, portaled out of `Footer` so `.credit`'s typography can't reach it) exports both keys — session and Graveyard — as one `gerdquest-save` JSON file (`saveFile.ts`). Import validates the file, runs its session through `loadSession()`'s back-fills, writes both keys with `writeSession()` (which skips the superseded check: an import is an explicit choice) and reloads the page. App seeds from storage on mount, and the reload reuses that path. A file from a newer `schemaVersion` is refused rather than half-loaded.
+
+**`schemaVersion`** (#142) is stamped onto every saved blob (`SESSION_SCHEMA_VERSION`). A blob without it is version 0. Nothing reads it yet. Bump it alongside a real migration step in `loadSession()`, never for a plain optional field, which still uses the back-fill convention below.
+
 **`loadSession()` back-fills** every optional field added over time (`advancedClasses ?? []`, `animals ?? []`, `hireling ?? null`, `flyActive ?? false`, and `maxSpellUses` by taking the higher of the creation-time computation or whatever `spellUses` already holds). This is the "optional field, back-compat default" convention's single most important site.
 
 ### Settings hard reset (#50)

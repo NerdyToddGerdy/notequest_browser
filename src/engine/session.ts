@@ -47,6 +47,79 @@ export interface LiveRun {
  * user-visible benefit. Same reasoning applies to `graveyard.ts`'s own key. */
 const STORAGE_KEY = "notequest:session";
 
+/**
+ * Issue #142: stamped onto every saved blob so a future shape change can migrate deliberately
+ * instead of growing `loadSession()`'s back-fill list forever. A blob without it is version 0 --
+ * everything saved before this existed, which the field-by-field back-fills below still cover.
+ * Bump it alongside a migration step in `loadSession()`; never for a plain optional field.
+ */
+export const SESSION_SCHEMA_VERSION = 1;
+
+/**
+ * Issue #142: whether this tab's saves are actually landing.
+ * - `"failing"`: storage threw (private browsing, quota) -- the player is playing unsaved.
+ * - `"superseded"`: another tab wrote the save after this one loaded it. From then on this tab
+ *   refuses to save, since its next write would silently clobber the newer game.
+ *
+ * Kept here rather than in React state so `saveSession()` itself can be the authority on the
+ * superseded rule; the UI subscribes through `subscribeSaveHealth()`/`getSaveHealth()`.
+ */
+export type SaveHealth = "ok" | "failing" | "superseded";
+
+let saveHealth: SaveHealth = "ok";
+const saveHealthListeners = new Set<() => void>();
+
+function setSaveHealth(next: SaveHealth): void {
+  if (next === saveHealth) return;
+  saveHealth = next;
+  for (const listener of saveHealthListeners) listener();
+}
+
+export function getSaveHealth(): SaveHealth {
+  return saveHealth;
+}
+
+/** `useSyncExternalStore`-shaped: returns its own unsubscribe. */
+export function subscribeSaveHealth(listener: () => void): () => void {
+  saveHealthListeners.add(listener);
+  return () => saveHealthListeners.delete(listener);
+}
+
+/**
+ * Issue #142: flips this tab to `"superseded"` the moment another tab writes (or clears) the save.
+ * The browser only fires `storage` events in *other* tabs, so this tab's own saves never trip it --
+ * and only when the stored value actually changes, so a second tab that just opens (re-saving an
+ * identical blob) doesn't trip it either. That's the right line: two tabs holding the same game
+ * can't clobber each other, and whichever one changes it first is the one that keeps saving.
+ * Returns the unsubscribe; `target` is injectable for tests.
+ */
+export function watchForOtherTabs(
+  target: Pick<Window, "addEventListener" | "removeEventListener"> = window,
+): () => void {
+  const onStorage = (e: StorageEvent) => {
+    // `key === null` is another tab calling `localStorage.clear()`.
+    if (e.key === STORAGE_KEY || e.key === null) setSaveHealth("superseded");
+  };
+  target.addEventListener("storage", onStorage);
+  return () => target.removeEventListener("storage", onStorage);
+}
+
+/** The session most recently handed to `saveSession()`, whether or not it reached storage -- so an
+ * export taken while saves are failing still captures the game being played, not the last one that
+ * happened to fit (issue #142). */
+let latestSession: SessionState | null = null;
+
+export function getLatestSession(): SessionState | null {
+  return latestSession;
+}
+
+/** Test-only: module state outlives a single test otherwise. */
+export function resetSaveHealthForTests(): void {
+  saveHealth = "ok";
+  latestSession = null;
+  saveHealthListeners.clear();
+}
+
 /** Back-fills `resources.maxSpellUses` (issue #75) for a session persisted before that field
  * existed. Can't just default to `computeSpellUses(character)` alone -- if the player had already
  * been granted a spell beyond their creation-time allotment (an Advanced Class/Hireling ability,
@@ -85,6 +158,8 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
     if (!raw) return EMPTY_SESSION;
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return EMPTY_SESSION;
+    // `schemaVersion` (issue #142) is read here when the first real migration needs it. Today every
+    // version is handled by the field-by-field back-fills below, so it's deliberately unused.
     const p = parsed as Partial<SessionState>;
     return {
       character: p.character ?? null,
@@ -137,15 +212,34 @@ export function loadSession(storage: Storage = globalThis.localStorage): Session
 }
 
 /** Overwrites the persisted session wholesale -- App.tsx calls this from a single effect
- * watching all four pieces, rather than each individual setter persisting itself. */
+ * watching all four pieces, rather than each individual setter persisting itself. A no-op once
+ * another tab has taken over the save (issue #142). */
 export function saveSession(
   session: SessionState,
   storage: Storage = globalThis.localStorage,
 ): void {
+  latestSession = session;
+  if (saveHealth === "superseded") return;
+  // Storage unavailable (private browsing, quota, etc.) -- the run continues either way, but the
+  // player is told, since they're now playing a game that won't survive the tab (issue #142).
+  setSaveHealth(writeSession(session, storage) ? "ok" : "failing");
+}
+
+/** The raw write, with no superseded check -- importing a save file (issue #142) is an explicit
+ * "make *this* the save" and must land even from a tab another one has overtaken. Returns false if
+ * storage refused it. */
+export function writeSession(
+  session: SessionState,
+  storage: Storage = globalThis.localStorage,
+): boolean {
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(session));
+    storage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...session, schemaVersion: SESSION_SCHEMA_VERSION }),
+    );
+    return true;
   } catch {
-    // Storage unavailable (private browsing, quota, etc.) -- the run continues either way.
+    return false;
   }
 }
 

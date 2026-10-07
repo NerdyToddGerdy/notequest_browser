@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-10-07
+
+### Added
+
+- **Export and import your save** (#142). Settings is now a menu: **Export Save** downloads your
+  whole game (character, World map, every dungeon found and the Graveyard) as a file, and
+  **Import Save** loads one back in. Use it to keep a backup, or to move your game to another
+  browser or device. Reset Everything has moved into the same menu.
+
+### Fixed
+
+- **Saves no longer fail silently** (#142). If the browser refuses to store your game (private
+  browsing, or full storage), a warning now says so, rather than letting you play a game that
+  vanishes when the tab closes.
+- **Two tabs can no longer overwrite each other** (#142). When the game changes in another tab or
+  window, this one stops saving and says so, with a button to pick the game back up here.
+
 ## [4.3.1] - 2026-10-07
 
 ### Fixed
