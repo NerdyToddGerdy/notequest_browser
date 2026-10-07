@@ -80,6 +80,16 @@ export interface DungeonScreenProps {
   onHardReset: () => void;
 }
 
+/** One plain sentence summing up a life for the death memorial -- e.g. "A Human Fighter who slew
+ * 7 monsters and 1 boss." */
+function lifeTally(character: CreatedCharacter, state: DungeonState): string {
+  const who = `${/^[AEIOU]/i.test(character.race.name) ? "An" : "A"} ${character.race.name} ${character.cls.name}`;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  if (state.monsterKills === 0) return `${who} who never drew blood.`;
+  const bosses = state.bossKills > 0 ? ` and ${plural(state.bossKills, "boss")}` : "";
+  return `${who} who slew ${plural(state.monsterKills, "monster")}${bosses}.`;
+}
+
 export function DungeonScreen({
   character,
   resources,
@@ -396,7 +406,7 @@ export function DungeonScreen({
   return (
     <div className={styles.page}>
       <div className={`${styles.leftCol} screen-sheet`}>
-        <header className={styles.wordmark}>
+        <header className="screen-wordmark">
           <h1>
             <small>GerdQuest</small>
             Realm of Depths
@@ -693,29 +703,29 @@ export function DungeonScreen({
             curiosities={state.curiosities}
           />
 
-          {!state.alive && state.deathCause === "combat" && (
-            <div className={styles.deathOverlay}>
-              <p className={styles.deathTitle}>{character.name} Has Fallen</p>
-              <p>
-                Overwhelmed in combat, {character.name} goes down. The dungeon keeps what it took.
+          {/* The game's most final moment, so it gets the screen's one piece of drama: a memorial
+              laid over the dead adventurer's own sheet. */}
+          {!state.alive && (
+            <div className={styles.deathOverlay} role="alert" aria-labelledby="deathTitle">
+              <h2 id="deathTitle" className={styles.deathTitle}>
+                {state.deathCause === "combat"
+                  ? `${character.name} Has Fallen`
+                  : "The Darkness Devours You"}
+              </h2>
+              {state.dungeonName && <p className={styles.deathPlace}>in {state.dungeonName}</p>}
+              <p className={styles.deathCause}>
+                {state.deathCause === "combat"
+                  ? `Overwhelmed in combat, ${character.name} goes down.`
+                  : `${character.name}'s torch has burned out with no way to relight it.`}{" "}
+                The dungeon keeps what it took.
               </p>
-              <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
-              <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
+              <p className={styles.deathTally}>{lifeTally(character, state)}</p>
+              {/* Focused on arrival so it's both announced and scrolled into view -- on a phone the
+                  memorial sits below the map, where a death would otherwise happen off-screen. */}
+              <button className={styles.deathBtn} type="button" onClick={onNewAdventurer} autoFocus>
                 Roll a New Adventurer
               </button>
-            </div>
-          )}
-          {!state.alive && state.deathCause !== "combat" && (
-            <div className={styles.deathOverlay}>
-              <p className={styles.deathTitle}>The Darkness Devours You</p>
-              <p>
-                {character.name}&apos;s torch has burned out with no way to relight it. The dungeon
-                keeps what it took.
-              </p>
               <p className={styles.deathNote}>{character.name} is laid to rest in the Graveyard.</p>
-              <button className={styles.deathBtn} type="button" onClick={onNewAdventurer}>
-                Roll a New Adventurer
-              </button>
             </div>
           )}
         </div>

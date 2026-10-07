@@ -243,6 +243,39 @@ export function writeSession(
   }
 }
 
+/**
+ * The crash screen's escape hatch. Since #141 a reload resumes straight into the saved run,
+ * so a run that crashes on render would crash on every reload too -- with nothing on screen to
+ * leave it by. This drops just the snapshot, back to the map.
+ *
+ * Edits the raw stored blob rather than round-tripping through `loadSession()`/`saveSession()`:
+ * whatever crashed may be something `loadSession()` would also normalize away, and the one thing
+ * this must never do is lose more of the save than the run itself. The run's pre-entry copy in
+ * `dungeonHistory` (if any) is left where it is.
+ */
+export function abandonLiveRun(storage: Storage = globalThis.localStorage): void {
+  try {
+    const raw = storage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    storage.setItem(STORAGE_KEY, JSON.stringify({ ...parsed, liveRun: null }));
+  } catch {
+    // Unreadable or unwritable -- nothing more this can safely do.
+  }
+}
+
+/** Whether the stored save holds a run in progress -- the crash screen only offers to leave one
+ * when there is one. */
+export function hasStoredLiveRun(storage: Storage = globalThis.localStorage): boolean {
+  try {
+    const raw = storage.getItem(STORAGE_KEY);
+    return !!raw && !!(JSON.parse(raw) as { liveRun?: unknown }).liveRun;
+  } catch {
+    return false;
+  }
+}
+
 /** Wipes the persisted session -- part of the app-wide hard reset (see App.tsx's handleHardReset
  * and issue #50). Callers still need to reset their own in-memory state to EMPTY_SESSION's
  * shape themselves; this only clears what's on disk. */

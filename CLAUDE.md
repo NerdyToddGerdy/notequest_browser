@@ -83,6 +83,7 @@ Vitest, default environment `"node"`. `e2e/` holds Playwright specs (`playwright
 ## Gotchas
 
 - **`tsc`/`eslint` do not parse CSS module contents.** A malformed rule (an unclosed `@media`, say) passes both and surfaces only as a dev-server 500, failing every e2e spec at once. **If the whole suite fails on unrelated specs, check the CSS before the logic.**
+- **A `@media` override must come after the base rules it overrides** in a CSS Module. Same specificity means source order decides, and neither `tsc` nor `eslint` will notice. World's phone layout broke exactly this way.
 - **jsdom currently throws `ERR_REQUIRE_ESM` as the global Vitest environment.** Opt individual component-test files in with a `// @vitest-environment jsdom` docblock rather than changing the global config.
 - **CSS Module class names are readable, not hashed** (`"[name]__[local]"`, dev and prod alike). Safe only because every `*.module.css` basename is unique — keep it that way.
 - **Immer deep-freezes `produce()` output.** Anything re-fed into new state must be `structuredClone()`d.
