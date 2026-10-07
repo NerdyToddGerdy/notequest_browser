@@ -374,7 +374,7 @@ export interface DungeonState {
    * documented 0-HP dud, not one of the rulebook's "5 pieces") and `wonderItem` (an unlimited
    * trinket collection) are exempt from slot-uniqueness entirely and always go straight to `armor`
    * instead. WIELD_ARMOR swaps a chosen entry here into its slot, displacing whatever's already
-   * there (if anything) back here -- see `addArmorPiece()` in `dungeonReducer.ts`. */
+   * there (if anything) back here -- see `addArmorPiece()` in `dungeonRun/inventory.ts`. */
   spareArmor: ArmorPiece[];
   combat: CombatState | null;
   /** Ordinary monsters and Bosses defeated this run -- character-specific, like torches/hp, not
@@ -401,7 +401,7 @@ export interface DungeonState {
   className: string;
   /** Advanced Classes (issue #23) acquired so far, by name -- mirrors `AdventurerResources` of the
    * same name. Only Goblinator's damage-reduction-per-Explosion and Gravedigger's +2-vs-Undead
-   * currently need it mid-dungeon (see `attackBonus()`/the Explosive branch in `dungeonReducer.ts`);
+   * currently need it mid-dungeon (see `dungeonRun/combat.ts`'s `attackBonus()` and the Explosive branch in `dungeonReducer.ts`);
    * every other acquired class's effect is already baked into `hp`/`maxHp`/`spellUses` at the
    * moment it's purchased in Town, same as the character's race/class abilities above. */
   advancedClasses: string[];

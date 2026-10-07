@@ -72,7 +72,7 @@ Referenced by name throughout the codebase — follow them rather than inventing
 ### Code layout
 
 - `src/data/` — rule tables: `races.ts`, `classes.ts`, `spells.ts`, `animals.ts`, `hirelings.ts`, `advancedClasses.ts`, `buildings.ts`, `affinity.ts`, `names.ts`, `cityNames.ts`, `mutations.ts`, `events.ts`, `otherWorlds.ts`, `locationEffects.ts`, `hexTables.ts`, `dungeonTypes.ts` (shared Segments/Secret Passage/Name tables), `dungeonTables.ts` (per-type Trap/Room/Monster/Reward/Boss tables).
-- `src/engine/` — pure logic: `character.ts`, `dungeon.ts`, `dungeonState.ts`, `dungeonReducer.ts`, `combat.ts`, `fight.ts`, `hands.ts`, `hexState.ts`, `hexReducer.ts`, `town.ts`, `arena.ts`, `warfare.ts`, `politics.ts`, `buildings.ts`, `portals.ts`, `events.ts`, `mutations.ts`, `locationEffects.ts`, `advancedClasses.ts`, `session.ts`, `graveyard.ts`, `saveFile.ts`.
+- `src/engine/` — pure logic: `character.ts`, `dungeon.ts`, `dungeonState.ts`, `dungeonReducer.ts` (with its shared helpers in `dungeonRun/`), `combat.ts`, `fight.ts`, `hands.ts`, `hexState.ts`, `hexReducer.ts`, `town.ts`, `arena.ts`, `warfare.ts`, `politics.ts`, `buildings.ts`, `portals.ts`, `events.ts`, `mutations.ts`, `locationEffects.ts`, `advancedClasses.ts`, `session.ts`, `graveyard.ts`, `saveFile.ts`.
 - `src/ui/screens/<ScreenName>/` — one file + one CSS Module each. `App.tsx` holds the only navigation state; there is no router.
 - `src/ui/components/` — shared components. `src/ui/theme/` — tokens, self-hosted fonts, global CSS.
 
