@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.6.0] - 2026-10-07
+
+### Added
+
+- **Play with the keyboard** (#143). On the World map, Tab reaches the map, the arrow keys move
+  between hexes, and Enter travels to a neighboring hex or inspects one further away, just as a
+  click does. In a dungeon, Tab moves between the rooms you can reach and Enter selects one. Screen
+  readers hear what each hex or room holds.
+- **Unavailable actions say why.** A disabled Rest, torch or provisions card now says what's
+  stopping it ("You need 1 coin.", "You're carrying the most you can: 10.") and stays readable,
+  instead of fading to near-invisible.
+
+### Changed
+
+- **City Square's tabs stay on one row**, scrolling sideways on a phone instead of spilling onto a
+  second row.
+- **Character creation:** World now sits on a row of its own, so Race and Class are side by side.
+- **The Graveyard and Dungeons lists** use one readable column on a phone instead of two cramped
+  ones.
+- **Faster loading after an update** (#145). The game's third-party code now ships separately from
+  its own, so after a release your browser re-downloads only what changed.
+
 ## [4.5.0] - 2026-10-07
 
 ### Added
