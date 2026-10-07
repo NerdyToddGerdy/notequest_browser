@@ -269,11 +269,18 @@ export function maxHeldItemsFor(hireling: string | null, animals: string[] = [])
  * kept in sync by every spell-granting site, so a second, independently-computed value here could
  * only ever drift from it. */
 export function canRest(resources: AdventurerResources, isChampion = false): boolean {
-  if (!isChampion && resources.coins < 1) return false;
-  if (resources.hp < resources.maxHp) return true;
-  return Object.entries(resources.maxSpellUses).some(
+  return restBlockReason(resources, isChampion) === null;
+}
+
+/** Why Rest is unavailable, in the player's words, or null if it isn't -- the one source of truth
+ * `canRest()` is defined by, so the disabled card's explanation can't drift from its gate. */
+export function restBlockReason(resources: AdventurerResources, isChampion = false): string | null {
+  if (!isChampion && resources.coins < 1) return "You need 1 coin.";
+  if (resources.hp < resources.maxHp) return null;
+  const spellsSpent = Object.entries(resources.maxSpellUses).some(
     ([key, max]) => (resources.spellUses[key] ?? 0) < max,
   );
+  return spellsSpent ? null : "You're already at full HP and spells.";
 }
 
 /** "Rest: Spend 1 coin and recover your HP and spells consumed." Restores to
@@ -352,7 +359,14 @@ export function castFly(resources: AdventurerResources): AdventurerResources {
 }
 
 export function canBuyTorch(resources: AdventurerResources): boolean {
-  return resources.coins >= 1 && resources.torches < MAX_TORCHES;
+  return torchBlockReason(resources) === null;
+}
+
+/** Why torches can't be bought, or null if they can -- `canBuyTorch()`'s source of truth. */
+export function torchBlockReason(resources: AdventurerResources): string | null {
+  if (resources.torches >= MAX_TORCHES) return `You're carrying the most you can: ${MAX_TORCHES}.`;
+  if (resources.coins < 1) return "You need 1 coin.";
+  return null;
 }
 
 /** "Buy Torches: Spend 1 coin and add 1 torch. Max 10 torches carried at a time." */
@@ -668,7 +682,16 @@ export function discardItem(resources: AdventurerResources, index: number): Adve
 }
 
 export function canBuyProvision(resources: AdventurerResources): boolean {
-  return resources.coins >= 1 && resources.provisions < MAX_PROVISIONS;
+  return provisionBlockReason(resources) === null;
+}
+
+/** Why provisions can't be bought, or null if they can -- `canBuyProvision()`'s source of truth. */
+export function provisionBlockReason(resources: AdventurerResources): string | null {
+  if (resources.provisions >= MAX_PROVISIONS) {
+    return `You're carrying the most you can: ${MAX_PROVISIONS}.`;
+  }
+  if (resources.coins < 1) return "You need 1 coin.";
+  return null;
 }
 
 /** "[Buy] more in any city by paying 1 coin per Provision, up to a maximum of 20." */

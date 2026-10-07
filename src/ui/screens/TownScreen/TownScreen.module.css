@@ -128,11 +128,17 @@
   margin-bottom: clamp(24px, 4vw, 32px);
 }
 
+/* One row of folder tabs, never two: wrapped, the second row floated free of the panel the tabs
+   belong to. Where seven or eight don't fit (a phone), the strip scrolls sideways instead. The
+   padding-top leaves room for the active tab's 1px lift and the focus ring, which overflow would
+   otherwise clip. */
 .actionTabs {
   display: flex;
   gap: 4px;
   margin-bottom: 12px;
-  flex-wrap: wrap;
+  padding-top: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 .actionTab,
 .actionTabActive {
@@ -141,7 +147,9 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-size: 0.74rem;
-  padding: 8px 16px;
+  padding: 8px 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
   border: 1px solid rgba(42, 32, 22, 0.35);
   border-bottom: none;
   border-radius: 3px 3px 0 0;
@@ -195,9 +203,23 @@
 .actionBtn:active:not(:disabled) {
   transform: translateY(1px);
 }
+/* Unavailable, but still readable: the card recedes (faint dashed border, no fill) while its text
+   keeps enough contrast to read what it would do -- and, via .actionWhy, why it can't. A flat
+   opacity: 0.45 used to take the text down to roughly 2:1. */
 .actionBtn:disabled {
-  opacity: 0.45;
   cursor: not-allowed;
+  background: transparent;
+  border-style: dashed;
+  border-color: rgba(42, 32, 22, 0.3);
+}
+.actionBtn:disabled .actionName,
+.actionBtn:disabled .actionCost {
+  color: var(--ink-soft);
+}
+.actionWhy {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--danger);
 }
 .actionBtn:focus-visible {
   outline: 2px solid var(--focus);

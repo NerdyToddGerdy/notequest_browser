@@ -52,7 +52,9 @@
    the two tabs don't visibly resize the Records column when switched between. */
 .listCompact {
   max-height: 480px;
-  column-count: 2;
+  /* At most two columns, but only where each gets 200px -- a fixed count of 2 squeezed a phone's
+     records column into two ~140px strips, wrapping a dungeon's name a word per line. */
+  columns: 200px 2;
   column-gap: 24px;
 }
 

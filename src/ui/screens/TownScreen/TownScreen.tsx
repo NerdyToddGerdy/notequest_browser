@@ -27,6 +27,7 @@ import {
   canBuyLamp,
   canBuyOrcGladio,
   canBuyProvision,
+  provisionBlockReason,
   canBuyTorch,
   canDrinkVerdosaPotion,
   canHardWork,
@@ -34,6 +35,8 @@ import {
   canLearnRandomSpell,
   canRemoveCurse,
   canRest,
+  restBlockReason,
+  torchBlockReason,
   castSpell,
   drinkVerdosaPotion,
   fixArmor,
@@ -279,6 +282,11 @@ export interface TownScreenProps {
    * a City/Fortress hex, so "leaving" just means looking at the map again, not switching screens. */
   onExploreWorld: () => void;
   onHardReset: () => void;
+}
+
+/** The line a disabled action card adds saying why -- nothing when the action is available. */
+function BlockReason({ reason }: { reason: string | null }) {
+  return reason ? <span className={styles.actionWhy}>{reason}</span> : null;
 }
 
 export function TownScreen({
@@ -575,6 +583,7 @@ export function TownScreen({
                       className={
                         activeActionTab === tab.key ? styles.actionTabActive : styles.actionTab
                       }
+                      aria-pressed={activeActionTab === tab.key}
                       onClick={() => setActiveActionTab(tab.key)}
                     >
                       {tab.label}
@@ -598,6 +607,7 @@ export function TownScreen({
                           <span className={styles.actionDesc}>
                             Recover your HP and spent spells.
                           </span>
+                          <BlockReason reason={restBlockReason(resources, isChampion)} />
                         </button>
                       )}
                       {activeActionTab === "tavern" && isAlchemist && (
@@ -624,6 +634,7 @@ export function TownScreen({
                           <span className={styles.actionDesc}>
                             +1 torch, up to a maximum of 10 carried.
                           </span>
+                          <BlockReason reason={torchBlockReason(resources)} />
                         </button>
                       )}
                       {activeActionTab === "shop" && (
@@ -638,6 +649,7 @@ export function TownScreen({
                           <span className={styles.actionDesc}>
                             Fill up to 10 torches, coin purse allowing.
                           </span>
+                          <BlockReason reason={torchBlockReason(resources)} />
                         </button>
                       )}
                       {activeActionTab === "shop" && (
@@ -652,6 +664,7 @@ export function TownScreen({
                           <span className={styles.actionDesc}>
                             +1 provision, up to a maximum of 20 carried.
                           </span>
+                          <BlockReason reason={provisionBlockReason(resources)} />
                         </button>
                       )}
                       {activeActionTab === "shop" && (
@@ -666,6 +679,7 @@ export function TownScreen({
                           <span className={styles.actionDesc}>
                             Fill up to 20 provisions, coin purse allowing.
                           </span>
+                          <BlockReason reason={provisionBlockReason(resources)} />
                         </button>
                       )}
                       {activeActionTab === "jobBoard" && (
