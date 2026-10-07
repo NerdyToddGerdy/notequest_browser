@@ -62,6 +62,14 @@ World, Town and Dungeon share one grid: title over the left column, main view be
 
 **`overflow: visible` is load-bearing** on the sheet, because those rotated pseudo-elements are outside its box and any clipping ancestor erases the stack. The cost is that **every ancestor between the sheet and its scroll region needs an explicit `min-height: 0`** — without it, content spills _over_ the footer and makes the Settings button unclickable, which is exactly how this broke twice during the build (`TownScreen`'s `.sheet` and its `.page` padding).
 
+**The title is one shared, quiet line.** World, Town and Dungeon all head their sheet with `global.css`'s `.screen-wordmark` (shared like `.screen-sheet`): a single left-aligned line, since at full size it cost ~100px on every screen and on a phone pushed the map and combat panel below the fold. Character Creation keeps its own full centered wordmark — the one place it's an introduction.
+
+**Each screen's stacking `@media` block comes last in its module.** It overrides `.page`, `.leftCol`, `.side` and `.page > footer` at equal specificity, so it only wins on source order. World's once sat above those rules and lost: on a phone the sidebar kept `grid-column: 2` and crushed the map to a ~40px column (`e2e/crash-and-phone-layout.spec.ts` guards it).
+
+## The crash screen
+
+`ErrorBoundary` wraps `App` in `main.tsx` — the app's only one. It matters more since #141: a reload resumes straight into the saved run, so a run that crashes on render would crash on every reload too. The fallback offers **Leave the Dungeon** when a run is stored (`abandonLiveRun()`, which edits the raw stored blob to drop just `liveRun`, deliberately not round-tripping through `loadSession()`), otherwise Reload, plus Export Save in both cases. It reads storage directly, since by the time it renders `App` is gone.
+
 ## Theme
 
 `src/ui/theme/`:

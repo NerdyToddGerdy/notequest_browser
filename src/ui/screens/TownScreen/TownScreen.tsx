@@ -501,7 +501,7 @@ export function TownScreen({
       <div className={`${styles.mainCol} screen-sheet`}>
         <main className={styles.sheet}>
           <div className={styles.sheetInner}>
-            <header className={styles.wordmark}>
+            <header className="screen-wordmark">
               <h1>
                 <small>GerdQuest</small>
                 Realm of Depths

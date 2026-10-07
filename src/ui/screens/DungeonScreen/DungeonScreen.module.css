@@ -20,22 +20,6 @@
 }
 
 /* Over the left column only, and small -- a full-width header pushed the sidebar down the page. */
-.wordmark {
-  position: relative;
-  text-align: center;
-  margin-bottom: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px dashed var(--ink-soft);
-}
-.wordmark h1 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: clamp(1.6rem, 4vw, 2.1rem);
-  letter-spacing: 0.04em;
-  margin: 0;
-  color: var(--gold);
-  text-wrap: balance;
-}
 .tagline {
   font-family: var(--font-body);
   font-style: italic;
@@ -70,12 +54,6 @@
 @media (max-height: 500px) and (orientation: landscape) {
   .page {
     padding-bottom: 24px;
-  }
-  .wordmark {
-    margin-bottom: 10px;
-  }
-  .wordmark h1 {
-    font-size: 1.6rem;
   }
   .tagline {
     display: none;
@@ -396,39 +374,92 @@
   position: relative;
 }
 
+/* The death memorial. Laid over the dead adventurer's own sheet, centered like an inscription,
+   with one slow fade-in as the torch goes out -- the only unprompted motion on this screen. */
 .deathOverlay {
   position: absolute;
-  inset: 0;
+  /* Pinned to the top and at least as tall as the sheet, but free to grow past it: the memorial
+     can be taller than a short character sheet, and centering it inside a fixed-height box clipped
+     the title off the top. */
+  inset: 0 0 auto;
+  min-height: 100%;
   z-index: 10;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding: 18px 20px;
-  background: #3a2018;
+  padding: 24px 22px;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(184, 72, 31, 0.28), transparent 65%),
+    linear-gradient(180deg, #2c1912, #1a0f0b);
   border: 1px solid var(--ember);
   border-radius: 3px;
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+  animation: deathFall 1.4s ease-out both;
 }
 .deathTitle {
   font-family: var(--font-display);
-  font-size: 1.1rem;
-  color: #e8b088;
-  margin: 0 0 6px;
-}
-.deathOverlay p {
-  font-family: var(--font-body);
-  font-style: italic;
-  font-size: 0.88rem;
-  color: #d9b89e;
+  font-weight: 400;
+  font-size: clamp(1.6rem, 3.2vw, 2.2rem);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: #f0c9a4;
+  text-shadow: 0 0 18px rgba(217, 121, 31, 0.35);
+  text-wrap: balance;
   margin: 0;
 }
-.deathOverlay .deathNote {
-  margin-top: 10px;
-  font-size: 0.76rem;
-  color: #b89478;
+.deathPlace {
+  margin: 6px 0 0;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: #c9a585;
+}
+/* A short ember rule between the name and the account of how it happened. */
+.deathCause {
+  max-width: 34ch;
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(184, 72, 31, 0.6);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #e3c6ab;
+}
+.deathTally {
+  max-width: 34ch;
+  margin: 8px 0 0;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #c9a585;
+}
+.deathNote {
+  margin: 10px 0 0;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.78rem;
+  color: #a88a70;
+}
+@keyframes deathFall {
+  from {
+    opacity: 0;
+    filter: brightness(1.8);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .deathOverlay {
+    animation: none;
+  }
 }
 .deathBtn {
-  margin-top: 14px;
+  margin-top: 22px;
   font-family: var(--font-display);
   font-weight: 400;
   letter-spacing: 0.05em;
@@ -557,11 +588,3 @@
    element so the accessible name and the document title are the same complete phrase the footer
    credit uses. Rendered small above the installment name so the shared prefix stays visually
    consistent across titles in the series. */
-.wordmark h1 small {
-  display: block;
-  font-size: 0.38em;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  opacity: 0.82;
-  margin-bottom: 0.15em;
-}

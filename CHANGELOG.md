@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-10-07
+
+### Added
+
+- **A way out of a crash.** If the game hits an error, it now shows what happened instead of a
+  blank screen. Inside a dungeon, **Leave the Dungeon** takes you back to the map with your
+  character intact. Since a reload now resumes the dungeon you were in, a crash there would
+  otherwise come back on every reload. **Export Save** is offered too.
+- **Death gets its moment.** Falling in a dungeon now shows a proper memorial: your name in large
+  type, where you fell, how it happened, and what you did with your life ("A Human Fighter who
+  slew 7 monsters and 1 boss"). On a phone it scrolls into view rather than happening below the map.
+
+### Changed
+
+- **A smaller title on every in-game screen.** The full "GerdQuest: Realm of Depths" heading now
+  appears only on character creation. The World, Town and Dungeon screens use one quiet line,
+  giving the map and the combat panel back their space, most of all on a phone.
+
+### Fixed
+
+- **The World map works on phones again.** On a narrow screen the map was squeezed into a sliver
+  about 40px wide, with Enter City pushed off the screen.
+- **Dice no longer overlap the buttons beneath them**, and the Attack button no longer sits on top
+  of the monster's health bar.
+- **Town no longer shows two dividers in a row** between an unfinished dungeon and Explore the
+  World.
+
 ## [4.4.0] - 2026-10-07
 
 ### Added

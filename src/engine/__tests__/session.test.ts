@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  abandonLiveRun,
   clearSession,
   getLatestSession,
   getSaveHealth,
+  hasStoredLiveRun,
   loadSession,
   resetSaveHealthForTests,
   saveSession,
@@ -446,6 +448,36 @@ describe("save health (issue #142)", () => {
     const stop = watchForOtherTabs(win.target);
     stop();
     expect(win.isListening()).toBe(false);
+  });
+});
+
+describe("abandonLiveRun (the crash screen's way out)", () => {
+  const LIVE_RUN: LiveRun = {
+    runId: "run-2",
+    dungeon: createInitialDungeonState(),
+    forcedTypeRoll: null,
+    noExit: false,
+    enteredFromTown: false,
+  };
+
+  it("drops only the run in progress, leaving the rest of the save byte-for-byte", () => {
+    const stored = { ...FULL_SESSION, liveRun: LIVE_RUN, someFieldThisBuildDoesNotKnow: 42 };
+    const storage = makeFakeStorage({ "notequest:session": JSON.stringify(stored) });
+    expect(hasStoredLiveRun(storage)).toBe(true);
+    abandonLiveRun(storage);
+    expect(hasStoredLiveRun(storage)).toBe(false);
+    // Edited raw rather than normalized through loadSession(), so nothing else can be lost.
+    expect(JSON.parse(storage.getItem("notequest:session")!)).toEqual({ ...stored, liveRun: null });
+  });
+
+  it("does nothing to a missing or unreadable save", () => {
+    const empty = makeFakeStorage();
+    abandonLiveRun(empty);
+    expect(empty.getItem("notequest:session")).toBeNull();
+    const corrupt = makeFakeStorage({ "notequest:session": "{not json" });
+    abandonLiveRun(corrupt);
+    expect(corrupt.getItem("notequest:session")).toBe("{not json");
+    expect(hasStoredLiveRun(corrupt)).toBe(false);
   });
 });
 

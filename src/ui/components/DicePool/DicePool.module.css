@@ -4,4 +4,8 @@
   flex-wrap: wrap;
   align-items: center;
   min-height: var(--die-size);
+  /* Each die's front face sits at translateZ(size / 2) under a 320px perspective, so it renders ~9%
+     larger than its layout box -- and mid-roll, a tumbling corner reaches further still. Without
+     this breathing room the dice drew over whatever came next (the Reroll buttons, most visibly). */
+  padding-block: 6px 12px;
 }

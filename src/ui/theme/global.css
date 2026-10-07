@@ -137,3 +137,33 @@ body::after {
   background: #b9a476;
   transform: rotate(0.45deg) translate(8px, -5px);
 }
+
+/* The title at the head of every in-game sheet (World, Town, Dungeon) -- shared like
+   `.screen-sheet`, rather than copied into three modules. Deliberately one quiet line: it repeats
+   on every screen, so at full size it cost ~100px each time, and on a phone it pushed the map and
+   the combat panel below the fold. Character Creation keeps the full centered wordmark -- that's
+   the one place it's an introduction. */
+.screen-wordmark {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--ink-soft);
+}
+.screen-wordmark h1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.6em;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.2rem;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  color: var(--gold);
+}
+.screen-wordmark h1 small {
+  font-size: 0.6em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}

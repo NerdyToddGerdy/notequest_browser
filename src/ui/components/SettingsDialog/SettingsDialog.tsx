@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { buildSaveFile, importSaveFile, saveFileName } from "../../../engine/saveFile.ts";
+import { importSaveFile } from "../../../engine/saveFile.ts";
+import { downloadSave } from "../../downloadSave.ts";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog.tsx";
 import styles from "./SettingsDialog.module.css";
 
@@ -18,18 +19,6 @@ export function SettingsDialog({ onHardReset, onClose }: SettingsDialogProps) {
   const [pendingImport, setPendingImport] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-
-  function handleExport() {
-    const file = buildSaveFile(__APP_VERSION__);
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = saveFileName(file);
-    link.click();
-    URL.revokeObjectURL(url);
-  }
 
   async function handleFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
     const chosen = e.target.files?.[0];
@@ -107,7 +96,7 @@ export function SettingsDialog({ onHardReset, onClose }: SettingsDialogProps) {
             another browser or device.
           </p>
           <div className={styles.row}>
-            <button type="button" className={styles.btn} onClick={handleExport}>
+            <button type="button" className={styles.btn} onClick={downloadSave}>
               Export Save
             </button>
             <button type="button" className={styles.btn} onClick={() => fileInput.current?.click()}>
