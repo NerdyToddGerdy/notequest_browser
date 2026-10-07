@@ -75,7 +75,9 @@ All three trap-firing sites (`RESOLVE_DOOR_LOCK`, `ROLL_SECRET_PASSAGE`, `ROLL_C
 
 **What deliberately stays out**: segments, remains, loot-per-segment, `alive`/`deathCause`, the Graveyard. The core reports `died` and lets the caller decide what that means — the dungeon leaves remains and flips `alive`, the World writes a Graveyard entry. Same split `payOutVictory()` makes: shared loot and deferred victory triggers in the core, Treasures and the building tax in the dungeon.
 
-`dungeonReducer.ts` keeps its own orchestration and delegates the rules — thin wrappers (`attackBonus`, `applyMonsterTurn`, …) exist so its ~40 call sites read unchanged. Events and the Arena use `fightRound()`, the core's own whole-round orchestrator.
+`dungeonReducer.ts` keeps its own orchestration and delegates the rules — thin wrappers (`attackBonus`, `applyMonsterTurn`, …, in `dungeonRun/combat.ts`) exist so its ~40 call sites read unchanged.
+
+**`dungeonReducer.ts` owns every action; `src/engine/dungeonRun/` holds the helpers its cases share** (#144), layered so no module imports one above it: `core` (the log, torch spending and the Darkness, remains, placing a segment) ← `inventory` (armor, held items, the Pack, consumables) ← `combat` (starting fights, the monsters' turn, defeats, loot, the room-entry gate) ← `traps`, `rewards` (Room Content/Reward tables, finishing a room) and `persistence` (rebuilding a saved run). A new action goes in the reducer; a helper two cases share goes in the lowest layer that has everything it needs. Events and the Arena use `fightRound()`, the core's own whole-round orchestrator.
 
 **Teleport is the one spell the core can't own** (it needs a destination segment), so `castCombatSpell()` handles every other spell once and each caller does Teleport itself. In the wilderness the equivalent escape is fleeing.
 
@@ -175,7 +177,7 @@ Each dungeon type's `DUNGEON_TABLES[key].treasure` (`Record<1-6, RewardOutcome>`
 
 Every Wonder/Magic Item ability is an `ItemEffect` — a small reusable vocabulary: `extraHp`, `weaponDamageBonus`, `damageBonusVsTag`, `damageMultiplierVsTag`, `ignoresMonsterAbility`, `trapImmunity`, `doubleChestCoins`, `combatDamageBonus`, `grantsTorches`, `randomSpell`, `lifesteal`, `instantKillOnRoll`, `opensAnyLock`, `flavor`. Tag matching is a case-insensitive substring check against `MonsterTemplate.name`.
 
-`ignoresMonsterAbility` covers two shapes: abilities used against the player (`dungeonReducer.ts`'s `ignoresAbility()`) and the player's own attack being defensively blocked (`combat.ts`'s `applyDefensiveAbilities()`, threaded via `resolvePlayerAttack()`'s `ignoreAbilities`). `MagicItemEntry.fixedFormula` overrides the base-table-then-bonus shape for uniquely-named weapons.
+`ignoresMonsterAbility` covers two shapes: abilities used against the player (`dungeonRun/combat.ts`'s `ignoresAbility()`) and the player's own attack being defensively blocked (`combat.ts`'s `applyDefensiveAbilities()`, threaded via `resolvePlayerAttack()`'s `ignoreAbilities`). `MagicItemEntry.fixedFormula` overrides the base-table-then-bonus shape for uniquely-named weapons.
 
 **Acquiring** (`resolveWonder()`/`resolveMagicItem()`, called from `OPEN_TREASURE`'s `rerollColumn`): a Wonder either grants its own HP-bearing item or, with no HP of its own, becomes a `DungeonState.armor` entry at `hp: 0, maxHp: 0` (equipped/visible, never offered as absorption) — except `combatDamageBonus` (Potion of Fury), added directly to `combat.playerDamageBonus` if a fight is active, logged as wasted if not. A Magic Item is "[Armor] of X" or "[Weapon] of X": rolls the base table for the concrete piece, layers the effect on top.
 
