@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog.tsx";
+import { createPortal } from "react-dom";
+import { SettingsDialog } from "../SettingsDialog/SettingsDialog.tsx";
 import styles from "./Footer.module.css";
 
 export interface FooterProps {
@@ -8,7 +9,8 @@ export interface FooterProps {
   onHardReset: () => void;
 }
 
-/** The credit block + Settings hard-reset control, shared by every screen (issue #50) so the
+/** The credit block + Settings control (save export/import and the hard reset -- see
+ * `SettingsDialog`), shared by every screen (issue #50) so the
  * four near-identical inline footers didn't each need their own reset-confirmation wiring.
  *
  * Issue #113 renamed the app to "GerdQuest: Realm of Depths", which makes the credit line below
@@ -26,7 +28,7 @@ export interface FooterProps {
  * Both halves of the name are unused elsewhere -- no game, npm package or GitHub repo for either
  * "GerdQuest" or "Realm of Depths" -- so the subtitle is branding, not a uniqueness requirement. */
 export function Footer({ screenLabel, onHardReset }: FooterProps) {
-  const [confirming, setConfirming] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <footer className={styles.credit}>
@@ -45,21 +47,15 @@ export function Footer({ screenLabel, onHardReset }: FooterProps) {
         .
       </p>
       <p className={styles.creditVersion}>v{__APP_VERSION__}</p>
-      <button type="button" className={styles.settingsBtn} onClick={() => setConfirming(true)}>
+      <button type="button" className={styles.settingsBtn} onClick={() => setSettingsOpen(true)}>
         Settings
       </button>
-      {confirming && (
-        <ConfirmDialog
-          title="Reset Everything?"
-          message="This permanently wipes your character, the Graveyard, every dungeon ever found, and the World map. This can't be undone."
-          confirmLabel="Reset Everything"
-          onConfirm={() => {
-            setConfirming(false);
-            onHardReset();
-          }}
-          onCancel={() => setConfirming(false)}
-        />
-      )}
+      {/* Portaled out of the footer so `.credit`'s typography rules can't reach into the dialog. */}
+      {settingsOpen &&
+        createPortal(
+          <SettingsDialog onHardReset={onHardReset} onClose={() => setSettingsOpen(false)} />,
+          document.body,
+        )}
     </footer>
   );
 }

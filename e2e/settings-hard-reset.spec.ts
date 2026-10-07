@@ -85,7 +85,9 @@ test("Settings > Reset Everything wipes localStorage and returns to Character Cr
   await page.getByRole("button", { name: "Enter City" }).click();
   await expect(page.getByText("Town Square")).toBeVisible();
 
+  // Settings is a menu as of issue #142 -- the reset sits beside Export/Import Save.
   await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Reset Everything…" }).click();
   await expect(page.getByText("Reset Everything?")).toBeVisible();
 
   // Cancel first: nothing should change.
@@ -93,7 +95,8 @@ test("Settings > Reset Everything wipes localStorage and returns to Character Cr
   await expect(page.getByText("Town Square")).toBeVisible();
 
   await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByRole("button", { name: "Reset Everything" }).click();
+  await page.getByRole("button", { name: "Reset Everything…" }).click();
+  await page.getByRole("button", { name: "Reset Everything", exact: true }).click();
 
   // Lands back on Character Creation with no character.
   await expect(page.getByLabel("Character creation sheet")).toBeVisible();
@@ -113,6 +116,7 @@ test("Settings > Reset Everything wipes localStorage and returns to Character Cr
     activeRunId: null,
     world: null,
     liveRun: null,
+    schemaVersion: 1,
   });
   expect(storageAfterReset.graveyard).toBeNull();
 

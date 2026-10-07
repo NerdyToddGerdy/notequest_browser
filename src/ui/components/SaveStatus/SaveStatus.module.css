@@ -1,0 +1,105 @@
+.strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 16px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--parchment);
+  background: #4a1d14;
+  border-bottom: 1px solid var(--danger);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.dismissBtn {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--parchment);
+  background: none;
+  border: 1px solid rgba(232, 220, 196, 0.5);
+  border-radius: 3px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.dismissBtn:hover {
+  border-color: var(--parchment);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 8, 7, 0.8);
+}
+
+.dialog {
+  width: min(440px, 100%);
+  background: var(--parchment);
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  padding: 22px 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+.message {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.primaryBtn {
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  color: var(--parchment);
+  background: linear-gradient(180deg, #3a2c1c, #241a10);
+  border: 1px solid var(--gold);
+  border-radius: 3px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+.primaryBtn:hover {
+  background: linear-gradient(180deg, #4a3822, #2c2013);
+}
+
+.dismissBtn:focus-visible,
+.primaryBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .strip {
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+  }
+}

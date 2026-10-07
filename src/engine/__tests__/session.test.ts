@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearSession,
+  getLatestSession,
+  getSaveHealth,
   loadSession,
+  resetSaveHealthForTests,
   saveSession,
+  SESSION_SCHEMA_VERSION,
+  subscribeSaveHealth,
+  watchForOtherTabs,
   type LiveRun,
   type SessionState,
 } from "../session.ts";
@@ -102,6 +108,8 @@ const FULL_SESSION: SessionState = {
   world: WORLD,
   liveRun: null,
 };
+
+beforeEach(resetSaveHealthForTests);
 
 describe("loadSession", () => {
   it("is a fully-empty session when nothing has been stored yet", () => {
@@ -353,6 +361,91 @@ describe("liveRun (issue #141)", () => {
       "notequest:session": JSON.stringify({ ...FULL_SESSION, character: null, liveRun: LIVE_RUN }),
     });
     expect(loadSession(storage).liveRun).toBeNull();
+  });
+});
+
+describe("save health (issue #142)", () => {
+  beforeEach(resetSaveHealthForTests);
+
+  /** A storage that refuses every write, like a full quota or locked-down private mode. */
+  function makeRefusingStorage(): Storage {
+    return {
+      ...makeFakeStorage(),
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+    };
+  }
+
+  /** Stands in for `window`, capturing the `storage` listener so a test can fire it. */
+  function makeFakeWindow() {
+    let listener: ((e: StorageEvent) => void) | null = null;
+    return {
+      target: {
+        addEventListener: (_type: string, fn: (e: StorageEvent) => void) => {
+          listener = fn;
+        },
+        removeEventListener: () => {
+          listener = null;
+        },
+      } as unknown as Pick<Window, "addEventListener" | "removeEventListener">,
+      fire: (key: string | null) => listener?.({ key } as StorageEvent),
+      isListening: () => listener !== null,
+    };
+  }
+
+  it("stamps the schema version onto every saved blob", () => {
+    const storage = makeFakeStorage();
+    saveSession(FULL_SESSION, storage);
+    expect(JSON.parse(storage.getItem("notequest:session")!).schemaVersion).toBe(
+      SESSION_SCHEMA_VERSION,
+    );
+  });
+
+  it("reports 'failing' when storage refuses the write, and recovers once it accepts again", () => {
+    const seen: string[] = [];
+    subscribeSaveHealth(() => seen.push(getSaveHealth()));
+    saveSession(FULL_SESSION, makeRefusingStorage());
+    expect(getSaveHealth()).toBe("failing");
+    saveSession(FULL_SESSION, makeFakeStorage());
+    expect(getSaveHealth()).toBe("ok");
+    expect(seen).toEqual(["failing", "ok"]);
+  });
+
+  it("remembers the latest session even when it couldn't be written, so an export still has it", () => {
+    saveSession(FULL_SESSION, makeRefusingStorage());
+    expect(getLatestSession()).toBe(FULL_SESSION);
+  });
+
+  it("stops saving once another tab writes the save, so it can't clobber the newer game", () => {
+    const win = makeFakeWindow();
+    const storage = makeFakeStorage();
+    watchForOtherTabs(win.target);
+    win.fire("notequest:session");
+    expect(getSaveHealth()).toBe("superseded");
+    saveSession(FULL_SESSION, storage);
+    expect(storage.getItem("notequest:session")).toBeNull();
+  });
+
+  it("treats another tab clearing all storage as a takeover too", () => {
+    const win = makeFakeWindow();
+    watchForOtherTabs(win.target);
+    win.fire(null);
+    expect(getSaveHealth()).toBe("superseded");
+  });
+
+  it("ignores another tab writing only the Graveyard", () => {
+    const win = makeFakeWindow();
+    watchForOtherTabs(win.target);
+    win.fire("notequest:graveyard");
+    expect(getSaveHealth()).toBe("ok");
+  });
+
+  it("unsubscribes cleanly", () => {
+    const win = makeFakeWindow();
+    const stop = watchForOtherTabs(win.target);
+    stop();
+    expect(win.isListening()).toBe(false);
   });
 });
 

@@ -81,6 +81,20 @@ export function addGraveyardEntry(
   return next;
 }
 
+/** Replaces the whole Graveyard -- importing a save file (issue #142). Returns false if storage
+ * refused the write. */
+export function replaceGraveyard(
+  entries: GraveyardEntry[],
+  storage: Storage = globalThis.localStorage,
+): boolean {
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Wipes every recorded death -- part of the app-wide hard reset (see App.tsx's handleHardReset
  * and issue #50), irreversible like the rest of it. */
 export function clearGraveyard(storage: Storage = globalThis.localStorage): void {
