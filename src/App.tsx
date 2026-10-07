@@ -31,13 +31,14 @@ import {
   isOverworldTerrain,
   type Climate,
 } from "./data/hexTables.ts";
-/** Issue #99: the Sewers' own `DUNGEON_TYPES` roll number -- the Fortress sub-roll names the type
- * outright, so it bypasses `DUNGEON_TYPE_BY_TERRAIN` entirely. */
-const SEWERS_TYPE_ROLL = 11;
 import { rollDie } from "./engine/dice.ts";
 import { clearSession, loadSession, saveSession, type LiveRun } from "./engine/session.ts";
 import { addGraveyardEntry, clearGraveyard, type TownDeathCause } from "./engine/graveyard.ts";
 import { applyZombieRevival, rollMutation, zombieRevivalHp } from "./engine/mutations.ts";
+
+/** Issue #99: the Sewers' own `DUNGEON_TYPES` roll number -- the Fortress sub-roll names the type
+ * outright, so it bypasses `DUNGEON_TYPE_BY_TERRAIN` entirely. */
+const SEWERS_TYPE_ROLL = 11;
 
 // Home is just another hex, rendered by WorldScreen like any other City -- there's no separate
 // "town" screen anymore (see per-hex dungeon persistence / Town-Square unification in CLAUDE.md).
