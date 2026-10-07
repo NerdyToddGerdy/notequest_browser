@@ -312,7 +312,7 @@ export function CharacterCreationScreen({
 
           <div className={styles.tracks}>
             {needsWorldClimate && (
-              <section>
+              <section className={styles.worldTrack}>
                 <h2 className={styles.trackTitle}>
                   <span className={styles.trackIndex}>—</span>
                   World

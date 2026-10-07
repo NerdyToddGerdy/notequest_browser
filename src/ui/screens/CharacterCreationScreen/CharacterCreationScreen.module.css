@@ -148,6 +148,25 @@
   grid-template-columns: 1fr 1fr;
   gap: clamp(20px, 3vw, 32px);
 }
+/* World (first character only) spans the full row, so Race and Class -- the two rolls -- sit side
+   by side beneath it. In a column of its own it left Class alone under it with an empty half-row
+   beside. Its note and toggles share one line where there's room, to keep the row short. */
+.worldTrack {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 20px;
+}
+.tracks .worldTrack > * {
+  margin: 0;
+}
+@media (max-width: 860px) {
+  .worldTrack {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+  }
+}
 @media (max-width: 620px) {
   .tracks {
     grid-template-columns: 1fr;

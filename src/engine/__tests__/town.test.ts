@@ -23,6 +23,9 @@ import {
   canLearnRandomSpell,
   canRemoveCurse,
   canRest,
+  restBlockReason,
+  torchBlockReason,
+  provisionBlockReason,
   canUseForgottenGods,
   castFly,
   castSpell,
@@ -91,6 +94,51 @@ function makeResources(overrides: Partial<AdventurerResources> = {}): Adventurer
     ...overrides,
   };
 }
+
+describe("restBlockReason / torchBlockReason", () => {
+  it("names the missing coin before anything else", () => {
+    expect(restBlockReason(makeResources({ coins: 0, hp: 10, maxHp: 20 }))).toBe(
+      "You need 1 coin.",
+    );
+    expect(torchBlockReason(makeResources({ coins: 0, torches: 3 }))).toBe("You need 1 coin.");
+  });
+
+  it("says when there's nothing to rest off", () => {
+    expect(
+      restBlockReason(
+        makeResources({ coins: 5, hp: 20, maxHp: 20, spellUses: { 1: 3 }, maxSpellUses: { 1: 3 } }),
+      ),
+    ).toBe("You're already at full HP and spells.");
+  });
+
+  it("lets a Champion rest without a coin", () => {
+    expect(restBlockReason(makeResources({ coins: 0, hp: 10, maxHp: 20 }), true)).toBeNull();
+  });
+
+  it("says when the torch bag is full, even with no coins to spend", () => {
+    expect(torchBlockReason(makeResources({ coins: 0, torches: 10 }))).toBe(
+      "You're carrying the most you can: 10.",
+    );
+  });
+
+  it("says when the provision sack is full", () => {
+    expect(provisionBlockReason(makeResources({ coins: 5, provisions: 20 }))).toBe(
+      "You're carrying the most you can: 20.",
+    );
+    expect(provisionBlockReason(makeResources({ coins: 0, provisions: 3 }))).toBe(
+      "You need 1 coin.",
+    );
+    expect(provisionBlockReason(makeResources({ coins: 1, provisions: 3 }))).toBeNull();
+  });
+
+  it("is null exactly when the action is available", () => {
+    const ok = makeResources({ coins: 5, hp: 10, maxHp: 20, torches: 3 });
+    expect(restBlockReason(ok)).toBeNull();
+    expect(canRest(ok)).toBe(true);
+    expect(torchBlockReason(ok)).toBeNull();
+    expect(canBuyTorch(ok)).toBe(true);
+  });
+});
 
 describe("canRest / rest", () => {
   it("requires at least 1 coin", () => {
