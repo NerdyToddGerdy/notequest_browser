@@ -153,6 +153,16 @@
 .clickableHex:hover polygon {
   filter: brightness(1.2);
 }
+/* Keyboard focus (issue #143). Styled on the polygon, overriding its stroke attribute -- an outline
+   on the <g> itself would draw a rectangle around the hex's bounding box. */
+.clickableHex:focus {
+  outline: none;
+}
+.clickableHex:focus-visible polygon {
+  stroke: var(--focus);
+  stroke-width: 4px;
+  stroke-dasharray: none;
+}
 
 .hexLabel {
   font-family: var(--font-body);

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { isArrowKey, nextCellInDirection } from "../../mapKeyboard.ts";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import {
   CITY_OR_FORTRESS,
@@ -268,6 +269,25 @@ const LOCATION_LABEL: Record<LocationKind, string> = {
   mandolateFortress: "Fortress of King Mandolate",
   peanuts: "",
 };
+
+/** What a screen reader hears for one map hex (issue #143) -- the same facts the badges and outline
+ * show sighted players, plus what Enter will do. */
+function hexAriaLabel(hex: {
+  title: string;
+  terrain: string | null;
+  isPlayer: boolean;
+  canTravelHere: boolean;
+  dungeonStatus: string;
+  noAffinityHere: boolean;
+}): string {
+  const parts = [hex.terrain ? `${hex.title}, ${hex.terrain}` : hex.title];
+  if (hex.isPlayer) parts.push("you are here");
+  if (hex.dungeonStatus === "beaten") parts.push("dungeon cleared");
+  else if (hex.dungeonStatus !== "none") parts.push("dungeon");
+  if (hex.noAffinityHere) parts.push("your race is not welcome");
+  parts.push(hex.canTravelHere ? "press Enter to travel here" : "press Enter to inspect");
+  return parts.join(", ");
+}
 
 export function WorldScreen({
   character,
@@ -1388,6 +1408,33 @@ export function WorldScreen({
     () => knownCoords.map((c) => ({ coord: c, pixel: axialToPixel(c) })),
     [knownCoords],
   );
+
+  // Keyboard play (issue #143): the map is one tab stop, not one per hex -- tabbing through every
+  // known hex would be unusable. The stop starts on the player, the arrow keys move it to the
+  // nearest hex in that direction (moving focus only, never acting), and Enter/Space does exactly
+  // what a click does. `mapFocusKey` falls back to the player's hex whenever it points at nothing.
+  const [mapFocusKey, setMapFocusKey] = useState<string | null>(null);
+  const hexRefs = useRef(new Map<string, SVGGElement>());
+  const mapCells = useMemo(
+    () => pixels.map(({ coord, pixel }) => ({ key: hexKey(coord), x: pixel.x, y: pixel.y })),
+    [pixels],
+  );
+  const tabStopKey =
+    mapFocusKey && mapCells.some((c) => c.key === mapFocusKey) ? mapFocusKey : hexKey(world.player);
+
+  function handleHexKeyDown(e: React.KeyboardEvent<SVGGElement>, coord: HexCoord) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleHexClick(coord);
+      return;
+    }
+    if (!isArrowKey(e.key)) return;
+    e.preventDefault();
+    const next = nextCellInDirection(mapCells, hexKey(coord), e.key);
+    if (!next) return;
+    setMapFocusKey(next);
+    hexRefs.current.get(next)?.focus();
+  }
   const naturalViewBox: ViewBox = useMemo(() => {
     const minX = Math.min(...pixels.map((p) => p.pixel.x)) - HEX_SIZE;
     const maxX = Math.max(...pixels.map((p) => p.pixel.x)) + HEX_SIZE;
@@ -1664,11 +1711,31 @@ export function WorldScreen({
                 // badges already claim all four) -- a forbidden hex instead gets its own dashed,
                 // danger-colored outline, visible at a glance without adding a 5th tiny glyph.
                 const noAffinityHere = !hasAffinity(character.race.name, tile.location);
+                const key = hexKey(coord);
+                const canTravelHere =
+                  neighborCoords.some((n) => n.q === coord.q && n.r === coord.r) &&
+                  canTravelTo(tile, coord);
                 return (
                   <g
-                    key={hexKey(coord)}
+                    key={key}
+                    ref={(el) => {
+                      if (el) hexRefs.current.set(key, el);
+                      else hexRefs.current.delete(key);
+                    }}
                     className={styles.clickableHex}
+                    role="button"
+                    tabIndex={key === tabStopKey ? 0 : -1}
+                    aria-label={hexAriaLabel({
+                      title: label || TERRAIN_LABEL[tile.terrain],
+                      terrain: label ? TERRAIN_LABEL[tile.terrain] : null,
+                      isPlayer,
+                      canTravelHere,
+                      dungeonStatus,
+                      noAffinityHere,
+                    })}
                     onClick={() => handleHexClick(coord)}
+                    onKeyDown={(e) => handleHexKeyDown(e, coord)}
+                    onFocus={() => setMapFocusKey(key)}
                   >
                     {noAffinityHere && <title>Your race is not welcome here</title>}
                     <polygon
