@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState } from "react";
-import { isArrowKey, nextCellInDirection } from "../../mapKeyboard.ts";
+import { useMemo, useState } from "react";
 import type { CreatedCharacter } from "../../../data/types.ts";
 import {
   CITY_OR_FORTRESS,
@@ -11,8 +10,6 @@ import {
   TERRAIN_LABEL,
   travelCost,
   travelCostMultiplier,
-  type LocationKind,
-  type Terrain,
 } from "../../../data/hexTables.ts";
 import { hasAffinity, CULTURE_BY_LOCATION, type CityCulture } from "../../../data/affinity.ts";
 import {
@@ -133,26 +130,16 @@ import { ConfirmDialog } from "../../components/ConfirmDialog/ConfirmDialog.tsx"
 import { EventPanel } from "../../components/EventPanel/EventPanel.tsx";
 import { HexInspector } from "../../components/HexInspector/HexInspector.tsx";
 import { PortalPanel } from "../../components/PortalPanel/PortalPanel.tsx";
-import { useZoomGesture } from "../../hooks/useZoomGesture.ts";
 import { TownScreen } from "../TownScreen/TownScreen.tsx";
 import { Footer } from "../../components/Footer/Footer.tsx";
+import { HexMap } from "../../components/HexMap/HexMap.tsx";
+import { LOCATION_LABEL, type ViewBox } from "../../components/HexMap/hexGeometry.ts";
 import styles from "./WorldScreen.module.css";
-
-interface ViewBox {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
 
 /** How many chained portals (roll 15's golden room, whose only exit is a second portal) are resolved
  * before the chain simply stops and reports where it left the player. A guard, not a rule -- the
  * chance of stacking even three is under 1%. */
 const MAX_PORTAL_CHAIN = 4;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 export interface WorldScreenProps {
   character: CreatedCharacter;
@@ -196,97 +183,6 @@ export interface WorldScreenProps {
    * of `LOCATION_LABEL`. */
   onCharacterDied: (cause: TownDeathCause, place: string) => void;
   onHardReset: () => void;
-}
-
-const HEX_SIZE = 44;
-
-function axialToPixel(c: HexCoord): { x: number; y: number } {
-  return {
-    x: HEX_SIZE * (Math.sqrt(3) * c.q + (Math.sqrt(3) / 2) * c.r),
-    y: HEX_SIZE * (1.5 * c.r),
-  };
-}
-
-function hexPolygonPoints(center: { x: number; y: number }, size: number): string {
-  const points: string[] = [];
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 180) * (60 * i - 30); // pointy-top
-    points.push(`${center.x + size * Math.cos(angle)},${center.y + size * Math.sin(angle)}`);
-  }
-  return points.join(" ");
-}
-
-const TERRAIN_FILL: Record<Terrain, string> = {
-  plain: "#cbb686",
-  mountain: "#6b5c46",
-  forest: "#2f4a2e",
-  swamp: "#4a5a3a",
-  desert: "#d9b56a",
-  water: "#2a4a5e",
-  glacier: "#bfe3ec",
-  tundra: "#8fa3ab",
-  // Other Worlds (issue #105) -- each realm's palette reads as its own place at a glance: Hell hot
-  // and dark, Pesadelum bruised, Candy World sugary.
-  magma: "#8c2f14",
-  seaOfBlood: "#5c1a1e",
-  forestOfImpaled: "#3b2b39",
-  plainOfThorns: "#5a4550",
-  milkShakeSea: "#e6c9d8",
-  lollipopForest: "#b5628f",
-  marshmallowMountain: "#e8dcd2",
-  caramelPlain: "#c98f4e",
-};
-
-/** City/Fortress/Ruins/Rocks and (since issue #21) Portal are interactive -- everything else
- * (Oasis/Volcano/Reef/Thin Ice/"nothing") renders as an inert flavor label, see CLAUDE.md's
- * Hexploring the World note. */
-const LOCATION_LABEL: Record<LocationKind, string> = {
-  orcCity: "Orc City",
-  orcFortress: "Orc Fortress",
-  goblinCity: "Goblin City",
-  humanCity: "Human City",
-  humanFortress: "Human Fortress",
-  dwarvenCity: "Dwarven City",
-  dwarvenFortress: "Dwarven Fortress",
-  elvenCity: "Elven City",
-  elvenFortress: "Elven Fortress",
-  gnomeCity: "Gnome City",
-  ruins: "Ruins",
-  rocks: "Rocks",
-  volcano: "Volcano",
-  oasis: "Oasis",
-  portal: "Portal",
-  reef: "Reef",
-  thinIce: "Thin Ice",
-  nothing: "",
-  // Other Worlds (issue #105).
-  demonCity: "Demon City",
-  cityOfSurvivors: "City of Survivors",
-  denseFog: "Dense Fog",
-  abandonedHouse: "Abandoned House",
-  goblinFortress: "Goblin Fortress",
-  chocolateCity: "Chocolate City",
-  mandolateFortress: "Fortress of King Mandolate",
-  peanuts: "",
-};
-
-/** What a screen reader hears for one map hex (issue #143) -- the same facts the badges and outline
- * show sighted players, plus what Enter will do. */
-function hexAriaLabel(hex: {
-  title: string;
-  terrain: string | null;
-  isPlayer: boolean;
-  canTravelHere: boolean;
-  dungeonStatus: string;
-  noAffinityHere: boolean;
-}): string {
-  const parts = [hex.terrain ? `${hex.title}, ${hex.terrain}` : hex.title];
-  if (hex.isPlayer) parts.push("you are here");
-  if (hex.dungeonStatus === "beaten") parts.push("dungeon cleared");
-  else if (hex.dungeonStatus !== "none") parts.push("dungeon");
-  if (hex.noAffinityHere) parts.push("your race is not welcome");
-  parts.push(hex.canTravelHere ? "press Enter to travel here" : "press Enter to inspect");
-  return parts.join(", ");
 }
 
 export function WorldScreen({
@@ -398,17 +294,9 @@ export function WorldScreen({
   /** Null = today's auto-fit-everything behavior; set the instant the player zooms or drag-pans,
    * same "override until Reset View" shape DungeonMap's own `scale` state uses. */
   const [viewBoxOverride, setViewBoxOverride] = useState<ViewBox | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-  const dragOrigin = useRef<{
-    clientX: number;
-    clientY: number;
-    base: ViewBox;
-    inverse: DOMMatrix;
-  } | null>(null);
-  /** Mirrors DungeonMap's own ref: true once a pointer-down has moved past the click-vs-drag
-   * threshold, checked (and reset) by the capturing click handler below so a drag-to-pan doesn't
-   * also select whatever hex the pointer happened to release over. */
-  const didDrag = useRef(false);
+  /** Which hex holds the map's single keyboard tab stop (issue #143) -- see `HexMap`. Kept here,
+   * with `viewBoxOverride`, so both survive a visit to the Town Square, which unmounts the map. */
+  const [mapFocusKey, setMapFocusKey] = useState<string | null>(null);
   const currentTile: HexTile | undefined = world.tiles[hexKey(world.player)];
   const neighborCoords = hexNeighbors(world.player);
   const inCityOrFortress =
@@ -1393,149 +1281,6 @@ export function WorldScreen({
     return result;
   }
 
-  // Computed unconditionally (mirroring DungeonMap's own useMemo-before-early-return shape) since
-  // useZoomGesture below is a hook and must run every render, including while showTown is true and
-  // TownScreen is what actually renders -- the resulting values are simply unused in that case.
-  const knownCoords: HexCoord[] = useMemo(
-    () =>
-      Object.keys(world.tiles).map((key) => {
-        const [q, r] = key.split(",").map(Number);
-        return { q: q!, r: r! };
-      }),
-    [world.tiles],
-  );
-  const pixels = useMemo(
-    () => knownCoords.map((c) => ({ coord: c, pixel: axialToPixel(c) })),
-    [knownCoords],
-  );
-
-  // Keyboard play (issue #143): the map is one tab stop, not one per hex -- tabbing through every
-  // known hex would be unusable. The stop starts on the player, the arrow keys move it to the
-  // nearest hex in that direction (moving focus only, never acting), and Enter/Space does exactly
-  // what a click does. `mapFocusKey` falls back to the player's hex whenever it points at nothing.
-  const [mapFocusKey, setMapFocusKey] = useState<string | null>(null);
-  const hexRefs = useRef(new Map<string, SVGGElement>());
-  const mapCells = useMemo(
-    () => pixels.map(({ coord, pixel }) => ({ key: hexKey(coord), x: pixel.x, y: pixel.y })),
-    [pixels],
-  );
-  const tabStopKey =
-    mapFocusKey && mapCells.some((c) => c.key === mapFocusKey) ? mapFocusKey : hexKey(world.player);
-
-  function handleHexKeyDown(e: React.KeyboardEvent<SVGGElement>, coord: HexCoord) {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      handleHexClick(coord);
-      return;
-    }
-    if (!isArrowKey(e.key)) return;
-    e.preventDefault();
-    const next = nextCellInDirection(mapCells, hexKey(coord), e.key);
-    if (!next) return;
-    setMapFocusKey(next);
-    hexRefs.current.get(next)?.focus();
-  }
-  const naturalViewBox: ViewBox = useMemo(() => {
-    const minX = Math.min(...pixels.map((p) => p.pixel.x)) - HEX_SIZE;
-    const maxX = Math.max(...pixels.map((p) => p.pixel.x)) + HEX_SIZE;
-    const minY = Math.min(...pixels.map((p) => p.pixel.y)) - HEX_SIZE;
-    const maxY = Math.max(...pixels.map((p) => p.pixel.y)) + HEX_SIZE;
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  }, [pixels]);
-  const baseViewBox = viewBoxOverride ?? naturalViewBox;
-
-  // Zoom (wheel + pinch, see useZoomGesture) -- shrinks/grows the SVG viewBox around the client-space
-  // focal point, converted to SVG user-space via getScreenCTM().inverse() (correctly accounts for
-  // preserveAspectRatio letterboxing). Clamped between ~4 hexes wide and 1.5x the natural full-fit
-  // width so zooming out can never show *less* structure than "lost, reset" already covers via the
-  // Reset View button.
-  useZoomGesture(svgRef, ({ factor, clientX, clientY }) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return;
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const focal = pt.matrixTransform(ctm.inverse());
-    setViewBoxOverride((prev) => {
-      const base = prev ?? naturalViewBox;
-      const minW = HEX_SIZE * Math.sqrt(3) * 4;
-      const maxW = naturalViewBox.w * 1.5;
-      const newW = clamp(base.w / factor, minW, maxW);
-      const ratio = newW / base.w;
-      const newH = base.h * ratio;
-      return {
-        x: focal.x - (focal.x - base.x) * ratio,
-        y: focal.y - (focal.y - base.y) * ratio,
-        w: newW,
-        h: newH,
-      };
-    });
-  });
-
-  // Click-and-drag panning (mouse only -- there's no native scroll to fall back on for an inline SVG
-  // the way DungeonMap's `.scroll` div gets for touch, but that's out of scope here same as there).
-  function handlePointerDown(e: React.PointerEvent<SVGSVGElement>) {
-    if (e.pointerType !== "mouse" || e.button !== 0) return;
-    const svg = svgRef.current;
-    if (!svg) return;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return;
-    dragOrigin.current = {
-      clientX: e.clientX,
-      clientY: e.clientY,
-      base: baseViewBox,
-      inverse: ctm.inverse(),
-    };
-  }
-
-  function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
-    const origin = dragOrigin.current;
-    const svg = svgRef.current;
-    if (!origin || !svg) return;
-    const dx = e.clientX - origin.clientX;
-    const dy = e.clientY - origin.clientY;
-    if (!didDrag.current && Math.hypot(dx, dy) > 4) {
-      didDrag.current = true;
-      // Deferred until movement is confirmed, same reasoning as DungeonMap: capturing on
-      // pointerdown itself would retarget the eventual click away from whatever hex it lands on.
-      svg.setPointerCapture(e.pointerId);
-    }
-    if (!didDrag.current) return;
-    const startPt = svg.createSVGPoint();
-    startPt.x = origin.clientX;
-    startPt.y = origin.clientY;
-    const curPt = svg.createSVGPoint();
-    curPt.x = e.clientX;
-    curPt.y = e.clientY;
-    const startUser = startPt.matrixTransform(origin.inverse);
-    const curUser = curPt.matrixTransform(origin.inverse);
-    const deltaX = curUser.x - startUser.x;
-    const deltaY = curUser.y - startUser.y;
-    setViewBoxOverride({
-      x: origin.base.x - deltaX,
-      y: origin.base.y - deltaY,
-      w: origin.base.w,
-      h: origin.base.h,
-    });
-  }
-
-  function handlePointerUp(e: React.PointerEvent<SVGSVGElement>) {
-    dragOrigin.current = null;
-    if (svgRef.current?.hasPointerCapture(e.pointerId)) {
-      svgRef.current.releasePointerCapture(e.pointerId);
-    }
-  }
-
-  function handleClickCapture(e: React.MouseEvent<SVGSVGElement>) {
-    if (didDrag.current) {
-      didDrag.current = false;
-      e.stopPropagation();
-      e.preventDefault();
-    }
-  }
-
   /** Other Worlds (issue #105) -- the hazard and the realm's own Event share the portal overlay's
    * slot, since all three are interruptions that must be resolved before the map is usable again. */
   const locationOverlay = locationEffect ? (
@@ -1671,8 +1416,6 @@ export function WorldScreen({
     );
   }
 
-  const viewBox = `${baseViewBox.x} ${baseViewBox.y} ${baseViewBox.w} ${baseViewBox.h}`;
-
   return (
     <div className={styles.page}>
       <div className={`${styles.leftCol} screen-sheet`}>
@@ -1685,172 +1428,19 @@ export function WorldScreen({
 
         <div className={styles.mainCol}>
           <div className={styles.mapCard}>
-            <svg
-              ref={svgRef}
-              className={styles.mapSvg}
-              viewBox={viewBox}
-              preserveAspectRatio="xMidYMid meet"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              onClickCapture={handleClickCapture}
-            >
-              {pixels.map(({ coord, pixel }) => {
-                const tile = world.tiles[hexKey(coord)]!;
-                const isPlayer = coord.q === world.player.q && coord.r === world.player.r;
-                const isSelected =
-                  !isPlayer &&
-                  selectedHex != null &&
-                  coord.q === selectedHex.q &&
-                  coord.r === selectedHex.r;
-                const label = tile.name ?? (tile.location ? LOCATION_LABEL[tile.location] : "");
-                const { status: dungeonStatus, hasRemains } = dungeonInfoFor(tile);
-                const political = politicalStatusFor(world, coord);
-                // Issue #81: no corner slot left uncrowded (dungeon/remains/building/political
-                // badges already claim all four) -- a forbidden hex instead gets its own dashed,
-                // danger-colored outline, visible at a glance without adding a 5th tiny glyph.
-                const noAffinityHere = !hasAffinity(character.race.name, tile.location);
-                const key = hexKey(coord);
-                const canTravelHere =
-                  neighborCoords.some((n) => n.q === coord.q && n.r === coord.r) &&
-                  canTravelTo(tile, coord);
-                return (
-                  <g
-                    key={key}
-                    ref={(el) => {
-                      if (el) hexRefs.current.set(key, el);
-                      else hexRefs.current.delete(key);
-                    }}
-                    className={styles.clickableHex}
-                    role="button"
-                    tabIndex={key === tabStopKey ? 0 : -1}
-                    aria-label={hexAriaLabel({
-                      title: label || TERRAIN_LABEL[tile.terrain],
-                      terrain: label ? TERRAIN_LABEL[tile.terrain] : null,
-                      isPlayer,
-                      canTravelHere,
-                      dungeonStatus,
-                      noAffinityHere,
-                    })}
-                    onClick={() => handleHexClick(coord)}
-                    onKeyDown={(e) => handleHexKeyDown(e, coord)}
-                    onFocus={() => setMapFocusKey(key)}
-                  >
-                    {noAffinityHere && <title>Your race is not welcome here</title>}
-                    <polygon
-                      points={hexPolygonPoints(pixel, HEX_SIZE - 2)}
-                      fill={TERRAIN_FILL[tile.terrain]}
-                      stroke={
-                        isPlayer
-                          ? "var(--gold-bright)"
-                          : isSelected
-                            ? "var(--gold)"
-                            : noAffinityHere
-                              ? "var(--danger)"
-                              : "rgba(0,0,0,0.4)"
-                      }
-                      strokeWidth={isPlayer || isSelected ? 4 : noAffinityHere ? 2.5 : 1.5}
-                      strokeDasharray={
-                        noAffinityHere && !isPlayer && !isSelected ? "4 2" : undefined
-                      }
-                    />
-                    {label && (
-                      <text
-                        x={pixel.x}
-                        y={pixel.y + 4}
-                        textAnchor="middle"
-                        className={styles.hexLabel}
-                      >
-                        {label}
-                      </text>
-                    )}
-                    {dungeonStatus !== "none" && (
-                      <text
-                        x={pixel.x + 17}
-                        y={pixel.y - 18}
-                        textAnchor="middle"
-                        className={
-                          dungeonStatus === "beaten"
-                            ? styles.dungeonBadgeCleared
-                            : styles.dungeonBadgeUnfinished
-                        }
-                      >
-                        <title>
-                          {dungeonStatus === "beaten"
-                            ? "Dungeon cleared"
-                            : dungeonStatus === "found"
-                              ? "A dungeon has been found here"
-                              : "Unfinished dungeon"}
-                        </title>
-                        {dungeonStatus === "beaten" ? "✓" : "⚔"}
-                      </text>
-                    )}
-                    {hasRemains && (
-                      <text
-                        x={pixel.x - 17}
-                        y={pixel.y - 18}
-                        textAnchor="middle"
-                        className={styles.remainsBadge}
-                      >
-                        <title>
-                          A fallen adventurer&apos;s remains are still here, unrecovered
-                        </title>
-                        💀
-                      </text>
-                    )}
-                    {tile.building && (
-                      <text
-                        x={pixel.x + 17}
-                        y={pixel.y + 18}
-                        textAnchor="middle"
-                        className={styles.buildingBadge}
-                      >
-                        <title>{tile.building}</title>
-                        🏛
-                      </text>
-                    )}
-                    {political && (
-                      <text
-                        x={pixel.x - 17}
-                        y={pixel.y + 18}
-                        textAnchor="middle"
-                        className={styles.politicalBadge}
-                      >
-                        <title>
-                          {political === "ally"
-                            ? "Allied"
-                            : political === "vassal"
-                              ? "Vassal"
-                              : "Enemy"}
-                        </title>
-                        {political === "ally" ? "🤝" : political === "vassal" ? "👑" : "🗡"}
-                      </text>
-                    )}
-                    {isPlayer && (
-                      <text
-                        x={pixel.x}
-                        y={pixel.y - 14}
-                        textAnchor="middle"
-                        className={styles.playerLabel}
-                      >
-                        You
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
-
-            {viewBoxOverride && (
-              <button
-                type="button"
-                className={styles.resetViewBtn}
-                onClick={() => setViewBoxOverride(null)}
-              >
-                Reset View
-              </button>
-            )}
+            <HexMap
+              world={world}
+              raceName={character.race.name}
+              selectedHex={selectedHex}
+              neighborCoords={neighborCoords}
+              canTravelTo={canTravelTo}
+              dungeonInfoFor={dungeonInfoFor}
+              onHexClick={handleHexClick}
+              viewBoxOverride={viewBoxOverride}
+              onViewBoxOverrideChange={setViewBoxOverride}
+              focusKey={mapFocusKey}
+              onFocusKeyChange={setMapFocusKey}
+            />
 
             {/* Events on Travel (issue #91) -- takes the overlay slot outright while pending, since
                 it's a genuine interruption (nothing is spent or applied until it's resolved) and
