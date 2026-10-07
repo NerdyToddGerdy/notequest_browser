@@ -20,6 +20,22 @@ const pkg = JSON.parse(
 export default defineConfig({
   base,
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Issue #145: third-party code (React, Immer) in its own chunk. Its hash only changes when a
+        // dependency does, so after an ordinary release a returning player re-downloads just the
+        // app's own chunk -- and neither chunk trips Vite's 500 kB warning any more.
+        //
+        // Deliberately *not* React.lazy per screen. On GitHub Pages every deploy replaces the old
+        // hashed files, so a tab opened before a release would request a screen chunk that no
+        // longer exists and crash on navigation. Both chunks here load up front, so that can't happen.
+        manualChunks(id) {
+          if (id.includes("node_modules")) return "vendor";
+        },
+      },
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
