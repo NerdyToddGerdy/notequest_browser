@@ -279,6 +279,11 @@
   transform: scale(1.14);
   box-shadow: 0 3px 14px rgba(184, 134, 47, 0.55);
 }
+.room:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  z-index: 2;
+}
 .doorBtn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

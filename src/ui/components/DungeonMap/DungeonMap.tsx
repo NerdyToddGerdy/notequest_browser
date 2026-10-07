@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { DungeonState, LockChoice } from "../../../engine/dungeonState.ts";
+import type { DungeonState, LockChoice, SegmentState } from "../../../engine/dungeonState.ts";
 import { classifyDoorOpen, DIR_VEC, edgePoint, reachableSegIds } from "../../../engine/dungeon.ts";
 import { rollDie } from "../../../engine/dice.ts";
 import { OPEN_DOOR_TABLE, TYPE_LABELS, type SegmentType } from "../../../data/dungeonTypes.ts";
@@ -60,6 +60,17 @@ export interface DungeonMapProps {
 type DoorFlow =
   | { kind: "rolling"; segId: number; doorIdx: number; x: number; y: number }
   | { kind: "lockChoice"; segId: number; doorIdx: number; x: number; y: number; doorRoll: number };
+
+/** What a screen reader hears for one segment (issue #143) -- the same facts its icon and badges
+ * show. */
+function segmentAriaLabel(seg: SegmentState, isCurrent: boolean, isReachable: boolean): string {
+  const parts = [`${seg.isEntrance ? "Entrance, " : ""}${TYPE_LABELS[seg.type]} S${seg.id}`];
+  if (isCurrent) parts.push("you are here");
+  if (seg.monsters && !seg.monstersDefeated) parts.push("monsters");
+  if (seg.roomContent?.secretPassage && !seg.secretPassageSearched) parts.push("secret passage");
+  if (!isReachable) parts.push("out of reach");
+  return parts.join(", ");
+}
 
 export function DungeonMap({
   state,
@@ -332,7 +343,20 @@ export function DungeonMap({
                   height: seg.h,
                 }}
                 title={`${seg.isEntrance ? "Entrance " : ""}${TYPE_LABELS[seg.type]}${seg.flavor ? ` — ${seg.flavor}` : ""}${isReachable ? "" : " (out of reach -- walk there first)"}`}
+                // Keyboard play (issue #143). A <div> with role="button" rather than a <button>,
+                // since a segment holds block-level children. Only reachable segments are tab stops,
+                // matching the click handler -- an unreachable one can't be acted on either way.
+                role="button"
+                tabIndex={isReachable ? 0 : -1}
+                aria-disabled={!isReachable}
+                aria-current={seg.id === state.currentSegId ? "location" : undefined}
+                aria-label={segmentAriaLabel(seg, seg.id === state.currentSegId, isReachable)}
                 onClick={() => isReachable && onSelectSegment(seg.id)}
+                onKeyDown={(e) => {
+                  if (!isReachable || (e.key !== "Enter" && e.key !== " ")) return;
+                  e.preventDefault();
+                  onSelectSegment(seg.id);
+                }}
               >
                 <span className={styles.roomId}>S{seg.id}</span>
                 <div className={styles.roomIcon}>
