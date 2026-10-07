@@ -1629,7 +1629,7 @@ export function WorldScreen({
   return (
     <div className={styles.page}>
       <div className={`${styles.leftCol} screen-sheet`}>
-        <header className={styles.wordmark}>
+        <header className="screen-wordmark">
           <h1>
             <small>GerdQuest</small>
             Realm of Depths

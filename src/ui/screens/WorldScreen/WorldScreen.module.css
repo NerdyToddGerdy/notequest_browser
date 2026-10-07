@@ -11,42 +11,7 @@
   padding: 10px;
   height: 100dvh;
 }
-@media (max-width: 900px) {
-  /* Stacked: the sidebar can't hold a useful column at this width, so the box scrolls instead. */
-  .page {
-    height: auto;
-    min-height: 100dvh;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-    overflow: visible;
-  }
-}
 
-.wordmark {
-  position: relative;
-  text-align: center;
-  margin-bottom: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px dashed var(--ink-soft);
-}
-@media (max-width: 900px) {
-  .leftCol,
-  .side,
-  .page > footer {
-    grid-column: 1;
-    grid-row: auto;
-    overflow: visible;
-  }
-}
-.wordmark h1 {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: clamp(1.6rem, 4vw, 2.1rem);
-  letter-spacing: 0.04em;
-  margin: 0;
-  color: var(--gold);
-  text-wrap: balance;
-}
 /* Area 2: the map, filling the four rows under the title. `min-height: 0` is what lets it scroll
    inside its own cell rather than stretching the page. */
 .leftCol {
@@ -344,11 +309,24 @@
    element so the accessible name and the document title are the same complete phrase the footer
    credit uses. Rendered small above the installment name so the shared prefix stays visually
    consistent across titles in the series. */
-.wordmark h1 small {
-  display: block;
-  font-size: 0.38em;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  opacity: 0.82;
-  margin-bottom: 0.15em;
+
+/* Stacked: the sidebar can't hold a useful column at this width, so the box scrolls instead.
+   Deliberately the last rules in the file -- they override `.page`, `.leftCol`, `.side` and
+   `.page > footer` at equal specificity, so they only win by coming after them. Placed above those
+   rules, the sidebar kept `grid-column: 2` on phones and crushed the map to a ~40px sliver. */
+@media (max-width: 900px) {
+  .page {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    overflow: visible;
+  }
+  .leftCol,
+  .side,
+  .page > footer {
+    grid-column: 1;
+    grid-row: auto;
+    overflow: visible;
+  }
 }
