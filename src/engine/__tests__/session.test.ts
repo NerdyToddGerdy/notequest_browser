@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { clearSession, loadSession, saveSession, type SessionState } from "../session.ts";
+import {
+  clearSession,
+  loadSession,
+  saveSession,
+  type LiveRun,
+  type SessionState,
+} from "../session.ts";
 import { createInitialDungeonState } from "../dungeonState.ts";
 import { createInitialWorldState, type WorldState } from "../hexState.ts";
 import type { CreatedCharacter } from "../../data/types.ts";
@@ -94,6 +100,7 @@ const FULL_SESSION: SessionState = {
   dungeonHistory: [{ id: "run-1", dungeon: createInitialDungeonState(), lastCharacterName: "Pip" }],
   activeRunId: "run-1",
   world: WORLD,
+  liveRun: null,
 };
 
 describe("loadSession", () => {
@@ -104,6 +111,7 @@ describe("loadSession", () => {
       dungeonHistory: [],
       activeRunId: null,
       world: null,
+      liveRun: null,
     });
   });
 
@@ -120,6 +128,7 @@ describe("loadSession", () => {
       dungeonHistory: [],
       activeRunId: null,
       world: null,
+      liveRun: null,
     });
   });
 
@@ -131,6 +140,7 @@ describe("loadSession", () => {
       dungeonHistory: [],
       activeRunId: null,
       world: null,
+      liveRun: null,
     });
   });
 
@@ -144,6 +154,7 @@ describe("loadSession", () => {
       dungeonHistory: [],
       activeRunId: null,
       world: null,
+      liveRun: null,
     });
   });
 
@@ -309,9 +320,39 @@ describe("saveSession", () => {
       dungeonHistory: FULL_SESSION.dungeonHistory,
       activeRunId: null,
       world: null,
+      liveRun: null,
     };
     saveSession(cleared, storage);
     expect(loadSession(storage)).toEqual(cleared);
+  });
+});
+
+describe("liveRun (issue #141)", () => {
+  const LIVE_RUN: LiveRun = {
+    runId: "run-2",
+    dungeon: { ...createInitialDungeonState(), hp: 3, alive: false },
+    forcedTypeRoll: 4,
+    noExit: true,
+    enteredFromTown: true,
+  };
+
+  it("round-trips the in-progress run so a reload resumes it exactly", () => {
+    const storage = makeFakeStorage();
+    saveSession({ ...FULL_SESSION, liveRun: LIVE_RUN }, storage);
+    expect(loadSession(storage).liveRun).toEqual(LIVE_RUN);
+  });
+
+  it("defaults to null for a save from before the field existed", () => {
+    const { liveRun: _omit, ...old } = FULL_SESSION; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const storage = makeFakeStorage({ "notequest:session": JSON.stringify(old) });
+    expect(loadSession(storage).liveRun).toBeNull();
+  });
+
+  it("drops a snapshot with no character left to resume it", () => {
+    const storage = makeFakeStorage({
+      "notequest:session": JSON.stringify({ ...FULL_SESSION, character: null, liveRun: LIVE_RUN }),
+    });
+    expect(loadSession(storage).liveRun).toBeNull();
   });
 });
 
@@ -325,6 +366,7 @@ describe("clearSession", () => {
       dungeonHistory: [],
       activeRunId: null,
       world: null,
+      liveRun: null,
     });
   });
 

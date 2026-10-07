@@ -112,6 +112,7 @@ test("Settings > Reset Everything wipes localStorage and returns to Character Cr
     dungeonHistory: [],
     activeRunId: null,
     world: null,
+    liveRun: null,
   });
   expect(storageAfterReset.graveyard).toBeNull();
 

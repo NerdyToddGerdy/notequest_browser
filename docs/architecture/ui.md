@@ -84,7 +84,7 @@ Component styling uses CSS Modules; shared tokens/fonts are global.
 
 `App.tsx` seeds four `useState` calls from one `loadSession()` on mount, then one `useEffect` re-persists the whole blob on any change.
 
-**`screen`/`selectedRunId` aren't persisted** — a reload resumes wherever `world.player` physically was, or Character Creation if there's no character.
+**`screen`/`selectedRunId` aren't persisted** — a reload resumes wherever `world.player` physically was, or Character Creation if there's no character. **The one exception is a dungeon run in progress:** `liveRun` (#141) brings a reload straight back into the run at its exact state. See [dungeon.md](dungeon.md).
 
 `handleNewAdventurer` nulls `character`/`resources`/`activeRunId` (leaving `dungeonHistory` untouched) — the persistence effect handles the rest.
 
