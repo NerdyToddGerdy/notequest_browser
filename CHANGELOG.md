@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.6.1] - 2026-10-09
+
+### Changed
+
+- **Franchise bible: _Idle Depths_ decisions recorded** (§5, §7). It uses no dice, no depleting
+  resource and no permadeath, and claims instincts (4), (5) and (6) instead; its setting is
+  deferred. Documentation only; nothing in _Realm of Depths_ changes.
+
 ## [4.6.0] - 2026-10-07
 
 ### Added
