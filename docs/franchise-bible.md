@@ -285,6 +285,16 @@ rather than a black box, applied to a genre that doesn't usually get it.
 Consequence worth planning for: visible tables mean the numbers must survive being looked at. Idle
 progression usually leans on curves that are only tolerable _because_ they're hidden.
 
+**Decided (2026-10-09):** _Idle Depths_ declined (1), (2) and (3). Dice don't suit an idle game's
+pacing: the party fights many times a second, unattended, and a roll is a moment you watch land.
+Supplies and torches are a _Realm of Depths_ clock, and one that ran out while you were away would
+punish the play the genre is built on. Permadeath would let one unattended wipe erase hours the
+player never saw; the run ends by choice instead (Return to Town), and Retire writes a hero into a
+Hall of Fame. It claims **(4), (5) and (6)**: the odds and the damage stack are shown from the code
+that rolls them; the Return to Town screen lists what outlives the run; and flavour-only text (enemy
+names, death lines) is marked as such in code and tested. The title's record of this, with reasons,
+is `docs/franchise-divergences.md` in its own repo.
+
 Naming caution: **Emberwick**, a cozy idle RPG about lanterns and gloom, already exists — the
 idle-RPG shelf is exactly where §2's availability check matters most.
 
@@ -385,10 +395,17 @@ Incremental / idle. A party that adventures while you're away.
 
 - **Origin** — original work, _inspired by_ Clickpocalypse II (§1.5). Not derivative; carries no
   attribution obligation, and must not carry a NoteQuest credit.
-- **The differentiator** — visible dice and visible tables in a genre that hides them (§5).
+- **The differentiator** — visible tables in a genre that hides them (§5.4): loot odds, crit odds
+  and the full damage stack, shown from the code that rolls them. No dice (§5, decided 2026-10-09).
+- **Instincts** — (4) bookkeeping made visible, (5) the world outlives the character, (6) honest
+  simplification.
+- **Run** — no depleting resource. A wipe returns the party to its checkpoint; Return to Town is a
+  chosen reset into renown, and what survives it is listed before you leave. Retire is the record of
+  the dead (the Hall of Fame).
+- **Party** — one hero to start, up to six.
 
-**Open:** setting; what the depleting resource is; whether a run ends permanently or prestiges;
-whether the party is one character or several.
+**Open:** setting, deferred (2026-10-09). §8.1 still applies: this is the cheapest place to start
+shared franchise lore.
 
 ### GerdQuest: Isle Raid — concept
 
